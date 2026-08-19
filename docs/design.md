@@ -55,8 +55,25 @@ Occasionally the event occurs (like MISERY's emission):
 
 This is what keeps the world from ever being memorized: monuments, their
 layouts, and their names re-roll with the world, while everything with an
-owner (your bunker, the factions' bases) carries forward. The map is never
+owner (your bunker, the factions' bunkers) carries forward. The map is never
 fully known, but the story of who holds what continues.
+
+## Faction war
+
+Faction war is part of this. Each faction has a bunker of its own, and the
+faction bunkers are THE persistent, consistent things as the world
+regenerates, exactly like the player's.
+
+- An enemy faction can raid you; you can raid them.
+- Their bunker stays the same across emissions, but the path there and back
+  might be different each time, because the world between the bunkers
+  re-rolled.
+
+So a rivalry survives any number of emissions: you know WHO your enemy is
+and what their bunker is like, but never what lies between you and them.
+The faction behavior itself (who raids whom, grudges, trade, war and peace)
+is the genome and acts systems from the authority map, proven in the
+survivalist mod.
 
 ## Monuments and timed events (from Rust)
 
