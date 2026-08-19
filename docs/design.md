@@ -113,6 +113,15 @@ the same while the layout varies; here the randomization goes further, and
 even the monument NAME is random. You never walk into a monument already
 knowing it.
 
+## Your people
+
+Your bunker's people run themselves by default, on the same genome and acts
+systems as every AI faction. The player can order them around as needed:
+orders are an override on a self-running crew, not a required management
+layer. Nothing falls apart because you did not micromanage; the Oregon Trail
+frame applies to them too: named companions who can come topside with you
+and die along the way.
+
 ## Death and difficulty
 
 Topside has a custom difficulty level, and the player controls how death
@@ -128,5 +137,5 @@ shading, AI-generated assets, on Bevy.
 
 ## Still open
 
-The remaining core-loop question: how the player relates to their own
-people (orders, or they run themselves while you live among them).
+The core-loop questions from the todo are all answered above. Open items
+live in docs/todo.md.
