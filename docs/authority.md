@@ -141,7 +141,7 @@ not writing it from scratch.
 
 | Priority | System | Lives in | Score | Authoritative for | Status |
 |---|---|---|---:|---|---|
-| 1 | World | topside | - | The one simulation state. Every fact about what exists now. | UNBUILT. Substrate and engine undecided (open question below). |
+| 1 | World | topside | - | The one simulation state. Every fact about what exists now. | UNBUILT. Decided 2026-08-19: 3D first person on Bevy (see Presentation below). |
 | 2 | Binder traits | modforge | - | The contract between each system and any world. One trait per system; observe and act only. | UNBUILT. The shape exists as ueforge doctrine (ViewportBinder, DamageBinder). |
 | 3 | Storyteller | modforge | - | All dramatic pacing. Randy Random and Mario Kart, the dread loop, incursion scheduling. | IN SURVIVALIST-MOD (incursion.rs, stranger.rs; dread loop and signal payoff live-verified there 2026-07-07). |
 | 4 | The edge | modforge | - | The one faucet. What enters the world, carrying what, sent by whom. | IN SURVIVALIST-MOD (edge spawn + march, all arrival kinds). |
@@ -155,13 +155,36 @@ not writing it from scratch.
 | 12 | Content registry | topside | - | Checked-in definitions the systems consume (items, structures, factions, incursion kinds, upgrade tracks, the story). Def -> registry -> use. | UNBUILT. |
 | 13 | Control plane | modforge | - | The one runtime inspection and op surface (HTTP server, op registry). | EXISTS in modforge; rated 9/10 in survivalist-mod. The first thing wired into topside per the runtime-control-http doctrine. |
 
+## Presentation (decided 2026-08-19)
+
+Topside is 3D, first person, low poly with cel shading, with AI-generated
+assets, built on Bevy.
+
+- First person because embodiment is the point: 2D top-down means selecting
+  a guy and clicking him to move, which does not feel like survival. Valheim
+  and its kin prove you FEEL survival in first person. Prior art for a living
+  faction simulation experienced from first person: STALKER's A-Life,
+  Mount & Blade.
+- The player IS one survivor. Their settlement's people run on the same
+  genome and acts systems as every AI camp; incursions are experienced from
+  the ground.
+- Low poly with cel shading because both styles are forgiving of
+  AI-generated meshes and textures, and Valheim proves low poly carries
+  survival atmosphere (lighting and sound do the work, not polygons). Cel
+  shading is a custom toon material in WGSL.
+- Bevy because topside links the modforge crate directly in one Rust
+  workspace with no engine boundary, and the Endless project already proved
+  Bevy plus WGSL experience in-house. Godot was the considered alternative,
+  rejected for the bridge it would put between the game and modforge.
+- AI-generated 3D assets arrive as glTF, which Bevy loads natively.
+
+The simulation layer stays camera-agnostic behind the binder traits; this
+decision bets only the presentation layer.
+
 ## Open questions
 
 Decisions this doc deliberately does not make yet:
 
-- The world substrate and engine for topside (what renders, what simulates
-  ticks). Everything above is engine-agnostic by construction; the binders
-  absorb this choice.
 - How much of each survivalist-mod system lifts cleanly versus needs a
   rewrite behind its binder trait. Answered per system when its row is
   started, by reading that code, not by assuming.
