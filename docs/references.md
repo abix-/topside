@@ -8,6 +8,7 @@ design.md will draw from this list.
 |---|---|---|
 | MISERY | Base expansion in a post-apocalyptic world, fighting for survival. The feel we loved first. | Hand-authored content that runs dry: 4 generators, identical repeating patterns; the loop is felt out and there is nothing else. |
 | Survivalist: Invisible Strain | The substrate our own survivalist-mod proved out: settlements, recruits, zombie apocalypse survival. | Too static without the mod; content instead of simulation. |
+| Survivalist (2013) | The original, and amazing: leading a growing community after the collapse, recruiting survivors with their own personalities, dealing with factions through trade, diplomacy, or force. Solo-dev proof of the community-leadership fantasy. | Top-down isometric distance from the world; scripted story beats that end; a world that waits for the player. |
 | Fallout Shelter | The pull of building up a shelter and its people; the bunker as home base. | Shallow loop, no world to be embodied in. |
 | The Bloodline | The shell: solo-dev, first person, your town that you build and recruit for, a world to explore. Proof the shape works at indie scale. | Too static: the world only does what the developer scripted. Topside puts a living simulation behind the same shell. |
 | Valheim | You FEEL survival because you are first person in 3D. Low poly carrying atmosphere through lighting and sound. Indie-scale proof of embodied survival plus base building. | World does not act on its own; content gates (biome bosses) are finite. |
