@@ -19,7 +19,9 @@ like survivalist-mod and misery-mod are, with one difference: those mods bind
 modforge systems into someone else's game, and topside binds them into a world
 it owns itself.
 
-The rule for where code goes:
+The rule for where code goes, stated once: anything generic, anything that
+could apply to other games or mods, goes in modforge. Only what is
+topside-only lives in this repo. In detail:
 
 - A system (the decisions: who attacks whom, what quality an item rolls, what
   crosses the edge, what offer a faction posts) lives in modforge. If it could
