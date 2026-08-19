@@ -9,6 +9,23 @@ boundaries live in authority.md; the games we mine live in references.md.
 You wake up in a bunker after a post-apocalyptic something. You know nothing.
 Go.
 
+## The goal
+
+The goal of this game is to make the player FEEL like they are in a struggle
+to survive. Food. Water. Resources. Enemies. Scarcity. Heat. Radiation. It
+all comes for you.
+
+Every design decision serves this feeling. (The survivalist mod's line still
+bounds it: brutal but survivable; there must always be a way out.)
+
+## The people and animals of the world
+
+- Faction NPCs: enemies as well as friendly.
+- Neutrals: people who belong to no side yet. They make the world feel alive,
+  their intent is not known on sight, and they are where factions (including
+  yours) recruit from.
+- Animals: food, threat, and scarcity at once.
+
 ## The bunker
 
 The bunker is the permanent home base, built up over the whole game.
