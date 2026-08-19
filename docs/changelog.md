@@ -27,4 +27,5 @@ These rules govern `docs/changelog.md`. Follow them exactly.
 | System | Item | Done when |
 |---|---|---|
 | World | [x] Decide the world substrate and engine for topside, naming prior art for each candidate considered | The open question in docs/authority.md is replaced by the recorded decision and its reasoning (3D first person, low poly with cel shading, AI-generated assets, Bevy) |
+| modforge | [x] Decide where the game systems live in the modforge workspace (modules in the foundation crate versus a new workspace crate) | Recorded in docs/authority.md and the modforge readme: modules in the modforge foundation crate itself, so one dependency serves mods OR the game |
 | docs/design.md | [x] Decide the core loop and write docs/design.md: what the player sees and does minute to minute (view, controls, session shape), how the bunker start works, and how the extraction, incremental, and loot-randomization ideas fit around the base simulation | docs/design.md exists; every section was decided by the operator in conversation (goal, bunker, session rhythm, emission, faction war, monuments, death, your people) |

@@ -23,7 +23,10 @@ The rule for where code goes:
 
 - A system (the decisions: who attacks whom, what quality an item rolls, what
   crosses the edge, what offer a faction posts) lives in modforge. If it could
-  drive a second game or a mod, it is a system.
+  drive a second game or a mod, it is a system. Decided 2026-08-19: the
+  systems live as modules IN the modforge foundation crate itself (like
+  modforge::rpg does today), not in a separate crate, so one dependency
+  serves mods OR the game.
 - A binder (the eyes and hands: how a system reads and changes one particular
   world) lives in the consumer. This is the existing ueforge pattern: the
   framework module owns the decisions, the per-game crate implements the
