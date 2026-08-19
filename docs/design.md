@@ -42,8 +42,21 @@ home is usually calm but never guaranteed safe.
   forced trips, no hard session boundary; going out is the player's choice.
 - The emission, taken from MISERY: after X time there is some event and the
   world changes. Keep similar timing to MISERY's at first. In topside this
-  is the storyteller's beat: the recurring world-changing event that makes
-  time itself a threat and keeps the world from ever being settled.
+  is the storyteller's beat; the full mechanic is its own section below.
+
+## The emission
+
+Occasionally the event occurs (like MISERY's emission):
+
+- If the player is out in the world, they can hide in some building or
+  similar shelter that MAY be safe. Caught in the open, they die.
+- Then the world gets REGENERATED around them, EXCEPT the player's base and
+  enemy faction bases, which persist.
+
+This is what keeps the world from ever being memorized: monuments, their
+layouts, and their names re-roll with the world, while everything with an
+owner (your bunker, the factions' bases) carries forward. The map is never
+fully known, but the story of who holds what continues.
 
 ## Monuments and timed events (from Rust)
 
