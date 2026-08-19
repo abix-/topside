@@ -15,6 +15,10 @@ The goal of this game is to make the player FEEL like they are in a struggle
 to survive. Food. Water. Resources. Enemies. Scarcity. Heat. Radiation. It
 all comes for you.
 
+Think about this like Oregon Trail meets post-apocalyptic 3D: attrition is
+the game, supplies run down, hazards just hit you, and the people with you
+can die along the way.
+
 Every design decision serves this feeling. (The survivalist mod's line still
 bounds it: brutal but survivable; there must always be a way out.)
 
