@@ -29,10 +29,15 @@ The long game at home:
 - Defending it from raiders (the storyteller's incursions come for YOU).
 - Infrastructure.
 
+Bunker defense, and this is deliberately unlike MISERY: sometimes the BUNKER
+itself is attacked and has to be defended. We are surviving a post-apocalypse;
+home is usually calm but never guaranteed safe.
+
 ## The session rhythm (MISERY-shaped)
 
 - In the bunker you have TIME: gear up, craft, do base stuff at your own
-  pace. Home is where the pressure pauses.
+  pace. Home is where the pressure usually pauses, but see bunker defense
+  above: it can come to your door.
 - When you want to, you leave the bunker and go into the topside world. No
   forced trips, no hard session boundary; going out is the player's choice.
 - The emission, taken from MISERY: after X time there is some event and the
