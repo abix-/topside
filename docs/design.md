@@ -122,6 +122,11 @@ layer. Nothing falls apart because you did not micromanage; the Oregon Trail
 frame applies to them too: named companions who can come topside with you
 and die along the way.
 
+Soulmask is the model for NPC control (operator: it does a good job, we want
+similar): recruited people with their own skills and traits, assigned to
+work stations and duties they then run autonomously, guard and follow roles,
+companions at your side in the world.
+
 ## Death and difficulty
 
 Topside has a custom difficulty level, and the player controls how death
