@@ -1,0 +1,176 @@
+# topside authority map
+
+**Authoritative for:** the one implementation path for each game system, the
+ownership boundary between modforge and topside, the naming contract, and the
+anti-bypass rules for those paths.
+
+**Not authoritative for:** product vision and story (design.md, not yet
+written), capability progress (status.md, not yet written), or the task
+backlog (todo.md, not yet written).
+
+Evidence date: 2026-08-19. Nothing is built. Every score below reflects that
+honestly. This doc exists BEFORE the code so the code never gets a chance to
+grow a second path.
+
+## The one boundary: modforge owns the systems, topside uses them
+
+ALL game systems live in modforge. Topside is a consumer of modforge exactly
+like survivalist-mod and misery-mod are, with one difference: those mods bind
+modforge systems into someone else's game, and topside binds them into a world
+it owns itself.
+
+The rule for where code goes:
+
+- A system (the decisions: who attacks whom, what quality an item rolls, what
+  crosses the edge, what offer a faction posts) lives in modforge. If it could
+  drive a second game or a mod, it is a system.
+- A binder (the eyes and hands: how a system reads and changes one particular
+  world) lives in the consumer. This is the existing ueforge pattern: the
+  framework module owns the decisions, the per-game crate implements the
+  binder trait. Topside's binders read and write topside's own world instead
+  of reflecting into a host game.
+- Content (checked-in definitions: items, structures, factions, incursion
+  kinds, upgrade tracks, the story) lives in topside. Content is data a system
+  consumes, never logic.
+- The world (the simulation substrate: map, people, items, structures, time)
+  lives in topside. The world substrate and engine are NOT chosen yet; that is
+  an open decision recorded below, not something this doc locks.
+
+The payoff of this boundary is the whole point of the project: everything
+hardened for topside (tests, robustness, tuning) flows back to every mod
+sitting on modforge, and everything the mods proved (the survivalist designs)
+flows forward into topside.
+
+## Prior art
+
+Three patterns, all already in use in our repos, are the model:
+
+- The factoriobot authority map (factoriobot/docs/authority.md): one owner per
+  decision, one numbered ownership table, a score rubric, and an executable
+  proof module so the doc cannot rot.
+- The Endless Def -> registry -> use pattern, already the modforge convention
+  (OpDef -> OPS): definitions are checked-in data, one registry holds them,
+  systems read the registry.
+- The ueforge binder pattern (modforge/README.md): a framework module owns a
+  mechanic's decisions, the consumer implements a small trait that gives it
+  eyes and hands into one world.
+
+The game design itself follows the RimWorld storyteller model as locked in
+survivalist-mod/docs/status.md: a solid base simulation plus a director on
+top, with two layers that must never be confused or merged.
+
+## Naming contract
+
+One concept, one name. These names come from the survivalist design docs and
+the operator's own words. No synonyms, no renamed wrappers.
+
+| Name | One responsibility |
+|---|---|
+| **World** | Topside's one simulation state: map, people, items, structures, factions, time. The only source of truth about what exists right now. |
+| **Binder** | The trait a consumer implements to give one modforge system eyes and hands into its world. Binders observe and act; they never decide. |
+| **Storyteller** | The one director. Two locked layers: Randy Random (random events regardless of how the player is doing; never adaptive) and Mario Kart (adaptive pressure on whoever is winning). Nothing else schedules dramatic events. |
+| **The edge** | The border of the unknown beyond the map. The ONE faucet through which new people, items, and factions enter the world. |
+| **Incursion** | One thing the storyteller sends across the edge, telegraphed by the dread loop. |
+| **Dread loop** | Telegraph, uncertainty, varied payoff, lingering mystery, escalation. The storyteller's pacing mechanism. |
+| **Genome** | A faction's traits (aggression, expansionism, defensiveness, guile) and the per-survivor franchise vote that turns traits into decisions. |
+| **Act** | One thing a faction does to another or to the player (scavenge, steal, trade, rob, murder, extort, raid). Chosen by the genome vote, executed through the world. |
+| **Quality** | The one item-value system: every item rolls a tier, rarer is better, the whole ecosystem (crafters, thieves, traders, warlords) recognizes it. |
+| **Named unique** | A one-of-a-kind item that enters only with a matching incursion and is tracked by the chronicle. |
+| **The work board** | Offers generated from what factions are actually doing (bounties, escorts, ransoms), paid from real stores. Never scripted. |
+| **Upgrades** | Per-structure and settlement-wide upgrade tracks: unbounded levels, diminishing benefits, rising real costs. The player's resource sink. |
+| **Chronicle** | The read-only narration of world events to the player. Presentation only; it decides nothing and stores nothing the world does not. |
+
+## Ownership flow
+
+One line, one direction: the world is the only source of truth; systems read
+it through binders, decide, and act back through binders; the chronicle tells
+the player what happened.
+
+1. The world holds the current state. Nothing else stores a fact about what
+   exists; a system that needs a fact asks its binder now.
+2. The storyteller paces events: Randy Random rolls what and when, Mario Kart
+   watches who is winning and applies pressure. It never annihilates; brutal
+   but survivable is the line (operator-locked in the survivalist design).
+3. Factions decide through the genome vote and act through the act repertoire.
+   Consequences flow through the world's own mechanics, never through a side
+   channel.
+4. Everything new enters at the edge. No system conjures people or items in
+   place. This is the no-cheating rule: every person walked in or was born
+   here, every item came from the edge, crafting, or harvest. Destroying a
+   faction's people or stores actually weakens it.
+5. Quality is rolled at the moment an item enters existence (at the edge, at
+   the crafter's hands) by the one quality system. No second place assigns
+   item value.
+6. The work board reads faction activity and posts offers. It generates
+   nothing itself; the simulation writes the work.
+7. The chronicle narrates public events. It reads; it never writes.
+
+Anti-bypass rules, stated once here and enforced by the proof module:
+
+- No system keeps a private copy of world state as decision memory. Observed
+  facts are read fresh for each decision.
+- No consumer reimplements a system's decision. If topside needs a behavior a
+  system lacks, the system grows upstream in modforge; topside never carries a
+  local fork of a decision.
+- Randy Random never scales to the player's safety (that would be Cassandra,
+  rejected in the survivalist design). Mario Kart alone is adaptive, and it
+  targets the leader, AI or player alike.
+- The bored-player test bounds every feature (operator-locked): simulation
+  the player never sees is cut. A change counts as gameplay only if a bored
+  player, safe behind their walls, would sit up.
+
+## Score rubric
+
+Same rubric as factoriobot:
+
+| Score | Meaning |
+|---|---|
+| 10 | The one implementation path is used across audited callers and carries an anti-bypass guard. |
+| 9 | The one implementation path and guard exist; a broader caller audit or live proof remains. |
+| 7-8 | The one implementation path exists; a named integration or enforcement boundary remains. |
+| 5-6 | The one implementation path exists beside a substantial open consolidation. |
+| 1-4 | Competing authorities remain. |
+| - | Not built yet. |
+
+## Current authority priorities
+
+Row order is build priority. "IN SURVIVALIST-MOD" means a game-specific
+implementation exists in modforge's survivalist-mod crate and the work is
+lifting its decisions into a game-agnostic modforge system behind a binder,
+not writing it from scratch.
+
+| Priority | System | Lives in | Score | Authoritative for | Status |
+|---|---|---|---:|---|---|
+| 1 | World | topside | - | The one simulation state. Every fact about what exists now. | UNBUILT. Substrate and engine undecided (open question below). |
+| 2 | Binder traits | modforge | - | The contract between each system and any world. One trait per system; observe and act only. | UNBUILT. The shape exists as ueforge doctrine (ViewportBinder, DamageBinder). |
+| 3 | Storyteller | modforge | - | All dramatic pacing. Randy Random and Mario Kart, the dread loop, incursion scheduling. | IN SURVIVALIST-MOD (incursion.rs, stranger.rs; dread loop and signal payoff live-verified there 2026-07-07). |
+| 4 | The edge | modforge | - | The one faucet. What enters the world, carrying what, sent by whom. | IN SURVIVALIST-MOD (edge spawn + march, all arrival kinds). |
+| 5 | Genome | modforge | - | Faction traits, the franchise vote, learning, heredity on absorption. | IN SURVIVALIST-MOD (live-verified: 200+ voters, emergent personalities, persistence). |
+| 6 | Acts | modforge | - | The act repertoire and its consequences flowing through world mechanics. | IN SURVIVALIST-MOD (six act modules, most arcs watched live). |
+| 7 | Quality | modforge | - | Tier rolls at item creation, sender and skill odds, ecosystem recognition. | IN SURVIVALIST-MOD (full tier system code-landed, unwatched). |
+| 8 | Named uniques | modforge | - | Once-per-save entry with matching incursions, holder tracking. | IN SURVIVALIST-MOD (The Colonel's Rifle slice code-landed). |
+| 9 | The work board | modforge | - | Offers read off live faction activity, paid from real stores. | IN SURVIVALIST-MOD (bounty + camp-clearing code-landed). |
+| 10 | Upgrades | modforge | - | Upgrade tracks, levels, costs, prerequisites, and their stat effects. | IN SURVIVALIST-MOD (eleven per-structure tracks + settlement-wide class; core loop live-verified 2026-07-11). |
+| 11 | Chronicle | modforge | - | Turning public world events into narration. Read-only. | IN SURVIVALIST-MOD (verified posting live). |
+| 12 | Content registry | topside | - | Checked-in definitions the systems consume (items, structures, factions, incursion kinds, upgrade tracks, the story). Def -> registry -> use. | UNBUILT. |
+| 13 | Control plane | modforge | - | The one runtime inspection and op surface (HTTP server, op registry). | EXISTS in modforge; rated 9/10 in survivalist-mod. The first thing wired into topside per the runtime-control-http doctrine. |
+
+## Open questions
+
+Decisions this doc deliberately does not make yet:
+
+- The world substrate and engine for topside (what renders, what simulates
+  ticks). Everything above is engine-agnostic by construction; the binders
+  absorb this choice.
+- How much of each survivalist-mod system lifts cleanly versus needs a
+  rewrite behind its binder trait. Answered per system when its row is
+  started, by reading that code, not by assuming.
+
+## Proof: what tests validate this doc
+
+Planned, not written: a design_authority proof module in each repo, following
+factoriobot's tests/all/design_authority.rs. Modforge's module proves each
+system is the one decision path and binders only observe and act; topside's
+module proves the consumer boundary (no local forks of decisions, no second
+world-state store, content is data only). Zero proofs exist today; every
+claim above is unproved until they do.
