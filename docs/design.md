@@ -92,6 +92,14 @@ the same while the layout varies; here the randomization goes further, and
 even the monument NAME is random. You never walk into a monument already
 knowing it.
 
+## Death and difficulty
+
+Topside has a custom difficulty level, and the player controls how death
+works through it.
+
+- Initially two death settings: drop items on death, or keep items on death.
+- We build keep-items-on-death first because it is easier.
+
 ## Decided elsewhere
 
 Presentation is decided in authority.md: 3D, first person, low poly with cel
@@ -99,5 +107,5 @@ shading, AI-generated assets, on Bevy.
 
 ## Still open
 
-The remaining core-loop questions are on the todo (docs/todo.md): what death
-means and what persists, and how the player relates to their own people.
+The remaining core-loop question: how the player relates to their own
+people (orders, or they run themselves while you live among them).
