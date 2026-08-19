@@ -45,6 +45,23 @@ home is usually calm but never guaranteed safe.
   is the storyteller's beat: the recurring world-changing event that makes
   time itself a threat and keeps the world from ever being settled.
 
+## Monuments and timed events (from Rust)
+
+We do not have to be unique; we take good ideas and implement them well.
+Rust is the model here:
+
+- MONUMENTS: destinations in the topside world worth traveling to, with
+  extra phat loot in their dangerous spots (Rust's card rooms, Oil Rig where
+  heavies come and you get crates, underwater lab, Dome).
+- TIMED EVENTS: special events on a clock, like Rust's Cargo, that pull you
+  out of the bunker toward risk and reward. These ride the storyteller.
+- RAIDS exist (see bunker defense).
+
+Where topside goes MORE EXTREME than Rust: in Rust the monument names stay
+the same while the layout varies; here the randomization goes further, and
+even the monument NAME is random. You never walk into a monument already
+knowing it.
+
 ## Decided elsewhere
 
 Presentation is decided in authority.md: 3D, first person, low poly with cel
