@@ -156,6 +156,45 @@ Anti-bypass rules, stated once here and enforced by the proof module:
   a new monument means rolling data, and hand-authored and generated
   content are indistinguishable downstream.
 
+## Bevy ECS world model (decided 2026-08-20)
+
+Bevy ECS is Topside's live World, not a presentation wrapper around another
+game-state store. Runtime ownership follows these rules:
+
+| Bevy concept | Topside use | Ownership rule |
+|---|---|---|
+| Entity | One runtime thing: player, NPC, item, door, wall, floor, or structure root | Despawning the entity removes the thing and every fact owned by it. A structure root owns its spawned parts as child entities so recursive despawn removes geometry and collision together. |
+| Component | One fact about that thing: transform, inventory, health, faction, collider, interactable state, or world item | If a fact describes one thing, it lives on that entity. Gameplay must not mirror it in a resource, HUD model, physics store, or index. |
+| System | One operation over the entities with the required components: movement, hunger, interaction, combat, or spawning | Gameplay systems run in `FixedUpdate`. Presentation systems may read World state in `Update`, but do not decide or own gameplay facts. |
+| Resource | A value that genuinely applies to the whole World: simulation tick, world seed, registry, identity index, slot allocator, or transient input latch | A resource may index or derive entity data, but it is not a second owner. Per-player, per-NPC, per-item, and per-structure state belongs in components. |
+| Message | A transient request or result between systems: spawn, interaction, damage, or GPU upload intent | Messages move work between ordered systems. They are consumed and never become durable World state. |
+
+The modforge boundary remains unchanged. Modforge owns generic definitions and
+decisions. A Topside binder reads the required ECS components, calls the
+modforge system, and applies the result back to ECS components. The binder
+does not keep its own state or repeat the decision. For structures, the flow
+is `StructureDef -> spawn_structure -> root entity + child entities`. The
+children own their meshes and Avian colliders.
+
+The HUD is a projection of the World. Player inventory, health, skills, and
+other gameplay state live on the player entity; HUD systems copy only the
+values needed to paint the current frame. Player actions return through the
+normal interaction or gameplay system rather than mutating the HUD model as
+game state.
+
+Bevy `Entity` is a temporary runtime handle. Every persistent actor receives
+a monotonic ID that survives save and load and is never reused. `EntityMap`
+links that ID to the current Bevy entity and GPU slot, but does not own the
+actor's gameplay state. A GPU slot is also temporary and may be reused only
+after stale mappings are rejected.
+
+Avian follows the same ownership model: bodies, colliders, velocities, and
+relationships are components on the entities they describe. Avian's spatial
+indexes and contact caches are derived data. GPU buffers are likewise not a
+second World. The GPU may own only fields explicitly assigned to it in the GPU
+offload contract; ECS identity and CPU gameplay facts remain authoritative,
+and every readback is resolved and validated against them before use.
+
 ## Frame structure (from Endless)
 
 All simulation runs in FixedUpdate at a locked 60 UPS, gated on the app
