@@ -30,6 +30,11 @@ bounds it: brutal but survivable; there must always be a way out.)
   yours) recruit from.
 - Animals: food, threat, and scarcity at once.
 
+The scale target (operator, 2026-08-19): a world population of 1000
+simulated NPCs that are PERSISTENT. Not spawned scenery: a thousand people
+who exist, belong to factions or to no one, and carry forward. That is the
+bar; hit it and the operator is happy.
+
 ## The bunker
 
 The bunker is the permanent home base, built up over the whole game.
