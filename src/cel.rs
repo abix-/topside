@@ -3,7 +3,10 @@
 
 use bevy::prelude::*;
 use bevy::render::render_resource::AsBindGroup;
-use bevy::shader::ShaderRef;
+use bevy::shader::{Shader, ShaderRef};
+
+pub const CEL_SHADER_HANDLE: Handle<Shader> =
+    bevy::asset::uuid_handle!("ce150000-0000-0000-0000-000000000001");
 
 #[derive(Asset, TypePath, AsBindGroup, Clone)]
 pub struct CelMaterial {
@@ -13,7 +16,7 @@ pub struct CelMaterial {
 
 impl Material for CelMaterial {
     fn fragment_shader() -> ShaderRef {
-        "shaders/cel.wgsl".into()
+        ShaderRef::Handle(CEL_SHADER_HANDLE)
     }
 
     fn alpha_mode(&self) -> AlphaMode {
@@ -27,4 +30,11 @@ impl CelMaterial {
             color: LinearRgba::new(r, g, b, 1.0),
         }
     }
+}
+
+pub fn load_shader(mut shaders: ResMut<Assets<Shader>>) {
+    let _ = shaders.insert(
+        &CEL_SHADER_HANDLE,
+        Shader::from_wgsl(include_str!("../assets/shaders/cel.wgsl"), "cel.wgsl"),
+    );
 }

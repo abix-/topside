@@ -61,7 +61,7 @@ pub fn build_app(headless: bool) -> App {
         control_plane::start();
         app.add_systems(
             OnEnter(AppState::Playing),
-            (player::setup_scene, bunker::setup, hud::setup),
+            (cel::load_shader, player::setup_scene, bunker::setup, hud::setup).chain(),
         );
         app.add_systems(
             Update,

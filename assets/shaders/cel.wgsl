@@ -1,26 +1,13 @@
-#import bevy_pbr::{
-    mesh_functions,
-    forward_io::{VertexOutput, FragmentOutput},
-    pbr_fragment::pbr_input_from_standard_material,
-    pbr_functions,
-}
+#import bevy_pbr::forward_io::VertexOutput
 
-struct CelUniforms {
-    color: vec4<f32>,
-};
-
-@group(2) @binding(0)
-var<uniform> material: CelUniforms;
+@group(#{MATERIAL_BIND_GROUP}) @binding(0) var<uniform> material_color: vec4<f32>;
 
 @fragment
-fn fragment(in: VertexOutput, @builtin(front_facing) front: bool) -> FragmentOutput {
-    var out: FragmentOutput;
-
-    let normal = normalize(in.world_normal);
+fn fragment(mesh: VertexOutput) -> @location(0) vec4<f32> {
+    let normal = normalize(mesh.world_normal);
     let light_dir = normalize(vec3<f32>(0.5, 1.0, 0.3));
     let ndotl = dot(normal, light_dir);
 
-    // three bands: shadow, mid, lit
     var band: f32;
     if ndotl < 0.0 {
         band = 0.4;
@@ -30,6 +17,5 @@ fn fragment(in: VertexOutput, @builtin(front_facing) front: bool) -> FragmentOut
         band = 1.0;
     }
 
-    out.color = vec4<f32>(material.color.rgb * band, material.color.a);
-    return out;
+    return vec4<f32>(material_color.rgb * band, material_color.a);
 }
