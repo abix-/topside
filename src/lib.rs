@@ -54,6 +54,7 @@ pub fn build_app(headless: bool) -> App {
     app.init_resource::<entity_map::GpuSlotPool>();
     app.init_resource::<entity_map::EntityMap>();
     app.init_resource::<bunker::FoodStore>();
+    app.init_resource::<content::ItemRegistryRes>();
     app.init_resource::<ButtonInput<KeyCode>>();
     app.init_resource::<interact::LookingAt>();
     app.init_resource::<interact::InteractInput>();
@@ -119,7 +120,6 @@ mod tests {
     use super::*;
     use bevy::time::TimeUpdateStrategy;
     use modforge::hud::InteractKind;
-    use modforge::item::ItemStack;
     use modforge::structure::Aabb;
 
     struct GameplayOutcome {
@@ -174,18 +174,23 @@ mod tests {
         app.world_mut().despawn(door);
 
         let item_position = player_position + Vec3::NEG_Z;
+        let scrap = modforge::item::create(
+            app.world()
+                .resource::<content::ItemRegistryRes>()
+                .0
+                .def("scrap")
+                .unwrap(),
+            1,
+            &[],
+            0.0,
+            0,
+        );
         app.world_mut().spawn((
             interact::Interactable {
                 kind: InteractKind::Pickup,
                 aabb: Aabb::from_center_size(item_position, Vec3::splat(0.4)),
             },
-            interact::WorldItem {
-                stack: ItemStack {
-                    item: "scrap".to_string(),
-                    count: 1,
-                    quality: None,
-                },
-            },
+            interact::WorldItem { stack: scrap },
         ));
         {
             let mut keys = app.world_mut().resource_mut::<ButtonInput<KeyCode>>();

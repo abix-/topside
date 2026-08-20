@@ -2,8 +2,22 @@
 //! shapes; this file says what concretely exists in this game.
 
 use bevy::math::Vec3;
+use bevy::prelude::Resource;
 use modforge::biome::{BiomeDef, BiomeRegistry, ScatterSpec};
 use modforge::item::{ItemDef, ItemKind, ItemRegistry};
+
+/// The item registry as an app resource. Every production stack is
+/// created from a def looked up here.
+#[derive(Resource)]
+pub struct ItemRegistryRes(pub ItemRegistry);
+
+impl Default for ItemRegistryRes {
+    fn default() -> Self {
+        let mut reg = ItemRegistry::default();
+        register_items(&mut reg);
+        Self(reg)
+    }
+}
 
 pub fn register_items(reg: &mut ItemRegistry) {
     let items = [

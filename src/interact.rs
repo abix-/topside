@@ -8,14 +8,12 @@ use modforge::item::ItemStack;
 use modforge::structure::Aabb;
 
 use crate::cel::CelMaterial;
+use crate::content::ItemRegistryRes;
 use crate::hud::HudRes;
 use crate::player::{Player, PlayerInventory};
 use crate::structure::Door;
 
 const INTERACT_RANGE: f32 = 3.0;
-/// Stack ceiling used for pickups until items come from the registry
-/// (todo priority 5).
-const MAX_STACK: u32 = 20;
 const ITEM_HALF: f32 = 0.2;
 
 #[derive(Component)]
@@ -139,6 +137,7 @@ pub fn interact_on_press(
     mut input: ResMut<InteractInput>,
     looking_at: Res<LookingAt>,
     mut hud: ResMut<HudRes>,
+    registry: Res<ItemRegistryRes>,
     mut players: Query<&mut PlayerInventory>,
     mut doors: Query<(&mut Door, &mut Transform)>,
     items: Query<&WorldItem>,
@@ -158,7 +157,15 @@ pub fn interact_on_press(
     // modforge decides what happens; this system carries out the
     // engine side of the result and nothing more.
     let stack = items.get(entity).ok().map(|w| w.stack.clone());
-    match interact(kind, &mut inventory.0, stack, MAX_STACK, &mut hud.0) {
+    let max_stack = match &stack {
+        Some(stack) => match registry.0.def(&stack.item) {
+            Some(def) => def.max_stack,
+            // Not a registered item: it never enters the inventory.
+            None => return,
+        },
+        None => 0,
+    };
+    match interact(kind, &mut inventory.0, stack, max_stack, &mut hud.0) {
         InteractResult::ToggleDoor => {
             if let Ok((mut door, mut transform)) = doors.get_mut(entity) {
                 door.open = !door.open;

@@ -5,9 +5,10 @@
 
 use bevy::prelude::*;
 
-use modforge::item::ItemStack;
+use modforge::item::create;
 
 use crate::cel::CelMaterial;
+use crate::content::ItemRegistryRes;
 use crate::interact::spawn_item;
 use crate::structure::{
     LightSpec, Opening, RoomSpec, Side, SolidSpec, StairSpec, StructureDef, spawn_structure,
@@ -193,6 +194,8 @@ pub fn setup(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut cel_materials: ResMut<Assets<CelMaterial>>,
+    items: Res<ItemRegistryRes>,
+    time: Res<Time>,
 ) {
     spawn_structure(
         &mut commands,
@@ -211,11 +214,20 @@ pub fn setup(
     )
     .expect("the two-story house def is valid");
 
+    // Starting supplies on the bunker floor. No quality tiers exist
+    // yet, so the odds are empty and every stack is base quality.
+    let now = time.elapsed_secs();
+    let def = |name: &str| {
+        items
+            .0
+            .def(name)
+            .unwrap_or_else(|| panic!("item '{name}' is not registered"))
+    };
     spawn_item(
         &mut commands,
         &mut meshes,
         &mut cel_materials,
-        ItemStack { item: "canned food".to_string(), count: 2, quality: None },
+        create(def("canned food"), 2, &[], now, 1),
         Vec3::new(-1.0, 0.3, 2.0),
         [0.2, 0.6, 0.2],
     );
@@ -223,7 +235,7 @@ pub fn setup(
         &mut commands,
         &mut meshes,
         &mut cel_materials,
-        ItemStack { item: "scrap".to_string(), count: 3, quality: None },
+        create(def("scrap"), 3, &[], now, 2),
         Vec3::new(1.0, 0.3, 2.0),
         [0.5, 0.5, 0.5],
     );

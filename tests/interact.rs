@@ -6,22 +6,26 @@ use std::time::Duration;
 
 use bevy::{prelude::*, time::TimeUpdateStrategy};
 use modforge::hud::{InteractKind, OpenPanel};
-use modforge::item::ItemStack;
+use modforge::item::{ItemStack, create};
 use modforge::structure::Aabb;
 use topside::{
     AppState, build_app,
+    content::ItemRegistryRes,
     hud::HudRes,
     interact::{InteractInput, Interactable, LookingAt, WorldItem},
     player::{INVENTORY_SLOTS, Player, PlayerInventory},
     structure::Door,
 };
 
-fn stack(item: &str, count: u32) -> ItemStack {
-    ItemStack {
-        item: item.to_string(),
-        count,
-        quality: None,
-    }
+/// A base-quality stack of a registered item, through the one
+/// creation function.
+fn stack(app: &App, item: &str, count: u32) -> ItemStack {
+    let registry = app.world().resource::<ItemRegistryRes>();
+    let def = registry
+        .0
+        .def(item)
+        .unwrap_or_else(|| panic!("test item '{item}' is not registered"));
+    create(def, count, &[], 0.0, 0)
 }
 
 fn playing_app() -> (App, Entity) {
@@ -74,13 +78,8 @@ fn in_front(app: &mut App, kind: InteractKind, bundle: impl Bundle) -> Entity {
 #[test]
 fn pickup_moves_the_stack_into_the_player_inventory() {
     let (mut app, player) = playing_app();
-    let item = in_front(
-        &mut app,
-        InteractKind::Pickup,
-        WorldItem {
-            stack: stack("scrap", 3),
-        },
-    );
+    let scrap = stack(&app, "scrap", 3);
+    let item = in_front(&mut app, InteractKind::Pickup, WorldItem { stack: scrap });
     press_e(&mut app, item, InteractKind::Pickup);
     assert!(app.world().get_entity(item).is_err(), "picked up item is gone");
     assert_eq!(
@@ -96,19 +95,15 @@ fn pickup_moves_the_stack_into_the_player_inventory() {
 #[test]
 fn full_inventory_leaves_the_item_in_the_world() {
     let (mut app, player) = playing_app();
+    let cloth = stack(&app, "cloth", 20);
+    let scrap = stack(&app, "scrap", 1);
     {
         let mut inventory = app.world_mut().get_mut::<PlayerInventory>(player).unwrap();
         for slot in 0..INVENTORY_SLOTS {
-            inventory.0.slots[slot] = Some(stack("cloth", 20));
+            inventory.0.slots[slot] = Some(cloth.clone());
         }
     }
-    let item = in_front(
-        &mut app,
-        InteractKind::Pickup,
-        WorldItem {
-            stack: stack("scrap", 1),
-        },
-    );
+    let item = in_front(&mut app, InteractKind::Pickup, WorldItem { stack: scrap });
     press_e(&mut app, item, InteractKind::Pickup);
     assert!(
         app.world().get_entity(item).is_ok(),
@@ -141,6 +136,56 @@ fn door_toggles_open_and_closed() {
     assert!(app.world().get::<Door>(door).unwrap().open);
     press_e(&mut app, door, InteractKind::Door { open: true });
     assert!(!app.world().get::<Door>(door).unwrap().open);
+}
+
+#[test]
+fn an_unregistered_item_is_never_picked_up() {
+    let (mut app, player) = playing_app();
+    assert!(
+        app.world()
+            .resource::<ItemRegistryRes>()
+            .0
+            .def("bogus")
+            .is_none(),
+        "the registry must reject unknown ids"
+    );
+    let bogus = ItemStack {
+        item: "bogus".to_string(),
+        count: 1,
+        quality: None,
+    };
+    let item = in_front(&mut app, InteractKind::Pickup, WorldItem { stack: bogus });
+    press_e(&mut app, item, InteractKind::Pickup);
+    assert!(app.world().get_entity(item).is_ok(), "the item stays in the world");
+    assert!(
+        app.world()
+            .get::<PlayerInventory>(player)
+            .unwrap()
+            .0
+            .slots
+            .iter()
+            .all(Option::is_none),
+        "nothing enters the inventory"
+    );
+}
+
+#[test]
+fn quality_rolls_come_from_the_def() {
+    let (app, _) = playing_app();
+    let registry = app.world().resource::<ItemRegistryRes>();
+    let hatchet = registry.0.def("hatchet").unwrap();
+    // Empty odds: always base quality.
+    assert_eq!(create(hatchet, 1, &[], 0.0, 7).quality, None);
+    // Certain odds (1000 per mille for the first tier): always tier
+    // 0, sibling within the def's count, and the same roll for the
+    // same time and salt.
+    let first = create(hatchet, 1, &[1000], 12.5, 7);
+    let again = create(hatchet, 1, &[1000], 12.5, 7);
+    let quality = first.quality.expect("certain odds roll a tier");
+    assert_eq!(quality.tier, 0);
+    assert!((1..=hatchet.quality_siblings).contains(&quality.sibling));
+    assert_eq!(first.quality, again.quality);
+    assert_eq!(first.item, "hatchet");
 }
 
 #[test]
