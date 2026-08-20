@@ -124,6 +124,40 @@ The faction behavior itself (who raids whom, grudges, trade, war and peace)
 is the genome and acts systems from the authority map, proven in the
 survivalist mod.
 
+### Territory: factions fight for buildings
+
+Buildings in the world (the ones monuments are made of) can be captured
+and held by factions, including the player's. A captured building belongs
+to whoever holds it until someone else takes it or the storm re-rolls
+the map.
+
+Holding a building provides real bonuses:
+- A warehouse feeds your people (food production or storage).
+- A workshop lets you craft better gear (unlocks recipes or improves
+  quality odds).
+- A guard tower gives early warning of incoming raids.
+- A lab unlocks research or rare crafting.
+- A supermarket provides trade goods.
+The bonus depends on the building type, and losing a building means
+losing the bonus. This is what makes the war personal: they took your
+workshop, now you cannot make ammo.
+
+Capture works through presence and force. Move your people in, clear
+out whoever is there, hold the ground. NPCs from your faction garrison
+the building and defend it. Enemy factions do the same thing with the
+same rules (the player and NPCs share one mechanic path, as always).
+
+The storm resets the board. When the world regenerates, all captured
+buildings vanish with the old map. New monuments roll with new buildings,
+and the territory war starts fresh. But the faction rivalries carry
+forward: you remember who raided your last workshop, and they remember
+you. The grudges are permanent even when the ground is not.
+
+This is the 2000-hour loop. Survival pressure gets solved, but the
+faction war never does. There is always a building worth taking, always
+someone trying to take yours, always a reason to go topside. The bunker
+is home, the territory is the game.
+
 ## Monuments and timed events (from Rust)
 
 We do not have to be unique; we take good ideas and implement them well.
