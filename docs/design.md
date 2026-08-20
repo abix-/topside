@@ -177,9 +177,10 @@ chronicle, the map, and anything else the player looks at that is not the
 3D world. All of it lives in modforge as engine-agnostic data and
 decisions (operator-locked 2026-08-20: "our whole game hud structs and
 systems and all engine agnostic should be in modforge. so we have ONE
-way we do all that stuff"). The consumer provides one binder to read its
-world and one renderer to paint the panels. No second way to show the
-player information.
+way we do all that stuff"). No binder trait: the consumer writes HudState
+fields directly from its game systems and reads HudState to paint the
+panels (operator-locked 2026-08-20: no extra layers, no complexity, keep
+it clean). No second way to show the player information.
 
 ## Items and inventory
 
