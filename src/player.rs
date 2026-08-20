@@ -92,6 +92,7 @@ pub fn movement(
     keys: Res<ButtonInput<KeyCode>>,
     time: Res<Time>,
     colliders: Res<crate::structure::StaticColliders>,
+    walkables: Res<crate::structure::Walkables>,
     doors: Query<&crate::structure::Door>,
     mut players: Query<(&mut Transform, &Player), Without<crate::structure::Door>>,
 ) {
@@ -114,17 +115,21 @@ pub fn movement(
     for (mut transform, player) in &mut players {
         let dir = (Quat::from_rotation_y(player.yaw) * wish).normalize();
         let step = dir * WALK_SPEED * time.delta_secs();
+        let feet = transform.translation.y - EYE_HEIGHT;
         // Per-axis resolution: a blocked axis stops, the other
-        // slides. Enough for axis-aligned bunker walls.
+        // slides. Enough for axis-aligned walls.
         let mut pos = transform.translation;
         pos.x += step.x;
-        if crate::structure::blocked(pos, &colliders, doors.iter()) {
+        if crate::structure::blocked(pos, feet, &colliders, doors.iter()) {
             pos.x = transform.translation.x;
         }
         pos.z += step.z;
-        if crate::structure::blocked(pos, &colliders, doors.iter()) {
+        if crate::structure::blocked(pos, feet, &colliders, doors.iter()) {
             pos.z = transform.translation.z;
         }
-        transform.translation = Vec3::new(pos.x, EYE_HEIGHT, pos.z);
+        // Feet follow the highest reachable surface: floor slabs,
+        // steps, landings, or the bare ground at 0.
+        let support = walkables.support(pos.x, pos.z, feet + crate::structure::CLIMB);
+        transform.translation = Vec3::new(pos.x, support + EYE_HEIGHT, pos.z);
     }
 }

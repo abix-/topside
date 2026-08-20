@@ -44,6 +44,7 @@ pub fn build_app(headless: bool) -> App {
     app.init_resource::<entity_map::EntityMap>();
     app.init_resource::<bunker::FoodStore>();
     app.init_resource::<structure::StaticColliders>();
+    app.init_resource::<structure::Walkables>();
     app.add_systems(
         FixedUpdate,
         (tick_system, bunker::food_tick_system, control_plane::publish_system)
