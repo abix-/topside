@@ -6,6 +6,7 @@ pub mod control_plane;
 pub mod entity_map;
 pub mod hud;
 pub mod player;
+pub mod structure;
 
 use bevy::prelude::*;
 
@@ -42,7 +43,7 @@ pub fn build_app(headless: bool) -> App {
     app.init_resource::<entity_map::GpuSlotPool>();
     app.init_resource::<entity_map::EntityMap>();
     app.init_resource::<bunker::FoodStore>();
-    app.init_resource::<bunker::StaticColliders>();
+    app.init_resource::<structure::StaticColliders>();
     app.add_systems(
         FixedUpdate,
         (tick_system, bunker::food_tick_system, control_plane::publish_system)
@@ -61,7 +62,7 @@ pub fn build_app(headless: bool) -> App {
                 player::cursor_grab,
                 player::mouse_look,
                 player::movement,
-                bunker::door_interact,
+                structure::door_interact,
                 hud::update,
             )
                 .run_if(in_state(AppState::Playing)),

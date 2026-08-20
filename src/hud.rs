@@ -2,8 +2,9 @@
 
 use bevy::prelude::*;
 
-use crate::bunker::{DoorState, FoodStore, near_door};
+use crate::bunker::FoodStore;
 use crate::player::Player;
+use crate::structure::{DOOR_REACH, Door};
 
 #[derive(Component)]
 pub struct Hud;
@@ -23,7 +24,7 @@ pub fn setup(mut commands: Commands) {
 
 pub fn update(
     food: Res<FoodStore>,
-    door: Option<Res<DoorState>>,
+    doors: Query<&Door>,
     players: Query<&Transform, With<Player>>,
     mut huds: Query<&mut Text, With<Hud>>,
 ) {
@@ -31,8 +32,10 @@ pub fn update(
         return;
     };
     let mut line = format!("Food: {:.1} days", food.days);
-    if let (Some(door), Ok(player)) = (door, players.single())
-        && near_door(player.translation)
+    if let Ok(player) = players.single()
+        && let Some(door) = doors
+            .iter()
+            .find(|d| player.translation.distance(d.closed_center) < DOOR_REACH)
     {
         line.push_str(if door.open {
             "\n[E] close door"

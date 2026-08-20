@@ -91,9 +91,9 @@ pub fn mouse_look(
 pub fn movement(
     keys: Res<ButtonInput<KeyCode>>,
     time: Res<Time>,
-    colliders: Res<crate::bunker::StaticColliders>,
-    door: Option<Res<crate::bunker::DoorState>>,
-    mut players: Query<(&mut Transform, &Player)>,
+    colliders: Res<crate::structure::StaticColliders>,
+    doors: Query<&crate::structure::Door>,
+    mut players: Query<(&mut Transform, &Player), Without<crate::structure::Door>>,
 ) {
     let mut wish = Vec3::ZERO;
     if keys.pressed(KeyCode::KeyW) {
@@ -118,33 +118,13 @@ pub fn movement(
         // slides. Enough for axis-aligned bunker walls.
         let mut pos = transform.translation;
         pos.x += step.x;
-        if blocked(pos, &colliders, door.as_deref()) {
+        if crate::structure::blocked(pos, &colliders, doors.iter()) {
             pos.x = transform.translation.x;
         }
         pos.z += step.z;
-        if blocked(pos, &colliders, door.as_deref()) {
+        if crate::structure::blocked(pos, &colliders, doors.iter()) {
             pos.z = transform.translation.z;
         }
         transform.translation = Vec3::new(pos.x, EYE_HEIGHT, pos.z);
     }
-}
-
-const BODY_RADIUS: f32 = 0.35;
-const BODY_TOP: f32 = 1.8;
-const STEP_OVER: f32 = 0.2;
-
-fn blocked(
-    p: Vec3,
-    colliders: &crate::bunker::StaticColliders,
-    door: Option<&crate::bunker::DoorState>,
-) -> bool {
-    let test = |a: &crate::bunker::Aabb| {
-        p.x > a.min.x - BODY_RADIUS
-            && p.x < a.max.x + BODY_RADIUS
-            && p.z > a.min.z - BODY_RADIUS
-            && p.z < a.max.z + BODY_RADIUS
-            && a.min.y < BODY_TOP
-            && a.max.y > STEP_OVER
-    };
-    colliders.0.iter().any(test) || door.is_some_and(|d| !d.open && test(&d.collider))
 }
