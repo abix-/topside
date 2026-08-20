@@ -54,6 +54,5 @@ stale.
   work (separation, spatial grid, target candidates). CPU per-NPC
   systems must be throttled or bucketed, never every-entity-every-frame.
   The Endless bevy skill documents the throttle tiers.
-- **HUD binder**: currently copies inventory slots every tick. At
-  large inventory sizes, change detection (only copy when dirty)
-  replaces the full copy.
+- **HUD inventory**: at large inventory sizes, change detection
+  (only copy when dirty) replaces writing every frame.
