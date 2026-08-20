@@ -75,7 +75,7 @@ pub struct Door {
 }
 
 impl Door {
-    fn transform(&self) -> Transform {
+    pub fn transform(&self) -> Transform {
         if !self.open {
             return Transform::from_translation(self.closed_center)
                 .with_rotation(self.closed_rotation);

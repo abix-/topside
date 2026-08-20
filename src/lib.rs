@@ -6,6 +6,7 @@ pub mod content;
 pub mod control_plane;
 pub mod entity_map;
 pub mod hud;
+pub mod interact;
 pub mod player;
 pub mod structure;
 
@@ -46,6 +47,7 @@ pub fn build_app(headless: bool) -> App {
     app.init_resource::<bunker::FoodStore>();
     app.init_resource::<structure::StaticColliders>();
     app.init_resource::<structure::Walkables>();
+    app.init_resource::<interact::LookingAt>();
     app.add_systems(
         FixedUpdate,
         (tick_system, bunker::food_tick_system, control_plane::publish_system)
@@ -64,7 +66,8 @@ pub fn build_app(headless: bool) -> App {
                 player::cursor_grab,
                 player::mouse_look,
                 player::movement,
-                structure::door_interact,
+                interact::update_looking_at,
+                interact::interact_on_press,
                 hud::update,
             )
                 .run_if(in_state(AppState::Playing)),

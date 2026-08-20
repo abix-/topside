@@ -33,9 +33,9 @@ Every entry in this doc is a line item against that budget.
 | cursor_grab | Toggles cursor lock on click/escape | Window entity | Negligible | Only acts on input events |
 | mouse_look | Rotates camera from mouse delta | One transform, reads mouse delta | Negligible | |
 | movement | WASD movement with collision | Player transform, tests blocked() against all nearby colliders | Low: a few dozen AABB tests per frame | Already the most expensive per-frame system; scales with nearby collider count |
-| door_interact | Toggles a door on E press | Iterates all doors, checks distance | Low | Will be replaced by the raycast interact path |
-| hud::update | Refreshes HUD text | Reads food, iterates doors for prompt | Negligible | Will be replaced by the modforge HUD binder |
-| interact raycast (planned) | Finds what the player is looking at | One ray against nearby AABBs | Low: comparable to one blocked() call | Run every frame; cheaper than movement |
+| interact::update_looking_at | Raycast from camera to find the nearest interactable | One ray-AABB test per door and interactable entity | Low: comparable to one blocked() call; scales with nearby entity count | Replaces the old distance-based door check |
+| interact::interact_on_press | On E press, dispatches to modforge's interact | One entity lookup | Negligible | Only runs on keypress, not every frame |
+| hud::update | Refreshes HUD text | Reads food and the LookingAt resource | Negligible | Prompt text comes from modforge::hud::prompt_for |
 
 ## GPU compute (planned, not built)
 
