@@ -40,7 +40,7 @@ pub fn spawn_item(
         max: position + Vec3::splat(ITEM_HALF),
     };
     let mesh = meshes.add(Cuboid::new(ITEM_HALF * 2.0, ITEM_HALF * 2.0, ITEM_HALF * 2.0));
-    let mat = materials.add(CelMaterial::new(color[0], color[1], color[2]));
+    let mat = materials.add(CelMaterial::from_srgb(color[0], color[1], color[2]));
     commands
         .spawn((
             Interactable {

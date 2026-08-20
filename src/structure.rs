@@ -9,13 +9,14 @@
 //! Vec3 in the defs are one type.
 
 use bevy::prelude::*;
+use crate::cel::CelMaterial;
 pub use modforge::structure::{
     Aabb, LightSpec, Opening, Rgb, RoomSpec, Side, SolidSpec, StairSpec, StructureDef, side_frame,
     validate,
 };
 
-fn rgb(c: Rgb) -> Color {
-    Color::srgb(c[0], c[1], c[2])
+fn cel_from_rgb(c: Rgb) -> CelMaterial {
+    CelMaterial::from_srgb(c[0], c[1], c[2])
 }
 
 /// Walls and furniture the player cannot walk through.
@@ -91,7 +92,7 @@ impl Door {
 pub fn spawn_structure(
     commands: &mut Commands,
     meshes: &mut Assets<Mesh>,
-    materials: &mut Assets<StandardMaterial>,
+    materials: &mut Assets<CelMaterial>,
     colliders: &mut StaticColliders,
     walkables: &mut Walkables,
     def: &StructureDef,
@@ -99,17 +100,17 @@ pub fn spawn_structure(
 ) -> Result<(), String> {
     validate(def)?;
 
-    let concrete = materials.add(Color::srgb(0.45, 0.45, 0.47));
-    let floor_mat = materials.add(Color::srgb(0.35, 0.35, 0.36));
-    let door_mat = materials.add(Color::srgb(0.25, 0.28, 0.30));
-    let stair_mat = materials.add(Color::srgb(0.40, 0.38, 0.36));
+    let concrete = materials.add(CelMaterial::from_srgb(0.45, 0.45, 0.47));
+    let floor_mat = materials.add(CelMaterial::from_srgb(0.35, 0.35, 0.36));
+    let door_mat = materials.add(CelMaterial::from_srgb(0.25, 0.28, 0.30));
+    let stair_mat = materials.add(CelMaterial::from_srgb(0.40, 0.38, 0.36));
 
     let solid = |commands: &mut Commands,
                  meshes: &mut Assets<Mesh>,
                  colliders: &mut StaticColliders,
                  center: Vec3,
                  size: Vec3,
-                 material: Handle<StandardMaterial>| {
+                 material: Handle<CelMaterial>| {
         commands.spawn((
             Mesh3d(meshes.add(Cuboid::new(size.x, size.y, size.z))),
             MeshMaterial3d(material),
@@ -257,7 +258,7 @@ pub fn spawn_structure(
     }
 
     for piece in &def.furniture {
-        let material = materials.add(rgb(piece.color));
+        let material = materials.add(cel_from_rgb(piece.color));
         solid(commands, meshes, colliders, piece.center, piece.size, material);
     }
 
@@ -265,7 +266,7 @@ pub fn spawn_structure(
         commands.spawn((
             PointLight {
                 intensity: light.intensity,
-                color: rgb(light.color),
+                color: Color::srgb(light.color[0], light.color[1], light.color[2]),
                 ..default()
             },
             Transform::from_translation(origin + light.position),
@@ -332,14 +333,14 @@ mod tests {
     fn spawn_into_world(def: &StructureDef) -> (StaticColliders, Walkables, Result<(), String>) {
         let mut app = App::new();
         app.init_resource::<Assets<Mesh>>();
-        app.init_resource::<Assets<StandardMaterial>>();
+        app.init_resource::<Assets<CelMaterial>>();
         app.init_resource::<StaticColliders>();
         app.init_resource::<Walkables>();
         let world = app.world_mut();
         let mut state: SystemState<(
             Commands,
             ResMut<Assets<Mesh>>,
-            ResMut<Assets<StandardMaterial>>,
+            ResMut<Assets<CelMaterial>>,
             ResMut<StaticColliders>,
             ResMut<Walkables>,
         )> = SystemState::new(world);

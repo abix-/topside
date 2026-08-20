@@ -4,6 +4,7 @@
 use bevy::input::mouse::MouseMotion;
 use bevy::prelude::*;
 use bevy::window::{CursorGrabMode, CursorOptions, PrimaryWindow};
+use crate::cel::CelMaterial;
 
 #[derive(Component)]
 pub struct Player {
@@ -19,11 +20,11 @@ const PITCH_LIMIT: f32 = 1.54;
 pub fn setup_scene(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
+    mut materials: ResMut<Assets<CelMaterial>>,
 ) {
     commands.spawn((
         Mesh3d(meshes.add(Plane3d::default().mesh().size(200.0, 200.0))),
-        MeshMaterial3d(materials.add(Color::srgb(0.35, 0.40, 0.30))),
+        MeshMaterial3d(materials.add(CelMaterial::from_srgb(0.35, 0.40, 0.30))),
     ));
     commands.spawn((
         DirectionalLight {

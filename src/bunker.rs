@@ -193,7 +193,6 @@ pub fn two_story_house() -> StructureDef {
 pub fn setup(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
     mut cel_materials: ResMut<Assets<CelMaterial>>,
     mut colliders: ResMut<StaticColliders>,
     mut walkables: ResMut<Walkables>,
@@ -201,7 +200,7 @@ pub fn setup(
     spawn_structure(
         &mut commands,
         &mut meshes,
-        &mut materials,
+        &mut cel_materials,
         &mut colliders,
         &mut walkables,
         &starting_bunker(),
@@ -211,7 +210,7 @@ pub fn setup(
     spawn_structure(
         &mut commands,
         &mut meshes,
-        &mut materials,
+        &mut cel_materials,
         &mut colliders,
         &mut walkables,
         &two_story_house(),

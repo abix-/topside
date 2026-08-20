@@ -25,9 +25,9 @@ impl Material for CelMaterial {
 }
 
 impl CelMaterial {
-    pub fn new(r: f32, g: f32, b: f32) -> Self {
+    pub fn from_srgb(r: f32, g: f32, b: f32) -> Self {
         Self {
-            color: LinearRgba::new(r, g, b, 1.0),
+            color: Color::srgb(r, g, b).into(),
         }
     }
 }
