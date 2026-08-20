@@ -2,6 +2,7 @@
 
 | Priority | System | Todo | Done when |
 |---:|---|---|---|
+| 5 | StructureDef | [ ] Extend the structure vocabulary to multi-room buildings: rooms, hallways, stairs, and the rules for how they relate so structures read as logical places to explore (operator: "i want a world to explore") | A multi-room StructureDef with a hallway and stairs spawns through the same spawn_structure path and is walked in-game |
 | 10 | Storyteller | [ ] Read survivalist-mod's storyteller code (incursion.rs, stranger.rs) and list every game read and write it performs, answering lift versus rewrite behind a binder trait | The lift-versus-rewrite answer is recorded in the docs/authority.md storyteller row |
 | 12 | The edge | [ ] Read survivalist-mod's edge-spawn and march code and list every game read and write it performs, answering lift versus rewrite behind a binder trait | The lift-versus-rewrite answer is recorded in the docs/authority.md edge row |
 | 15 | Genome | [ ] Read survivalist-mod's genome and franchise-vote code and list every game read and write it performs, answering lift versus rewrite behind a binder trait | The lift-versus-rewrite answer is recorded in the docs/authority.md genome row |

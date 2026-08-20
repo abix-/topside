@@ -86,6 +86,8 @@ the operator's own words. No synonyms, no renamed wrappers.
 | **Chronicle** | The read-only narration of world events to the player. Presentation only; it decides nothing and stores nothing the world does not. |
 | **Storm** | The recurring world-changing event (design.md; modeled on MISERY's emission, but that name stays MISERY's and STALKER's). The storyteller schedules it; worldgen executes the regeneration; one hide-or-die check applies to the player and every NPC alike. |
 | **EntityMap** | The one slot-to-entity identity index, taken from Endless. Authoritative for identity, ownership checks, and live counts. |
+| **StructureDef** | One building as data (room, openings, doors, furniture, lights), the Def in Def -> Registry -> Instance. Hand-authored and generated buildings use the same shape; code never composes geometry outside one. |
+| **spawn_structure** | The one path from a StructureDef to world geometry and colliders (the Controller). The structure counterpart of the one actor spawn path. |
 | **GpuSlotPool** | The one slot allocator, taken from Endless. Authoritative for buffer sizing and dispatch bounds. |
 
 ## Ownership flow
@@ -223,7 +225,7 @@ not writing it from scratch.
 | 9 | The work board | modforge | - | Offers read off live faction activity, paid from real stores. | IN SURVIVALIST-MOD (bounty + camp-clearing code-landed). |
 | 10 | Upgrades | modforge | - | Upgrade tracks, levels, costs, prerequisites, and their stat effects. | IN SURVIVALIST-MOD (eleven per-structure tracks + settlement-wide class; core loop live-verified 2026-07-11). |
 | 11 | Chronicle | modforge | - | Turning public world events into narration. Read-only. | IN SURVIVALIST-MOD (verified posting live). |
-| 12 | Content registry | topside | - | Checked-in definitions the systems consume (items, structures, factions, incursion kinds, upgrade tracks, the story). Def -> registry -> use. | UNBUILT. |
+| 12 | Content registry | topside | - | Checked-in definitions the systems consume (items, structures, factions, incursion kinds, upgrade tracks, the story). Def -> registry -> use. | STARTED 2026-08-19: StructureDef + spawn_structure landed (src/structure.rs); the starting bunker is the first composition expressed as data. The registry itself and the other content kinds remain. |
 | 13 | Control plane | modforge | - | The one runtime inspection and op surface (HTTP server, op registry). | EXISTS in modforge; rated 9/10 in survivalist-mod. The first thing wired into topside per the runtime-control-http doctrine. |
 | 14 | GPU simulation | topside | - | The compute-shader half of the simulation: crowd movement with separation, the spatial grid, target candidates, projectiles, under the GPU offload contract above. | UNBUILT. The contract is proven in Endless; the WGSL is new (3D). |
 | 15 | Worldgen | topside | - | Procedural generation of the topside world, and the storm's regeneration: terrain and monuments (layouts AND names) re-roll; bunkers and the persistent people never regenerate. | UNBUILT. Endless worldgen.rs is the in-house prior art. |
