@@ -549,9 +549,15 @@ The same scaling applies to enemies: guards inside a gated monument
 room roll from tougher trait pools than wanderers near a roadside stop.
 Harder location means harder enemies and better rewards.
 
-This is the progression gate. You cannot skip to the best drops by
-getting lucky in a safe area. The better rolls are earned by going
-deeper into danger. The loot table is the reward for the risk.
+This is icarus difficulty (operator-locked 2026-08-20: "icarus
+difficulty. it gets harder as you fly closer to the sun"). The further
+you push from safety, the harder everything gets, but the rewards
+scale with it. The bunker is the ground. The deepest room of the
+hardest monument is the sun. Every step closer burns hotter: tougher
+enemies, worse weather, higher radiation, but better loot, rarer
+affixes, unique components. You cannot skip to the best drops by
+getting lucky in a safe area. The better rolls are earned by pushing
+closer to the sun.
 
 ## Death and difficulty
 
