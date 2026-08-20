@@ -124,6 +124,52 @@ Anti-bypass rules, stated once here and enforced by the proof module:
   the player never sees is cut. A change counts as gameplay only if a bored
   player, safe behind their walls, would sit up.
 
+## GPU offload (decided 2026-08-19)
+
+Topside runs the crowd half of the simulation on the GPU from day one. The
+model is lifted whole from Endless (endless/docs/authority.md, the authority
+contract rated 9/10 there), because the expensive part, the contract and the
+hard rules learned from paid-for regressions, is already figured out. We
+adopt Endless's names and rules verbatim; the WGSL itself is new (Endless's
+compute is 2D, topside is 3D).
+
+The split: the GPU is muscle, the CPU is brain. The GPU does math that is
+identical for thousands of actors at once; the CPU makes every decision.
+
+Ownership classes, one owner per datum:
+
+| Class | Data | Rule |
+|---|---|---|
+| GPU-authoritative | Positions; the spatial grid (internal, never read back); target candidates; crowd/threat counts (throttled) | Written by compute shaders, read back asynchronously about one frame stale. Staleness is expected and budgeted, not exceptional. |
+| CPU-authoritative | Health; movement goals and waypoints; faction identity; speeds; slot identity (GpuSlotPool + EntityMap) | Written by ECS systems, uploaded to the GPU each tick. The GPU's copy is advisory. |
+| CPU-only | Every decision: all nine game systems, behavior states, timers, the off-map abstract world | Never touches the GPU. |
+| Render-only | Instance data, animation indices, cel-shade material parameters | Uploaded to render buffers, never seen by compute. |
+
+Hard rules, carried from Endless verbatim:
+
+- A GPU target is a candidate only. The CPU resolves the slot in EntityMap
+  and re-validates faction and identity from ECS before any gameplay effect.
+  If GPU and ECS disagree on identity or ownership, ECS wins, always.
+- Throttled readbacks feed heuristics only, never identity, ownership, or
+  validity gates.
+- No system reads a GPU field and writes the same field back in the same
+  tick (the one-frame delay compounds into oscillation).
+- One count source each: GpuSlotPool for buffer sizing and dispatch bounds,
+  EntityMap for live gameplay counts. Never mixed.
+- Pathfinding stays CPU (A* picks the route); the GPU steers each actor
+  toward its current waypoint.
+
+Structure: systems never write GPU buffers directly. They emit intent
+messages; one uploader drains them into the buffers each tick. The
+FixedUpdate order at a locked 60 UPS is decide, upload, dispatch, then
+read back next tick and re-validate.
+
+Placement: this layer is Bevy-and-WGSL-specific, so the modforge placement
+rule does not send it to modforge (modforge stays engine-agnostic). It
+starts life in the topside crate; if it proves out, it can lift into a
+shared Bevy simulation crate later, with Endless as the prior art and a
+possible second consumer.
+
 ## Score rubric
 
 Same rubric as factoriobot:
@@ -159,6 +205,7 @@ not writing it from scratch.
 | 11 | Chronicle | modforge | - | Turning public world events into narration. Read-only. | IN SURVIVALIST-MOD (verified posting live). |
 | 12 | Content registry | topside | - | Checked-in definitions the systems consume (items, structures, factions, incursion kinds, upgrade tracks, the story). Def -> registry -> use. | UNBUILT. |
 | 13 | Control plane | modforge | - | The one runtime inspection and op surface (HTTP server, op registry). | EXISTS in modforge; rated 9/10 in survivalist-mod. The first thing wired into topside per the runtime-control-http doctrine. |
+| 14 | GPU simulation | topside | - | The compute-shader half of the simulation: crowd movement with separation, the spatial grid, target candidates, projectiles, under the GPU offload contract above. | UNBUILT. The contract is proven in Endless; the WGSL is new (3D). |
 
 ## Presentation (decided 2026-08-19)
 
