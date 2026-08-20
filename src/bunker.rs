@@ -10,8 +10,7 @@ use modforge::item::ItemStack;
 use crate::cel::CelMaterial;
 use crate::interact::spawn_item;
 use crate::structure::{
-    LightSpec, Opening, RoomSpec, Side, SolidSpec, StairSpec, StaticColliders, StructureDef,
-    Walkables, spawn_structure,
+    LightSpec, Opening, RoomSpec, Side, SolidSpec, StairSpec, StructureDef, spawn_structure,
 };
 
 /// One game day in real seconds (Valheim-scale pacing; tune later).
@@ -194,15 +193,11 @@ pub fn setup(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut cel_materials: ResMut<Assets<CelMaterial>>,
-    mut colliders: ResMut<StaticColliders>,
-    mut walkables: ResMut<Walkables>,
 ) {
     spawn_structure(
         &mut commands,
         &mut meshes,
         &mut cel_materials,
-        &mut colliders,
-        &mut walkables,
         &starting_bunker(),
         Vec3::ZERO,
     )
@@ -211,8 +206,6 @@ pub fn setup(
         &mut commands,
         &mut meshes,
         &mut cel_materials,
-        &mut colliders,
-        &mut walkables,
         &two_story_house(),
         Vec3::new(0.0, 0.0, -30.0),
     )

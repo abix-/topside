@@ -20,38 +20,6 @@ fn cel_from_rgb(c: Rgb) -> CelMaterial {
     CelMaterial::from_srgb(c[0], c[1], c[2])
 }
 
-/// Walls and furniture the player cannot walk through.
-#[derive(Resource, Default)]
-pub struct StaticColliders(pub Vec<Aabb>);
-
-/// Surfaces feet can stand on (floor slabs, steps, landings). The
-/// bare ground is implicit at y 0.
-#[derive(Resource, Default)]
-pub struct Walkables(pub Vec<Aabb>);
-
-impl Walkables {
-    /// Height of the highest surface under the body at (x, z) whose
-    /// top is reachable (at or below `max_feet`). 0 = the ground.
-    /// Surfaces count within most of the body radius, matching the
-    /// collision footprint: without this, a step flush against a
-    /// wall can never be stood on, because the wall's body radius
-    /// keeps the center off it.
-    pub fn support(&self, x: f32, z: f32, max_feet: f32) -> f32 {
-        const R: f32 = 0.3;
-        self.0
-            .iter()
-            .filter(|a| {
-                x > a.min.x - R
-                    && x < a.max.x + R
-                    && z > a.min.z - R
-                    && z < a.max.z + R
-                    && a.max.y <= max_feet
-            })
-            .map(|a| a.max.y)
-            .fold(0.0, f32::max)
-    }
-}
-
 pub const DOOR_HEIGHT: f32 = 2.6;
 const DOOR_THICKNESS: f32 = 0.1;
 pub const DOOR_REACH: f32 = 2.5;
@@ -64,6 +32,12 @@ pub const BODY_RADIUS: f32 = 0.35;
 pub const BODY_TOP: f32 = 1.8;
 /// Height a walking body steps over / climbs per move.
 pub const CLIMB: f32 = 0.35;
+
+/// The walking body's collision shape: a capsule BODY_TOP tall,
+/// BODY_RADIUS wide, centred at feet + BODY_TOP / 2.
+pub fn body_shape() -> Collider {
+    Collider::capsule(BODY_RADIUS, BODY_TOP - 2.0 * BODY_RADIUS)
+}
 
 /// The static body every piece of one spawned structure hangs
 /// off. Despawning it takes the geometry, doors, and colliders
@@ -105,14 +79,12 @@ impl Door {
     }
 }
 
-/// The one path from a StructureDef to world geometry, colliders,
-/// and walkables, at a world origin.
+/// The one path from a StructureDef to world geometry and colliders
+/// at a world origin. Returns the structure root.
 pub fn spawn_structure(
     commands: &mut Commands,
     meshes: &mut Assets<Mesh>,
     materials: &mut Assets<CelMaterial>,
-    colliders: &mut StaticColliders,
-    walkables: &mut Walkables,
     def: &StructureDef,
     origin: Vec3,
 ) -> Result<Entity, String> {
@@ -149,13 +121,6 @@ pub fn spawn_structure(
             Transform::from_translation(center),
         ));
     };
-    // Movement compatibility output, kept until the player moves
-    // onto the Avian world (todo priority 2).
-    let blocking = |colliders: &mut StaticColliders, center: Vec3, size: Vec3| {
-        colliders
-            .0
-            .push(Aabb::from_center_size(origin + center, size));
-    };
 
     for room in &def.rooms {
         let t = room.wall_thickness;
@@ -188,7 +153,6 @@ pub fn spawn_structure(
                 let center = wall_center + axis * mid + Vec3::Y * (height / 2.0);
                 let size = axis * run + Vec3::Y * height + (Vec3::ONE - axis - Vec3::Y) * t;
                 solid(commands, meshes, center, size, concrete.clone());
-                blocking(colliders, center, size);
             }
             // Panels below raised sills.
             for opening in room
@@ -202,7 +166,6 @@ pub fn spawn_structure(
                     + Vec3::Y * opening.sill
                     + (Vec3::ONE - axis - Vec3::Y) * t;
                 solid(commands, meshes, center, size, concrete.clone());
-                blocking(colliders, center, size);
             }
         }
 
@@ -211,9 +174,6 @@ pub fn spawn_structure(
             let center = room.origin + Vec3::Y * (SLAB / 2.0);
             let size = slab_xz + Vec3::Y * SLAB;
             solid(commands, meshes, center, size, floor_mat.clone());
-            walkables
-                .0
-                .push(Aabb::from_center_size(origin + center, size));
         }
         if room.ceiling {
             let center = room.origin + Vec3::Y * (height + SLAB);
@@ -271,9 +231,6 @@ pub fn spawn_structure(
                 + Vec3::Y * (height / 2.0);
             let size = dir.abs() * STEP_DEPTH + across * stair.width + Vec3::Y * height;
             solid(commands, meshes, center, size, stair_mat.clone());
-            walkables
-                .0
-                .push(Aabb::from_center_size(origin + center, size));
         }
         if stair.landing > 0.0 {
             let center = stair.base
@@ -281,16 +238,12 @@ pub fn spawn_structure(
                 + Vec3::Y * (stair.rise - SLAB / 2.0);
             let size = dir.abs() * stair.landing + across * stair.width + Vec3::Y * SLAB;
             solid(commands, meshes, center, size, stair_mat.clone());
-            walkables
-                .0
-                .push(Aabb::from_center_size(origin + center, size));
         }
     }
 
     for piece in &def.furniture {
         let material = materials.add(cel_from_rgb(piece.color));
         solid(commands, meshes, piece.center, piece.size, material);
-        blocking(colliders, piece.center, piece.size);
     }
 
     for light in &def.lights {
@@ -306,35 +259,6 @@ pub fn spawn_structure(
     }
 
     Ok(root)
-}
-
-/// True when a walking body with feet at `feet` height overlaps a
-/// wall, furniture, or a closed door at point p. Anything at or
-/// below CLIMB above the feet is steppable, not blocking.
-pub fn blocked<'a>(
-    p: Vec3,
-    feet: f32,
-    colliders: &StaticColliders,
-    doors: impl Iterator<Item = &'a Door>,
-) -> bool {
-    let test = |a: &Aabb| {
-        p.x > a.min.x - BODY_RADIUS
-            && p.x < a.max.x + BODY_RADIUS
-            && p.z > a.min.z - BODY_RADIUS
-            && p.z < a.max.z + BODY_RADIUS
-            && a.min.y < feet + BODY_TOP
-            && a.max.y > feet + CLIMB
-    };
-    colliders.0.iter().any(test) || doors.into_iter().any(|d| !d.open && test(&d.collider))
-}
-
-pub fn point_hits(p: Vec3, a: &Aabb) -> bool {
-    p.x > a.min.x - BODY_RADIUS
-        && p.x < a.max.x + BODY_RADIUS
-        && p.z > a.min.z - BODY_RADIUS
-        && p.z < a.max.z + BODY_RADIUS
-        && a.min.y < BODY_TOP
-        && a.max.y > CLIMB
 }
 
 pub fn door_interact(
@@ -357,127 +281,3 @@ pub fn door_interact(
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use bevy::ecs::system::SystemState;
-
-    type SpawnStructureParams<'w, 's> = (
-        Commands<'w, 's>,
-        ResMut<'w, Assets<Mesh>>,
-        ResMut<'w, Assets<CelMaterial>>,
-        ResMut<'w, StaticColliders>,
-        ResMut<'w, Walkables>,
-    );
-
-    fn spawn_into_world(def: &StructureDef) -> (StaticColliders, Walkables, Result<Entity, String>) {
-        let mut app = App::new();
-        app.init_resource::<Assets<Mesh>>();
-        app.init_resource::<Assets<CelMaterial>>();
-        app.init_resource::<StaticColliders>();
-        app.init_resource::<Walkables>();
-        let world = app.world_mut();
-        let mut state: SystemState<SpawnStructureParams<'_, '_>> = SystemState::new(world);
-        let result;
-        {
-            let (mut commands, mut meshes, mut materials, mut colliders, mut walkables) =
-                state
-                    .get_mut(world)
-                    .expect("structure spawn system state is valid");
-            result = spawn_structure(
-                &mut commands,
-                &mut meshes,
-                &mut materials,
-                &mut colliders,
-                &mut walkables,
-                def,
-                Vec3::ZERO,
-            );
-        }
-        state.apply(world);
-        (
-            std::mem::take(&mut *app.world_mut().resource_mut::<StaticColliders>()),
-            std::mem::take(&mut *app.world_mut().resource_mut::<Walkables>()),
-            result,
-        )
-    }
-
-    #[test]
-    fn a_wall_with_an_opening_splits_into_two_segments() {
-        let def = StructureDef {
-            name: "test room".to_string(),
-            rooms: vec![RoomSpec {
-                origin: Vec3::ZERO,
-                interior: Vec3::new(6.0, 3.0, 8.0),
-                wall_thickness: 0.2,
-                openings: vec![Opening {
-                    side: Side::North,
-                    offset: 0.0,
-                    width: 1.2,
-                    sill: 0.0,
-                    door: true,
-                }],
-                floor: true,
-                ceiling: true,
-            }],
-            stairs: vec![],
-            furniture: vec![],
-            lights: vec![],
-        };
-        let (colliders, _, result) = spawn_into_world(&def);
-        result.unwrap();
-        let north_z = -(8.0 / 2.0 + 0.1);
-        assert!(
-            !colliders
-                .0
-                .iter()
-                .any(|a| point_hits(Vec3::new(0.0, 1.0, north_z), a)),
-            "the doorway gap must not collide"
-        );
-        assert!(
-            colliders
-                .0
-                .iter()
-                .any(|a| point_hits(Vec3::new(2.0, 1.0, north_z), a)),
-            "the wall beside the gap must collide"
-        );
-    }
-
-    #[test]
-    fn stairs_are_climbable_step_by_step() {
-        let def = StructureDef {
-            name: "stairs".to_string(),
-            rooms: vec![],
-            stairs: vec![StairSpec {
-                base: Vec3::ZERO,
-                side: Side::North,
-                width: 2.0,
-                rise: 3.1,
-                landing: 0.5,
-            }],
-            furniture: vec![],
-            lights: vec![],
-        };
-        let (_, walkables, result) = spawn_into_world(&def);
-        result.unwrap();
-        let mut feet = 0.0_f32;
-        // Walk north up the run and onto the landing (10 steps of
-        // 0.3 plus the 0.5 landing); every support gain must be
-        // within CLIMB. One stride further would be walking off the
-        // far edge, which is a fall, not a stairs defect.
-        let mut z = -0.15_f32;
-        for _ in 0..12 {
-            let s = walkables.support(0.0, z, feet + CLIMB);
-            assert!(
-                s >= feet && s - feet <= CLIMB,
-                "unclimbable jump at z {z}: {feet} -> {s}"
-            );
-            feet = s;
-            z -= STEP_DEPTH;
-        }
-        assert!(
-            (feet - 3.1).abs() < 0.01,
-            "the top of the stairs must reach the full rise, got {feet}"
-        );
-    }
-}

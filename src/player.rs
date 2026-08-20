@@ -2,6 +2,8 @@
 //! click grabs the cursor, mouse looks, WASD walks, Escape releases.
 
 use crate::cel::CelMaterial;
+use crate::structure::{BODY_TOP, CLIMB, body_shape};
+use avian3d::prelude::*;
 use bevy::input::mouse::MouseMotion;
 use bevy::prelude::*;
 use bevy::window::{CursorGrabMode, CursorOptions, PrimaryWindow};
@@ -28,6 +30,8 @@ pub fn setup_scene(
     commands.spawn((
         Mesh3d(meshes.add(Plane3d::default().mesh().size(200.0, 200.0))),
         MeshMaterial3d(materials.add(CelMaterial::from_srgb(0.35, 0.40, 0.30))),
+        RigidBody::Static,
+        Collider::half_space(Vec3::Y),
     ));
     commands.spawn((
         DirectionalLight {
@@ -103,36 +107,60 @@ pub fn mouse_look(
     }
 }
 
+/// Walk the body against the Avian world: move and slide along
+/// walls (Quake III PM_SlideMove, as shipped by Avian), retry the
+/// move raised by CLIMB when blocked so steps are climbed (Quake's
+/// step slide move), then cast down to land on whatever is under
+/// the feet. Nothing under the feet within CLIMB means the body
+/// stays at its height; there is no gravity yet.
 pub fn movement(
     input: Res<MovementInput>,
     time: Res<Time<Fixed>>,
-    colliders: Res<crate::structure::StaticColliders>,
-    walkables: Res<crate::structure::Walkables>,
-    doors: Query<&crate::structure::Door>,
-    mut players: Query<(&mut Transform, &Player), Without<crate::structure::Door>>,
+    move_and_slide: MoveAndSlide,
+    mut players: Query<(Entity, &mut Transform, &Player)>,
 ) {
     let wish = Vec3::new(input.0.x, 0.0, input.0.y);
     if wish == Vec3::ZERO {
         return;
     }
-    for (mut transform, player) in &mut players {
-        let dir = (Quat::from_rotation_y(player.yaw) * wish).normalize();
-        let step = dir * WALK_SPEED * time.delta_secs();
-        let feet = transform.translation.y - EYE_HEIGHT;
-        // Per-axis resolution: a blocked axis stops, the other
-        // slides. Enough for axis-aligned walls.
-        let mut pos = transform.translation;
-        pos.x += step.x;
-        if crate::structure::blocked(pos, feet, &colliders, doors.iter()) {
-            pos.x = transform.translation.x;
+    let shape = body_shape();
+    let config = MoveAndSlideConfig::default();
+    let half = BODY_TOP / 2.0;
+    for (entity, mut transform, player) in &mut players {
+        let velocity = (Quat::from_rotation_y(player.yaw) * wish).normalize() * WALK_SPEED;
+        let filter = SpatialQueryFilter::from_excluded_entities([entity]);
+        let start = transform.translation - Vec3::Y * EYE_HEIGHT + Vec3::Y * half;
+        let slide = |from: Vec3| {
+            move_and_slide
+                .move_and_slide(
+                    &shape,
+                    from,
+                    Quat::IDENTITY,
+                    velocity,
+                    time.delta(),
+                    &config,
+                    &filter,
+                    |_| MoveAndSlideHitResponse::Accept,
+                )
+                .position
+        };
+        let flat = slide(start);
+        let raised = slide(start + Vec3::Y * CLIMB);
+        let progress = |p: Vec3| (p - start).with_y(0.0).length();
+        let mut center = if progress(raised) > progress(flat) + 1e-4 {
+            raised
+        } else {
+            flat
+        };
+        // Land: cast down by up to CLIMB plus the step lift.
+        let drop = Vec3::NEG_Y * (CLIMB + (center.y - start.y).max(0.0));
+        if let Some(hit) =
+            move_and_slide.cast_move(&shape, center, Quat::IDENTITY, drop, 0.0, &filter)
+        {
+            center += drop.normalize() * hit.distance;
+        } else {
+            center.y = start.y;
         }
-        pos.z += step.z;
-        if crate::structure::blocked(pos, feet, &colliders, doors.iter()) {
-            pos.z = transform.translation.z;
-        }
-        // Feet follow the highest reachable surface: floor slabs,
-        // steps, landings, or the bare ground at 0.
-        let support = walkables.support(pos.x, pos.z, feet + crate::structure::CLIMB);
-        transform.translation = Vec3::new(pos.x, support + EYE_HEIGHT, pos.z);
+        transform.translation = center - Vec3::Y * half + Vec3::Y * EYE_HEIGHT;
     }
 }

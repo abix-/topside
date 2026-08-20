@@ -54,8 +54,6 @@ pub fn build_app(headless: bool) -> App {
     app.init_resource::<entity_map::GpuSlotPool>();
     app.init_resource::<entity_map::EntityMap>();
     app.init_resource::<bunker::FoodStore>();
-    app.init_resource::<structure::StaticColliders>();
-    app.init_resource::<structure::Walkables>();
     app.init_resource::<ButtonInput<KeyCode>>();
     app.init_resource::<interact::LookingAt>();
     app.init_resource::<interact::InteractInput>();
