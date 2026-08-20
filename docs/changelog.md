@@ -26,6 +26,7 @@ These rules govern `docs/changelog.md`. Follow them exactly.
 
 | System | Item | Done when |
 |---|---|---|
+| Engine | [x] Upgrade Topside from Bevy 0.18 to Bevy 0.19.1 and align modforge's shared glam dependency | Topside check, 10 tests, strict Clippy, four-phase boot test, and windowed Vulkan startup pass; modforge builds and its structure tests pass with glam 0.32 |
 | FixedUpdate | [x] Move player movement, looking-at selection, door mutation, and item pickup out of `Update`; capture input in `Update` and apply gameplay changes in an ordered `FixedUpdate` chain | `gameplay_result_is_independent_of_update_count` produces the same player position, selected target, door state, and inventory at 60 Hz and 240 Hz render sampling; the boot test, full test suite, and strict Clippy pass |
 | Physics | [x] Choose Avian 3D as Topside's physics engine | `docs/authority.md` records Avian's ECS ownership boundary and `docs/todo.md` names Avian for the structure-collision migration |
 

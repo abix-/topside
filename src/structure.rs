@@ -5,7 +5,7 @@
 //! colliders, and walkable surfaces), doors, and the walking
 //! collision the player moves against.
 //!
-//! Bevy 0.18 and modforge share the same glam, so Vec3 here and
+//! Bevy 0.19 and modforge share the same glam, so Vec3 here and
 //! Vec3 in the defs are one type.
 
 use bevy::prelude::*;
@@ -330,6 +330,14 @@ mod tests {
     use super::*;
     use bevy::ecs::system::SystemState;
 
+    type SpawnStructureParams<'w, 's> = (
+        Commands<'w, 's>,
+        ResMut<'w, Assets<Mesh>>,
+        ResMut<'w, Assets<CelMaterial>>,
+        ResMut<'w, StaticColliders>,
+        ResMut<'w, Walkables>,
+    );
+
     fn spawn_into_world(def: &StructureDef) -> (StaticColliders, Walkables, Result<(), String>) {
         let mut app = App::new();
         app.init_resource::<Assets<Mesh>>();
@@ -337,17 +345,13 @@ mod tests {
         app.init_resource::<StaticColliders>();
         app.init_resource::<Walkables>();
         let world = app.world_mut();
-        let mut state: SystemState<(
-            Commands,
-            ResMut<Assets<Mesh>>,
-            ResMut<Assets<CelMaterial>>,
-            ResMut<StaticColliders>,
-            ResMut<Walkables>,
-        )> = SystemState::new(world);
+        let mut state: SystemState<SpawnStructureParams<'_, '_>> = SystemState::new(world);
         let result;
         {
             let (mut commands, mut meshes, mut materials, mut colliders, mut walkables) =
-                state.get_mut(world);
+                state
+                    .get_mut(world)
+                    .expect("structure spawn system state is valid");
             result = spawn_structure(
                 &mut commands,
                 &mut meshes,

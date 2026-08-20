@@ -16,9 +16,10 @@ structure collision and player inventory.
 
 ## Last session
 
-Documented how Bevy entities, components, systems, resources, messages,
-hierarchies, persistent identity, Avian, GPU buffers, modforge binders, and the
-HUD fit Topside's World authority.
+Upgraded Topside to Bevy 0.19.1 and aligned modforge with Bevy's glam 0.32
+types. Topside check, tests, strict Clippy, headless boot, and windowed Vulkan
+startup pass. The next change can integrate Avian 0.7.0 without mixing an
+engine migration into the physics work.
 
 ## Next steps
 
