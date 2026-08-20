@@ -48,6 +48,7 @@ pub fn build_app(headless: bool) -> App {
     app.init_resource::<structure::StaticColliders>();
     app.init_resource::<structure::Walkables>();
     app.init_resource::<interact::LookingAt>();
+    app.insert_resource(hud::HudRes(modforge::hud::HudState::new(20)));
     app.add_systems(
         FixedUpdate,
         (tick_system, bunker::food_tick_system, control_plane::publish_system)
@@ -68,7 +69,9 @@ pub fn build_app(headless: bool) -> App {
                 player::movement,
                 interact::update_looking_at,
                 interact::interact_on_press,
-                hud::update,
+                hud::write_vitals,
+                hud::write_prompt,
+                hud::render,
             )
                 .run_if(in_state(AppState::Playing)),
         );

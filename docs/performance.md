@@ -35,7 +35,9 @@ Every entry in this doc is a line item against that budget.
 | movement | WASD movement with collision | Player transform, tests blocked() against all nearby colliders | Low: a few dozen AABB tests per frame | Already the most expensive per-frame system; scales with nearby collider count |
 | interact::update_looking_at | Raycast from camera to find the nearest interactable | One ray-AABB test per door and interactable entity | Low: comparable to one blocked() call; scales with nearby entity count | Replaces the old distance-based door check |
 | interact::interact_on_press | On E press, dispatches to modforge's interact | One entity lookup | Negligible | Only runs on keypress, not every frame |
-| hud::update | Refreshes HUD text | Reads food and the LookingAt resource | Negligible | Prompt text comes from modforge::hud::prompt_for |
+| hud::write_vitals | Copies food days into HudState | One f32 write | Negligible | |
+| hud::write_prompt | Copies LookingAt into HudState prompt | One string build | Negligible | Only rebuilds when looking at something |
+| hud::render | Paints HudState to screen text | Reads HudState, writes one Text | Negligible | Reads no game state directly |
 
 ## GPU compute (planned, not built)
 
