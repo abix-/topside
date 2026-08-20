@@ -2,7 +2,6 @@
 
 | Priority | System | Todo | Done when |
 |---:|---|---|---|
-| 3 | CelMaterial | [ ] Migrate all existing geometry (walls, floors, furniture, doors) from StandardMaterial to CelMaterial | Every mesh in the game uses CelMaterial, no StandardMaterial remains, verified in-game |
 | 4 | bunker.rs | [ ] Replace the FoodStore counter with real food items in the bunker's stores; the food clock reads what is actually there (design.md) | The HUD food panel reflects the food items in the bunker, eating or removing food shortens it, and FoodStore the counter is gone, verified in-game |
 | 4 | StructureDef | [ ] Put a loot crate in the two-story house: a container with an Inventory, opened through the interact path, items transfer to the player | Opening the crate moves its items into the player's Inventory, verified in-game |
 | 5 | StructureDef | [ ] Block walking into the side of a staircase: steps are walkable-only, so entering from the side clips inside the solid stair (found by the operator in the two-story house) | Approaching the stairs from the side blocks like a wall while climbing the run front-on still works, verified in-game |
