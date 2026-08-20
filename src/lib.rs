@@ -2,6 +2,7 @@
 //! consuming the modforge crate. Ownership map: docs/authority.md.
 
 pub mod bunker;
+pub mod content;
 pub mod control_plane;
 pub mod entity_map;
 pub mod hud;
