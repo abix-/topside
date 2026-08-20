@@ -155,6 +155,17 @@ similar): recruited people with their own skills and traits, assigned to
 work stations and duties they then run autonomously, guard and follow roles,
 companions at your side in the world.
 
+## Items and inventory
+
+Inventory is slots and stacks (the Rust / Valheim-without-weight model).
+No inventory weight, operator-locked 2026-08-20: "i hate inventory weight.
+i think its a dumb mechanic and not fun gameplay."
+
+The starting bunker's three days of food are real items in the bunker,
+on this same item system (operator, 2026-08-20: "the food in our starting
+bunker should be items in our bunk aligned with this syte"). The food
+clock reads what is actually in the bunker's stores; no separate counter.
+
 ## Death and difficulty
 
 Topside has a custom difficulty level, and the player controls how death
