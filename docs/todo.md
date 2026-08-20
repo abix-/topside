@@ -2,7 +2,6 @@
 
 | Priority | System | Todo | Done when |
 |---:|---|---|---|
-| 2 | modforge::hud | [ ] Add InteractKind enum (Door, Pickup, Container) and interact functions to modforge::hud: prompt text from kind, and execute function that flips door state, transfers pickup into inventory, or toggles container panel | modforge builds and unit tests pass covering prompt text per kind and interact execution |
 | 2 | player.rs | [ ] Add the raycast interact path in topside: Interactable component with InteractKind on entities, camera raycast each frame to find the one thing in view, feed prompt into the HUD binder, E dispatches to modforge's interact; doors use Interactable instead of the distance check | Looking at a door shows the prompt and E opens only that door; a door behind the player does not react, verified in-game |
 | 3 | hud.rs | [ ] Topside implements the HUD binder and renderer: reads the modforge HudState, paints panels with Bevy text and UI; replaces the current ad-hoc hud.rs | The HUD shows health, food, and the door prompt through the modforge HUD system, verified in-game |
 | 3 | spawn_item | [ ] Add spawn_item, the one path from an item stack to a pickup entity, and pickup through the interact path into the player's Inventory | An item spawned in the world is picked up with E and its stack is in the player's Inventory, verified in-game |
