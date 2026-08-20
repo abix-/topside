@@ -94,6 +94,19 @@ layouts, and their names re-roll with the world, while everything with an
 owner (your bunker, the factions' bunkers) carries forward. The map is never
 fully known, but the story of who holds what continues.
 
+## Seamless, no loading screens (operator-locked 2026-08-19)
+
+One continuous world, zero loading screens. The bunker is geometry in the
+same scene; the door is a door, not a level transition (the Valheim / Rust /
+STALKER interior model). At our scale (1000 people, dozens of monuments)
+the whole world fits in memory at once.
+
+The storm hides the real work: world regeneration runs while the player is
+hiding inside a shelter, unable to see the world being remade; the whiteout
+IS the work window (the elevator trick, made diegetic). Regeneration
+streams in slices across frames, nearest terrain first, so there is no
+hitch when the player steps out into the new world.
+
 ## Faction war
 
 Faction war is part of this. Each faction has a bunker of its own, and the
