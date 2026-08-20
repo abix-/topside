@@ -369,6 +369,55 @@ on this same item system (operator, 2026-08-20: "the food in our starting
 bunker should be items in our bunk aligned with this syte"). The food
 clock reads what is actually in the bunker's stores; no separate counter.
 
+## Survival pressures
+
+The world is always trying to kill you (operator-locked 2026-08-20:
+"we need thirst. hunger. weather including radiation storm and heat
+wave. i played 2000 hours of atlas so kinda built like that from a
+survival perspective"). Atlas is the reference for how these pressures
+stack and never let up. The goal section says it: Food. Water.
+Resources. Enemies. Scarcity. Heat. Radiation. All of these are real
+systems, not flavor.
+
+Hunger: you eat food items from your inventory or your bunker's stores.
+No food, you starve. The three-day starting clock is the first taste.
+Food spoils over time (perishability forces you to keep scavenging,
+never stockpile forever). Different foods restore different amounts.
+Cooking at a station makes food last longer and restore more.
+
+Thirst: you drink water. Clean water is crafted (purification at a
+chemistry table) or found. Dirty water works but makes you sick.
+Dehydration kills faster than hunger. Water sources exist in the world
+(wells, rivers, rain collection) but depend on biome and weather.
+
+Temperature: biomes have base temperatures. Heat waves and cold snaps
+are weather events the storyteller rolls. Extreme heat drains water
+faster and causes heatstroke. Extreme cold drains food faster and
+causes hypothermia. Clothing and shelter counter temperature. The
+bunker is always temperate (deep underground, insulated).
+
+Radiation: radiation zones exist near certain monuments (the most
+dangerous, most rewarding ones). Radiation storms are weather events
+that irradiate the open world temporarily (different from the big
+storm that regenerates everything). Exposure builds over time.
+Protection comes from gear (hazmat suit, meds) and shelter. High
+radiation forces hard choices: is the loot worth the exposure?
+
+Weather: weather is per-biome, driven by the storyteller. Types
+include rain, fog, heat wave, cold snap, radiation storm, and the
+big storm (the regeneration event, its own system). Weather affects
+visibility, temperature, radiation, and NPC behavior. NPCs react
+to weather the same way the player does (same mechanic path):
+they seek shelter from radiation storms, slow down in heat, and
+so on.
+
+All survival pressures apply equally to the player and NPCs (one
+mechanic path, as always). An NPC caught in a radiation storm takes
+the same damage you would. A faction that controls a clean water
+source has a real advantage. Survival pressure is the baseline that
+never goes away, even at 2000 hours: tech and gear push back against
+it but never eliminate it.
+
 ## Technology and crafting
 
 The technology tree is DEEP (operator-locked 2026-08-20: "the factorio
