@@ -88,6 +88,8 @@ the operator's own words. No synonyms, no renamed wrappers.
 | **EntityMap** | The one slot-to-entity identity index, taken from Endless. Authoritative for identity, ownership checks, and live counts. |
 | **StructureDef** | One building as data (room, openings, doors, furniture, lights), the Def in Def -> Registry -> Instance. Hand-authored and generated buildings use the same shape; code never composes geometry outside one. |
 | **spawn_structure** | The one path from a StructureDef to world geometry and colliders (the Controller). The structure counterpart of the one actor spawn path. |
+| **MonumentDef** | One monument as data (design.md: a destination worth traveling to, Rust's monuments as the reference): member structures with placements, loot spots, npc spots, gates (a card room's locked access), special features, and the name. Hand-authored or generated, same shape. |
+| **spawn_monument** | The one path from a MonumentDef to a placed monument. It places member structures ONLY through spawn_structure and decides nothing that belongs elsewhere: loot value is Quality's, NPC identity is Genome's and the edge's, placement in the world and regeneration are Worldgen's and the storm's. |
 | **GpuSlotPool** | The one slot allocator, taken from Endless. Authoritative for buffer sizing and dispatch bounds. |
 
 ## Ownership flow
@@ -135,6 +137,13 @@ Anti-bypass rules, stated once here and enforced by the proof module:
   materialize_npc discipline): arrivals at the edge, loads from save, and
   test setups all use the same function. No second way to make a person
   exist.
+- Content composes upward in data, never in code: solids and openings make
+  a RoomSpec, rooms make a StructureDef, structures make a MonumentDef,
+  worldgen places monuments. Every layer is data; each layer spawns only
+  through the layer below's one path; a generator WRITES defs and never
+  touches geometry. This is what makes the world super generative: rolling
+  a new monument means rolling data, and hand-authored and generated
+  content are indistinguishable downstream.
 
 ## Frame structure (from Endless)
 
@@ -232,6 +241,7 @@ not writing it from scratch.
 | 16 | Spawn path | topside | - | The one function through which every actor enters the world (edge arrivals, saves, tests). | UNBUILT. Endless materialize_npc is the model. |
 | 17 | Save | topside | - | Persistence of the 1000 people, bunkers, factions, and world seed across restarts, with version migration. | UNBUILT. Endless save-load.md is the model. |
 | 18 | Test framework | topside | - | In-app integration tests selectable from a debug menu, CLI-runnable headless (--test), phased assertions. Every system row's proof runs here. | UNBUILT. Endless tests/ is the model; the piece factoriobot lacked early and paid for. |
+| 19 | MonumentDef | topside | - | Monuments as data: member structures, loot spots, npc spots, gates, special features, names. spawn_monument is the one path; members spawn only through spawn_structure; loot value, NPC identity, and world placement belong to Quality, Genome/the edge, and Worldgen respectively. | UNBUILT. Rust's monuments are the reference (design.md, references.md). |
 
 ## Presentation (decided 2026-08-19)
 
