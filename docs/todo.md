@@ -2,7 +2,7 @@
 
 | Priority | System | Todo | Done when |
 |---:|---|---|---|
-| 5 | StructureDef | [ ] Extend the structure vocabulary to multi-room buildings: rooms, hallways, stairs, and the rules for how they relate so structures read as logical places to explore (operator: "i want a world to explore") | A multi-room StructureDef with a hallway and stairs spawns through the same spawn_structure path and is walked in-game |
+| 5 | StructureDef | [ ] Block walking into the side of a staircase: steps are walkable-only, so entering from the side clips inside the solid stair (found by the operator in the two-story house) | Approaching the stairs from the side blocks like a wall while climbing the run front-on still works, verified in-game |
 | 6 | MonumentDef | [ ] Build the monument vocabulary: MonumentDef (member structures, loot spots, npc spots, gates, name) and spawn_monument placing members only through spawn_structure | A hand-authored MonumentDef with two structures, a crate loot spot, and a gated room spawns through spawn_monument and is walked in-game |
 | 10 | Storyteller | [ ] Read survivalist-mod's storyteller code (incursion.rs, stranger.rs) and list every game read and write it performs, answering lift versus rewrite behind a binder trait | The lift-versus-rewrite answer is recorded in the docs/authority.md storyteller row |
 | 12 | The edge | [ ] Read survivalist-mod's edge-spawn and march code and list every game read and write it performs, answering lift versus rewrite behind a binder trait | The lift-versus-rewrite answer is recorded in the docs/authority.md edge row |
