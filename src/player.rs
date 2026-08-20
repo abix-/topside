@@ -3,7 +3,7 @@
 
 use bevy::input::mouse::MouseMotion;
 use bevy::prelude::*;
-use bevy::window::{CursorGrabMode, PrimaryWindow};
+use bevy::window::{CursorGrabMode, CursorOptions, PrimaryWindow};
 
 #[derive(Component)]
 pub struct Player {
@@ -44,32 +44,32 @@ pub fn setup_scene(
 }
 
 pub fn cursor_grab(
-    mut windows: Query<&mut Window, With<PrimaryWindow>>,
+    mut cursors: Query<&mut CursorOptions, With<PrimaryWindow>>,
     keys: Res<ButtonInput<KeyCode>>,
     buttons: Res<ButtonInput<MouseButton>>,
 ) {
-    let Ok(mut window) = windows.single_mut() else {
+    let Ok(mut cursor) = cursors.single_mut() else {
         return;
     };
     if buttons.just_pressed(MouseButton::Left) {
-        window.cursor_options.grab_mode = CursorGrabMode::Locked;
-        window.cursor_options.visible = false;
+        cursor.grab_mode = CursorGrabMode::Locked;
+        cursor.visible = false;
     }
     if keys.just_pressed(KeyCode::Escape) {
-        window.cursor_options.grab_mode = CursorGrabMode::None;
-        window.cursor_options.visible = true;
+        cursor.grab_mode = CursorGrabMode::None;
+        cursor.visible = true;
     }
 }
 
 pub fn mouse_look(
     mut motions: MessageReader<MouseMotion>,
-    windows: Query<&Window, With<PrimaryWindow>>,
+    cursors: Query<&CursorOptions, With<PrimaryWindow>>,
     mut players: Query<(&mut Transform, &mut Player)>,
 ) {
-    let Ok(window) = windows.single() else {
+    let Ok(cursor) = cursors.single() else {
         return;
     };
-    if window.cursor_options.grab_mode == CursorGrabMode::None {
+    if cursor.grab_mode == CursorGrabMode::None {
         motions.clear();
         return;
     }
