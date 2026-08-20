@@ -201,6 +201,15 @@ works through it.
 - Initially two death settings: drop items on death, or keep items on death.
 - We build keep-items-on-death first because it is easier.
 
+## Cel shading, no textures
+
+Everything in the game uses one cel shade material: a base color quantized
+into hard light bands, no smooth gradients, no textures (operator-locked
+2026-08-20: "i want all our stuff to be cell shading so i dont waste time
+with textures until i want to. and maybe thats never tbh"). One material
+struct, one shader, every mesh in the game goes through it. Colors only.
+The material lives in topside (it is Bevy-specific presentation).
+
 ## Decided elsewhere
 
 Presentation is decided in authority.md: 3D, first person, low poly with cel
