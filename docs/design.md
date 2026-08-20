@@ -450,6 +450,14 @@ Eating is done through the inventory HUD or the hotbar, like Rust
 (operator, 2026-08-20: "eating will be through the inventory hud that
 we'll build. or the hotbar. like rust"). No eat key.
 
+Item interaction mirrors Atlas (operator, 2026-08-20: "i like atlas
+interaction", "mirror on atlas controls"): I opens the inventory,
+double click uses an item (eat food, equip gear), drag and drop moves
+stacks, hover plus T transfers the stack to the other open inventory
+(Shift+T half), hover plus O drops it on the ground, 0-9 uses the
+hotbar slot, Shift+0-9 equips to it, E picks up in the world, F opens
+another's inventory.
+
 Hunger: you eat food items from your inventory or your bunker's stores.
 No food, you starve. The three-day starting clock is the first taste.
 Food spoils over time (perishability forces you to keep scavenging,

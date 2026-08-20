@@ -61,20 +61,24 @@ pub fn build_app(headless: bool) -> App {
     app.init_resource::<interact::InteractInput>();
     app.init_resource::<player::MovementInput>();
     app.insert_resource(hud::HudRes(modforge::hud::HudState::new()));
+    app.init_resource::<hud::HoveredSlot>();
+    // Input is captured only while no panel is open: with the
+    // inventory up, the mouse and keys belong to the panel.
     app.add_systems(
         Update,
         (
             player::capture_movement_input,
             interact::capture_interact_input,
         )
-            .run_if(in_state(AppState::Playing)),
+            .run_if(in_state(AppState::Playing))
+            .run_if(not(hud::inventory_open)),
     );
     app.add_systems(
         FixedUpdate,
         (
             tick_system,
             survival::survival_tick,
-            player::movement,
+            player::movement.run_if(not(hud::inventory_open)),
             interact::update_looking_at,
             interact::interact_on_press,
             control_plane::publish_system,
@@ -98,10 +102,13 @@ pub fn build_app(headless: bool) -> App {
         app.add_systems(
             Update,
             (
-                player::cursor_grab,
-                player::mouse_look,
+                player::cursor_grab.run_if(not(hud::inventory_open)),
+                player::mouse_look.run_if(not(hud::inventory_open)),
+                hud::toggle_inventory,
+                hud::drop_hovered.run_if(hud::inventory_open),
                 hud::write_prompt,
                 hud::render,
+                hud::render_inventory,
             )
                 .run_if(in_state(AppState::Playing)),
         );
