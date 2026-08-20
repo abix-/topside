@@ -79,6 +79,8 @@ the operator's own words. No synonyms, no renamed wrappers.
 | **Dread loop** | Telegraph, uncertainty, varied payoff, lingering mystery, escalation. The storyteller's pacing mechanism. |
 | **Genome** | A faction's traits (aggression, expansionism, defensiveness, guile) and the per-survivor franchise vote that turns traits into decisions. |
 | **Act** | One thing a faction does to another or to the player (scavenge, steal, trade, rob, murder, extort, raid). Chosen by the genome vote, executed through the world. |
+| **Relationship** | The player's standing with each faction, determined by behavior (killing their people, trading, helping, raiding). Ranges from hostile (kill on sight, raids your bunker) through neutral (cautious trade) to friendly (better prices, mutual defense). Relationship decisions live in modforge (the faction system already tracks inter-faction standing); topside feeds the player's actions as inputs. |
+| **Trading** | Exchange of items between the player and any faction or neutral NPC they encounter. Factions trade from real stores (the world is the truth, no infinite shops). Relationship determines willingness and prices. Trading happens at faction territory, their bunker, or in the field. Trade decisions live in modforge; topside provides the UI and world context. |
 | **Quality** | The one item-value system: every item rolls a tier, rarer is better, the whole ecosystem (crafters, thieves, traders, warlords) recognizes it. |
 | **Named unique** | A one-of-a-kind item that enters only with a matching incursion and is tracked by the chronicle. |
 | **The work board** | Offers generated from what factions are actually doing (bounties, escorts, ransoms), paid from real stores. Never scripted. |

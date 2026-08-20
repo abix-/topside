@@ -158,11 +158,61 @@ IS the work window (the elevator trick, made diegetic). Regeneration
 streams in slices across frames, nearest terrain first, so there is no
 hitch when the player steps out into the new world.
 
-## Faction war
+## Factions and relationships
 
-Faction war is part of this. Each faction has a bunker of its own, and the
-faction bunkers are THE persistent, consistent things as the world
-regenerates, exactly like the player's.
+Factions are not just war. They are relationships (operator-locked
+2026-08-20: "our faction system should be more than just war. its
+relationships"). Your behavior toward a faction determines the
+relationship:
+
+- Kill their people and they become hostile: no trade, kill on sight,
+  raids on your bunker.
+- Leave them alone and they stay neutral: cautious but willing to trade.
+- Help them (trade, defend their territory, return their people) and
+  they become friendly: better trade prices, shared intel, mutual
+  defense.
+
+There are different kinds of factions (operator-locked 2026-08-20:
+"there should be hostile factions and builder factions. like we have in
+endless"):
+- Hostile factions: raiders, warlords, bandits. They want your stuff
+  and your territory. Trade is unlikely, war is default.
+- Builder factions: settlers, traders, craftspeople. They want to grow
+  and trade. Violence is a last resort for them.
+- The player's faction: your bunker, your people, your territory.
+
+Neutral NPCs are NOT part of any faction (operator-locked 2026-08-20:
+"neutral npcs shouldnt be part of factions. they're neutral"). They
+wander the world on their own. You can trade with them for what they
+carry, rob them, recruit them into your faction, or leave them alone.
+They are the wild card between faction territories.
+
+### Trading
+
+You can trade with any faction you find, not just one safe spot
+(operator-locked 2026-08-20: "i dont like how misery lets you go to
+one safe trader spot and thats it. its boring. i think you should be
+able to trade with any of the factions that you find. and then there's
+also wandering NPCs that you could fight or trade with").
+
+Trading happens where factions are: at their territory, at their
+bunker, or when you encounter their people in the world. Wandering
+neutral NPCs also trade what they carry. Your relationship with a
+faction determines whether they trade and at what prices. Hostile
+factions refuse. Neutral factions trade cautiously. Friendly factions
+give better deals.
+
+Factions have real stores (the world is the truth): they trade from
+what they actually have, not from an infinite shop. A builder faction
+that controls a workshop has crafted goods to sell. A faction that
+lost their warehouse to a raid has less to offer. The economy is the
+simulation, not a menu.
+
+### Faction war
+
+Faction war is part of the relationship system. Each faction has a
+bunker of its own, and the faction bunkers are THE persistent, consistent
+things as the world regenerates, exactly like the player's.
 
 - An enemy faction can raid you; you can raid them.
 - Their bunker stays the same across storms, but the path there and back
