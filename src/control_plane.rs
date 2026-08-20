@@ -4,7 +4,7 @@
 //!
 //! POST http://127.0.0.1:15703/topside with {"op": "...", "args": {}}.
 
-use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicU32, AtomicU64, AtomicUsize, Ordering};
 
 use bevy::prelude::*;
 use modforge::envelope::OpResponse;
@@ -18,16 +18,23 @@ pub const PORT: u16 = 15703;
 // each tick and the handler reads only these.
 static TICK: AtomicU64 = AtomicU64::new(0);
 static PEOPLE: AtomicUsize = AtomicUsize::new(0);
+static FOOD_DAYS_BITS: AtomicU32 = AtomicU32::new(0);
 
-pub fn publish_system(tick: Res<crate::SimTick>, map: Res<crate::entity_map::EntityMap>) {
+pub fn publish_system(
+    tick: Res<crate::SimTick>,
+    map: Res<crate::entity_map::EntityMap>,
+    food: Res<crate::bunker::FoodStore>,
+) {
     TICK.store(tick.0, Ordering::Relaxed);
     PEOPLE.store(map.npc_count(), Ordering::Relaxed);
+    FOOD_DAYS_BITS.store(food.days.to_bits(), Ordering::Relaxed);
 }
 
 fn snapshot() -> Json {
     json!({
         "tick": TICK.load(Ordering::Relaxed),
         "people": PEOPLE.load(Ordering::Relaxed),
+        "food_days": f32::from_bits(FOOD_DAYS_BITS.load(Ordering::Relaxed)),
     })
 }
 

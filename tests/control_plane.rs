@@ -20,6 +20,10 @@ fn status_op_reports_a_ticking_simulation() {
     assert_eq!(first["op"], "status");
     let first_tick = first["state"]["tick"].as_u64().expect("state.tick is a number");
     assert!(first_tick > 0, "simulation must have ticked at least once");
+    assert!(
+        first["state"]["food_days"].is_number(),
+        "state must carry the food clock: {first}"
+    );
 
     std::thread::sleep(std::time::Duration::from_millis(300));
     let second = status().expect("game answered once, must answer again");

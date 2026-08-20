@@ -1,8 +1,10 @@
 //! topside: a standalone post-apocalyptic survival game on Bevy,
 //! consuming the modforge crate. Ownership map: docs/authority.md.
 
+pub mod bunker;
 pub mod control_plane;
 pub mod entity_map;
+pub mod hud;
 pub mod player;
 
 use bevy::prelude::*;
@@ -39,18 +41,29 @@ pub fn build_app(headless: bool) -> App {
     app.init_resource::<SimTick>();
     app.init_resource::<entity_map::GpuSlotPool>();
     app.init_resource::<entity_map::EntityMap>();
+    app.init_resource::<bunker::FoodStore>();
+    app.init_resource::<bunker::StaticColliders>();
     app.add_systems(
         FixedUpdate,
-        (tick_system, control_plane::publish_system)
+        (tick_system, bunker::food_tick_system, control_plane::publish_system)
             .chain()
             .run_if(in_state(AppState::Playing)),
     );
     if !headless {
         control_plane::start();
-        app.add_systems(OnEnter(AppState::Playing), player::setup_scene);
+        app.add_systems(
+            OnEnter(AppState::Playing),
+            (player::setup_scene, bunker::setup, hud::setup),
+        );
         app.add_systems(
             Update,
-            (player::cursor_grab, player::mouse_look, player::movement)
+            (
+                player::cursor_grab,
+                player::mouse_look,
+                player::movement,
+                bunker::door_interact,
+                hud::update,
+            )
                 .run_if(in_state(AppState::Playing)),
         );
     }

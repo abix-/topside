@@ -33,9 +33,10 @@ pub fn setup_scene(
         },
         Transform::from_rotation(Quat::from_euler(EulerRot::XYZ, -0.9, 0.4, 0.0)),
     ));
+    // Spawn inside the bunker, facing the door (negative z).
     commands.spawn((
         Camera3d::default(),
-        Transform::from_xyz(0.0, EYE_HEIGHT, 0.0),
+        Transform::from_xyz(0.0, EYE_HEIGHT, 2.0),
         Player {
             yaw: 0.0,
             pitch: 0.0,
@@ -90,6 +91,8 @@ pub fn mouse_look(
 pub fn movement(
     keys: Res<ButtonInput<KeyCode>>,
     time: Res<Time>,
+    colliders: Res<crate::bunker::StaticColliders>,
+    door: Option<Res<crate::bunker::DoorState>>,
     mut players: Query<(&mut Transform, &Player)>,
 ) {
     let mut wish = Vec3::ZERO;
@@ -111,7 +114,37 @@ pub fn movement(
     for (mut transform, player) in &mut players {
         let dir = (Quat::from_rotation_y(player.yaw) * wish).normalize();
         let step = dir * WALK_SPEED * time.delta_secs();
-        transform.translation += Vec3::new(step.x, 0.0, step.z);
-        transform.translation.y = EYE_HEIGHT;
+        // Per-axis resolution: a blocked axis stops, the other
+        // slides. Enough for axis-aligned bunker walls.
+        let mut pos = transform.translation;
+        pos.x += step.x;
+        if blocked(pos, &colliders, door.as_deref()) {
+            pos.x = transform.translation.x;
+        }
+        pos.z += step.z;
+        if blocked(pos, &colliders, door.as_deref()) {
+            pos.z = transform.translation.z;
+        }
+        transform.translation = Vec3::new(pos.x, EYE_HEIGHT, pos.z);
     }
+}
+
+const BODY_RADIUS: f32 = 0.35;
+const BODY_TOP: f32 = 1.8;
+const STEP_OVER: f32 = 0.2;
+
+fn blocked(
+    p: Vec3,
+    colliders: &crate::bunker::StaticColliders,
+    door: Option<&crate::bunker::DoorState>,
+) -> bool {
+    let test = |a: &crate::bunker::Aabb| {
+        p.x > a.min.x - BODY_RADIUS
+            && p.x < a.max.x + BODY_RADIUS
+            && p.z > a.min.z - BODY_RADIUS
+            && p.z < a.max.z + BODY_RADIUS
+            && a.min.y < BODY_TOP
+            && a.max.y > STEP_OVER
+    };
+    colliders.0.iter().any(test) || door.is_some_and(|d| !d.open && test(&d.collider))
 }

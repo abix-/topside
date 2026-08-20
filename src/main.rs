@@ -3,7 +3,7 @@
 
 use std::time::{Duration, Instant};
 
-use topside::{SimTick, build_app, entity_map::GpuSlotPool};
+use topside::{SimTick, build_app, bunker::FoodStore, entity_map::GpuSlotPool};
 
 fn main() {
     let test_mode = std::env::args().any(|a| a == "--test");
@@ -39,6 +39,13 @@ fn run_boot_test() -> i32 {
         return 1;
     }
     println!("phase 3 pass: slot pool allocates, frees, reuses");
+
+    let food = app.world().resource::<FoodStore>().days;
+    if !(food < 3.0 && food > 0.0) {
+        println!("phase 4 FAIL: food at {food} days after ticking (expected between 0 and 3)");
+        return 1;
+    }
+    println!("phase 4 pass: food clock ticking ({food:.6} days left)");
 
     println!("boot test PASS");
     0
