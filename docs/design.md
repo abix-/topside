@@ -78,6 +78,14 @@ Occasionally the event occurs (like MISERY's emission):
   similar shelter that MAY be safe. Caught in the open, they die.
 - Then the world gets REGENERATED around them, EXCEPT the player's base and
   enemy faction bases, which persist.
+- The 1000 persistent NPCs survive regeneration the same way bunkers do; the
+  emission re-rolls terrain and monuments, never deletes people. People die
+  only by dying.
+- NPCs obey the same emission rules as the player: they hide from it just
+  like you do, or die in the open. That creates natural tension around the
+  'safe' places and leads to more situations: shelter is contested when the
+  sky turns, and whoever is near your door when it hits becomes your
+  problem, or you become theirs.
 
 This is what keeps the world from ever being memorized: monuments, their
 layouts, and their names re-roll with the world, while everything with an
