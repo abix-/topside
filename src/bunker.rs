@@ -5,6 +5,9 @@
 
 use bevy::prelude::*;
 
+use modforge::item::ItemStack;
+
+use crate::interact::spawn_item;
 use crate::structure::{
     LightSpec, Opening, RoomSpec, Side, SolidSpec, StairSpec, StaticColliders, StructureDef,
     Walkables, spawn_structure,
@@ -213,4 +216,15 @@ pub fn setup(
         Vec3::new(0.0, 0.0, -30.0),
     )
     .expect("the two-story house def is valid");
+
+    spawn_item(
+        &mut commands,
+        ItemStack { item: "canned food".to_string(), count: 2, quality: None },
+        Vec3::new(-1.0, 0.3, 2.0),
+    );
+    spawn_item(
+        &mut commands,
+        ItemStack { item: "scrap".to_string(), count: 3, quality: None },
+        Vec3::new(1.0, 0.3, 2.0),
+    );
 }

@@ -2,13 +2,13 @@
 //! renderer reads only HudRes to paint the screen text.
 
 use bevy::prelude::*;
-use modforge::hud::{self, prompt_for};
+use modforge::hud::{HudState, prompt_for};
 
 use crate::bunker::FoodStore;
-use crate::interact::LookingAt;
+use crate::interact::{LookingAt, WorldItem};
 
 #[derive(Resource)]
-pub struct HudRes(pub hud::HudState);
+pub struct HudRes(pub HudState);
 
 #[derive(Component)]
 pub struct Hud;
@@ -31,9 +31,18 @@ pub fn write_vitals(food: Res<FoodStore>, mut state: ResMut<HudRes>) {
     state.0.vitals.food_max = 3.0;
 }
 
-pub fn write_prompt(looking_at: Res<LookingAt>, mut state: ResMut<HudRes>) {
+pub fn write_prompt(
+    looking_at: Res<LookingAt>,
+    items: Query<&WorldItem>,
+    mut state: ResMut<HudRes>,
+) {
     if let Some(kind) = looking_at.kind {
-        state.0.prompt = prompt_for(kind, None, None);
+        let (name, count) = looking_at
+            .entity
+            .and_then(|e| items.get(e).ok())
+            .map(|w| (Some(w.stack.item.as_str()), Some(w.stack.count)))
+            .unwrap_or((None, None));
+        state.0.prompt = prompt_for(kind, name, count);
     } else {
         state.0.prompt = Default::default();
     }

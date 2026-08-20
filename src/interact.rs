@@ -4,17 +4,44 @@
 
 use bevy::prelude::*;
 use modforge::hud::InteractKind;
+use modforge::item::ItemStack;
 use modforge::structure::Aabb;
 
+use crate::hud::HudRes;
 use crate::player::Player;
 use crate::structure::Door;
 
 const INTERACT_RANGE: f32 = 3.0;
+const ITEM_HALF: f32 = 0.2;
 
 #[derive(Component)]
 pub struct Interactable {
     pub kind: InteractKind,
     pub aabb: Aabb,
+}
+
+#[derive(Component)]
+pub struct WorldItem {
+    pub stack: ItemStack,
+}
+
+/// The ONE path from an item stack to a pickup entity in the world.
+pub fn spawn_item(commands: &mut Commands, stack: ItemStack, position: Vec3) -> Entity {
+    let aabb = Aabb {
+        min: position - Vec3::splat(ITEM_HALF),
+        max: position + Vec3::splat(ITEM_HALF),
+    };
+    commands
+        .spawn((
+            Interactable {
+                kind: InteractKind::Pickup,
+                aabb,
+            },
+            WorldItem { stack },
+            Transform::from_translation(position),
+            Visibility::default(),
+        ))
+        .id()
 }
 
 /// Nearest interactable the player is looking at this frame.
@@ -82,9 +109,12 @@ pub fn update_looking_at(
 }
 
 pub fn interact_on_press(
+    mut commands: Commands,
     keys: Res<ButtonInput<KeyCode>>,
     looking_at: Res<LookingAt>,
+    mut state: ResMut<HudRes>,
     mut doors: Query<(&mut Door, &mut Transform)>,
+    items: Query<&WorldItem>,
 ) {
     if !keys.just_pressed(KeyCode::KeyE) {
         return;
@@ -102,8 +132,14 @@ pub fn interact_on_press(
                 *transform = door.transform();
             }
         }
-        InteractKind::Pickup | InteractKind::Container => {
-            // pickup and container handled when those systems land
+        InteractKind::Pickup => {
+            if let Ok(world_item) = items.get(entity) {
+                let stack = world_item.stack.clone();
+                if state.0.inventory.add(stack, 20).is_none() {
+                    commands.entity(entity).despawn();
+                }
+            }
         }
+        InteractKind::Container => {}
     }
 }
