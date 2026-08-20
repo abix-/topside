@@ -84,6 +84,9 @@ the operator's own words. No synonyms, no renamed wrappers.
 | **The work board** | Offers generated from what factions are actually doing (bounties, escorts, ransoms), paid from real stores. Never scripted. |
 | **Upgrades** | Per-structure and settlement-wide upgrade tracks: unbounded levels, diminishing benefits, rising real costs. The player's resource sink. |
 | **Chronicle** | The read-only narration of world events to the player. Presentation only; it decides nothing and stores nothing the world does not. |
+| **Emission** | The recurring world-changing event (design.md). The storyteller schedules it; worldgen executes the regeneration; one hide-or-die check applies to the player and every NPC alike. |
+| **EntityMap** | The one slot-to-entity identity index, taken from Endless. Authoritative for identity, ownership checks, and live counts. |
+| **GpuSlotPool** | The one slot allocator, taken from Endless. Authoritative for buffer sizing and dispatch bounds. |
 
 ## Ownership flow
 
@@ -123,6 +126,23 @@ Anti-bypass rules, stated once here and enforced by the proof module:
 - The bored-player test bounds every feature (operator-locked): simulation
   the player never sees is cut. A change counts as gameplay only if a bored
   player, safe behind their walls, would sit up.
+- The player and NPCs go through the same mechanic paths. The emission's
+  hide-or-die check is ONE implementation applied to everyone; no separate
+  player-only or NPC-only version of a shared rule.
+- Every actor enters the world through ONE spawn path (Endless's
+  materialize_npc discipline): arrivals at the edge, loads from save, and
+  test setups all use the same function. No second way to make a person
+  exist.
+
+## Frame structure (from Endless)
+
+All simulation runs in FixedUpdate at a locked 60 UPS, gated on the app
+state; Update handles presentation (camera, UI, audio) at display rate.
+Gameplay never varies with frame rate. The GPU tick order lives in the GPU
+offload section below. The 1000 persistent people (the design.md scale
+target) are simulated in full near the player and as cheap abstract faction
+facts when far, the A-Life trick; both representations feed the same
+systems through the same binders, and identity persists across the switch.
 
 ## GPU offload (decided 2026-08-19)
 
@@ -192,7 +212,7 @@ not writing it from scratch.
 
 | Priority | System | Lives in | Score | Authoritative for | Status |
 |---|---|---|---:|---|---|
-| 1 | World | topside | - | The one simulation state. Every fact about what exists now. | UNBUILT. Decided 2026-08-19: 3D first person on Bevy (see Presentation below). |
+| 1 | World | topside | - | The one simulation state. Every fact about what exists now. Scale target: 1000 persistent simulated NPCs (design.md). | UNBUILT. Decided 2026-08-19: 3D first person on Bevy (see Presentation below). |
 | 2 | Binder traits | modforge | - | The contract between each system and any world. One trait per system; observe and act only. | UNBUILT. The shape exists as ueforge doctrine (ViewportBinder, DamageBinder). |
 | 3 | Storyteller | modforge | - | All dramatic pacing. Randy Random and Mario Kart, the dread loop, incursion scheduling. | IN SURVIVALIST-MOD (incursion.rs, stranger.rs; dread loop and signal payoff live-verified there 2026-07-07). |
 | 4 | The edge | modforge | - | The one faucet. What enters the world, carrying what, sent by whom. | IN SURVIVALIST-MOD (edge spawn + march, all arrival kinds). |
@@ -206,6 +226,10 @@ not writing it from scratch.
 | 12 | Content registry | topside | - | Checked-in definitions the systems consume (items, structures, factions, incursion kinds, upgrade tracks, the story). Def -> registry -> use. | UNBUILT. |
 | 13 | Control plane | modforge | - | The one runtime inspection and op surface (HTTP server, op registry). | EXISTS in modforge; rated 9/10 in survivalist-mod. The first thing wired into topside per the runtime-control-http doctrine. |
 | 14 | GPU simulation | topside | - | The compute-shader half of the simulation: crowd movement with separation, the spatial grid, target candidates, projectiles, under the GPU offload contract above. | UNBUILT. The contract is proven in Endless; the WGSL is new (3D). |
+| 15 | Worldgen | topside | - | Procedural generation of the topside world, and the emission's regeneration: terrain and monuments (layouts AND names) re-roll; bunkers and the persistent people never regenerate. | UNBUILT. Endless worldgen.rs is the in-house prior art. |
+| 16 | Spawn path | topside | - | The one function through which every actor enters the world (edge arrivals, saves, tests). | UNBUILT. Endless materialize_npc is the model. |
+| 17 | Save | topside | - | Persistence of the 1000 people, bunkers, factions, and world seed across restarts, with version migration. | UNBUILT. Endless save-load.md is the model. |
+| 18 | Test framework | topside | - | In-app integration tests selectable from a debug menu, CLI-runnable headless (--test), phased assertions. Every system row's proof runs here. | UNBUILT. Endless tests/ is the model; the piece factoriobot lacked early and paid for. |
 
 ## Presentation (decided 2026-08-19)
 
