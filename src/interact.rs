@@ -3,15 +3,19 @@
 //! dispatches to modforge's interact function.
 
 use bevy::prelude::*;
-use modforge::hud::InteractKind;
+use modforge::hud::{InteractKind, InteractResult, interact};
 use modforge::item::ItemStack;
 use modforge::structure::Aabb;
 
 use crate::cel::CelMaterial;
+use crate::hud::HudRes;
 use crate::player::{Player, PlayerInventory};
 use crate::structure::Door;
 
 const INTERACT_RANGE: f32 = 3.0;
+/// Stack ceiling used for pickups until items come from the registry
+/// (todo priority 5).
+const MAX_STACK: u32 = 20;
 const ITEM_HALF: f32 = 0.2;
 
 #[derive(Component)]
@@ -134,6 +138,7 @@ pub fn interact_on_press(
     mut commands: Commands,
     mut input: ResMut<InteractInput>,
     looking_at: Res<LookingAt>,
+    mut hud: ResMut<HudRes>,
     mut players: Query<&mut PlayerInventory>,
     mut doors: Query<(&mut Door, &mut Transform)>,
     items: Query<&WorldItem>,
@@ -147,24 +152,20 @@ pub fn interact_on_press(
     let Some(kind) = looking_at.kind else {
         return;
     };
-    match kind {
-        InteractKind::Door { .. } => {
+    let Ok(mut inventory) = players.single_mut() else {
+        return;
+    };
+    // modforge decides what happens; this system carries out the
+    // engine side of the result and nothing more.
+    let stack = items.get(entity).ok().map(|w| w.stack.clone());
+    match interact(kind, &mut inventory.0, stack, MAX_STACK, &mut hud.0) {
+        InteractResult::ToggleDoor => {
             if let Ok((mut door, mut transform)) = doors.get_mut(entity) {
                 door.open = !door.open;
                 *transform = door.transform();
             }
         }
-        InteractKind::Pickup => {
-            let Ok(mut inventory) = players.single_mut() else {
-                return;
-            };
-            if let Ok(world_item) = items.get(entity) {
-                let stack = world_item.stack.clone();
-                if inventory.0.add(stack, 20).is_none() {
-                    commands.entity(entity).despawn();
-                }
-            }
-        }
-        InteractKind::Container => {}
+        InteractResult::PickedUp => commands.entity(entity).despawn(),
+        InteractResult::InventoryFull | InteractResult::OpenContainer => {}
     }
 }
