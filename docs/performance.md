@@ -1,0 +1,59 @@
+# topside performance budget
+
+**Authoritative for:** every per-frame and per-tick cost in the game.
+If it runs every frame or every tick, it is listed here with its cost
+and why it needs to be that frequent. Anything not listed here that
+sneaks into the hot loop is a bug.
+
+The target is 60 FPS with 1000 persistent NPCs on mid-range hardware.
+Every entry in this doc is a line item against that budget.
+
+## Rules
+
+- Nothing runs every frame without an entry in this doc.
+- Each entry names: what it does, how often it runs, what it touches,
+  and the measured or estimated cost.
+- When adding a new per-frame system, add its row here FIRST. If you
+  cannot justify the frequency, reduce it or gate it on change
+  detection.
+- Review this doc when performance drops. The answer is usually here.
+
+## FixedUpdate (60 UPS, simulation)
+
+| System | What it does | What it touches | Cost | Notes |
+|---|---|---|---|---|
+| tick_system | Increments the simulation tick counter | One u64 | Negligible | |
+| food_tick_system | Drains food by elapsed time | One f32 | Negligible | Will become an inventory read when FoodStore is replaced with real items |
+| control_plane::publish_system | Writes snapshot atomics for the HTTP control plane | A few atomics | Negligible | |
+
+## Update (every render frame, presentation)
+
+| System | What it does | What it touches | Cost | Notes |
+|---|---|---|---|---|
+| cursor_grab | Toggles cursor lock on click/escape | Window entity | Negligible | Only acts on input events |
+| mouse_look | Rotates camera from mouse delta | One transform, reads mouse delta | Negligible | |
+| movement | WASD movement with collision | Player transform, tests blocked() against all nearby colliders | Low: a few dozen AABB tests per frame | Already the most expensive per-frame system; scales with nearby collider count |
+| door_interact | Toggles a door on E press | Iterates all doors, checks distance | Low | Will be replaced by the raycast interact path |
+| hud::update | Refreshes HUD text | Reads food, iterates doors for prompt | Negligible | Will be replaced by the modforge HUD binder |
+| interact raycast (planned) | Finds what the player is looking at | One ray against nearby AABBs | Low: comparable to one blocked() call | Run every frame; cheaper than movement |
+
+## GPU compute (planned, not built)
+
+Reserved for the crowd simulation compute shaders. Entries will be
+added when the GPU simulation (authority row 15) is built. The
+contract from Endless: dispatch once per frame, read back one frame
+stale.
+
+## Known scaling risks
+
+- **Collider count**: movement's blocked() and the interact raycast
+  both test against colliders. As structures increase, a spatial
+  index (grid or BVH) replaces the flat list. Not needed yet at
+  current scale (one bunker, one house).
+- **NPC count**: the 1000 NPC target means the GPU does the expensive
+  work (separation, spatial grid, target candidates). CPU per-NPC
+  systems must be throttled or bucketed, never every-entity-every-frame.
+  The Endless bevy skill documents the throttle tiers.
+- **HUD binder**: currently copies inventory slots every tick. At
+  large inventory sizes, change detection (only copy when dirty)
+  replaces the full copy.
