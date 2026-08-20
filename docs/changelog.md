@@ -27,6 +27,7 @@ These rules govern `docs/changelog.md`. Follow them exactly.
 | System | Item | Done when |
 |---|---|---|
 | FixedUpdate | [x] Move player movement, looking-at selection, door mutation, and item pickup out of `Update`; capture input in `Update` and apply gameplay changes in an ordered `FixedUpdate` chain | `gameplay_result_is_independent_of_update_count` produces the same player position, selected target, door state, and inventory at 60 Hz and 240 Hz render sampling; the boot test, full test suite, and strict Clippy pass |
+| Physics | [x] Choose Avian 3D as Topside's physics engine | `docs/authority.md` records Avian's ECS ownership boundary and `docs/todo.md` names Avian for the structure-collision migration |
 
 ## 2026-08-19
 

@@ -166,6 +166,18 @@ target) are simulated in full near the player and as cheap abstract faction
 facts when far, the A-Life trick; both representations feed the same
 systems through the same binders, and identity persists across the switch.
 
+## Physics (decided 2026-08-20)
+
+Topside uses Avian 3D. Physics bodies, colliders, positions, velocities, and
+relationships are Bevy ECS data; there is no second authoritative physics
+world. Avian's acceleration structures and contact caches are derived
+implementation details.
+
+`spawn_structure` creates one structure root whose child entities own their
+mesh and Avian collider together. Removing the root removes both presentation
+and collision. Player movement, stairs, doors, raycasts, and future dynamic
+objects use Avian rather than a Topside collision or physics implementation.
+
 ## GPU offload (decided 2026-08-19)
 
 Topside runs the crowd half of the simulation on the GPU from day one. The

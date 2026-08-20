@@ -2,7 +2,7 @@
 
 | Priority | System | Todo | Done when |
 |---:|---|---|---|
-| 2 | Structure collision | [ ] Replace `StaticColliders` and `Walkables` with ECS-owned Rapier colliders and queries so collision belongs to the spawned structure entities | A test spawns and despawns a structure, then proves its geometry and collision are both gone; stair ascent and side blocking still pass; all relevant build and tests pass |
+| 2 | Structure collision | [ ] Replace `StaticColliders` and `Walkables` with ECS-owned Avian colliders and queries so collision belongs to the spawned structure entities | A test spawns and despawns a structure, then proves its geometry and collision are both gone; stair ascent and side blocking still pass; all relevant build and tests pass |
 | 3 | Player inventory | [ ] Move the player's inventory out of `HudState` into a world-owned player component; HUD reads it only for presentation | Pickup and container tests mutate the player component while HUD rendering observes the result; no gameplay code writes inventory through `HudRes`; all relevant build and tests pass |
 | 4 | Interaction | [ ] Replace Topside's local door and pickup dispatch in `interact_on_press` with the modforge interaction path | Door, pickup, full-inventory, and container tests all enter through one modforge interaction call; Topside contains no second interaction `match`; all relevant build and tests pass |
 | 5 | Item creation | [ ] Register Topside item definitions and replace direct production `ItemStack` construction with `modforge::item::create` and `spawn_item` | Every production item is validated by the registry and enters the world through those two functions; invalid IDs and quality rolls have focused tests; all relevant build and tests pass |
