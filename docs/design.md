@@ -51,9 +51,24 @@ crafting is a core mechanic from the first minute.
 
 The long game at home:
 
-- Building the bunker out.
+- Building the bunker out: new rooms, better walls, blast doors.
+- Placing stations: crafting benches, chemistry tables, electronics
+  workbenches, armory benches, each unlocked by research.
+- Power: generators that burn fuel, wiring, powered lights, powered
+  defenses, powered stations. The grid is a real system: no fuel, no
+  power, no powered anything.
+- Storage: boxes with capacity, organization, maybe sorting automation.
+- Defenses: turrets, reinforced walls, blast doors, all scaling with
+  tech level.
 - Defending it from raiders (the storyteller's incursions come for YOU).
-- Infrastructure.
+
+The bunker is the player's factory (operator-locked 2026-08-20: "we dont
+have a factory but we do have a bunker that i want the player to be able
+to expand and craft and place benches and power and boxes"). Not conveyor
+belts, but the same idea: you start with one bench and end up with a
+powered, multi-room operation with specialized stations and automated
+defenses. Rust's base building is the model for what you can place and
+build; Factorio's depth is the model for how far the tech goes.
 
 Bunker defense, and this is deliberately unlike MISERY: sometimes the BUNKER
 itself is attacked and has to be defended. We are surviving a post-apocalypse;
@@ -297,6 +312,50 @@ The starting bunker's three days of food are real items in the bunker,
 on this same item system (operator, 2026-08-20: "the food in our starting
 bunker should be items in our bunk aligned with this syte"). The food
 clock reads what is actually in the bunker's stores; no separate counter.
+
+## Technology and crafting
+
+The technology tree is DEEP (operator-locked 2026-08-20: "the factorio
+technology tree is deep. i want to model on that. with DEEP levels of
+research and infinite upgrades. crafting too"). Factorio is the model
+for tech depth; Rust is the model for what you build with it.
+
+Research is how you unlock everything beyond the starting crafting bench.
+Early research is cheap and fast (better tools, basic building materials).
+Mid-game research costs rare components found in monuments (this is what
+makes monument runs matter beyond loot). Late-game research costs
+components from the most dangerous monuments (the launch site, the
+military outpost). The tree branches: you cannot research everything at
+once, so you specialize and trade with factions for what you lack.
+
+Crafting stations, each unlocked by research:
+- Crafting bench: the starter. Basic tools, simple repairs.
+- Chemistry table: medicine, fuel, explosives, chemicals.
+- Electronics workbench: wiring, circuits, powered components.
+- Armory bench: weapons, armor, ammunition.
+- Research station: where research happens, consuming components.
+
+Each station tier can be upgraded (better bench, better output). Higher
+tier stations produce higher quality results and unlock recipes the
+lower tier cannot see.
+
+Infinite upgrades (the Factorio model): certain research topics have no
+cap. Each level costs more than the last and gives a smaller boost.
+Examples: crafting speed, turret damage, armor durability, resource
+efficiency, power generation output. These are the 2000-hour grind:
+there is always one more level to push, and each level makes a real
+(if small) difference.
+
+The crafting loop connects to everything:
+- Materials come from topside (scavenging monuments, harvesting the
+  world, trading with factions, raiding enemy territory).
+- Research components come from dangerous monuments (the progression
+  gate that keeps you going topside).
+- Crafted output goes into your bunker (stations, power, defenses,
+  storage), your gear (weapons, armor, tools), and your people's
+  equipment.
+- The territory system feeds back: a captured workshop gives a crafting
+  bonus, losing it hurts your output.
 
 ## Death and difficulty
 
