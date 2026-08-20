@@ -315,6 +315,36 @@ similar): recruited people with their own skills and traits, assigned to
 work stations and duties they then run autonomously, guard and follow roles,
 companions at your side in the world.
 
+## Player and NPC progression
+
+The player character and every NPC grow through the same RPG system:
+modforge::rpg (operator-locked 2026-08-20: "modforge already has rpg.
+we're definitely using that here too"). Skills, leveling, specialization,
+all running on the module that survivalist-mod already uses and proved.
+
+The player and NPCs share one mechanic path (as always). A player who
+crafts a lot gets better at crafting. An NPC who fights gets better at
+fighting. This is use-based progression: you improve at what you do,
+not what you choose from a menu.
+
+What skills affect:
+- Crafting: higher skill means better quality output, faster crafting,
+  access to harder recipes.
+- Combat: higher skill means more damage, better accuracy, faster
+  reloads.
+- Medicine: higher skill means better healing, less waste on medical
+  supplies.
+- Construction: higher skill means faster building, stronger results.
+- Research: higher skill means faster research, reduced component costs.
+
+Skills matter alongside gear and tech. A high-skill crafter at a basic
+bench outperforms a low-skill crafter at an upgraded bench. Gear raises
+the floor, skill raises the ceiling.
+
+Your people's skills matter too: assigning a skilled crafter to the
+armory bench versus a rookie changes what you get. Recruiting NPCs
+with high skills in what you need becomes part of the faction game.
+
 ## The HUD
 
 ONE HUD, made of panels. The HUD is the whole player-facing information
