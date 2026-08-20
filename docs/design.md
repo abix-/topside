@@ -141,6 +141,20 @@ the same while the layout varies; here the randomization goes further, and
 even the monument NAME is random. You never walk into a monument already
 knowing it.
 
+## Biomes
+
+The world is painted in biomes (Rust the game's model: regions with
+their own look, resources, and hazards). Operator-locked 2026-08-20:
+"bios will control weather, possible monuments, possible npcs,
+wildlife", and probably more: "the point is that biome should be the
+definition of the generic type of area we want. then our generator
+can build that biome." A biome decides its weather, which monuments
+can roll there, which NPCs can appear there, and its wildlife, plus
+its ground look, what nature scatters there, and what can be
+harvested there. The def is the generic description; worldgen builds
+concrete areas from it, and the storm re-rolls the built areas,
+never the defs.
+
 ## Your people
 
 Your bunker's people run themselves by default, on the same genome and acts

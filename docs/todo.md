@@ -3,6 +3,7 @@
 | Priority | System | Todo | Done when |
 |---:|---|---|---|
 | 2 | Content registry | [ ] Check in topside's first item definitions and register them at startup | topside --test proves the registry serves the checked-in item defs by id |
+| 3 | Content registry | [ ] Check in topside's first biome definitions and register them at startup | topside --test proves the registry serves the checked-in biome defs by name |
 | 2 | player.rs | [ ] Replace the distance-based door toggle and door prompt with one look-at interact path: camera raycast, one prompt, E acts on the one thing in view; doors fold in | Looking at a door shows the prompt and E opens only that door; a door behind the player does not react, verified in-game |
 | 3 | spawn_item | [ ] Add spawn_item, the one path from an item stack to a pickup entity, and pickup through the interact path into the player's Inventory | An item spawned in the world is picked up with E and its stack is in the player's Inventory, verified in-game |
 | 3 | hud.rs | [ ] Add the inventory UI: a key toggles a grid of the player's stacks with counts and quality tiers | The grid opens, shows picked-up stacks, and closes, verified in-game |
