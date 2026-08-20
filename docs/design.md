@@ -141,6 +141,77 @@ the same while the layout varies; here the randomization goes further, and
 even the monument NAME is random. You never walk into a monument already
 knowing it.
 
+### Building types
+
+Buildings are the pieces monuments are made of. Each building type is a
+StructureDef generator: same type, different result every time. The types,
+drawn from Rust's monument buildings and adapted for topside:
+
+Small (one room, one floor):
+- Gas station: pumps outside, small shop inside.
+- Convenience store: shelves, counter, back room.
+- Water well: open structure, cistern.
+- Guard tower: tall narrow room, ladder or stairs, lookout top.
+- Shack: one room, minimal, boarded windows.
+- Lighthouse: tall cylinder, spiral stair, lamp room at top.
+
+Medium (two to four rooms, one or two floors):
+- Warehouse: large open floor, loading dock, office corner.
+- Office building: hallways, small rooms, stairs between floors.
+- Workshop: garage bay, tool storage, parts shelves.
+- Barracks: bunk room, mess hall, armory closet.
+- Lab: clean room, sample storage, monitoring station.
+- Supermarket: wide aisles, checkout area, back storage.
+
+Large (five or more rooms, two or more floors):
+- Hangar: massive open bay, catwalks, control room.
+- Industrial plant: machinery floor, control room, pipe runs, storage.
+- Silo: deep vertical shaft, access rooms at each level.
+- Dock building: long structure along water, crane platforms, cargo holds.
+
+Each building type has parameters that vary on every roll (operator-locked
+2026-08-20: "the buildings should have parameters that change"):
+- Room count within the type's range.
+- Door and window placement.
+- Color palette (within the type's feel).
+- Furniture and interior layout.
+- Condition (intact, damaged, partially collapsed).
+
+### Monument composition
+
+A monument is a cluster of buildings picked from a list, never the same
+twice (operator-locked 2026-08-20: "it shouldnt ever be consistent because
+consistent is boring"). Two layers of randomization:
+
+1. The monument picks which building types to include from its possible
+   list (not all, not always the same ones).
+2. Each picked building generates with randomized parameters.
+
+So a "roadside stop" monument might roll a gas station and a shack one time,
+a convenience store and a guard tower the next. And each of those buildings
+has different room counts, door placements, and colors every time.
+
+Monument types (from Rust's monuments, adapted):
+- Roadside stop: 1 to 2 small buildings along a road.
+- Airfield: 1 hangar, 1 to 2 small or medium buildings, open tarmac.
+- Power plant: 1 industrial plant, 1 to 3 medium support buildings.
+- Train yard: 1 to 2 warehouses, 1 to 2 small buildings, rail lines.
+- Military outpost: 1 barracks, 1 to 2 guard towers, walls.
+- Research station: 1 lab, 1 to 2 medium buildings, fenced perimeter.
+- Harbor: 1 dock building, 1 to 2 warehouses, waterfront.
+- Junkyard: 2 to 3 shacks or workshops, scrap piles, fencing.
+- Sewer: underground access, 1 silo, maintenance rooms.
+- Launch site: 1 hangar, 1 industrial plant, 1 to 2 medium buildings,
+  the most dangerous and rewarding monument.
+
+Each monument type also defines:
+- Loot spots: where crates and items appear, scaled by danger.
+- NPC spots: where guards or hostiles spawn.
+- Gates: locked areas requiring progression (Rust's card system or
+  topside's equivalent) to access the best loot.
+- Arrangement rules: how the buildings sit relative to each other
+  (clustered, along a road, around a yard).
+
 ## Biomes
 
 The world is painted in biomes (Rust the game's model: regions with
