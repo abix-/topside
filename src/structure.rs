@@ -135,13 +135,22 @@ pub struct StaticColliders(pub Vec<Aabb>);
 pub struct Walkables(pub Vec<Aabb>);
 
 impl Walkables {
-    /// Height of the highest surface under (x, z) whose top is
-    /// reachable (at or below `max_feet`). 0 = the ground.
+    /// Height of the highest surface under the body at (x, z) whose
+    /// top is reachable (at or below `max_feet`). 0 = the ground.
+    /// Surfaces count within most of the body radius, matching the
+    /// collision footprint: without this, a step flush against a
+    /// wall can never be stood on, because the wall's body radius
+    /// keeps the center off it.
     pub fn support(&self, x: f32, z: f32, max_feet: f32) -> f32 {
+        const R: f32 = 0.3;
         self.0
             .iter()
             .filter(|a| {
-                x > a.min.x && x < a.max.x && z > a.min.z && z < a.max.z && a.max.y <= max_feet
+                x > a.min.x - R
+                    && x < a.max.x + R
+                    && z > a.min.z - R
+                    && z < a.max.z + R
+                    && a.max.y <= max_feet
             })
             .map(|a| a.max.y)
             .fold(0.0, f32::max)

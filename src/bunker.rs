@@ -108,10 +108,12 @@ pub fn two_story_house() -> StructureDef {
                 floor: true,
                 ceiling: false,
             },
-            // Stairwell: full height, east of the ground room.
+            // Stairwell: full height, east of the ground room, wide
+            // enough for flat approach room in front of the bottom
+            // step (stairs must never end at a wall).
             RoomSpec {
-                origin: Vec3::new(4.9, 0.0, 0.0),
-                interior: Vec3::new(3.0, 6.0, 3.0),
+                origin: Vec3::new(5.65, 0.0, 0.0),
+                interior: Vec3::new(4.5, 6.0, 3.0),
                 wall_thickness: 0.2,
                 openings: vec![
                     Opening {
@@ -148,8 +150,11 @@ pub fn two_story_house() -> StructureDef {
                 ceiling: true,
             },
         ],
+        // Bottom step at x 6.7 leaves 1.2m of flat floor before the
+        // east wall (interior edge 7.9); the run tops out at 3.7 and
+        // the landing bridges the wall band into the upper room.
         stairs: vec![StairSpec {
-            base: Vec3::new(6.4, 0.0, -0.4),
+            base: Vec3::new(6.7, 0.0, -0.4),
             side: Side::West,
             width: 1.8,
             rise: 3.1,
@@ -168,7 +173,7 @@ pub fn two_story_house() -> StructureDef {
                 intensity: 400_000.0,
             },
             LightSpec {
-                position: Vec3::new(4.9, 5.4, 0.0),
+                position: Vec3::new(5.65, 5.4, 0.0),
                 color: Color::srgb(1.0, 0.9, 0.7),
                 intensity: 400_000.0,
             },
