@@ -7,11 +7,26 @@ use avian3d::prelude::*;
 use bevy::input::mouse::MouseMotion;
 use bevy::prelude::*;
 use bevy::window::{CursorGrabMode, CursorOptions, PrimaryWindow};
+use modforge::item::Inventory;
 
 #[derive(Component)]
+#[require(PlayerInventory)]
 pub struct Player {
     pub yaw: f32,
     pub pitch: f32,
+}
+
+/// The player's one inventory, owned by the player entity. Gameplay
+/// writes it here; the HUD reads it to paint and never copies it.
+#[derive(Component)]
+pub struct PlayerInventory(pub Inventory);
+
+pub const INVENTORY_SLOTS: usize = 20;
+
+impl Default for PlayerInventory {
+    fn default() -> Self {
+        Self(Inventory::new(INVENTORY_SLOTS))
+    }
 }
 
 #[derive(Resource, Default)]

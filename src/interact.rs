@@ -8,8 +8,7 @@ use modforge::item::ItemStack;
 use modforge::structure::Aabb;
 
 use crate::cel::CelMaterial;
-use crate::hud::HudRes;
-use crate::player::Player;
+use crate::player::{Player, PlayerInventory};
 use crate::structure::Door;
 
 const INTERACT_RANGE: f32 = 3.0;
@@ -135,7 +134,7 @@ pub fn interact_on_press(
     mut commands: Commands,
     mut input: ResMut<InteractInput>,
     looking_at: Res<LookingAt>,
-    mut state: ResMut<HudRes>,
+    mut players: Query<&mut PlayerInventory>,
     mut doors: Query<(&mut Door, &mut Transform)>,
     items: Query<&WorldItem>,
 ) {
@@ -156,9 +155,12 @@ pub fn interact_on_press(
             }
         }
         InteractKind::Pickup => {
+            let Ok(mut inventory) = players.single_mut() else {
+                return;
+            };
             if let Ok(world_item) = items.get(entity) {
                 let stack = world_item.stack.clone();
-                if state.0.inventory.add(stack, 20).is_none() {
+                if inventory.0.add(stack, 20).is_none() {
                     commands.entity(entity).despawn();
                 }
             }

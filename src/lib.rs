@@ -58,7 +58,7 @@ pub fn build_app(headless: bool) -> App {
     app.init_resource::<interact::LookingAt>();
     app.init_resource::<interact::InteractInput>();
     app.init_resource::<player::MovementInput>();
-    app.insert_resource(hud::HudRes(modforge::hud::HudState::new(20)));
+    app.insert_resource(hud::HudRes(modforge::hud::HudState::new()));
     app.add_systems(
         Update,
         (
@@ -207,9 +207,9 @@ mod tests {
             selected_kind: app.world().resource::<interact::LookingAt>().kind,
             inventory_count: app
                 .world()
-                .resource::<hud::HudRes>()
+                .get::<player::PlayerInventory>(player)
+                .expect("the player entity owns its inventory")
                 .0
-                .inventory
                 .count_of("scrap"),
         }
     }
