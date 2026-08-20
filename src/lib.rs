@@ -2,6 +2,7 @@
 //! consuming the modforge crate. Ownership map: docs/authority.md.
 
 pub mod bunker;
+pub mod cel;
 pub mod content;
 pub mod control_plane;
 pub mod entity_map;
@@ -56,6 +57,7 @@ pub fn build_app(headless: bool) -> App {
             .run_if(in_state(AppState::Playing)),
     );
     if !headless {
+        app.add_plugins(MaterialPlugin::<cel::CelMaterial>::default());
         control_plane::start();
         app.add_systems(
             OnEnter(AppState::Playing),

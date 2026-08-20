@@ -7,6 +7,7 @@ use bevy::prelude::*;
 
 use modforge::item::ItemStack;
 
+use crate::cel::CelMaterial;
 use crate::interact::spawn_item;
 use crate::structure::{
     LightSpec, Opening, RoomSpec, Side, SolidSpec, StairSpec, StaticColliders, StructureDef,
@@ -193,6 +194,7 @@ pub fn setup(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
+    mut cel_materials: ResMut<Assets<CelMaterial>>,
     mut colliders: ResMut<StaticColliders>,
     mut walkables: ResMut<Walkables>,
 ) {
@@ -219,12 +221,18 @@ pub fn setup(
 
     spawn_item(
         &mut commands,
+        &mut meshes,
+        &mut cel_materials,
         ItemStack { item: "canned food".to_string(), count: 2, quality: None },
         Vec3::new(-1.0, 0.3, 2.0),
+        [0.2, 0.6, 0.2],
     );
     spawn_item(
         &mut commands,
+        &mut meshes,
+        &mut cel_materials,
         ItemStack { item: "scrap".to_string(), count: 3, quality: None },
         Vec3::new(1.0, 0.3, 2.0),
+        [0.5, 0.5, 0.5],
     );
 }

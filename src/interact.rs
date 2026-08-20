@@ -7,6 +7,7 @@ use modforge::hud::InteractKind;
 use modforge::item::ItemStack;
 use modforge::structure::Aabb;
 
+use crate::cel::CelMaterial;
 use crate::hud::HudRes;
 use crate::player::Player;
 use crate::structure::Door;
@@ -26,11 +27,20 @@ pub struct WorldItem {
 }
 
 /// The ONE path from an item stack to a pickup entity in the world.
-pub fn spawn_item(commands: &mut Commands, stack: ItemStack, position: Vec3) -> Entity {
+pub fn spawn_item(
+    commands: &mut Commands,
+    meshes: &mut Assets<Mesh>,
+    materials: &mut Assets<CelMaterial>,
+    stack: ItemStack,
+    position: Vec3,
+    color: [f32; 3],
+) -> Entity {
     let aabb = Aabb {
         min: position - Vec3::splat(ITEM_HALF),
         max: position + Vec3::splat(ITEM_HALF),
     };
+    let mesh = meshes.add(Cuboid::new(ITEM_HALF * 2.0, ITEM_HALF * 2.0, ITEM_HALF * 2.0));
+    let mat = materials.add(CelMaterial::new(color[0], color[1], color[2]));
     commands
         .spawn((
             Interactable {
@@ -38,6 +48,8 @@ pub fn spawn_item(commands: &mut Commands, stack: ItemStack, position: Vec3) -> 
                 aabb,
             },
             WorldItem { stack },
+            Mesh3d(mesh),
+            MeshMaterial3d(mat),
             Transform::from_translation(position),
             Visibility::default(),
         ))
