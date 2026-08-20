@@ -451,7 +451,9 @@ Eating is done through the inventory HUD or the hotbar, like Rust
 we'll build. or the hotbar. like rust"). No eat key.
 
 Item interaction mirrors Atlas (operator, 2026-08-20: "i like atlas
-interaction", "mirror on atlas controls"): I opens the inventory,
+interaction", "mirror on atlas controls"): I or Tab opens the
+inventory (operator, 2026-08-20: "i think i like tab better. its more
+natural. can we have both for inventory?"),
 double click uses an item (eat food, equip gear), drag and drop moves
 stacks, hover plus T transfers the stack to the other open inventory
 (Shift+T half), hover plus O drops it on the ground, 0-9 uses the

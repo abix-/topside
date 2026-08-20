@@ -92,15 +92,15 @@ pub fn setup(mut commands: Commands) {
         });
 }
 
-/// I opens and closes the panel (Atlas). Open releases the cursor
-/// so the slots can be used; close grabs it back.
+/// I (Atlas) or Tab opens and closes the panel. Open releases the
+/// cursor so the slots can be used; close grabs it back.
 pub fn toggle_inventory(
     keys: Res<ButtonInput<KeyCode>>,
     mut hud: ResMut<HudRes>,
     mut hovered: ResMut<HoveredSlot>,
     mut cursors: Query<&mut CursorOptions, With<PrimaryWindow>>,
 ) {
-    if !keys.just_pressed(KeyCode::KeyI) {
+    if !keys.any_just_pressed([KeyCode::KeyI, KeyCode::Tab]) {
         return;
     }
     toggle_panel(&mut hud.0, OpenPanel::Inventory);
