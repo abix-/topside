@@ -3,7 +3,11 @@
 
 use std::time::{Duration, Instant};
 
-use topside::{SimTick, build_app, bunker::FoodStore, entity_map::GpuSlotPool};
+use bevy::prelude::Transform;
+use modforge::survival::FULL;
+use topside::{
+    SimTick, build_app, entity_map::GpuSlotPool, player::Player, survival::Survival,
+};
 
 fn main() {
     let test_mode = std::env::args().any(|a| a == "--test");
@@ -40,12 +44,29 @@ fn run_boot_test() -> i32 {
     }
     println!("phase 3 pass: slot pool allocates, frees, reuses");
 
-    let food = app.world().resource::<FoodStore>().days;
-    if !(food < 3.0 && food > 0.0) {
-        println!("phase 4 FAIL: food at {food} days after ticking (expected between 0 and 3)");
+    let player = app
+        .world_mut()
+        .spawn((
+            Transform::from_xyz(0.0, 1.7, 0.0),
+            Player {
+                yaw: 0.0,
+                pitch: 0.0,
+            },
+        ))
+        .id();
+    let start = Instant::now();
+    while start.elapsed() < Duration::from_millis(200) {
+        app.update();
+    }
+    let stats = app.world().get::<Survival>(player).expect("player carries survival").0;
+    if !(stats.hunger < FULL && stats.hunger > 0.0 && stats.thirst < FULL) {
+        println!("phase 4 FAIL: survival stats not draining: {stats:?}");
         return 1;
     }
-    println!("phase 4 pass: food clock ticking ({food:.6} days left)");
+    println!(
+        "phase 4 pass: survival draining (hunger {:.3}, thirst {:.3})",
+        stats.hunger, stats.thirst
+    );
 
     println!("boot test PASS");
     0

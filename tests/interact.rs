@@ -4,10 +4,11 @@
 
 use std::time::Duration;
 
-use bevy::{prelude::*, time::TimeUpdateStrategy};
+use bevy::{ecs::system::SystemState, prelude::*, time::TimeUpdateStrategy};
 use modforge::hud::{InteractKind, OpenPanel};
 use modforge::item::{ItemStack, create};
 use modforge::structure::Aabb;
+use modforge::survival::FULL;
 use topside::{
     AppState, build_app,
     content::ItemRegistryRes,
@@ -15,6 +16,7 @@ use topside::{
     interact::{InteractInput, Interactable, LookingAt, WorldItem},
     player::{INVENTORY_SLOTS, Player, PlayerInventory},
     structure::Door,
+    survival::{Rates, Survival},
 };
 
 /// A base-quality stack of a registered item, through the one
@@ -186,6 +188,67 @@ fn quality_rolls_come_from_the_def() {
     assert!((1..=hatchet.quality_siblings).contains(&quality.sibling));
     assert_eq!(first.quality, again.quality);
     assert_eq!(first.item, "hatchet");
+}
+
+#[test]
+fn survival_stats_drain_every_tick_and_food_restores_them() {
+    let (mut app, player) = playing_app();
+    let rates = app.world().resource::<Rates>().0;
+    // 60 fixed ticks is one second.
+    for _ in 0..60 {
+        app.update();
+    }
+    let after = app.world().get::<Survival>(player).unwrap().0;
+    assert!(
+        (after.hunger - (FULL - rates.hunger_per_sec)).abs() < 0.05,
+        "hunger drains at the rate: {after:?}"
+    );
+    assert!(
+        (after.thirst - (FULL - rates.thirst_per_sec)).abs() < 0.05,
+        "thirst drains at the rate: {after:?}"
+    );
+
+    // Eat a can from inventory slot 0 through the one call the
+    // inventory HUD and the hotbar will make: hunger comes back,
+    // the stack shrinks by one.
+    let can = stack(&app, "canned food", 2);
+    let restores = app
+        .world()
+        .resource::<ItemRegistryRes>()
+        .0
+        .def("canned food")
+        .unwrap()
+        .food
+        .unwrap()
+        .hunger;
+    {
+        let mut inventory = app.world_mut().get_mut::<PlayerInventory>(player).unwrap();
+        inventory.0.slots[0] = Some(can);
+    }
+    {
+        let world = app.world_mut();
+        let mut state: SystemState<(
+            Res<ItemRegistryRes>,
+            Query<(&mut PlayerInventory, &mut Survival)>,
+        )> = SystemState::new(world);
+        let (registry, mut actors) = state.get_mut(world).unwrap();
+        let (mut inventory, mut survival) = actors.get_mut(player).unwrap();
+        survival.0.hunger = 10.0;
+        survival
+            .0
+            .eat_from_slot(&mut inventory.0, 0, &registry.0)
+            .unwrap();
+    }
+    let survival = app.world().get::<Survival>(player).unwrap().0;
+    assert_eq!(survival.hunger, 10.0 + restores);
+    assert_eq!(
+        app.world()
+            .get::<PlayerInventory>(player)
+            .unwrap()
+            .0
+            .count_of("canned food"),
+        1
+    );
 }
 
 #[test]

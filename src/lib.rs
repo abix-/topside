@@ -10,6 +10,7 @@ pub mod hud;
 pub mod interact;
 pub mod player;
 pub mod structure;
+pub mod survival;
 
 use bevy::prelude::*;
 
@@ -53,7 +54,7 @@ pub fn build_app(headless: bool) -> App {
     app.init_resource::<SimTick>();
     app.init_resource::<entity_map::GpuSlotPool>();
     app.init_resource::<entity_map::EntityMap>();
-    app.init_resource::<bunker::FoodStore>();
+    app.init_resource::<survival::Rates>();
     app.init_resource::<content::ItemRegistryRes>();
     app.init_resource::<ButtonInput<KeyCode>>();
     app.init_resource::<interact::LookingAt>();
@@ -72,7 +73,7 @@ pub fn build_app(headless: bool) -> App {
         FixedUpdate,
         (
             tick_system,
-            bunker::food_tick_system,
+            survival::survival_tick,
             player::movement,
             interact::update_looking_at,
             interact::interact_on_press,
@@ -99,7 +100,6 @@ pub fn build_app(headless: bool) -> App {
             (
                 player::cursor_grab,
                 player::mouse_look,
-                hud::write_vitals,
                 hud::write_prompt,
                 hud::render,
             )

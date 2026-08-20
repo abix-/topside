@@ -4,7 +4,7 @@
 use bevy::math::Vec3;
 use bevy::prelude::Resource;
 use modforge::biome::{BiomeDef, BiomeRegistry, ScatterSpec};
-use modforge::item::{ItemDef, ItemKind, ItemRegistry};
+use modforge::item::{FoodStats, ItemDef, ItemKind, ItemRegistry};
 
 /// The item registry as an app resource. Every production stack is
 /// created from a def looked up here.
@@ -27,6 +27,10 @@ pub fn register_items(reg: &mut ItemRegistry) {
             max_stack: 10,
             quality_siblings: 1,
             combat: None,
+            food: Some(FoodStats {
+                hunger: 50.0,
+                thirst: 0.0,
+            }),
         },
         ItemDef {
             name: "water bottle".to_string(),
@@ -34,6 +38,10 @@ pub fn register_items(reg: &mut ItemRegistry) {
             max_stack: 5,
             quality_siblings: 1,
             combat: None,
+            food: Some(FoodStats {
+                hunger: 0.0,
+                thirst: 50.0,
+            }),
         },
         ItemDef {
             name: "scrap".to_string(),
@@ -41,6 +49,7 @@ pub fn register_items(reg: &mut ItemRegistry) {
             max_stack: 20,
             quality_siblings: 1,
             combat: None,
+            food: None,
         },
         ItemDef {
             name: "cloth".to_string(),
@@ -48,6 +57,7 @@ pub fn register_items(reg: &mut ItemRegistry) {
             max_stack: 20,
             quality_siblings: 1,
             combat: None,
+            food: None,
         },
         ItemDef {
             name: "pipe".to_string(),
@@ -55,6 +65,7 @@ pub fn register_items(reg: &mut ItemRegistry) {
             max_stack: 1,
             quality_siblings: 3,
             combat: None,
+            food: None,
         },
         ItemDef {
             name: "hatchet".to_string(),
@@ -62,6 +73,7 @@ pub fn register_items(reg: &mut ItemRegistry) {
             max_stack: 1,
             quality_siblings: 3,
             combat: None,
+            food: None,
         },
     ];
     for item in items {

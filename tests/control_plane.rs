@@ -21,8 +21,8 @@ fn status_op_reports_a_ticking_simulation() {
     let first_tick = first["state"]["tick"].as_u64().expect("state.tick is a number");
     assert!(first_tick > 0, "simulation must have ticked at least once");
     assert!(
-        first["state"]["food_days"].is_number(),
-        "state must carry the food clock: {first}"
+        first["state"]["hunger"].is_number() && first["state"]["thirst"].is_number(),
+        "state must carry the player's survival stats: {first}"
     );
 
     std::thread::sleep(std::time::Duration::from_millis(300));

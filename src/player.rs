@@ -3,6 +3,7 @@
 
 use crate::cel::CelMaterial;
 use crate::structure::{BODY_TOP, CLIMB, body_shape};
+use crate::survival::Survival;
 use avian3d::prelude::*;
 use bevy::input::mouse::MouseMotion;
 use bevy::prelude::*;
@@ -10,7 +11,7 @@ use bevy::window::{CursorGrabMode, CursorOptions, PrimaryWindow};
 use modforge::item::Inventory;
 
 #[derive(Component)]
-#[require(PlayerInventory)]
+#[require(PlayerInventory, Survival)]
 pub struct Player {
     pub yaw: f32,
     pub pitch: f32,

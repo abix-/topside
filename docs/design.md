@@ -439,6 +439,17 @@ stack and never let up. The goal section says it: Food. Water.
 Resources. Enemies. Scarcity. Heat. Radiation. All of these are real
 systems, not flavor.
 
+Operator, 2026-08-20: "the food item should be a modforge item. that
+item should be picked up and go into the player's inventory. then we
+need a system for survival stats with hunger and thirst. that should be
+in modforge. the survival system belongs to each npc entity AND the
+player entity". So: survival stats are a modforge module, one per
+actor (every NPC and the player carry the same stats and the same
+rules); food is a registered item that restores hunger when eaten.
+Eating is done through the inventory HUD or the hotbar, like Rust
+(operator, 2026-08-20: "eating will be through the inventory hud that
+we'll build. or the hotbar. like rust"). No eat key.
+
 Hunger: you eat food items from your inventory or your bunker's stores.
 No food, you starve. The three-day starting clock is the first taste.
 Food spoils over time (perishability forces you to keep scavenging,

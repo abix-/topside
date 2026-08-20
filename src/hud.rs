@@ -4,8 +4,9 @@
 use bevy::prelude::*;
 use modforge::hud::{HudState, prompt_for};
 
-use crate::bunker::FoodStore;
 use crate::interact::{LookingAt, WorldItem};
+use crate::player::Player;
+use crate::survival::Survival;
 
 #[derive(Resource)]
 pub struct HudRes(pub HudState);
@@ -26,11 +27,6 @@ pub fn setup(mut commands: Commands) {
     ));
 }
 
-pub fn write_vitals(food: Res<FoodStore>, mut state: ResMut<HudRes>) {
-    state.0.vitals.food = food.days;
-    state.0.vitals.food_max = 3.0;
-}
-
 pub fn write_prompt(
     looking_at: Res<LookingAt>,
     items: Query<&WorldItem>,
@@ -48,11 +44,23 @@ pub fn write_prompt(
     }
 }
 
-pub fn render(state: Res<HudRes>, mut huds: Query<&mut Text, With<Hud>>) {
+/// Paint the HUD. Reads the player's survival stats in place; the
+/// player entity is the one owner, the HUD never copies them.
+pub fn render(
+    state: Res<HudRes>,
+    players: Query<&Survival, With<Player>>,
+    mut huds: Query<&mut Text, With<Hud>>,
+) {
     let Ok(mut text) = huds.single_mut() else {
         return;
     };
-    let mut line = format!("Food: {:.1} days", state.0.vitals.food);
+    let Ok(survival) = players.single() else {
+        return;
+    };
+    let mut line = format!(
+        "Hunger: {:.0}  Thirst: {:.0}",
+        survival.0.hunger, survival.0.thirst
+    );
     if state.0.prompt.can_interact {
         line.push('\n');
         line.push_str(&state.0.prompt.text);

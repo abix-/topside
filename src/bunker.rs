@@ -1,7 +1,6 @@
 //! The opening content (design.md "The bunker"): the starting
 //! bunker and the first multi-room building outside it, both
 //! expressed as StructureDefs through the structure vocabulary.
-//! Also owns the food clock, the first survival pressure.
 
 use bevy::prelude::*;
 
@@ -16,22 +15,6 @@ use crate::structure::{
 
 /// One game day in real seconds (Valheim-scale pacing; tune later).
 pub const GAME_DAY_SECS: f32 = 1200.0;
-
-/// The first clock: three days of food forcing the player topside.
-#[derive(Resource)]
-pub struct FoodStore {
-    pub days: f32,
-}
-
-impl Default for FoodStore {
-    fn default() -> Self {
-        Self { days: 3.0 }
-    }
-}
-
-pub fn food_tick_system(time: Res<Time>, mut food: ResMut<FoodStore>) {
-    food.days = (food.days - time.delta_secs() / GAME_DAY_SECS).max(0.0);
-}
 
 /// The starting bunker: one room with exactly a bed, a crafting
 /// bench, and the food crate (design.md: three things), door north
@@ -214,8 +197,11 @@ pub fn setup(
     )
     .expect("the two-story house def is valid");
 
-    // Starting supplies on the bunker floor. No quality tiers exist
-    // yet, so the odds are empty and every stack is base quality.
+    // Starting supplies on the bunker floor: three days of food as
+    // real items (design.md). A can restores half a day of hunger
+    // and a bottle half a day of thirst, so six of each is three
+    // days. No quality tiers exist yet, so the odds are empty and
+    // every stack is base quality.
     let now = time.elapsed_secs();
     let def = |name: &str| {
         items
@@ -227,9 +213,25 @@ pub fn setup(
         &mut commands,
         &mut meshes,
         &mut cel_materials,
-        create(def("canned food"), 2, &[], now, 1),
+        create(def("canned food"), 6, &[], now, 1),
         Vec3::new(-1.0, 0.3, 2.0),
         [0.2, 0.6, 0.2],
+    );
+    spawn_item(
+        &mut commands,
+        &mut meshes,
+        &mut cel_materials,
+        create(def("water bottle"), 5, &[], now, 3),
+        Vec3::new(-1.0, 0.3, 2.6),
+        [0.3, 0.5, 0.8],
+    );
+    spawn_item(
+        &mut commands,
+        &mut meshes,
+        &mut cel_materials,
+        create(def("water bottle"), 1, &[], now, 4),
+        Vec3::new(-1.6, 0.3, 2.6),
+        [0.3, 0.5, 0.8],
     );
     spawn_item(
         &mut commands,
