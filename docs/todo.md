@@ -2,7 +2,6 @@
 
 | Priority | System | Todo | Done when |
 |---:|---|---|---|
-| 1 | modforge::item | [ ] Add the item vocabulary to modforge: ItemDef (name, max stack, kind, quality siblings), the item registry, and Inventory (slots and stacks; no weight, design.md) with quality rolled by the one item-creation function | k3sc cargo-lock test passes modforge unit tests covering stacking, remove, transfer, capacity, and a quality tier rolled at creation |
 | 2 | Content registry | [ ] Check in topside's first item definitions and register them at startup | topside --test proves the registry serves the checked-in item defs by id |
 | 2 | player.rs | [ ] Replace the distance-based door toggle and door prompt with one look-at interact path: camera raycast, one prompt, E acts on the one thing in view; doors fold in | Looking at a door shows the prompt and E opens only that door; a door behind the player does not react, verified in-game |
 | 3 | spawn_item | [ ] Add spawn_item, the one path from an item stack to a pickup entity, and pickup through the interact path into the player's Inventory | An item spawned in the world is picked up with E and its stack is in the player's Inventory, verified in-game |
