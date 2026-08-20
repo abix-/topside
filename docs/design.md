@@ -19,6 +19,16 @@ Think about this like Oregon Trail meets post-apocalyptic 3D: attrition is
 the game, supplies run down, hazards just hit you, and the people with you
 can die along the way.
 
+The game is chaos versus order (operator-locked 2026-08-20: "this is a
+game of all chaos where the player is trying to impose order. thats the
+game really. a neverending struggle against chaos"). The world's default
+state is chaos: storms regenerate the map, enemies roll with random
+traits, loot rolls with random affixes, factions act on their own,
+weather shifts, nothing stays the same. The player's entire effort is
+imposing order: a bunker that persists, gear that's reliable, territory
+that's held, people who are loyal. Order carved out of chaos, never
+permanent, always under pressure.
+
 Every design decision serves this feeling. (The survivalist mod's line still
 bounds it: brutal but survivable; there must always be a way out.)
 
@@ -461,6 +471,64 @@ The crafting loop connects to everything:
   equipment.
 - The territory system feeds back: a captured workshop gives a crafting
   bonus, losing it hurts your output.
+
+## Combat
+
+Post-apocalyptic means everything is a weapon (operator-locked 2026-08-20:
+"melee. guns. clubs. random crafted things. its all possible"). A pipe, a
+sharpened piece of scrap, a makeshift club, a found pistol with three
+rounds, a crafted rifle. The scarcity of the world shows in the combat:
+early game you swing junk, late game you carry crafted firearms with
+ammunition you manufactured.
+
+The Bloodline is the reference for first-person melee feel: weighty,
+directional, satisfying even with crude weapons. Rust is the reference
+for gunplay: simple, lethal, ammo matters.
+
+Weapon categories:
+- Melee: clubs, pipes, blades, axes, spears. Crafted from scrap and
+  materials. Always available, no ammo cost, higher risk.
+- Ranged: pistols, shotguns, rifles, bows. Found or crafted. Ammunition
+  is a real cost that limits use. Higher tier weapons need higher tier
+  ammo.
+- Improvised: anything the crafting system can make. A spiked bat, a
+  nail bomb, a sharpened road sign. The crafting system's creativity
+  shows here.
+
+### Enemy randomization
+
+Enemies are randomized the way Diablo 2 randomizes its monsters
+(operator-locked 2026-08-20: "the enemies just like everything need to
+be randomized. think diablo 2 enemy randomization"). Every hostile NPC
+or creature rolls random traits on top of its base type: extra fast,
+extra tough, pack leader (brings friends), armored, aggressive, cautious,
+nocturnal, territorial. A bandit with "extra fast" and "pack leader" is
+a completely different fight than one with "armored" and "cautious."
+
+Trait combinations create emergent difficulty. The player never knows
+what a fight will be before it starts. The same monument run with
+different enemy rolls plays differently every time.
+
+Enemy traits use the same modforge genome system that drives faction
+personality. Traits are not a separate mechanic bolted on; they are
+the genome expressing itself at the individual level.
+
+### Loot randomization
+
+Loot follows the Diablo 2 affix model (operator-locked 2026-08-20:
+"and diablo 2 loot randomization"). Items roll random affixes on top
+of their base type and quality tier:
+- A "sturdy iron pipe" and a "lightweight iron pipe" are the same base
+  item with different affixes affecting durability and swing speed.
+- A "precise hunting rifle" and a "rugged hunting rifle" differ in
+  accuracy and condition.
+- Affixes stack: a "sturdy, sharpened iron pipe" is possible and rare.
+
+The quality system in modforge handles the tier (how good the base item
+is). Affixes layer on top, multiplying the variety. The chase for the
+right combination of quality tier and affixes is what keeps loot
+interesting at 2000 hours, because Diablo 2 proved that systems
+multiplying against each other beat a bigger random list (references.md).
 
 ## Death and difficulty
 
