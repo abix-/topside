@@ -1,128 +1,21 @@
-//! The structure vocabulary: every building in the world (the
-//! starting bunker, faction bunkers, monument members) is a
-//! StructureDef, plain data that hand-authoring or generation can
-//! produce alike. spawn_structure is the ONE path from a
-//! StructureDef to world geometry, colliders, and walkable
-//! surfaces (the one-spawn-path rule in docs/authority.md).
+//! Topside's binder for the modforge structure vocabulary: the
+//! defs and relation rules live in modforge::structure (buildings
+//! as engine-agnostic data); this module owns making them real in
+//! THIS world: spawn_structure (the one path to Bevy geometry,
+//! colliders, and walkable surfaces), doors, and the walking
+//! collision the player moves against.
 //!
-//! Coordinates are structure-local: y up, north = negative z. Each
-//! room carries its own origin (center of its floor), so a
-//! structure is rooms side by side, stacked, or both, plus stairs.
+//! Bevy 0.18 and modforge share the same glam, so Vec3 here and
+//! Vec3 in the defs are one type.
 
 use bevy::prelude::*;
+pub use modforge::structure::{
+    Aabb, LightSpec, Opening, Rgb, RoomSpec, Side, SolidSpec, StairSpec, StructureDef, side_frame,
+    validate,
+};
 
-#[derive(Clone, Copy, PartialEq)]
-pub enum Side {
-    North,
-    South,
-    East,
-    West,
-}
-
-impl Side {
-    /// Unit vector pointing out of a room through this side.
-    fn outward(self) -> Vec3 {
-        match self {
-            Side::North => Vec3::NEG_Z,
-            Side::South => Vec3::Z,
-            Side::East => Vec3::X,
-            Side::West => Vec3::NEG_X,
-        }
-    }
-}
-
-/// A gap in one wall. `offset` runs along the wall from its center
-/// (+x on north/south walls, +z on east/west walls). `sill` lifts
-/// the gap's bottom above the room floor (a solid panel fills the
-/// wall below it); 0 is a floor-level doorway. With `door`, a
-/// hinged door fills the gap; without, it stays open.
-///
-/// Rule for connected rooms: BOTH rooms author the matching opening
-/// in their facing walls.
-#[derive(Clone)]
-pub struct Opening {
-    pub side: Side,
-    pub offset: f32,
-    pub width: f32,
-    pub sill: f32,
-    pub door: bool,
-}
-
-/// One rectangular room at its own origin: interior size (x width,
-/// y height, z length), wall thickness, openings. `floor` and
-/// `ceiling` are skipped when another room's slab already covers
-/// that face (a stacked room's floor is the room-below's ceiling).
-#[derive(Clone)]
-pub struct RoomSpec {
-    pub origin: Vec3,
-    pub interior: Vec3,
-    pub wall_thickness: f32,
-    pub openings: Vec<Opening>,
-    pub floor: bool,
-    pub ceiling: bool,
-}
-
-/// A straight solid staircase: starts at `base` (floor level,
-/// center of the bottom edge), ascends toward `side`, climbing
-/// `rise` over automatic steps, with a flat `landing` run at the
-/// top (bridges the wall band into the room the stairs serve).
-/// Steps are walkable, never colliders.
-#[derive(Clone)]
-pub struct StairSpec {
-    pub base: Vec3,
-    pub side: Side,
-    pub width: f32,
-    pub rise: f32,
-    pub landing: f32,
-}
-
-/// A solid block: furniture, a crate, any obstacle. Collides.
-#[derive(Clone)]
-pub struct SolidSpec {
-    pub center: Vec3,
-    pub size: Vec3,
-    pub color: Color,
-}
-
-#[derive(Clone)]
-pub struct LightSpec {
-    pub position: Vec3,
-    pub color: Color,
-    pub intensity: f32,
-}
-
-/// A whole building as data.
-#[derive(Clone)]
-pub struct StructureDef {
-    pub name: String,
-    pub rooms: Vec<RoomSpec>,
-    pub stairs: Vec<StairSpec>,
-    pub furniture: Vec<SolidSpec>,
-    pub lights: Vec<LightSpec>,
-}
-
-#[derive(Clone, Copy)]
-pub struct Aabb {
-    pub min: Vec3,
-    pub max: Vec3,
-}
-
-impl Aabb {
-    pub fn from_center_size(center: Vec3, size: Vec3) -> Self {
-        Self {
-            min: center - size / 2.0,
-            max: center + size / 2.0,
-        }
-    }
-
-    fn overlaps(&self, other: &Aabb) -> bool {
-        self.min.x < other.max.x
-            && self.max.x > other.min.x
-            && self.min.y < other.max.y
-            && self.max.y > other.min.y
-            && self.min.z < other.max.z
-            && self.max.z > other.min.z
-    }
+fn rgb(c: Rgb) -> Color {
+    Color::srgb(c[0], c[1], c[2])
 }
 
 /// Walls and furniture the player cannot walk through.
@@ -190,43 +83,6 @@ impl Door {
         let swing = Quat::from_rotation_y(DOOR_SWING_DEGREES.to_radians());
         Transform::from_translation(self.hinge + swing * (self.closed_center - self.hinge))
             .with_rotation(swing * self.closed_rotation)
-    }
-}
-
-fn room_interior_aabb(room: &RoomSpec) -> Aabb {
-    Aabb {
-        min: room.origin - Vec3::new(room.interior.x / 2.0, 0.0, room.interior.z / 2.0),
-        max: room.origin
-            + Vec3::new(room.interior.x / 2.0, room.interior.y, room.interior.z / 2.0),
-    }
-}
-
-/// The relation rules that make a structure a logical place. Today:
-/// room interiors must not overlap. (Reachability and matching
-/// openings join this check when generation starts authoring defs.)
-pub fn validate(def: &StructureDef) -> Result<(), String> {
-    for (i, a) in def.rooms.iter().enumerate() {
-        for (j, b) in def.rooms.iter().enumerate().skip(i + 1) {
-            if room_interior_aabb(a).overlaps(&room_interior_aabb(b)) {
-                return Err(format!(
-                    "structure '{}': room {i} and room {j} interiors overlap",
-                    def.name
-                ));
-            }
-        }
-    }
-    Ok(())
-}
-
-/// Wall run axis and outward wall-center position for one side of
-/// one room.
-fn side_frame(side: Side, interior: Vec3, t: f32) -> (Vec3, Vec3, f32) {
-    let (w, l) = (interior.x, interior.z);
-    match side {
-        Side::North => (Vec3::X, Vec3::new(0.0, 0.0, -(l / 2.0 + t / 2.0)), w + 2.0 * t),
-        Side::South => (Vec3::X, Vec3::new(0.0, 0.0, l / 2.0 + t / 2.0), w + 2.0 * t),
-        Side::East => (Vec3::Z, Vec3::new(w / 2.0 + t / 2.0, 0.0, 0.0), l + 2.0 * t),
-        Side::West => (Vec3::Z, Vec3::new(-(w / 2.0 + t / 2.0), 0.0, 0.0), l + 2.0 * t),
     }
 }
 
@@ -401,7 +257,7 @@ pub fn spawn_structure(
     }
 
     for piece in &def.furniture {
-        let material = materials.add(piece.color);
+        let material = materials.add(rgb(piece.color));
         solid(commands, meshes, colliders, piece.center, piece.size, material);
     }
 
@@ -409,7 +265,7 @@ pub fn spawn_structure(
         commands.spawn((
             PointLight {
                 intensity: light.intensity,
-                color: light.color,
+                color: rgb(light.color),
                 ..default()
             },
             Transform::from_translation(origin + light.position),
@@ -473,17 +329,6 @@ mod tests {
     use super::*;
     use bevy::ecs::system::SystemState;
 
-    fn room(origin: Vec3, openings: Vec<Opening>) -> RoomSpec {
-        RoomSpec {
-            origin,
-            interior: Vec3::new(6.0, 3.0, 8.0),
-            wall_thickness: 0.2,
-            openings,
-            floor: true,
-            ceiling: true,
-        }
-    }
-
     fn spawn_into_world(def: &StructureDef) -> (StaticColliders, Walkables, Result<(), String>) {
         let mut app = App::new();
         app.init_resource::<Assets<Mesh>>();
@@ -524,16 +369,20 @@ mod tests {
     fn a_wall_with_an_opening_splits_into_two_segments() {
         let def = StructureDef {
             name: "test room".to_string(),
-            rooms: vec![room(
-                Vec3::ZERO,
-                vec![Opening {
+            rooms: vec![RoomSpec {
+                origin: Vec3::ZERO,
+                interior: Vec3::new(6.0, 3.0, 8.0),
+                wall_thickness: 0.2,
+                openings: vec![Opening {
                     side: Side::North,
                     offset: 0.0,
                     width: 1.2,
                     sill: 0.0,
                     door: true,
                 }],
-            )],
+                floor: true,
+                ceiling: true,
+            }],
             stairs: vec![],
             furniture: vec![],
             lights: vec![],
@@ -555,27 +404,6 @@ mod tests {
                 .any(|a| point_hits(Vec3::new(2.0, 1.0, north_z), a)),
             "the wall beside the gap must collide"
         );
-    }
-
-    #[test]
-    fn overlapping_room_interiors_are_rejected() {
-        let def = StructureDef {
-            name: "bad".to_string(),
-            rooms: vec![room(Vec3::ZERO, vec![]), room(Vec3::new(1.0, 0.0, 0.0), vec![])],
-            stairs: vec![],
-            furniture: vec![],
-            lights: vec![],
-        };
-        assert!(validate(&def).is_err());
-        // Touching (shared wall plane) is legal.
-        let def = StructureDef {
-            name: "good".to_string(),
-            rooms: vec![room(Vec3::ZERO, vec![]), room(Vec3::new(0.0, 3.0, 0.0), vec![])],
-            stairs: vec![],
-            furniture: vec![],
-            lights: vec![],
-        };
-        assert!(validate(&def).is_ok());
     }
 
     #[test]

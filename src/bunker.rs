@@ -54,22 +54,22 @@ pub fn starting_bunker() -> StructureDef {
             SolidSpec {
                 center: Vec3::new(-2.4, 0.25, 3.0),
                 size: Vec3::new(1.0, 0.5, 2.0),
-                color: Color::srgb(0.30, 0.35, 0.55),
+                color: [0.30, 0.35, 0.55],
             },
             SolidSpec {
                 center: Vec3::new(2.2, 0.45, 3.5),
                 size: Vec3::new(1.6, 0.9, 0.7),
-                color: Color::srgb(0.45, 0.32, 0.18),
+                color: [0.45, 0.32, 0.18],
             },
             SolidSpec {
                 center: Vec3::new(2.5, 0.35, -3.3),
                 size: Vec3::new(0.7, 0.7, 0.7),
-                color: Color::srgb(0.55, 0.45, 0.20),
+                color: [0.55, 0.45, 0.20],
             },
         ],
         lights: vec![LightSpec {
             position: Vec3::new(0.0, 2.7, 0.0),
-            color: Color::srgb(1.0, 0.9, 0.7),
+            color: [1.0, 0.9, 0.7],
             intensity: 400_000.0,
         }],
     }
@@ -164,22 +164,22 @@ pub fn two_story_house() -> StructureDef {
         furniture: vec![SolidSpec {
             center: Vec3::new(0.0, 3.45, 2.5),
             size: Vec3::new(0.7, 0.7, 0.7),
-            color: Color::srgb(0.55, 0.45, 0.20),
+            color: [0.55, 0.45, 0.20],
         }],
         lights: vec![
             LightSpec {
                 position: Vec3::new(0.0, 2.6, 0.0),
-                color: Color::srgb(1.0, 0.9, 0.7),
+                color: [1.0, 0.9, 0.7],
                 intensity: 400_000.0,
             },
             LightSpec {
                 position: Vec3::new(5.65, 5.4, 0.0),
-                color: Color::srgb(1.0, 0.9, 0.7),
+                color: [1.0, 0.9, 0.7],
                 intensity: 400_000.0,
             },
             LightSpec {
                 position: Vec3::new(0.0, 5.6, 0.0),
-                color: Color::srgb(1.0, 0.9, 0.7),
+                color: [1.0, 0.9, 0.7],
                 intensity: 400_000.0,
             },
         ],
