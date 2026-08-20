@@ -10,7 +10,8 @@ use modforge::structure::Aabb;
 use crate::cel::CelMaterial;
 use crate::content::ItemRegistryRes;
 use crate::hud::HudRes;
-use crate::player::{Player, PlayerInventory};
+use crate::actor::Inventory;
+use crate::player::Player;
 use crate::structure::Door;
 
 const INTERACT_RANGE: f32 = 3.0;
@@ -138,7 +139,7 @@ pub fn interact_on_press(
     looking_at: Res<LookingAt>,
     mut hud: ResMut<HudRes>,
     registry: Res<ItemRegistryRes>,
-    mut players: Query<&mut PlayerInventory>,
+    mut players: Query<&mut Inventory, With<Player>>,
     mut doors: Query<(&mut Door, &mut Transform)>,
     items: Query<&WorldItem>,
 ) {

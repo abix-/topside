@@ -6,17 +6,20 @@ use std::time::Duration;
 
 use bevy::{ecs::system::SystemState, prelude::*, time::TimeUpdateStrategy};
 use modforge::hud::{
-    InteractKind, OpenPanel, drop_slot, end_drag, slot_label, start_drag, toggle_panel, use_slot,
+    Holder, Holders, InteractKind, OpenPanel, SlotRef, drop_slot, end_drag, hotbar_slot,
+    slot_label, start_drag, toggle_panel, use_slot,
 };
 use modforge::item::{ItemStack, create};
 use modforge::structure::Aabb;
 use modforge::survival::FULL;
 use topside::{
-    AppState, build_app,
+    AppState,
+    actor::{Hotbar, INVENTORY_SLOTS, Inventory},
+    build_app,
     content::ItemRegistryRes,
     hud::HudRes,
     interact::{InteractInput, Interactable, LookingAt, WorldItem},
-    player::{INVENTORY_SLOTS, Player, PlayerInventory},
+    player::Player,
     structure::Door,
     survival::{Rates, Survival},
 };
@@ -88,7 +91,7 @@ fn pickup_moves_the_stack_into_the_player_inventory() {
     assert!(app.world().get_entity(item).is_err(), "picked up item is gone");
     assert_eq!(
         app.world()
-            .get::<PlayerInventory>(player)
+            .get::<Inventory>(player)
             .unwrap()
             .0
             .count_of("scrap"),
@@ -102,7 +105,7 @@ fn full_inventory_leaves_the_item_in_the_world() {
     let cloth = stack(&app, "cloth", 20);
     let scrap = stack(&app, "scrap", 1);
     {
-        let mut inventory = app.world_mut().get_mut::<PlayerInventory>(player).unwrap();
+        let mut inventory = app.world_mut().get_mut::<Inventory>(player).unwrap();
         for slot in 0..INVENTORY_SLOTS {
             inventory.0.slots[slot] = Some(cloth.clone());
         }
@@ -115,7 +118,7 @@ fn full_inventory_leaves_the_item_in_the_world() {
     );
     assert_eq!(
         app.world()
-            .get::<PlayerInventory>(player)
+            .get::<Inventory>(player)
             .unwrap()
             .0
             .count_of("scrap"),
@@ -163,7 +166,7 @@ fn an_unregistered_item_is_never_picked_up() {
     assert!(app.world().get_entity(item).is_ok(), "the item stays in the world");
     assert!(
         app.world()
-            .get::<PlayerInventory>(player)
+            .get::<Inventory>(player)
             .unwrap()
             .0
             .slots
@@ -224,14 +227,14 @@ fn survival_stats_drain_every_tick_and_food_restores_them() {
         .unwrap()
         .hunger;
     {
-        let mut inventory = app.world_mut().get_mut::<PlayerInventory>(player).unwrap();
+        let mut inventory = app.world_mut().get_mut::<Inventory>(player).unwrap();
         inventory.0.slots[0] = Some(can);
     }
     {
         let world = app.world_mut();
         let mut state: SystemState<(
             Res<ItemRegistryRes>,
-            Query<(&mut PlayerInventory, &mut Survival)>,
+            Query<(&mut Inventory, &mut Survival)>,
         )> = SystemState::new(world);
         let (registry, mut actors) = state.get_mut(world).unwrap();
         let (mut inventory, mut survival) = actors.get_mut(player).unwrap();
@@ -245,7 +248,7 @@ fn survival_stats_drain_every_tick_and_food_restores_them() {
     assert_eq!(survival.hunger, 10.0 + restores);
     assert_eq!(
         app.world()
-            .get::<PlayerInventory>(player)
+            .get::<Inventory>(player)
             .unwrap()
             .0
             .count_of("canned food"),
@@ -254,15 +257,15 @@ fn survival_stats_drain_every_tick_and_food_restores_them() {
 }
 
 #[test]
-fn inventory_panel_drag_moves_stacks_double_click_eats_and_o_drops() {
-    // The panel's slot observers call start_drag, end_drag, use_slot,
-    // and drop_slot on the player's components; this drives the same
-    // calls headless.
+fn drag_across_holders_hotbar_key_eats_and_o_drops() {
+    // The slot observers and the digit keys call start_drag,
+    // end_drag, use_slot, and drop_slot on the player's three
+    // holders; this drives the same calls headless.
     let (mut app, player) = playing_app();
     let scrap = stack(&app, "scrap", 5);
     let can = stack(&app, "canned food", 2);
     {
-        let mut inventory = app.world_mut().get_mut::<PlayerInventory>(player).unwrap();
+        let mut inventory = app.world_mut().get_mut::<Inventory>(player).unwrap();
         inventory.0.slots[0] = Some(scrap);
         inventory.0.slots[1] = Some(can);
     }
@@ -270,31 +273,51 @@ fn inventory_panel_drag_moves_stacks_double_click_eats_and_o_drops() {
     let mut state: SystemState<(
         ResMut<HudRes>,
         Res<ItemRegistryRes>,
-        Query<(&mut PlayerInventory, &mut Survival)>,
+        Query<(&mut Inventory, &mut Hotbar, &mut Survival)>,
     )> = SystemState::new(world);
     let (mut hud, registry, mut actors) = state.get_mut(world).unwrap();
-    let (mut inventory, mut survival) = actors.get_mut(player).unwrap();
+    let (mut inventory, mut hotbar, mut survival) = actors.get_mut(player).unwrap();
     toggle_panel(&mut hud.0, OpenPanel::Inventory);
+    let inv = |index| SlotRef {
+        holder: Holder::Inventory,
+        index,
+    };
+    let bar = |index| SlotRef {
+        holder: Holder::Hotbar,
+        index,
+    };
+    let mut holders = Holders {
+        inventory: &mut inventory.0,
+        hotbar: &mut hotbar.0,
+    };
 
-    start_drag(&mut hud.0, &inventory.0, 0);
-    assert_eq!(hud.0.dragging_slot, Some(0));
-    end_drag(&mut hud.0, &mut inventory.0, 3, &registry.0);
-    assert_eq!(hud.0.dragging_slot, None);
-    assert!(inventory.0.slots[0].is_none());
-    assert_eq!(slot_label(inventory.0.slots[3].as_ref()), "scrap x5");
+    // Within the inventory.
+    start_drag(&mut hud.0, &holders, inv(0));
+    assert_eq!(hud.0.dragging, Some(inv(0)));
+    end_drag(&mut hud.0, &mut holders, inv(3), &registry.0);
+    assert_eq!(hud.0.dragging, None);
+    assert!(holders.inventory.slots[0].is_none());
+    assert_eq!(slot_label(holders.inventory.slots[3].as_ref()), "scrap x5");
+
+    // Inventory to the hotbar slot key 1 uses.
+    let key_one = hotbar_slot(1).unwrap();
+    start_drag(&mut hud.0, &holders, inv(1));
+    end_drag(&mut hud.0, &mut holders, bar(key_one), &registry.0);
+    assert!(holders.inventory.slots[1].is_none());
+    assert_eq!(slot_label(holders.hotbar.slots[key_one].as_ref()), "canned food x2");
 
     survival.0.hunger = 10.0;
-    use_slot(&mut survival.0, &mut inventory.0, 1, &registry.0).unwrap();
+    use_slot(&mut survival.0, holders.hotbar, key_one, &registry.0).unwrap();
     assert_eq!(survival.0.hunger, 60.0);
-    assert_eq!(slot_label(inventory.0.slots[1].as_ref()), "canned food");
+    assert_eq!(slot_label(holders.hotbar.slots[key_one].as_ref()), "canned food");
     assert!(
-        use_slot(&mut survival.0, &mut inventory.0, 3, &registry.0).is_err(),
+        use_slot(&mut survival.0, holders.inventory, 3, &registry.0).is_err(),
         "scrap is not food"
     );
 
-    let dropped = drop_slot(&mut inventory.0, 3).unwrap();
+    let dropped = drop_slot(holders.inventory, 3).unwrap();
     assert_eq!(dropped.count, 5);
-    assert!(inventory.0.slots[3].is_none());
+    assert!(holders.inventory.slots[3].is_none());
 }
 
 #[test]

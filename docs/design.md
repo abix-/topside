@@ -460,6 +460,21 @@ stacks, hover plus T transfers the stack to the other open inventory
 hotbar slot, Shift+0-9 equips to it, E picks up in the world, F opens
 another's inventory.
 
+An actor carries three separate item holders, each its own thing
+(operator, 2026-08-20: "a player has inventory. they have hotbar. and
+they have equipment slots. all of those take items and should be their
+own thing in the struct"): the inventory, the hotbar, and the
+equipment slots. Not one list with index ranges.
+
+The player and every NPC are the same kind of actor on the same
+structs; the only difference is who drives them (operator,
+2026-08-20: "npc action and human action need to be built on top of
+the same structs. the only difference is the human actor is human
+controlled while the npc is ai controlled. this keeps it fair and
+makes a lot of possibilities"). Every action an NPC or the player
+takes (eat, equip, move a stack, pick up, drop, attack) is one
+function on those structs; input and AI only choose which to call.
+
 Hunger: you eat food items from your inventory or your bunker's stores.
 No food, you starve. The three-day starting clock is the first taste.
 Food spoils over time (perishability forces you to keep scavenging,

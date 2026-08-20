@@ -1,6 +1,7 @@
 //! First-person camera on a flat ground plane. Skeleton controls:
 //! click grabs the cursor, mouse looks, WASD walks, Escape releases.
 
+use crate::actor::{Equipment, Hotbar, Inventory};
 use crate::cel::CelMaterial;
 use crate::structure::{BODY_TOP, CLIMB, body_shape};
 use crate::survival::Survival;
@@ -8,26 +9,14 @@ use avian3d::prelude::*;
 use bevy::input::mouse::MouseMotion;
 use bevy::prelude::*;
 use bevy::window::{CursorGrabMode, CursorOptions, PrimaryWindow};
-use modforge::item::Inventory;
 
+/// The human-driven actor. Carries exactly what an NPC carries
+/// (actor.rs); the camera and input are the only difference.
 #[derive(Component)]
-#[require(PlayerInventory, Survival)]
+#[require(Inventory, Hotbar, Equipment, Survival)]
 pub struct Player {
     pub yaw: f32,
     pub pitch: f32,
-}
-
-/// The player's one inventory, owned by the player entity. Gameplay
-/// writes it here; the HUD reads it to paint and never copies it.
-#[derive(Component)]
-pub struct PlayerInventory(pub Inventory);
-
-pub const INVENTORY_SLOTS: usize = 20;
-
-impl Default for PlayerInventory {
-    fn default() -> Self {
-        Self(Inventory::new(INVENTORY_SLOTS))
-    }
 }
 
 #[derive(Resource, Default)]

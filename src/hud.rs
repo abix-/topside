@@ -1,28 +1,30 @@
 //! The HUD: writer systems fill HudRes from game state, one
 //! renderer reads only HudRes to paint the screen text. The
-//! inventory panel paints the player's slots in place and forwards
-//! clicks to modforge's panel decisions (click_slot, use_slot).
+//! inventory panel and the hotbar paint the player's holders in
+//! place and forward gestures to modforge's decisions (start_drag,
+//! end_drag, use_slot, drop_slot). Atlas controls (design.md).
 
 use bevy::prelude::*;
 use bevy::window::{CursorGrabMode, CursorOptions, PrimaryWindow};
 use modforge::hud::{
-    HudState, OpenPanel, drop_slot, end_drag, prompt_for, slot_label, start_drag, toggle_panel,
-    use_slot,
+    HOTBAR_SLOTS, Holder, Holders, HudState, OpenPanel, SlotRef, drop_slot, end_drag,
+    hotbar_slot, prompt_for, slot_label, start_drag, toggle_panel, use_slot,
 };
 
+use crate::actor::{Hotbar, INVENTORY_SLOTS, Inventory};
 use crate::cel::CelMaterial;
 use crate::content::ItemRegistryRes;
 use crate::interact::{LookingAt, WorldItem, spawn_item};
-use crate::player::{INVENTORY_SLOTS, Player, PlayerInventory};
+use crate::player::Player;
 use crate::survival::Survival;
 
 #[derive(Resource)]
 pub struct HudRes(pub HudState);
 
-/// The inventory slot under the cursor, for the hover keys (O drops,
-/// T transfers). Atlas: shortcuts act on what the mouse is over.
+/// The slot under the cursor, for the hover keys (O drops, T
+/// transfers). Atlas: shortcuts act on what the mouse is over.
 #[derive(Resource, Default)]
-pub struct HoveredSlot(pub Option<usize>);
+pub struct HoveredSlot(pub Option<SlotRef>);
 
 #[derive(Component)]
 pub struct Hud;
@@ -31,12 +33,17 @@ pub struct Hud;
 #[derive(Component)]
 pub struct InventoryPanel;
 
-/// One slot button in the panel, by inventory index.
+/// The hotbar root; its children are one `Slot` each.
 #[derive(Component)]
-pub struct Slot(pub usize);
+pub struct HotbarBar;
+
+/// One slot button on screen: which holder, which index.
+#[derive(Component)]
+pub struct Slot(pub SlotRef);
 
 const SLOT_COLUMNS: usize = 5;
 const SLOT_SIZE: f32 = 96.0;
+const HOTBAR_SLOT_SIZE: f32 = 64.0;
 
 pub fn setup(mut commands: Commands) {
     commands.spawn((
@@ -49,6 +56,7 @@ pub fn setup(mut commands: Commands) {
             ..default()
         },
     ));
+    // The inventory panel, hidden until opened.
     commands
         .spawn((
             InventoryPanel,
@@ -68,28 +76,69 @@ pub fn setup(mut commands: Commands) {
         ))
         .with_children(|panel| {
             for index in 0..INVENTORY_SLOTS {
-                panel
-                    .spawn((
-                        Slot(index),
-                        Button,
-                        Node {
-                            width: Val::Px(SLOT_SIZE),
-                            height: Val::Px(SLOT_SIZE),
-                            align_items: AlignItems::Center,
-                            justify_content: JustifyContent::Center,
-                            ..default()
-                        },
-                        BackgroundColor(Color::srgb(0.2, 0.2, 0.22)),
-                        children![(Text::new(""), TextFont::from_font_size(14.0))],
-                    ))
-                    .observe(slot_clicked)
-                    .observe(slot_drag_start)
-                    .observe(slot_drag_drop)
-                    .observe(slot_drag_end)
-                    .observe(slot_over)
-                    .observe(slot_out);
+                spawn_slot(panel, Holder::Inventory, index, SLOT_SIZE);
             }
         });
+    // The hotbar, always on screen along the bottom.
+    commands
+        .spawn((
+            HotbarBar,
+            Node {
+                position_type: PositionType::Absolute,
+                bottom: Val::Px(8.0),
+                left: Val::Percent(50.0),
+                margin: UiRect::left(Val::Px(
+                    -(HOTBAR_SLOTS as f32) * (HOTBAR_SLOT_SIZE + 4.0) / 2.0,
+                )),
+                display: Display::Flex,
+                column_gap: Val::Px(4.0),
+                padding: UiRect::all(Val::Px(4.0)),
+                ..default()
+            },
+            BackgroundColor(Color::srgba(0.05, 0.05, 0.06, 0.7)),
+        ))
+        .with_children(|bar| {
+            for index in 0..HOTBAR_SLOTS {
+                spawn_slot(bar, Holder::Hotbar, index, HOTBAR_SLOT_SIZE);
+            }
+        });
+}
+
+/// One slot button. The same observers serve the bar and the panel,
+/// so dragging between them is one move across the two holders.
+fn spawn_slot(parent: &mut ChildSpawnerCommands, holder: Holder, index: usize, size: f32) {
+    parent
+        .spawn((
+            Slot(SlotRef { holder, index }),
+            Button,
+            Node {
+                width: Val::Px(size),
+                height: Val::Px(size),
+                align_items: AlignItems::Center,
+                justify_content: JustifyContent::Center,
+                ..default()
+            },
+            BackgroundColor(Color::srgb(0.2, 0.2, 0.22)),
+            children![(Text::new(""), TextFont::from_font_size(14.0))],
+        ))
+        .observe(slot_clicked)
+        .observe(slot_drag_start)
+        .observe(slot_drag_drop)
+        .observe(slot_drag_end)
+        .observe(slot_over)
+        .observe(slot_out);
+}
+
+/// The holder a slot lives in, borrowed from the player's components.
+fn holder_mut<'a>(
+    slot: SlotRef,
+    inventory: &'a mut Inventory,
+    hotbar: &'a mut Hotbar,
+) -> &'a mut modforge::item::Inventory {
+    match slot.holder {
+        Holder::Inventory => &mut inventory.0,
+        Holder::Hotbar => &mut hotbar.0,
+    }
 }
 
 /// I (Atlas) or Tab opens and closes the panel. Open releases the
@@ -104,7 +153,7 @@ pub fn toggle_inventory(
         return;
     }
     toggle_panel(&mut hud.0, OpenPanel::Inventory);
-    hud.0.dragging_slot = None;
+    hud.0.dragging = None;
     hovered.0 = None;
     if let Ok(mut cursor) = cursors.single_mut() {
         let open = hud.0.open_panel == OpenPanel::Inventory;
@@ -121,13 +170,45 @@ pub fn inventory_open(hud: Res<HudRes>) -> bool {
     hud.0.open_panel == OpenPanel::Inventory
 }
 
+/// Digit keys use the hotbar slot (modforge `hotbar_slot` order),
+/// panel open or not.
+pub fn hotbar_keys(
+    keys: Res<ButtonInput<KeyCode>>,
+    registry: Res<ItemRegistryRes>,
+    mut players: Query<(&mut Hotbar, &mut Survival), With<Player>>,
+) {
+    const DIGITS: [(KeyCode, u8); 10] = [
+        (KeyCode::Digit1, 1),
+        (KeyCode::Digit2, 2),
+        (KeyCode::Digit3, 3),
+        (KeyCode::Digit4, 4),
+        (KeyCode::Digit5, 5),
+        (KeyCode::Digit6, 6),
+        (KeyCode::Digit7, 7),
+        (KeyCode::Digit8, 8),
+        (KeyCode::Digit9, 9),
+        (KeyCode::Digit0, 0),
+    ];
+    let Some(slot) = DIGITS
+        .iter()
+        .find(|(key, _)| keys.just_pressed(*key))
+        .and_then(|(_, digit)| hotbar_slot(*digit))
+    else {
+        return;
+    };
+    let Ok((mut hotbar, mut survival)) = players.single_mut() else {
+        return;
+    };
+    let _ = use_slot(&mut survival.0, &mut hotbar.0, slot, &registry.0);
+}
+
 /// Double left click uses the slot (modforge `use_slot`; food is
 /// eaten). A single click does nothing, as in Atlas.
 fn slot_clicked(
     click: On<Pointer<Click>>,
     slots: Query<&Slot>,
     registry: Res<ItemRegistryRes>,
-    mut players: Query<(&mut PlayerInventory, &mut Survival), With<Player>>,
+    mut players: Query<(&mut Inventory, &mut Hotbar, &mut Survival), With<Player>>,
 ) {
     if click.button != PointerButton::Primary || click.count < 2 {
         return;
@@ -135,26 +216,32 @@ fn slot_clicked(
     let Ok(slot) = slots.get(click.entity) else {
         return;
     };
-    let Ok((mut inventory, mut survival)) = players.single_mut() else {
+    let Ok((mut inventory, mut hotbar, mut survival)) = players.single_mut() else {
         return;
     };
+    let holder = holder_mut(slot.0, &mut inventory, &mut hotbar);
     // A refused use (not food, empty) changes nothing.
-    let _ = use_slot(&mut survival.0, &mut inventory.0, slot.0, &registry.0);
+    let _ = use_slot(&mut survival.0, holder, slot.0.index, &registry.0);
 }
 
 fn slot_drag_start(
     drag: On<Pointer<DragStart>>,
     slots: Query<&Slot>,
     mut hud: ResMut<HudRes>,
-    players: Query<&PlayerInventory, With<Player>>,
+    mut players: Query<(&mut Inventory, &mut Hotbar), With<Player>>,
 ) {
     if drag.button != PointerButton::Primary {
         return;
     }
-    let (Ok(slot), Ok(inventory)) = (slots.get(drag.entity), players.single()) else {
+    let (Ok(slot), Ok((mut inventory, mut hotbar))) = (slots.get(drag.entity), players.single_mut())
+    else {
         return;
     };
-    start_drag(&mut hud.0, &inventory.0, slot.0);
+    let holders = Holders {
+        inventory: &mut inventory.0,
+        hotbar: &mut hotbar.0,
+    };
+    start_drag(&mut hud.0, &holders, slot.0);
 }
 
 /// The dragged stack lands on the slot under the cursor.
@@ -163,17 +250,22 @@ fn slot_drag_drop(
     slots: Query<&Slot>,
     mut hud: ResMut<HudRes>,
     registry: Res<ItemRegistryRes>,
-    mut players: Query<&mut PlayerInventory, With<Player>>,
+    mut players: Query<(&mut Inventory, &mut Hotbar), With<Player>>,
 ) {
-    let (Ok(slot), Ok(mut inventory)) = (slots.get(drop.entity), players.single_mut()) else {
+    let (Ok(slot), Ok((mut inventory, mut hotbar))) = (slots.get(drop.entity), players.single_mut())
+    else {
         return;
     };
-    end_drag(&mut hud.0, &mut inventory.0, slot.0, &registry.0);
+    let mut holders = Holders {
+        inventory: &mut inventory.0,
+        hotbar: &mut hotbar.0,
+    };
+    end_drag(&mut hud.0, &mut holders, slot.0, &registry.0);
 }
 
 /// A drag released anywhere else is cancelled.
 fn slot_drag_end(_end: On<Pointer<DragEnd>>, mut hud: ResMut<HudRes>) {
-    hud.0.dragging_slot = None;
+    hud.0.dragging = None;
 }
 
 fn slot_over(over: On<Pointer<Over>>, slots: Query<&Slot>, mut hovered: ResMut<HoveredSlot>) {
@@ -198,7 +290,7 @@ pub fn drop_hovered(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<CelMaterial>>,
-    mut players: Query<(&Transform, &mut PlayerInventory), With<Player>>,
+    mut players: Query<(&Transform, &mut Inventory, &mut Hotbar), With<Player>>,
 ) {
     if !keys.just_pressed(KeyCode::KeyO) {
         return;
@@ -206,10 +298,11 @@ pub fn drop_hovered(
     let Some(slot) = hovered.0 else {
         return;
     };
-    let Ok((transform, mut inventory)) = players.single_mut() else {
+    let Ok((transform, mut inventory, mut hotbar)) = players.single_mut() else {
         return;
     };
-    let Some(stack) = drop_slot(&mut inventory.0, slot) else {
+    let holder = holder_mut(slot, &mut inventory, &mut hotbar);
+    let Some(stack) = drop_slot(holder, slot.index) else {
         return;
     };
     let feet = transform.translation.with_y(0.3) + transform.forward().with_y(0.0) * 1.0;
@@ -223,11 +316,12 @@ pub fn drop_hovered(
     );
 }
 
-/// Paint the panel from the player's inventory in place: visible
-/// only while open, one label per slot, the selected slot lit.
+/// Paint the panel and the hotbar from the player's holders in
+/// place: the panel visible only while open, one label per slot,
+/// the dragged slot lit.
 pub fn render_inventory(
     hud: Res<HudRes>,
-    players: Query<&PlayerInventory, With<Player>>,
+    players: Query<(&Inventory, &Hotbar), With<Player>>,
     mut panels: Query<&mut Visibility, With<InventoryPanel>>,
     mut slots: Query<(&Slot, &mut BackgroundColor, &Children)>,
     mut texts: Query<&mut Text>,
@@ -240,20 +334,21 @@ pub fn render_inventory(
             Visibility::Hidden
         };
     }
-    if !open {
-        return;
-    }
-    let Ok(inventory) = players.single() else {
+    let Ok((inventory, hotbar)) = players.single() else {
         return;
     };
     for (slot, mut color, children) in &mut slots {
-        let dragging = hud.0.dragging_slot == Some(slot.0);
+        let dragging = hud.0.dragging == Some(slot.0);
         *color = BackgroundColor(if dragging {
             Color::srgb(0.5, 0.45, 0.2)
         } else {
             Color::srgb(0.2, 0.2, 0.22)
         });
-        let label = slot_label(inventory.0.slots.get(slot.0).and_then(|s| s.as_ref()));
+        let holder = match slot.0.holder {
+            Holder::Inventory => &inventory.0,
+            Holder::Hotbar => &hotbar.0,
+        };
+        let label = slot_label(holder.slots.get(slot.0.index).and_then(|s| s.as_ref()));
         for child in children.iter() {
             if let Ok(mut text) = texts.get_mut(child) {
                 text.0 = label.clone();

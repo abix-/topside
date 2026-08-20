@@ -1,6 +1,7 @@
 //! topside: a standalone post-apocalyptic survival game on Bevy,
 //! consuming the modforge crate. Ownership map: docs/authority.md.
 
+pub mod actor;
 pub mod bunker;
 pub mod cel;
 pub mod content;
@@ -106,6 +107,7 @@ pub fn build_app(headless: bool) -> App {
                 player::mouse_look.run_if(not(hud::inventory_open)),
                 hud::toggle_inventory,
                 hud::drop_hovered.run_if(hud::inventory_open),
+                hud::hotbar_keys,
                 hud::write_prompt,
                 hud::render,
                 hud::render_inventory,
@@ -219,7 +221,7 @@ mod tests {
             selected_kind: app.world().resource::<interact::LookingAt>().kind,
             inventory_count: app
                 .world()
-                .get::<player::PlayerInventory>(player)
+                .get::<actor::Inventory>(player)
                 .expect("the player entity owns its inventory")
                 .0
                 .count_of("scrap"),
