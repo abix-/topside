@@ -38,6 +38,32 @@ bar; hit it and the operator is happy.
 ## The bunker
 
 The bunker is the permanent home base, built up over the whole game.
+It grows DOWNWARD, not outward (operator-locked 2026-08-20: "this is a
+bunker. the topside isnt safe. so i want this bunker to go down
+vertically. like fallout shelter. but also each level has some
+expandability. like a silo").
+
+The bunker is a vertical silo. Each level is a floor the player digs
+deeper, and each floor can expand horizontally within its footprint.
+The deeper you go, the safer (raiders have to fight through every level
+above), but also the more expensive (excavation, reinforcement,
+ventilation, longer power runs). The entrance is the most vulnerable
+point; the bottom is the vault.
+
+You start with just the bunker (the one starting room). The silo
+expansion is the progression: you dig down, carve out new levels, and
+build your underground base over time. Vertical progression gives the
+bunker its own curve:
+- The bunker: the starting room. Bed, food, bench. One door to topside.
+- First expansion: dig down into the silo. Living quarters, basic
+  storage, the first generator.
+- Mid levels: specialized stations, expanded storage, the armory.
+- Deep levels: the research lab, the vault, the most protected rooms.
+
+Each level is a floor plan the player designs: carving rooms, placing
+doors, running power, setting up stations. Fallout Shelter is the
+reference for the vertical feel; Rust is the reference for the
+room-by-room building freedom.
 
 It starts with exactly three things:
 
