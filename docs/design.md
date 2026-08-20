@@ -169,6 +169,18 @@ similar): recruited people with their own skills and traits, assigned to
 work stations and duties they then run autonomously, guard and follow roles,
 companions at your side in the world.
 
+## The HUD
+
+ONE HUD, made of panels. The HUD is the whole player-facing information
+layer: inventory, skills, health, food, prompts, the work board, the
+chronicle, the map, and anything else the player looks at that is not the
+3D world. All of it lives in modforge as engine-agnostic data and
+decisions (operator-locked 2026-08-20: "our whole game hud structs and
+systems and all engine agnostic should be in modforge. so we have ONE
+way we do all that stuff"). The consumer provides one binder to read its
+world and one renderer to paint the panels. No second way to show the
+player information.
+
 ## Items and inventory
 
 Inventory is slots and stacks (the Rust / Valheim-without-weight model).
