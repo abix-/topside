@@ -22,6 +22,12 @@ These rules govern `docs/changelog.md`. Follow them exactly.
 - Use plain terms. Do not use vague descriptions, invented language, or design
   essays.
 
+## 2026-08-20
+
+| System | Item | Done when |
+|---|---|---|
+| FixedUpdate | [x] Move player movement, looking-at selection, door mutation, and item pickup out of `Update`; capture input in `Update` and apply gameplay changes in an ordered `FixedUpdate` chain | `gameplay_result_is_independent_of_update_count` produces the same player position, selected target, door state, and inventory at 60 Hz and 240 Hz render sampling; the boot test, full test suite, and strict Clippy pass |
+
 ## 2026-08-19
 
 | System | Item | Done when |

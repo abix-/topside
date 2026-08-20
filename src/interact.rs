@@ -26,6 +26,9 @@ pub struct WorldItem {
     pub stack: ItemStack,
 }
 
+#[derive(Resource, Default)]
+pub struct InteractInput(pub bool);
+
 /// The ONE path from an item stack to a pickup entity in the world.
 pub fn spawn_item(
     commands: &mut Commands,
@@ -39,7 +42,11 @@ pub fn spawn_item(
         min: position - Vec3::splat(ITEM_HALF),
         max: position + Vec3::splat(ITEM_HALF),
     };
-    let mesh = meshes.add(Cuboid::new(ITEM_HALF * 2.0, ITEM_HALF * 2.0, ITEM_HALF * 2.0));
+    let mesh = meshes.add(Cuboid::new(
+        ITEM_HALF * 2.0,
+        ITEM_HALF * 2.0,
+        ITEM_HALF * 2.0,
+    ));
     let mat = materials.add(CelMaterial::from_srgb(color[0], color[1], color[2]));
     commands
         .spawn((
@@ -62,6 +69,10 @@ pub struct LookingAt {
     pub entity: Option<Entity>,
     pub kind: Option<InteractKind>,
     pub distance: f32,
+}
+
+pub fn capture_interact_input(keys: Res<ButtonInput<KeyCode>>, mut input: ResMut<InteractInput>) {
+    input.0 |= keys.just_pressed(KeyCode::KeyE);
 }
 
 /// Ray-AABB slab test. Returns the distance along the ray to the
@@ -100,35 +111,35 @@ pub fn update_looking_at(
     let dir = player.forward().as_vec3();
 
     for (entity, door) in &doors {
-        if let Some(t) = ray_aabb(origin, dir, &door.collider) {
-            if t < looking_at.distance {
-                looking_at.entity = Some(entity);
-                looking_at.kind = Some(InteractKind::Door { open: door.open });
-                looking_at.distance = t;
-            }
+        if let Some(t) = ray_aabb(origin, dir, &door.collider)
+            && t < looking_at.distance
+        {
+            looking_at.entity = Some(entity);
+            looking_at.kind = Some(InteractKind::Door { open: door.open });
+            looking_at.distance = t;
         }
     }
 
     for (entity, interactable) in &interactables {
-        if let Some(t) = ray_aabb(origin, dir, &interactable.aabb) {
-            if t < looking_at.distance {
-                looking_at.entity = Some(entity);
-                looking_at.kind = Some(interactable.kind);
-                looking_at.distance = t;
-            }
+        if let Some(t) = ray_aabb(origin, dir, &interactable.aabb)
+            && t < looking_at.distance
+        {
+            looking_at.entity = Some(entity);
+            looking_at.kind = Some(interactable.kind);
+            looking_at.distance = t;
         }
     }
 }
 
 pub fn interact_on_press(
     mut commands: Commands,
-    keys: Res<ButtonInput<KeyCode>>,
+    mut input: ResMut<InteractInput>,
     looking_at: Res<LookingAt>,
     mut state: ResMut<HudRes>,
     mut doors: Query<(&mut Door, &mut Transform)>,
     items: Query<&WorldItem>,
 ) {
-    if !keys.just_pressed(KeyCode::KeyE) {
+    if !std::mem::take(&mut input.0) {
         return;
     }
     let Some(entity) = looking_at.entity else {

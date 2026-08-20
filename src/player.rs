@@ -1,16 +1,19 @@
 //! First-person camera on a flat ground plane. Skeleton controls:
 //! click grabs the cursor, mouse looks, WASD walks, Escape releases.
 
+use crate::cel::CelMaterial;
 use bevy::input::mouse::MouseMotion;
 use bevy::prelude::*;
 use bevy::window::{CursorGrabMode, CursorOptions, PrimaryWindow};
-use crate::cel::CelMaterial;
 
 #[derive(Component)]
 pub struct Player {
     pub yaw: f32,
     pub pitch: f32,
 }
+
+#[derive(Resource, Default)]
+pub struct MovementInput(pub Vec2);
 
 const EYE_HEIGHT: f32 = 1.7;
 const WALK_SPEED: f32 = 5.0;
@@ -63,6 +66,17 @@ pub fn cursor_grab(
     }
 }
 
+pub fn capture_movement_input(keys: Res<ButtonInput<KeyCode>>, mut input: ResMut<MovementInput>) {
+    input.0 = Vec2::new(
+        axis(&keys, KeyCode::KeyD, KeyCode::KeyA),
+        axis(&keys, KeyCode::KeyS, KeyCode::KeyW),
+    );
+}
+
+fn axis(keys: &ButtonInput<KeyCode>, positive: KeyCode, negative: KeyCode) -> f32 {
+    f32::from(keys.pressed(positive)) - f32::from(keys.pressed(negative))
+}
+
 pub fn mouse_look(
     mut motions: MessageReader<MouseMotion>,
     cursors: Query<&CursorOptions, With<PrimaryWindow>>,
@@ -90,26 +104,14 @@ pub fn mouse_look(
 }
 
 pub fn movement(
-    keys: Res<ButtonInput<KeyCode>>,
-    time: Res<Time>,
+    input: Res<MovementInput>,
+    time: Res<Time<Fixed>>,
     colliders: Res<crate::structure::StaticColliders>,
     walkables: Res<crate::structure::Walkables>,
     doors: Query<&crate::structure::Door>,
     mut players: Query<(&mut Transform, &Player), Without<crate::structure::Door>>,
 ) {
-    let mut wish = Vec3::ZERO;
-    if keys.pressed(KeyCode::KeyW) {
-        wish.z -= 1.0;
-    }
-    if keys.pressed(KeyCode::KeyS) {
-        wish.z += 1.0;
-    }
-    if keys.pressed(KeyCode::KeyA) {
-        wish.x -= 1.0;
-    }
-    if keys.pressed(KeyCode::KeyD) {
-        wish.x += 1.0;
-    }
+    let wish = Vec3::new(input.0.x, 0.0, input.0.y);
     if wish == Vec3::ZERO {
         return;
     }

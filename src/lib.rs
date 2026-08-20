@@ -48,11 +48,29 @@ pub fn build_app(headless: bool) -> App {
     app.init_resource::<bunker::FoodStore>();
     app.init_resource::<structure::StaticColliders>();
     app.init_resource::<structure::Walkables>();
+    app.init_resource::<ButtonInput<KeyCode>>();
     app.init_resource::<interact::LookingAt>();
+    app.init_resource::<interact::InteractInput>();
+    app.init_resource::<player::MovementInput>();
     app.insert_resource(hud::HudRes(modforge::hud::HudState::new(20)));
     app.add_systems(
+        Update,
+        (
+            player::capture_movement_input,
+            interact::capture_interact_input,
+        )
+            .run_if(in_state(AppState::Playing)),
+    );
+    app.add_systems(
         FixedUpdate,
-        (tick_system, bunker::food_tick_system, control_plane::publish_system)
+        (
+            tick_system,
+            bunker::food_tick_system,
+            player::movement,
+            interact::update_looking_at,
+            interact::interact_on_press,
+            control_plane::publish_system,
+        )
             .chain()
             .run_if(in_state(AppState::Playing)),
     );
@@ -61,16 +79,19 @@ pub fn build_app(headless: bool) -> App {
         control_plane::start();
         app.add_systems(
             OnEnter(AppState::Playing),
-            (cel::load_shader, player::setup_scene, bunker::setup, hud::setup).chain(),
+            (
+                cel::load_shader,
+                player::setup_scene,
+                bunker::setup,
+                hud::setup,
+            )
+                .chain(),
         );
         app.add_systems(
             Update,
             (
                 player::cursor_grab,
                 player::mouse_look,
-                player::movement,
-                interact::update_looking_at,
-                interact::interact_on_press,
                 hud::write_vitals,
                 hud::write_prompt,
                 hud::render,
@@ -83,4 +104,134 @@ pub fn build_app(headless: bool) -> App {
 
 fn tick_system(mut tick: ResMut<SimTick>) {
     tick.0 += 1;
+}
+
+#[cfg(test)]
+mod tests {
+    use std::time::Duration;
+
+    use super::*;
+    use bevy::time::TimeUpdateStrategy;
+    use modforge::hud::InteractKind;
+    use modforge::item::ItemStack;
+    use modforge::structure::Aabb;
+
+    struct GameplayOutcome {
+        player_position: Vec3,
+        door_opened: bool,
+        selected_kind: Option<InteractKind>,
+        inventory_count: u32,
+    }
+
+    fn run_fixed_gameplay_with_updates_per_tick(updates_per_tick: usize) -> GameplayOutcome {
+        let mut app = build_app(true);
+        app.insert_resource(TimeUpdateStrategy::ManualDuration(Duration::from_secs_f64(
+            1.0 / (60.0 * updates_per_tick as f64),
+        )));
+
+        let player = app
+            .world_mut()
+            .spawn((
+                Transform::from_xyz(0.0, 1.7, 2.0),
+                player::Player {
+                    yaw: 0.0,
+                    pitch: 0.0,
+                },
+            ))
+            .id();
+        let door = structure::Door {
+            open: false,
+            closed_center: Vec3::new(0.0, 1.3, 1.0),
+            hinge: Vec3::new(-0.5, 1.3, 1.0),
+            closed_rotation: Quat::IDENTITY,
+            collider: Aabb::from_center_size(Vec3::new(0.0, 1.3, 1.0), Vec3::new(1.0, 2.6, 0.1)),
+        };
+        let door_transform = door.transform();
+        let door = app.world_mut().spawn((door, door_transform)).id();
+
+        {
+            let mut keys = app.world_mut().resource_mut::<ButtonInput<KeyCode>>();
+            keys.press(KeyCode::KeyW);
+            keys.press(KeyCode::KeyE);
+        }
+        app.update();
+        app.world_mut()
+            .resource_mut::<ButtonInput<KeyCode>>()
+            .clear_just_pressed(KeyCode::KeyE);
+        for _ in 0..(6 * updates_per_tick) {
+            app.update();
+        }
+
+        let player_position = app.world().get::<Transform>(player).unwrap().translation;
+        let door_opened = app.world().get::<structure::Door>(door).unwrap().open;
+        app.world_mut().despawn(door);
+
+        let item_position = player_position + Vec3::NEG_Z;
+        app.world_mut().spawn((
+            interact::Interactable {
+                kind: InteractKind::Pickup,
+                aabb: Aabb::from_center_size(item_position, Vec3::splat(0.4)),
+            },
+            interact::WorldItem {
+                stack: ItemStack {
+                    item: "scrap".to_string(),
+                    count: 1,
+                    quality: None,
+                },
+            },
+        ));
+        {
+            let mut keys = app.world_mut().resource_mut::<ButtonInput<KeyCode>>();
+            keys.release(KeyCode::KeyW);
+            keys.release(KeyCode::KeyE);
+            keys.press(KeyCode::KeyE);
+        }
+        app.update();
+        app.world_mut()
+            .resource_mut::<ButtonInput<KeyCode>>()
+            .clear_just_pressed(KeyCode::KeyE);
+        for _ in 0..updates_per_tick {
+            app.update();
+        }
+
+        GameplayOutcome {
+            player_position,
+            door_opened,
+            selected_kind: app.world().resource::<interact::LookingAt>().kind,
+            inventory_count: app
+                .world()
+                .resource::<hud::HudRes>()
+                .0
+                .inventory
+                .count_of("scrap"),
+        }
+    }
+
+    #[test]
+    fn gameplay_result_is_independent_of_update_count() {
+        let one_update = run_fixed_gameplay_with_updates_per_tick(1);
+        let four_updates = run_fixed_gameplay_with_updates_per_tick(4);
+
+        assert!(
+            one_update.player_position.z < 2.0,
+            "held movement must advance the player during fixed ticks"
+        );
+        assert!(
+            one_update.door_opened,
+            "one interact press must open the door"
+        );
+        assert_eq!(one_update.selected_kind, Some(InteractKind::Pickup));
+        assert_eq!(one_update.inventory_count, 1);
+        assert!(
+            one_update
+                .player_position
+                .abs_diff_eq(four_updates.player_position, 1e-6),
+            "player position changed with Update count: {:?} vs {:?}",
+            one_update.player_position,
+            four_updates.player_position
+        );
+        assert_eq!(one_update.door_opened, four_updates.door_opened);
+        assert_eq!(one_update.selected_kind, four_updates.selected_kind);
+        assert_eq!(one_update.inventory_count, four_updates.inventory_count);
+    }
 }
