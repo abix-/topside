@@ -66,22 +66,24 @@ home is usually calm but never guaranteed safe.
   above: it can come to your door.
 - When you want to, you leave the bunker and go into the topside world. No
   forced trips, no hard session boundary; going out is the player's choice.
-- The emission, taken from MISERY: after X time there is some event and the
-  world changes. Keep similar timing to MISERY's at first. In topside this
-  is the storyteller's beat; the full mechanic is its own section below.
+- The storm, modeled on MISERY's emission: after X time there is some event
+  and the world changes. Keep similar timing to MISERY's at first. In
+  topside this is the storyteller's beat; the full mechanic is its own
+  section below. (The name emission stays MISERY's and STALKER's; ours is
+  the storm.)
 
-## The emission
+## The storm
 
-Occasionally the event occurs (like MISERY's emission):
+Occasionally the storm hits (modeled on MISERY's emission):
 
 - If the player is out in the world, they can hide in some building or
   similar shelter that MAY be safe. Caught in the open, they die.
 - Then the world gets REGENERATED around them, EXCEPT the player's base and
   enemy faction bases, which persist.
 - The 1000 persistent NPCs survive regeneration the same way bunkers do; the
-  emission re-rolls terrain and monuments, never deletes people. People die
+  storm re-rolls terrain and monuments, never deletes people. People die
   only by dying.
-- NPCs obey the same emission rules as the player: they hide from it just
+- NPCs obey the same storm rules as the player: they hide from it just
   like you do, or die in the open. That creates natural tension around the
   'safe' places and leads to more situations: shelter is contested when the
   sky turns, and whoever is near your door when it hits becomes your
@@ -99,11 +101,11 @@ faction bunkers are THE persistent, consistent things as the world
 regenerates, exactly like the player's.
 
 - An enemy faction can raid you; you can raid them.
-- Their bunker stays the same across emissions, but the path there and back
+- Their bunker stays the same across storms, but the path there and back
   might be different each time, because the world between the bunkers
   re-rolled.
 
-So a rivalry survives any number of emissions: you know WHO your enemy is
+So a rivalry survives any number of storms: you know WHO your enemy is
 and what their bunker is like, but never what lies between you and them.
 The faction behavior itself (who raids whom, grudges, trade, war and peace)
 is the genome and acts systems from the authority map, proven in the
