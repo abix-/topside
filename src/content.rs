@@ -12,36 +12,42 @@ pub fn register_items(reg: &mut ItemRegistry) {
             kind: ItemKind::Food,
             max_stack: 10,
             quality_siblings: 1,
+            combat: None,
         },
         ItemDef {
             name: "water bottle".to_string(),
             kind: ItemKind::Food,
             max_stack: 5,
             quality_siblings: 1,
+            combat: None,
         },
         ItemDef {
             name: "scrap".to_string(),
             kind: ItemKind::Material,
             max_stack: 20,
             quality_siblings: 1,
+            combat: None,
         },
         ItemDef {
             name: "cloth".to_string(),
             kind: ItemKind::Material,
             max_stack: 20,
             quality_siblings: 1,
+            combat: None,
         },
         ItemDef {
             name: "pipe".to_string(),
             kind: ItemKind::Weapon,
             max_stack: 1,
             quality_siblings: 3,
+            combat: None,
         },
         ItemDef {
             name: "hatchet".to_string(),
             kind: ItemKind::Tool,
             max_stack: 1,
             quality_siblings: 3,
+            combat: None,
         },
     ];
     for item in items {

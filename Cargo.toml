@@ -5,6 +5,7 @@ edition = "2024"
 publish = false
 
 [dependencies]
+avian3d = { version = "0.7", default-features = false, features = ["3d", "f32", "parry-f32", "parallel"] }
 bevy = "0.19"
 modforge = { path = "../modforge/modforge" }
 serde_json = "1"

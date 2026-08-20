@@ -40,6 +40,14 @@ pub fn build_app(headless: bool) -> App {
             ..default()
         }));
     }
+    app.add_plugins(avian3d::prelude::PhysicsPlugins::default());
+    if headless {
+        // Headless callers drive `update()` themselves and never
+        // `run()`, so finish plugin setup here (Avian creates its
+        // resources in `Plugin::finish`).
+        app.finish();
+        app.cleanup();
+    }
     app.insert_resource(Time::<Fixed>::from_hz(60.0));
     app.init_state::<AppState>();
     app.init_resource::<SimTick>();
@@ -141,6 +149,7 @@ mod tests {
             .id();
         let door = structure::Door {
             open: false,
+            origin: Vec3::ZERO,
             closed_center: Vec3::new(0.0, 1.3, 1.0),
             hinge: Vec3::new(-0.5, 1.3, 1.0),
             closed_rotation: Quat::IDENTITY,

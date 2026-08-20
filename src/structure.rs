@@ -8,6 +8,7 @@
 //! Bevy 0.19 and modforge share the same glam, so Vec3 here and
 //! Vec3 in the defs are one type.
 
+use avian3d::prelude::*;
 use bevy::prelude::*;
 use crate::cel::CelMaterial;
 pub use modforge::structure::{
@@ -64,11 +65,25 @@ pub const BODY_TOP: f32 = 1.8;
 /// Height a walking body steps over / climbs per move.
 pub const CLIMB: f32 = 0.35;
 
+/// The static body every piece of one spawned structure hangs
+/// off. Despawning it takes the geometry, doors, and colliders
+/// with it.
+#[derive(Component, Debug, PartialEq)]
+pub struct StructureRoot;
+
+/// A wall, slab, step, or furniture piece: visible geometry and
+/// its collider on one child of the structure root.
+#[derive(Component, Debug, PartialEq)]
+pub struct StructureSolid;
+
 /// A hinged door. All positions are world space, fixed at spawn;
-/// the collider applies only while closed.
+/// the collider applies only while closed. `origin` is the
+/// structure root's position, so the door's local transform is
+/// its world pose minus the origin.
 #[derive(Component)]
 pub struct Door {
     pub open: bool,
+    pub origin: Vec3,
     pub closed_center: Vec3,
     pub hinge: Vec3,
     pub closed_rotation: Quat,
@@ -76,14 +91,17 @@ pub struct Door {
 }
 
 impl Door {
+    /// Local transform relative to the structure root.
     pub fn transform(&self) -> Transform {
         if !self.open {
-            return Transform::from_translation(self.closed_center)
+            return Transform::from_translation(self.closed_center - self.origin)
                 .with_rotation(self.closed_rotation);
         }
         let swing = Quat::from_rotation_y(DOOR_SWING_DEGREES.to_radians());
-        Transform::from_translation(self.hinge + swing * (self.closed_center - self.hinge))
-            .with_rotation(swing * self.closed_rotation)
+        Transform::from_translation(
+            self.hinge + swing * (self.closed_center - self.hinge) - self.origin,
+        )
+        .with_rotation(swing * self.closed_rotation)
     }
 }
 
@@ -97,25 +115,43 @@ pub fn spawn_structure(
     walkables: &mut Walkables,
     def: &StructureDef,
     origin: Vec3,
-) -> Result<(), String> {
+) -> Result<Entity, String> {
     validate(def)?;
+
+    let root = commands
+        .spawn((
+            StructureRoot,
+            RigidBody::Static,
+            Transform::from_translation(origin),
+            Visibility::default(),
+        ))
+        .id();
 
     let concrete = materials.add(CelMaterial::from_srgb(0.45, 0.45, 0.47));
     let floor_mat = materials.add(CelMaterial::from_srgb(0.35, 0.35, 0.36));
     let door_mat = materials.add(CelMaterial::from_srgb(0.25, 0.28, 0.30));
     let stair_mat = materials.add(CelMaterial::from_srgb(0.40, 0.38, 0.36));
 
+    // One child of the root per solid piece: mesh and collider
+    // together, positioned relative to the root. `center` is
+    // structure-local.
     let solid = |commands: &mut Commands,
                  meshes: &mut Assets<Mesh>,
-                 colliders: &mut StaticColliders,
                  center: Vec3,
                  size: Vec3,
                  material: Handle<CelMaterial>| {
         commands.spawn((
+            StructureSolid,
+            ChildOf(root),
+            Collider::cuboid(size.x, size.y, size.z),
             Mesh3d(meshes.add(Cuboid::new(size.x, size.y, size.z))),
             MeshMaterial3d(material),
-            Transform::from_translation(origin + center),
+            Transform::from_translation(center),
         ));
+    };
+    // Movement compatibility output, kept until the player moves
+    // onto the Avian world (todo priority 2).
+    let blocking = |colliders: &mut StaticColliders, center: Vec3, size: Vec3| {
         colliders
             .0
             .push(Aabb::from_center_size(origin + center, size));
@@ -151,7 +187,8 @@ pub fn spawn_structure(
                 let run = end - start;
                 let center = wall_center + axis * mid + Vec3::Y * (height / 2.0);
                 let size = axis * run + Vec3::Y * height + (Vec3::ONE - axis - Vec3::Y) * t;
-                solid(commands, meshes, colliders, center, size, concrete.clone());
+                solid(commands, meshes, center, size, concrete.clone());
+                blocking(colliders, center, size);
             }
             // Panels below raised sills.
             for opening in room
@@ -164,29 +201,24 @@ pub fn spawn_structure(
                 let size = axis * opening.width
                     + Vec3::Y * opening.sill
                     + (Vec3::ONE - axis - Vec3::Y) * t;
-                solid(commands, meshes, colliders, center, size, concrete.clone());
+                solid(commands, meshes, center, size, concrete.clone());
+                blocking(colliders, center, size);
             }
         }
 
         let slab_xz = Vec3::new(room.interior.x + 2.0 * t, 0.0, room.interior.z + 2.0 * t);
         if room.floor {
-            let center = origin + room.origin + Vec3::Y * (SLAB / 2.0);
+            let center = room.origin + Vec3::Y * (SLAB / 2.0);
             let size = slab_xz + Vec3::Y * SLAB;
-            commands.spawn((
-                Mesh3d(meshes.add(Cuboid::new(size.x, size.y, size.z))),
-                MeshMaterial3d(floor_mat.clone()),
-                Transform::from_translation(center),
-            ));
-            walkables.0.push(Aabb::from_center_size(center, size));
+            solid(commands, meshes, center, size, floor_mat.clone());
+            walkables
+                .0
+                .push(Aabb::from_center_size(origin + center, size));
         }
         if room.ceiling {
-            let center = origin + room.origin + Vec3::Y * (height + SLAB);
+            let center = room.origin + Vec3::Y * (height + SLAB);
             let size = slab_xz + Vec3::Y * 0.2;
-            commands.spawn((
-                Mesh3d(meshes.add(Cuboid::new(size.x, size.y, size.z))),
-                MeshMaterial3d(concrete.clone()),
-                Transform::from_translation(center),
-            ));
+            solid(commands, meshes, center, size, concrete.clone());
         }
 
         for opening in room.openings.iter().filter(|o| o.door) {
@@ -208,6 +240,7 @@ pub fn spawn_structure(
                 + (Vec3::ONE - axis - Vec3::Y) * DOOR_THICKNESS;
             let door = Door {
                 open: false,
+                origin,
                 closed_center,
                 hinge,
                 closed_rotation,
@@ -216,6 +249,9 @@ pub fn spawn_structure(
             let transform = door.transform();
             commands.spawn((
                 door,
+                ChildOf(root),
+                RigidBody::Kinematic,
+                Collider::cuboid(opening.width, door_h, DOOR_THICKNESS),
                 Mesh3d(meshes.add(Cuboid::new(opening.width, door_h, DOOR_THICKNESS))),
                 MeshMaterial3d(door_mat.clone()),
                 transform,
@@ -234,46 +270,42 @@ pub fn spawn_structure(
                 + dir * (STEP_DEPTH * (i as f32 + 0.5))
                 + Vec3::Y * (height / 2.0);
             let size = dir.abs() * STEP_DEPTH + across * stair.width + Vec3::Y * height;
-            let world = Aabb::from_center_size(origin + center, size);
-            commands.spawn((
-                Mesh3d(meshes.add(Cuboid::new(size.x, size.y, size.z))),
-                MeshMaterial3d(stair_mat.clone()),
-                Transform::from_translation(origin + center),
-            ));
-            walkables.0.push(world);
+            solid(commands, meshes, center, size, stair_mat.clone());
+            walkables
+                .0
+                .push(Aabb::from_center_size(origin + center, size));
         }
         if stair.landing > 0.0 {
             let center = stair.base
                 + dir * (STEP_DEPTH * steps as f32 + stair.landing / 2.0)
                 + Vec3::Y * (stair.rise - SLAB / 2.0);
             let size = dir.abs() * stair.landing + across * stair.width + Vec3::Y * SLAB;
-            let world = Aabb::from_center_size(origin + center, size);
-            commands.spawn((
-                Mesh3d(meshes.add(Cuboid::new(size.x, size.y, size.z))),
-                MeshMaterial3d(stair_mat.clone()),
-                Transform::from_translation(origin + center),
-            ));
-            walkables.0.push(world);
+            solid(commands, meshes, center, size, stair_mat.clone());
+            walkables
+                .0
+                .push(Aabb::from_center_size(origin + center, size));
         }
     }
 
     for piece in &def.furniture {
         let material = materials.add(cel_from_rgb(piece.color));
-        solid(commands, meshes, colliders, piece.center, piece.size, material);
+        solid(commands, meshes, piece.center, piece.size, material);
+        blocking(colliders, piece.center, piece.size);
     }
 
     for light in &def.lights {
         commands.spawn((
+            ChildOf(root),
             PointLight {
                 intensity: light.intensity,
                 color: Color::srgb(light.color[0], light.color[1], light.color[2]),
                 ..default()
             },
-            Transform::from_translation(origin + light.position),
+            Transform::from_translation(light.position),
         ));
     }
 
-    Ok(())
+    Ok(root)
 }
 
 /// True when a walking body with feet at `feet` height overlaps a
@@ -338,7 +370,7 @@ mod tests {
         ResMut<'w, Walkables>,
     );
 
-    fn spawn_into_world(def: &StructureDef) -> (StaticColliders, Walkables, Result<(), String>) {
+    fn spawn_into_world(def: &StructureDef) -> (StaticColliders, Walkables, Result<Entity, String>) {
         let mut app = App::new();
         app.init_resource::<Assets<Mesh>>();
         app.init_resource::<Assets<CelMaterial>>();
