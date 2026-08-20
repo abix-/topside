@@ -530,6 +530,29 @@ right combination of quality tier and affixes is what keeps loot
 interesting at 2000 hours, because Diablo 2 proved that systems
 multiplying against each other beat a bigger random list (references.md).
 
+### Loot tables scale with danger
+
+The randomness is shaped, never flat (operator-locked 2026-08-20:
+"there should always be logic to the randomness. high level loot box in
+hard monument has phat possible loot. while box out in the open in low
+level area has more common loot table"). The danger of the location
+determines the ceiling of what can drop there:
+
+- A crate in a roadside stop shack: common materials, low tier gear,
+  basic supplies. A lucky find is possible but rare.
+- A crate in a warehouse behind a locked door: mid-tier gear, useful
+  components, better quality rolls.
+- A crate in the gated room of a launch site: rare affixes, high
+  quality tiers, unique research components, the best the game offers.
+
+The same scaling applies to enemies: guards inside a gated monument
+room roll from tougher trait pools than wanderers near a roadside stop.
+Harder location means harder enemies and better rewards.
+
+This is the progression gate. You cannot skip to the best drops by
+getting lucky in a safe area. The better rolls are earned by going
+deeper into danger. The loot table is the reward for the risk.
+
 ## Death and difficulty
 
 Topside has a custom difficulty level, and the player controls how death
