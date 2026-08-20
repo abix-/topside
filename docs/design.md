@@ -631,6 +631,21 @@ The material lives in topside (it is Bevy-specific presentation).
 Presentation is decided in authority.md: 3D, first person, low poly with cel
 shading, AI-generated assets, on Bevy.
 
+## Future goals (not v1)
+
+These are good ideas that are too hard or too expensive for the first
+playable version. They stay here as documented goals, not promises.
+
+- **Persistent NPC memory**: every NPC remembers what the player did to
+  them personally (Shadow of Mordor's nemesis system, but both hostile
+  and friendly). A bandit you beat comes back harder. A trader you
+  saved gives better deals. A neutral you robbed warns others. With
+  1000 persistent NPCs, that is 1000 individual relationships evolving
+  over time. Hard to build, huge payoff when it works.
+- **Vehicles**: traversal across the world (cars, bikes, mounts).
+  Fuel, maintenance, breakdown risk. Added when the world is big
+  enough to need them.
+
 ## Still open
 
 The core-loop questions from the todo are all answered above. Open items
