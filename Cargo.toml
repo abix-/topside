@@ -9,6 +9,9 @@ bevy = "0.18"
 modforge = { path = "../modforge/modforge" }
 serde_json = "1"
 
+[dev-dependencies]
+ureq = { version = "3", features = ["json"] }
+
 # Fast iteration: light optimization for our code, full for deps
 # (Bevy is unusably slow fully unoptimized).
 [profile.dev]
