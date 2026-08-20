@@ -2,7 +2,8 @@
 
 | Priority | System | Todo | Done when |
 |---:|---|---|---|
-| 3 | hud.rs | [ ] Topside implements the HUD binder and renderer: reads the modforge HudState, paints panels with Bevy text and UI; replaces the current ad-hoc hud.rs | The HUD shows health, food, and the door prompt through the modforge HUD system, verified in-game |
+| 2 | modforge::hud | [ ] Remove HudBinder trait and tick() from modforge::hud; add container field to HudState | modforge builds, no trait, HudState has container: Option<Inventory> |
+| 3 | hud.rs | [ ] Wire topside to modforge HudState: insert as Bevy resource, writer systems fill vitals and prompt from game state, one renderer reads only HudState to paint | The HUD shows food and the door prompt through HudState, hud.rs reads no game state directly, verified in-game |
 | 3 | spawn_item | [ ] Add spawn_item, the one path from an item stack to a pickup entity, and pickup through the interact path into the player's Inventory | An item spawned in the world is picked up with E and its stack is in the player's Inventory, verified in-game |
 | 4 | bunker.rs | [ ] Replace the FoodStore counter with real food items in the bunker's stores; the food clock reads what is actually there (design.md) | The HUD food panel reflects the food items in the bunker, eating or removing food shortens it, and FoodStore the counter is gone, verified in-game |
 | 4 | StructureDef | [ ] Put a loot crate in the two-story house: a container with an Inventory, opened through the interact path, items transfer to the player | Opening the crate moves its items into the player's Inventory, verified in-game |
