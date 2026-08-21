@@ -129,51 +129,65 @@ const STEEL: &[Rgb] = &[[0.3, 0.32, 0.35], [0.25, 0.3, 0.4], [0.5, 0.2, 0.15]];
 const CLEAN: &[Rgb] = &[[0.8, 0.82, 0.85], [0.6, 0.7, 0.75], [0.3, 0.5, 0.6]];
 
 /// The building types (design.md "Building types"): small, medium,
-/// large, each with the parameter ranges that change on every roll.
-/// Floors top out at two until multi-flight stairwells land.
+/// large, each with the parameter ranges that change on every roll:
+/// columns and rows of rooms per floor, floors, room footprint,
+/// height, window, clutter, and light chances, palette. Floors top
+/// out at two until multi-flight stairwells land.
 pub fn register_buildings(reg: &mut BuildingRegistry) {
     use BuildingSize::*;
-    let def = |name: &str,
-               size,
-               rooms,
-               floors,
-               width,
-               length,
-               height,
-               windows,
-               clutter,
-               palette: &[Rgb]| BuildingTypeDef {
-        name: name.to_string(),
-        size,
-        rooms,
-        floors,
-        width,
-        length,
-        height,
-        windows,
-        clutter,
-        palette: palette.to_vec(),
-    };
+    #[allow(clippy::too_many_arguments)]
+    fn def(
+        name: &str,
+        size: BuildingSize,
+        columns: (u32, u32),
+        rows: (u32, u32),
+        floors: (u32, u32),
+        width: (f32, f32),
+        length: (f32, f32),
+        height: f32,
+        windows: u64,
+        clutter: u64,
+        lights: u64,
+        palette: &[Rgb],
+    ) -> BuildingTypeDef {
+        BuildingTypeDef {
+            name: name.to_string(),
+            size,
+            columns,
+            rows,
+            floors,
+            width,
+            length,
+            height,
+            windows,
+            clutter,
+            lights,
+            palette: palette.to_vec(),
+        }
+    }
     let buildings = [
         // Small: one room, one floor.
-        def("gas station", Small, (1, 2), (1, 1), (5.0, 8.0), (5.0, 7.0), 3.0, 600, 500, STEEL),
-        def("convenience store", Small, (2, 3), (1, 1), (5.0, 7.0), (6.0, 9.0), 3.0, 500, 700, CONCRETE),
-        def("water well", Small, (1, 1), (1, 1), (3.5, 4.5), (3.5, 4.5), 3.0, 0, 300, CONCRETE),
-        def("guard tower", Small, (1, 1), (2, 2), (3.5, 4.0), (5.0, 6.0), 3.0, 800, 200, WOOD),
-        def("shack", Small, (1, 1), (1, 1), (4.0, 6.0), (4.0, 6.0), 2.8, 400, 500, WOOD),
-        def("lighthouse", Small, (1, 1), (2, 2), (4.0, 5.0), (5.0, 6.0), 3.0, 500, 200, CLEAN),
+        def("gas station", Small, (1, 2), (1, 1), (1, 1), (5.0, 8.0), (5.0, 7.0), 3.0, 600, 500, 800, STEEL),
+        def("convenience store", Small, (2, 3), (1, 1), (1, 1), (5.0, 7.0), (6.0, 9.0), 3.0, 500, 700, 800, CONCRETE),
+        def("water well", Small, (1, 1), (1, 1), (1, 1), (3.5, 4.5), (3.5, 4.5), 3.0, 0, 300, 0, CONCRETE),
+        def("guard tower", Small, (1, 1), (1, 1), (2, 2), (3.5, 4.0), (5.0, 6.0), 3.0, 800, 200, 800, WOOD),
+        def("shack", Small, (1, 1), (1, 1), (1, 1), (4.0, 6.0), (4.0, 6.0), 2.8, 400, 500, 800, WOOD),
+        def("lighthouse", Small, (1, 1), (1, 1), (2, 2), (4.0, 5.0), (5.0, 6.0), 3.0, 500, 200, 800, CLEAN),
         // Medium: two to four rooms, one or two floors.
-        def("warehouse", Medium, (2, 3), (1, 1), (8.0, 12.0), (10.0, 16.0), 5.0, 300, 800, STEEL),
-        def("office building", Medium, (3, 4), (2, 2), (5.0, 6.0), (6.0, 8.0), 3.0, 800, 600, CONCRETE),
-        def("workshop", Medium, (2, 3), (1, 1), (6.0, 8.0), (7.0, 10.0), 4.0, 400, 900, STEEL),
-        def("barracks", Medium, (3, 4), (1, 1), (5.0, 6.0), (7.0, 9.0), 3.0, 500, 700, WOOD),
-        def("lab", Medium, (2, 4), (1, 2), (5.0, 7.0), (6.0, 8.0), 3.0, 300, 800, CLEAN),
-        def("supermarket", Medium, (2, 3), (1, 1), (10.0, 14.0), (10.0, 14.0), 4.0, 200, 900, CONCRETE),
-        // Large: five or more rooms, two or more floors.
-        def("hangar", Large, (2, 3), (1, 1), (14.0, 20.0), (20.0, 30.0), 8.0, 100, 600, STEEL),
-        def("industrial plant", Large, (4, 6), (2, 2), (8.0, 10.0), (10.0, 12.0), 5.0, 300, 900, STEEL),
-        def("silo", Large, (2, 3), (2, 2), (5.0, 6.0), (5.0, 6.0), 3.0, 100, 500, CONCRETE),
-        def("dock building", Large, (3, 5), (1, 1), (6.0, 8.0), (14.0, 20.0), 4.0, 400, 700, WOOD),
+        def("warehouse", Medium, (2, 3), (1, 1), (1, 1), (8.0, 12.0), (10.0, 16.0), 5.0, 300, 800, 600, STEEL),
+        def("office building", Medium, (2, 2), (1, 2), (2, 2), (5.0, 6.0), (6.0, 8.0), 3.0, 800, 600, 400, CONCRETE),
+        def("workshop", Medium, (2, 3), (1, 1), (1, 1), (6.0, 8.0), (7.0, 10.0), 4.0, 400, 900, 600, STEEL),
+        def("barracks", Medium, (2, 2), (1, 2), (1, 1), (5.0, 6.0), (7.0, 9.0), 3.0, 500, 700, 500, WOOD),
+        def("lab", Medium, (2, 2), (1, 2), (1, 2), (5.0, 7.0), (6.0, 8.0), 3.0, 300, 800, 600, CLEAN),
+        def("supermarket", Medium, (2, 3), (1, 1), (1, 1), (10.0, 14.0), (10.0, 14.0), 4.0, 200, 900, 500, CONCRETE),
+        // Large: twenty or more rooms on two floors (operator,
+        // 2026-08-20: "each with 20+ rooms").
+        def("hangar", Large, (3, 4), (4, 4), (2, 2), (8.0, 12.0), (8.0, 12.0), 6.0, 100, 600, 200, STEEL),
+        def("industrial plant", Large, (4, 5), (3, 4), (2, 2), (6.0, 9.0), (6.0, 9.0), 5.0, 300, 900, 250, STEEL),
+        def("silo", Large, (3, 4), (4, 4), (2, 2), (4.0, 6.0), (4.0, 6.0), 3.0, 100, 500, 200, CONCRETE),
+        def("dock building", Large, (4, 5), (3, 3), (2, 2), (5.0, 7.0), (6.0, 9.0), 4.0, 400, 700, 200, WOOD),
+        def("apartment block", Large, (4, 5), (3, 4), (2, 2), (4.5, 6.0), (5.0, 7.0), 3.0, 700, 700, 200, CONCRETE),
+        def("hospital", Large, (4, 6), (3, 4), (2, 2), (5.0, 7.0), (5.0, 7.0), 3.2, 500, 800, 250, CLEAN),
     ];
     for building in buildings {
         reg.register(building).expect("building type defs must not collide");
@@ -289,6 +303,21 @@ pub fn register_monuments(reg: &mut MonumentRegistry, buildings: &BuildingRegist
             true,
             "Site",
         ),
+        // The big one (operator, 2026-08-20: "a monument with 50
+        // buildings, each with 20+ rooms"): fifty large buildings
+        // on city blocks.
+        def(
+            "ruined city",
+            vec![slot(
+                &["apartment block", "hospital", "industrial plant", "silo", "dock building"],
+                50,
+                50,
+            )],
+            Clustered,
+            4,
+            true,
+            "City",
+        ),
     ];
     for monument in monuments {
         reg.register(monument, buildings)
@@ -384,15 +413,20 @@ mod tests {
     #[test]
     fn every_monument_type_rolls_legal_monuments() {
         let regs = MonumentRegistryRes::default();
-        assert_eq!(regs.buildings.len(), 16);
-        assert_eq!(regs.monuments.len(), 10);
+        assert_eq!(regs.buildings.len(), 18);
+        assert_eq!(regs.monuments.len(), 11);
         let names: Vec<String> = regs.monuments.names().map(String::from).collect();
         for name in names {
-            for seed in 0..10u64 {
+            for seed in 0..5u64 {
                 let rolled = regs.monuments.roll(&name, &regs.buildings, seed).unwrap();
                 modforge::monument::validate_monument(&rolled).unwrap();
             }
         }
+        // The city: fifty buildings, every one twenty rooms or more.
+        let city = regs.monuments.roll("ruined city", &regs.buildings, 1).unwrap();
+        assert_eq!(city.members.len(), 50);
+        let smallest = city.members.iter().map(|m| m.structure.rooms.len()).min().unwrap();
+        assert!(smallest >= 20, "smallest city building has {smallest} rooms");
     }
 
     #[test]

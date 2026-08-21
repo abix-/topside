@@ -33,7 +33,7 @@ pub fn setup_scene(
     mut materials: ResMut<Assets<CelMaterial>>,
 ) {
     commands.spawn((
-        Mesh3d(meshes.add(Plane3d::default().mesh().size(200.0, 200.0))),
+        Mesh3d(meshes.add(Plane3d::default().mesh().size(1200.0, 1200.0))),
         MeshMaterial3d(materials.add(CelMaterial::from_srgb(0.35, 0.40, 0.30))),
         RigidBody::Static,
         Collider::half_space(Vec3::Y),

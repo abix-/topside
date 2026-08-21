@@ -245,22 +245,27 @@ pub fn setup(
     );
     commands.entity(box_).insert(Container(loot));
 
-    // One rolled monument east of the house: a roadside stop, the
-    // first destination worth walking to. The seed changes with
-    // every launch; the storm will re-roll it.
+    // Two rolled monuments: a roadside stop just east of the house,
+    // and the ruined city beyond it. The seed changes with every
+    // launch; the storm will re-roll them.
     let seed = now.to_bits() as u64 ^ 0xA5A5;
-    let stop = monuments
-        .monuments
-        .roll("roadside stop", &monuments.buildings, seed)
-        .expect("the roadside stop type is registered");
-    spawn_monument(
-        &mut commands,
-        &mut meshes,
-        &mut cel_materials,
-        &items.0,
-        &stop,
-        Vec3::new(45.0, 0.0, -20.0),
-        now,
-    )
-    .expect("a rolled monument is legal");
+    for (kind, at, salt) in [
+        ("roadside stop", Vec3::new(45.0, 0.0, -20.0), 1),
+        ("ruined city", Vec3::new(260.0, 0.0, -40.0), 2),
+    ] {
+        let rolled = monuments
+            .monuments
+            .roll(kind, &monuments.buildings, seed ^ salt)
+            .expect("the monument type is registered");
+        spawn_monument(
+            &mut commands,
+            &mut meshes,
+            &mut cel_materials,
+            &items.0,
+            &rolled,
+            at,
+            now,
+        )
+        .expect("a rolled monument is legal");
+    }
 }

@@ -109,19 +109,22 @@ pub fn spawn_structure(
 
     // One child of the root per solid piece: mesh and collider
     // together, positioned relative to the root. `center` is
-    // structure-local.
+    // structure-local. Every solid shares one unit cube, scaled by
+    // its transform (Avian scales the collider with it), so a city
+    // of ten thousand solids is not ten thousand mesh assets.
+    let cube = meshes.add(Cuboid::new(1.0, 1.0, 1.0));
     let solid = |commands: &mut Commands,
-                 meshes: &mut Assets<Mesh>,
+                 _meshes: &mut Assets<Mesh>,
                  center: Vec3,
                  size: Vec3,
                  material: Handle<CelMaterial>| {
         commands.spawn((
             StructureSolid,
             ChildOf(root),
-            Collider::cuboid(size.x, size.y, size.z),
-            Mesh3d(meshes.add(Cuboid::new(size.x, size.y, size.z))),
+            Collider::cuboid(1.0, 1.0, 1.0),
+            Mesh3d(cube.clone()),
             MeshMaterial3d(material),
-            Transform::from_translation(center),
+            Transform::from_translation(center).with_scale(size),
         ));
     };
 
