@@ -530,6 +530,20 @@ point at. The Bevy entity and the GPU row are bookkeeping and can
 change; the ActorId cannot. One registry, the ActorMap, issues it and
 answers who is who ("have it working clean in our actormap").
 
+What counts as an actor (operator, 2026-08-21): anything that MOVES or
+SHOOTS. People, animals, turrets, vehicles. A storage box, a bench, a
+dropped can, a wall only sit there and get used, so they are
+WorldItems, not actors ("the worlditems dont MOVE or SHOOT"). A
+turret is an actor that happens to be placed from your inventory: it
+aims and fires through the same combat path as a raider, takes hits
+and dies the same way, and the only difference from an enemy is its
+inventory slots and that it does not walk. A vehicle is an actor too,
+the Rust and Quake way: while you drive, your controls go to the
+truck instead of your legs, and an NPC drives it the same way you do.
+An empty parked truck is an actor doing nothing, like a sleeping
+raider. This is why there is one spawn path and one AI: a raider in a
+truck is the raider's brain on the truck's body.
+
 Hunger: you eat food items from your inventory or your bunker's stores.
 No food, you starve. The three-day starting clock is the first taste.
 Food spoils over time (perishability forces you to keep scavenging,
