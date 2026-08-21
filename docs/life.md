@@ -15,8 +15,13 @@ verbatim.
   every thing in the world advertises what it satisfies ("this bed:
   rest 40", "this box: food 20"); the person picks the best
   advertisement for its worst need, discounted by distance. The
-  brain never knows what a bed is. Adding content means adding
-  advertisers, not rules. This is our brain's shape.
+  brain never knows what a bed is. The cheat (operator, 2026-08-21:
+  "does it make sense to advertise the solution to it and basically
+  give it ESP??"): every Sim hears every object on the lot, and a
+  RimWorld pawn scans the whole map. It passes there because the
+  world is one house. On 3.5 km with a thousand strangers it would
+  show. We keep "things say what they are good for" as a field on
+  the def, drop the broadcast, and put knowledge in between (below).
 - RimWorld: the same needs, plus jobs, a daily schedule (sleep,
   work, free time), mood from memories, a storyteller throwing
   events at the colony. Closest to design.md in spirit.
@@ -73,8 +78,10 @@ life these matter:
 - Home: where it sleeps and returns to: its monument, its faction's
   bunker, or nowhere for a drifter.
 - Faction or none (built, 11b).
-- Memory: who hurt me, who fed me, last seen position of a threat.
-  Small, per person; feeds relationships and the chronicle.
+- Memory: what I have seen (a thing, where, when, what it held), who
+  hurt me, who fed me, the last seen position of a threat. Small,
+  per person; the brain reads it, perception writes it, and it feeds
+  relationships and the chronicle.
 - Two states: `Activity` (kind, phase, target) and `CombatState`
   (none, fighting from where, fleeing). Kept separate so a fight
   interrupts an errand and the errand resumes.
@@ -91,25 +98,48 @@ In priority order, the first rule that applies wins:
    off, go home.
 4. A hostile in sight (by the faction table): fight: look, close,
    attack. The combat we have.
-5. Otherwise, the life: pick an offer.
+5. Otherwise, the life: pick something I know of.
 
-The pick (The Sims): for the worst need, every offer in reach scores
-satisfaction minus travel cost, times the personality multiplier,
-plus a small seeded random so the same person in the same spot does
-not always choose the same; the best wins. The roll is seeded from
-the tick and the ActorId, so a replay matches. Wander is an offer the
-world always makes with a low score, so nobody ever stands frozen.
+The pick: for the worst need, every KNOWN thing (memory, below) that
+is good for it scores satisfaction minus travel cost, times the
+personality multiplier, plus a small seeded random so the same person
+in the same spot does not always choose the same; the best wins. The
+roll is seeded from the tick and the ActorId, so a replay matches.
+When nothing known is good enough, the need drives LOOKING: go to the
+nearest known place not yet checked, or walk the road to the next
+site; what is found goes into memory. Wander is the floor when no
+need presses, so nobody ever stands frozen.
 
-## The world advertises
+## What things are good for
 
-modforge keeps an `Offer` list as data: what need it satisfies, how
-much, for whom (a faction, anyone), where, and what doing it does
-(eat from a box, sleep, loot into the inventory, stand guard).
-topside fills the list from its entities: loot boxes (`Container`),
-monuments' loot spots, the bunker and faction bunkers (safety,
-rest), campsites, beds and benches when they exist. A new kind of
-thing in the world is a new advertiser, never a new rule in the
-brain.
+Every kind of thing in the world says what it is good for as a field
+on its def, the way an item has `food` stats: a box is good for food
+and loot, a bed for rest, a bunker or a camp for safety and rest, a
+bench for work. Nothing is broadcast to anyone (operator: no
+advertising, "things describe what they are good for and people
+remember what they saw"). A new kind of thing is a new def with
+those fields, never a new rule in the brain.
+
+## What a person knows
+
+The brain only considers what the person knows, and knowledge comes
+from three places:
+
+- Home: the things at its home site, known from the start (it lives
+  there).
+- Seen: perception writes what the rays reach into memory: the
+  thing, where, when, and what it held if checked.
+- Told: a faction shares knowledge. A scavenger comes home and the
+  camp now knows about the wreck on the ridge, with a delay and only
+  within the faction. Neutrals share nothing.
+
+Knowledge goes stale: the box remembered with two cans may be empty
+now because a camp mate ate them. The person walks there, finds
+nothing, updates memory, and moves on. That is a story, not a bug.
+Finding things is how a faction gets rich: a camp that knows the map
+eats; one that does not starves and raids. The risks to tune: too
+forgetful and nobody finds anything; too chatty and everyone knows
+everything.
 
 ## Home and the day
 
@@ -155,16 +185,38 @@ navmesh with cover points (Rust on Unity's navmesh). A row for a
 navmesh (`vleue_navigator` or `oxidized_navigation` for Bevy) comes
 before the acts that cross the map (raids, trade caravans).
 
+## One day in one life
+
+312, a scavenger at a wasteland camp, faction raiders. Morning: her
+needs tick; no hostile in sight; hunger is worst. Her memory holds
+the camp box (two cans, seen yesterday), a wreck east (unchecked),
+and a drop north the camp told her about. The camp box scores best
+(close, known food; she is Lazy so distance costs her). She walks
+there through the same movement as the player, arrives, eats one can
+through the same `eat_from_slot`, finds it was the last (a camp mate
+ate the other), and her memory says so. Nothing known feeds her now,
+so she goes looking: the wreck east. On the road her rays reach a
+body site she never knew: into memory. Then you, 40 m off: the table
+says hostile, she fights, you hurt her past her flee line (she is
+Cowardly), she runs home; memory keeps "a player, hostile, at the
+road". She sleeps at home; by morning the camp knows about you.
+Meanwhile 700 people you cannot see do the same without bodies:
+records with a target and an arrival tick, the same boxes, the same
+brain, fights resolved on paper, boxes left where they fell for you
+to find a week later.
+
 ## Build order
 
 1. 11d personality (the scores need the multipliers).
 2. Needs: rest and safety beside hunger and thirst.
-3. Offers: the list in modforge, topside advertising boxes, loot
-   spots, the bunker, campsites.
-4. 11e the brain as above, with wander as the floor.
-5. Home and the day clock.
-6. 11h far people.
-7. 11f perception with memory.
-8. 11g bucketed thinking.
-9. Faction stores and the needs of a faction.
-10. The navmesh, then the acts (11i, 11j).
+3. What things are good for: the fields on the defs, and memory on
+   the person; home knowledge at spawn.
+4. 11e the brain as above: the hard rules, the pick from memory,
+   looking, wander as the floor.
+5. 11f perception with memory: rays in a cone write what is seen.
+6. Home and the day clock.
+7. 11h far people.
+8. Told: faction knowledge with a delay.
+9. 11g bucketed thinking.
+10. Faction stores and the needs of a faction.
+11. The navmesh, then the acts (11i, 11j).
