@@ -11,6 +11,7 @@ pub mod ground;
 pub mod hud;
 pub mod interact;
 pub mod player;
+pub mod profile;
 pub mod structure;
 pub mod survival;
 
@@ -106,6 +107,7 @@ pub fn build_app(headless: bool) -> App {
             bevy::diagnostic::FrameTimeDiagnosticsPlugin::default(),
             bevy::diagnostic::EntityCountDiagnosticsPlugin::default(),
             bevy::render::diagnostic::RenderDiagnosticsPlugin,
+            profile::ProfilePlugin,
         ));
         control_plane::start();
         app.add_systems(
