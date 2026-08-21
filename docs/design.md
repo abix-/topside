@@ -398,6 +398,31 @@ harvested there. The def is the generic description; worldgen builds
 concrete areas from it, and the storm re-rolls the built areas,
 never the defs.
 
+## The world (operator, 2026-08-21: "lets do worldgen")
+
+The world is rolled from a seed as data, then built, the same way
+a monument is rolled then spawned. What a roll decides:
+
+- Terrain: a heightmap from layered noise (Red Blob Games' "making
+  maps with noise", the recipe Endless's continents and world map
+  styles already used). Hills and valleys, not a flat slab.
+- Biomes: each cell of the map gets a biome from the registered
+  biome defs by its height and moisture, so the defs drive the
+  generator as decided above.
+- Monuments: sites picked with spacing between them, on land, each
+  in a biome that allows that monument type; the monument at each
+  site rolls as before.
+- Roads: Rust's model. Roads are laid by the generator between the
+  monuments and the bunker by pathing over the heightmap, following
+  the easy slopes, so a road is how you find the next monument and
+  the roadside stops and gas stations sit along it.
+- The bunker stays where it is; the world rolls around it.
+
+Rivers, rain and wildlife per biome, and the people who live at the
+sites come after the first world stands. The storm re-rolls the
+world by rolling a new seed through the same path and rebuilding
+everything except the bunkers and the people.
+
 ## Your people
 
 Your bunker's people run themselves by default, on the same genome and acts
