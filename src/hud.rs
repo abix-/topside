@@ -9,8 +9,8 @@ use bevy::ecs::system::SystemParam;
 use bevy::prelude::*;
 use bevy::window::{CursorGrabMode, CursorOptions, PrimaryWindow};
 use modforge::hud::{
-    HOTBAR_SLOTS, Holder, Holders, HudState, OpenPanel, SlotRef, drop_slot, end_drag, prompt_for,
-    slot_label, start_drag, toggle_panel, transfer_slot, use_slot,
+    HOTBAR_SLOTS, Holder, Holders, HudState, OpenPanel, SlotRef, drop_slot, end_drag, hotbar_key,
+    prompt_for, slot_label, start_drag, toggle_panel, transfer_slot, use_slot,
 };
 
 use crate::actor::{Equipment, Hotbar, INVENTORY_SLOTS, Inventory};
@@ -182,7 +182,7 @@ impl OnScreenHolders<'_, '_> {
             .and_then(|entity| self.containers.get_mut(entity).ok());
         Some(Holders {
             inventory: &mut inventory.into_inner().0,
-            hotbar: &mut hotbar.into_inner().0,
+            hotbar: &mut hotbar.into_inner().0.slots,
             container: container.map(|c| &mut c.into_inner().0),
         })
     }
@@ -260,7 +260,7 @@ pub fn hotbar_keys(
     };
     for stamped in &this_tick.0 {
         if let Action::Hotbar { index } = stamped.action {
-            let _ = use_slot(&mut survival.0, &mut hotbar.0, index, &registry.0, &mut equipment.0);
+            let _ = hotbar_key(&mut survival.0, &mut hotbar.0, index, &registry.0, &mut equipment.0);
         }
     }
 }
@@ -430,14 +430,18 @@ pub fn render_inventory(
     };
     for (slot, mut color, children) in &mut slots {
         let dragging = hud.0.dragging == Some(slot.0);
+        // The held bar slot is lit (Rust's selected slot).
+        let held = slot.0.holder == Holder::Hotbar && hotbar.0.held == Some(slot.0.index);
         *color = BackgroundColor(if dragging {
             Color::srgb(0.5, 0.45, 0.2)
+        } else if held {
+            Color::srgb(0.35, 0.35, 0.4)
         } else {
             Color::srgb(0.2, 0.2, 0.22)
         });
         let holder = match slot.0.holder {
             Holder::Inventory => Some(&inventory.0),
-            Holder::Hotbar => Some(&hotbar.0),
+            Holder::Hotbar => Some(&hotbar.0.slots),
             Holder::Container => container.map(|c| &c.0),
         };
         let label = slot_label(

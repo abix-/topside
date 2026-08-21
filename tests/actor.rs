@@ -88,8 +88,8 @@ fn spawn_actor_sets_identity_faction_position_and_the_shared_parts() {
     assert!(world.get::<ThisTick>(a).is_some());
     assert!(world.get::<Protection>(a).is_some());
     assert_eq!(world.get::<Health>(a).unwrap().0.max, 60.0, "health from the def");
-    let weapon = world.get::<Equipment>(a).unwrap().0.get(EquipSlot::Weapon).unwrap();
-    assert_eq!(weapon.item, "pipe", "armed from the def");
+    let weapon = world.get::<Hotbar>(a).unwrap().0.held_stack().unwrap();
+    assert_eq!(weapon.item, "pipe", "armed from the def, held from the bar");
 
     // A body the world can hit hangs under the root.
     let children: Vec<Entity> = world.get::<Children>(a).unwrap().iter().collect();
@@ -139,8 +139,8 @@ fn give(app: &mut App, actor: Entity, item: &str, count: u32) -> usize {
         (modforge::item::create(def, count, &[], 0.0, 0), def.max_stack)
     };
     let mut hotbar = app.world_mut().get_mut::<Hotbar>(actor).unwrap();
-    let slot = (0..HOTBAR_SLOTS).find(|i| hotbar.0.slots[*i].is_none()).unwrap();
-    hotbar.0.add(stack.0, stack.1);
+    let slot = (0..HOTBAR_SLOTS).find(|i| hotbar.0.slots.slots[*i].is_none()).unwrap();
+    hotbar.0.slots.add(stack.0, stack.1);
     slot
 }
 
@@ -168,9 +168,10 @@ fn the_scavenger_hits_the_player_and_the_player_shoots_back() {
     give(&mut app, player, "shotgun shell", 2);
     act(&mut app, player, Action::Hotbar { index: gun });
     app.update();
-    assert!(
-        app.world().get::<Equipment>(player).unwrap().0.get(EquipSlot::Weapon).is_some(),
-        "the gun is in hand"
+    assert_eq!(
+        app.world().get::<Hotbar>(player).unwrap().0.held_stack().map(|s| s.item.as_str()),
+        Some("pipe shotgun"),
+        "the gun is in hand and stays in the bar"
     );
     let before = health(&app, npc);
     act(&mut app, player, Action::Attack);
@@ -182,7 +183,7 @@ fn the_scavenger_hits_the_player_and_the_player_shoots_back() {
         "at least half the pellets land at 1.5 m: {before} -> {after}"
     );
     assert_eq!(
-        app.world().get::<Hotbar>(player).unwrap().0.count_of("shotgun shell"),
+        app.world().get::<Hotbar>(player).unwrap().0.slots.count_of("shotgun shell"),
         1,
         "one shell spent"
     );
@@ -192,7 +193,7 @@ fn the_scavenger_hits_the_player_and_the_player_shoots_back() {
         act(&mut app, player, Action::Attack);
         app.update();
     }
-    assert_eq!(app.world().get::<Hotbar>(player).unwrap().0.count_of("shotgun shell"), 0);
+    assert_eq!(app.world().get::<Hotbar>(player).unwrap().0.slots.count_of("shotgun shell"), 0);
     assert!(
         app.world().get::<Health>(npc).unwrap().0.is_dead(),
         "two shells of pellets at 1.5 m finish a 60 health scavenger"

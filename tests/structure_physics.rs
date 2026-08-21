@@ -2,10 +2,9 @@ use std::time::Duration;
 
 use avian3d::prelude::*;
 use bevy::{ecs::system::SystemState, prelude::*, time::TimeUpdateStrategy};
-use modforge::item::EquipSlot;
 use topside::{
     AppState, SimTick,
-    actor::{Equipment, Facing},
+    actor::{Facing, Hotbar},
     build_app,
     cel::CelMaterial,
     content::ItemRegistryRes,
@@ -295,11 +294,9 @@ fn swinging_the_pipe_breaks_a_wall_piece_and_leaves_a_gap() {
             let items = world.resource::<ItemRegistryRes>();
             modforge::item::create(items.0.def("pipe").unwrap(), 1, &[], 0.0, 0)
         };
-        world
-            .get_mut::<Equipment>(player)
-            .unwrap()
-            .0
-            .set(EquipSlot::Weapon, Some(pipe));
+        let mut hotbar = world.get_mut::<Hotbar>(player).unwrap();
+        hotbar.0.slots.slots[0] = Some(pipe);
+        hotbar.0.held = Some(0);
     }
     // One second of swings at 0.6 s apart: the first lands at once,
     // the second at 0.6 s. Two hits of 20 off a 100 health wall.

@@ -10,8 +10,7 @@
 use avian3d::prelude::*;
 use bevy::prelude::*;
 use modforge::actor::ActorDef;
-use modforge::hud::HOTBAR_SLOTS;
-use modforge::item::{self, EquipSlot};
+use modforge::item;
 
 use crate::cel::CelMaterial;
 use crate::combat::{Firing, Health, Protection};
@@ -70,10 +69,13 @@ pub struct SpawnActor<'w, 's> {
 /// where it stands. Returns None when the map has no row left.
 pub fn spawn_actor(spawn: &mut SpawnActor, def: &ActorDef, feet: Vec3, yaw: f32) -> Option<Entity> {
     let facing = Facing { yaw, pitch: 0.0 };
-    let mut equipment = Equipment::default();
+    // The weapon goes in the first bar slot and into the hands, the
+    // same way the player holds one.
+    let mut hotbar = Hotbar::default();
     if let Some(weapon) = def.weapon.as_deref().and_then(|w| spawn.items.0.def(w)) {
         let stack = item::create(weapon, 1, &[], 0.0, 0);
-        equipment.0.set(EquipSlot::Weapon, Some(stack));
+        hotbar.0.slots.slots[0] = Some(stack);
+        hotbar.0.held = Some(0);
     }
     let entity = spawn
         .commands
@@ -86,8 +88,8 @@ pub fn spawn_actor(spawn: &mut SpawnActor, def: &ActorDef, feet: Vec3, yaw: f32)
             Visibility::default(),
             facing,
             Inventory::default(),
-            Hotbar::default(),
-            equipment,
+            hotbar,
+            Equipment::default(),
             Survival::default(),
             Health(def.health()),
             Protection(def.protection.clone()),
@@ -199,15 +201,10 @@ impl Default for Inventory {
     }
 }
 
-/// The hotbar: its own small inventory, always on screen.
-#[derive(Component)]
-pub struct Hotbar(pub item::Inventory);
-
-impl Default for Hotbar {
-    fn default() -> Self {
-        Self(item::Inventory::new(HOTBAR_SLOTS))
-    }
-}
+/// The hotbar: its own small inventory, always on screen, with the
+/// slot in the hands (Rust: the held item stays in the bar).
+#[derive(Component, Default)]
+pub struct Hotbar(pub modforge::hud::Hotbar);
 
 /// Worn and held gear, one named slot each.
 #[derive(Component, Default)]

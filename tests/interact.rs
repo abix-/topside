@@ -305,7 +305,7 @@ fn drag_across_holders_hotbar_key_eats_and_o_drops() {
     };
     let mut holders = Holders {
         inventory: &mut inventory.0,
-        hotbar: &mut hotbar.0,
+        hotbar: &mut hotbar.0.slots,
         container: None,
     };
 

@@ -8,7 +8,6 @@
 use avian3d::prelude::*;
 use bevy::prelude::*;
 use modforge::combat::{BodyArea, FireTimer, Hit, MultiDamage, Trigger, pellet_directions};
-use modforge::item::EquipSlot;
 pub use modforge::combat::{Health as HealthStats, Protection as ProtectionStats};
 
 use crate::SimTick;
@@ -56,7 +55,6 @@ pub fn fire(
     mut shooters: Query<(
         Entity,
         &Transform,
-        &Equipment,
         &ThisTick,
         &mut Firing,
         &mut Inventory,
@@ -69,16 +67,17 @@ pub fn fire(
 ) {
     let dt = time.delta_secs();
     let armor_of = |name: &str| items.0.def(name).and_then(|d| d.armor);
-    for (shooter, transform, equipment, this_tick, mut firing, mut inventory, mut hotbar, children) in
+    for (shooter, transform, this_tick, mut firing, mut inventory, mut hotbar, children) in
         &mut shooters
     {
         firing.0.tick(dt);
         if !ActionQueue::has(&this_tick.0, Action::Attack) {
             continue;
         }
-        let Some(weapon) = equipment
+        // What is in the hands: the held bar slot (Rust).
+        let Some(weapon) = hotbar
             .0
-            .get(EquipSlot::Weapon)
+            .held_stack()
             .and_then(|stack| items.0.def(&stack.item))
             .and_then(|def| def.combat.as_ref())
         else {
@@ -91,13 +90,13 @@ pub fn fire(
         // Melee always has one.
         let has_ammo = match weapon.ammo.as_deref() {
             None => true,
-            Some(ammo) => hotbar.0.count_of(ammo) > 0 || inventory.0.count_of(ammo) > 0,
+            Some(ammo) => hotbar.0.slots.count_of(ammo) > 0 || inventory.0.count_of(ammo) > 0,
         };
         if firing.0.pull(weapon.delay, has_ammo) != Trigger::Fire {
             continue;
         }
         if let Some(ammo) = weapon.ammo.as_deref() {
-            let _ = hotbar.0.take_one(ammo) || inventory.0.take_one(ammo);
+            let _ = hotbar.0.slots.take_one(ammo) || inventory.0.take_one(ammo);
         }
 
         let eye = transform.translation;
