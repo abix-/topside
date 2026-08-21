@@ -521,6 +521,15 @@ makes a lot of possibilities"). Every action an NPC or the player
 takes (eat, equip, move a stack, pick up, drop, attack) is one
 function on those structs; input and AI only choose which to call.
 
+Every NPC is one person with one name for life (operator, 2026-08-21,
+on the identity review): an ActorId issued once at spawn and never
+reused, kept across save and load and across the storm. That is what
+makes the 1000 people persistent instead of scenery: the same id is
+what a faction, a grudge, a trade, the chronicle, and the save all
+point at. The Bevy entity and the GPU row are bookkeeping and can
+change; the ActorId cannot. One registry, the ActorMap, issues it and
+answers who is who ("have it working clean in our actormap").
+
 Hunger: you eat food items from your inventory or your bunker's stores.
 No food, you starve. The three-day starting clock is the first taste.
 Food spoils over time (perishability forces you to keep scavenging,

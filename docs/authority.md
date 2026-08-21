@@ -88,7 +88,9 @@ the operator's own words. No synonyms, no renamed wrappers.
 | **Chronicle** | The read-only narration of world events to the player. Presentation only; it decides nothing and stores nothing the world does not. |
 | **Storm** | The recurring world-changing event (design.md; modeled on MISERY's emission, but that name stays MISERY's and STALKER's). The storyteller schedules it; worldgen executes the regeneration; one hide-or-die check applies to the player and every NPC alike. |
 | **WorldItem** | Anything that exists in the world with a position: dropped items, placed crafting benches, generators, storage boxes, doors, loot crates. The ONE name for "a thing in the world." An item in inventory is an ItemStack; when placed or dropped into the world it becomes a WorldItem. Lives in topside (it is Bevy-specific); the concept is referenced by modforge systems that reason about world placement. Avoids "entity" to prevent confusion with Bevy's ECS Entity handle. |
-| **EntityMap** | The one slot-to-entity identity index, taken from Endless. Authoritative for identity, ownership checks, and live counts. |
+| **Actor** | The player and every NPC: one kind of thing on the same components (inventory, hotbar, equipment, survival, health, protection, facing, an action queue). The only differences are who fills the action queue (the keyboard or the AI) and the camera. Decided 2026-08-21. |
+| **ActorId** | The one persistent identity of an actor: a monotonic number issued once at spawn, never reused, surviving save and load. Carried as a component. Bevy `Entity` is a runtime handle and the GPU row is a buffer index; neither is an identity. Replaces the slot-as-identity that Endless used. Decided 2026-08-21. |
+| **ActorMap** | The one actor registry, taken from Endless's EntityMap and GpuSlotPool folded into one resource (decided 2026-08-21: "have it working clean in our actormap"). Issues the ActorId and the GPU row at spawn, frees the row at death, and answers every lookup: by ActorId, by Entity, by row. Two counts, two methods, never mixed: the high-water row count (buffer sizing and dispatch bounds) and the live actor count (gameplay). Only the map and the GPU uploader ever see a row number. Lives in topside. |
 | **StructureDef** | One building as data (rooms, openings, stairs, furniture, lights), the Def in Def -> Registry -> Instance. Lives in MODFORGE (decided 2026-08-19: the data and relation rules are engine-agnostic, on glam math and plain rgb, so mods can roll structures too, e.g. survivalist town growth). Hand-authored and generated buildings use the same shape; code never composes geometry outside one. |
 | **spawn_structure** | The one path from a StructureDef to world geometry and colliders (the Controller). Lives in the CONSUMER: it is the binder that makes a def real in one world (topside spawns Bevy entities; a mod would call its host game's build functions). |
 | **BuildingType** | One building type as a StructureDef generator: gas station, warehouse, lab, etc. (full list in design.md). Each type defines a range of parameters (room count, doors, windows, colors, condition) that vary on every roll. The generator produces a different StructureDef each time, but always recognizable as that type. BuildingType is data; it never touches geometry. |
@@ -108,7 +110,6 @@ the operator's own words. No synonyms, no renamed wrappers.
 | **RPG** | Player and NPC progression through modforge::rpg. Use-based skills (crafting, combat, medicine, construction, research) that improve with practice. The player and NPCs share one mechanic path. Skills affect output quality, speed, damage, accuracy, and recipe access. Decisions live in modforge (the RPG module); topside feeds the skill-use events from its world. |
 | **Silo** | The bunker's vertical expansion. The player starts with the one starting room (the bunker) and digs downward into the silo, adding levels that expand horizontally within their footprint (Fallout Shelter vertical, Rust room-by-room freedom). Deeper is safer but more expensive. The silo is world geometry through StructureDef and spawn_structure, same as every other building. Lives in topside. |
 | **PowerGrid** | The bunker's power system: generators burn fuel, wiring connects consumers, no fuel means no power means no powered stations or defenses. A real simulation, not a toggle. Lives in topside (it is world-specific infrastructure). |
-| **GpuSlotPool** | The one slot allocator, taken from Endless. Authoritative for buffer sizing and dispatch bounds. |
 
 ## Ownership flow
 
@@ -190,10 +191,10 @@ normal interaction or gameplay system rather than mutating the HUD model as
 game state.
 
 Bevy `Entity` is a temporary runtime handle. Every persistent actor receives
-a monotonic ID that survives save and load and is never reused. `EntityMap`
-links that ID to the current Bevy entity and GPU slot, but does not own the
-actor's gameplay state. A GPU slot is also temporary and may be reused only
-after stale mappings are rejected.
+a monotonic `ActorId` that survives save and load and is never reused.
+`ActorMap` links that ID to the current Bevy entity and GPU row, but does
+not own the actor's gameplay state. A GPU row is also temporary and may be
+reused only after stale mappings are rejected.
 
 Avian follows the same ownership model: bodies, colliders, velocities, and
 relationships are components on the entities they describe. Avian's spatial
@@ -241,21 +242,23 @@ Ownership classes, one owner per datum:
 | Class | Data | Rule |
 |---|---|---|
 | GPU-authoritative | Positions; the spatial grid (internal, never read back); target candidates; crowd/threat counts (throttled) | Written by compute shaders, read back asynchronously about one frame stale. Staleness is expected and budgeted, not exceptional. |
-| CPU-authoritative | Health; movement goals and waypoints; faction identity; speeds; slot identity (GpuSlotPool + EntityMap) | Written by ECS systems, uploaded to the GPU each tick. The GPU's copy is advisory. |
+| CPU-authoritative | Health; movement goals and waypoints; faction identity; speeds; actor identity (ActorId, the ActorMap) | Written by ECS systems, uploaded to the GPU each tick. The GPU's copy is advisory. |
 | CPU-only | Every decision: all nine game systems, behavior states, timers, the off-map abstract world | Never touches the GPU. |
 | Render-only | Instance data, animation indices, cel-shade material parameters | Uploaded to render buffers, never seen by compute. |
 
 Hard rules, carried from Endless verbatim:
 
-- A GPU target is a candidate only. The CPU resolves the slot in EntityMap
-  and re-validates faction and identity from ECS before any gameplay effect.
+- A GPU target is a candidate only. The CPU resolves the row to an ActorId
+  in the ActorMap and re-validates faction and identity from ECS before any
+  gameplay effect.
   If GPU and ECS disagree on identity or ownership, ECS wins, always.
 - Throttled readbacks feed heuristics only, never identity, ownership, or
   validity gates.
 - No system reads a GPU field and writes the same field back in the same
   tick (the one-frame delay compounds into oscillation).
-- One count source each: GpuSlotPool for buffer sizing and dispatch bounds,
-  EntityMap for live gameplay counts. Never mixed.
+- One count source each, both methods on the ActorMap: the high-water row
+  count for buffer sizing and dispatch bounds, the live actor count for
+  gameplay. Never mixed, never one number.
 - Pathfinding stays CPU (A* picks the route); the GPU steers each actor
   toward its current waypoint.
 
@@ -308,7 +311,7 @@ not writing it from scratch.
 | 14 | Control plane | modforge | - | The one runtime inspection and op surface (HTTP server, op registry). | EXISTS in modforge; rated 9/10 in survivalist-mod. The first thing wired into topside per the runtime-control-http doctrine. |
 | 15 | GPU simulation | topside | - | The compute-shader half of the simulation: crowd movement with separation, the spatial grid, target candidates, projectiles, under the GPU offload contract above. | UNBUILT. The contract is proven in Endless; the WGSL is new (3D). |
 | 16 | Worldgen | topside | - | Procedural generation of the topside world, and the storm's regeneration: terrain and monuments (layouts AND names) re-roll; bunkers and the persistent people never regenerate. | UNBUILT. Endless worldgen.rs is the in-house prior art. |
-| 17 | Spawn path | topside | - | The one function through which every actor enters the world (edge arrivals, saves, tests). | UNBUILT. Endless materialize_npc is the model. |
+| 17 | Spawn path | topside | - | The one function through which every actor enters the world (edge arrivals, saves, tests). | STARTED 2026-08-21: `spawn_actor` (src/actor.rs) on Endless's materialize_npc model; monument NPC spots and the bunker scavenger come through it; the ActorId and ActorMap are next. |
 | 18 | Save | topside | - | Persistence of the 1000 people, bunkers, factions, and world seed across restarts, with version migration. | UNBUILT. Endless save-load.md is the model. |
 | 19 | Test framework | topside | - | In-app integration tests selectable from a debug menu, CLI-runnable headless (--test), phased assertions. Every system row's proof runs here. | UNBUILT. Endless tests/ is the model; the piece factoriobot lacked early and paid for. |
 | 20 | MonumentDef | topside | - | Monuments as data: a list of possible BuildingTypes to pick from, loot spots, NPC spots, gates, arrangement rules, names. Two layers of randomization: the monument picks buildings from its list, each building generates with varied parameters. spawn_monument is the one path; members spawn only through spawn_structure; loot value, NPC identity, and world placement belong to Quality, Genome/the edge, and Worldgen respectively. | UNBUILT. Building types and monument composition rules documented in design.md. Rust's monuments are the reference. |
