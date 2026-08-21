@@ -1,7 +1,7 @@
 //! First-person camera on a flat ground plane. Skeleton controls:
 //! click grabs the cursor, mouse looks, WASD walks, Escape releases.
 
-use crate::actor::{Equipment, Facing, Hotbar, Inventory};
+use crate::actor::{Equipment, Facing, Hotbar, Inventory, Personality};
 use crate::combat::{Firing, Health, Protection};
 use crate::input::{Action, ActionQueue, Actions, ThisTick};
 use crate::structure::{BODY_TOP, CLIMB, body_shape};
@@ -17,7 +17,8 @@ pub use crate::actor::EYE_HEIGHT;
 /// action queue are the only difference.
 #[derive(Component, Default)]
 #[require(
-    Facing, Inventory, Hotbar, Equipment, Survival, Health, Protection, Firing, Actions, ThisTick
+    Facing, Inventory, Hotbar, Equipment, Survival, Health, Protection, Firing, Actions, ThisTick,
+    Personality
 )]
 pub struct Player;
 
@@ -122,12 +123,13 @@ pub fn movement(
         &ThisTick,
         Option<&Children>,
         Has<Flying>,
+        &Personality,
     )>,
 ) {
     let shape = body_shape();
     let config = MoveAndSlideConfig::default();
     let half = BODY_TOP / 2.0;
-    for (entity, mut transform, facing, this_tick, children, flying) in &mut actors {
+    for (entity, mut transform, facing, this_tick, children, flying, personality) in &mut actors {
         // Actions say y is forward; the world's forward is -z.
         let (x, y) = ActionQueue::movement(&this_tick.0);
         let wish = Vec3::new(x, 0.0, -y);
@@ -141,7 +143,10 @@ pub fn movement(
             transform.translation += step;
             continue;
         }
-        let velocity = (Quat::from_rotation_y(facing.yaw) * wish).normalize() * WALK_SPEED;
+        // Swift people walk faster, Slow ones slower.
+        let velocity = (Quat::from_rotation_y(facing.yaw) * wish).normalize()
+            * WALK_SPEED
+            * personality.0.speed_mult();
         // An actor never collides with itself: not its root, not the
         // body hanging under it.
         let own: Vec<Entity> = std::iter::once(entity)

@@ -10,7 +10,10 @@ use modforge::hud::HOTBAR_SLOTS;
 use modforge::item::EquipSlot;
 use topside::{
     AppState, SimTick, build_app,
-    actor::{EYE_HEIGHT, Equipment, Facing, Hotbar, Inventory, Npc, SpawnActor, spawn_actor},
+    actor::{
+        EYE_HEIGHT, Equipment, Facing, Hotbar, Inventory, Npc, Personality, SpawnActor, WorldSeed,
+        spawn_actor,
+    },
     cel::CelMaterial,
     combat::{Firing, Health, Protection},
     content::{ActorRegistryRes, ItemRegistryRes},
@@ -44,6 +47,23 @@ fn playing_app() -> (App, Entity) {
 
 fn spawn(app: &mut App, def: &str, feet: Vec3, yaw: f32) -> Entity {
     try_spawn(app, def, feet, yaw, None).expect("a free row and a registered faction")
+}
+
+/// An unremarkable person: traits zeroed and health back to the
+/// def's, so a test's numbers do not depend on the rolled traits.
+fn spawn_plain(app: &mut App, def: &str, feet: Vec3, yaw: f32) -> Entity {
+    let npc = spawn(app, def, feet, yaw);
+    let max = app
+        .world()
+        .resource::<ActorRegistryRes>()
+        .0
+        .def(def)
+        .unwrap()
+        .max_health;
+    let world = app.world_mut();
+    *world.get_mut::<Personality>(npc).unwrap() = Personality::default();
+    *world.get_mut::<Health>(npc).unwrap() = Health(modforge::combat::Health::new(max));
+    npc
 }
 
 /// Through the one path, with a faction override as a placed actor
@@ -130,6 +150,29 @@ fn a_hunter_walks_at_the_player_through_the_same_action_queue() {
     assert_eq!(world.get::<Transform>(player).unwrap().translation, Vec3::new(0.0, EYE_HEIGHT, 0.0));
 }
 
+#[test]
+fn people_from_one_def_differ_by_their_traits_and_a_seed_repeats_them() {
+    let (mut app, _) = playing_app();
+    app.insert_resource(WorldSeed(7));
+    // Twenty scavengers: not all the same health, every one within
+    // the Hardy and Frail bounds of the def's 60.
+    let mut healths = std::collections::HashSet::new();
+    let mut ids = Vec::new();
+    for i in 0..20 {
+        let npc = spawn(&mut app, "scavenger", Vec3::new(i as f32 * 3.0, 0.0, -20.0), 0.0);
+        let health = app.world().get::<Health>(npc).unwrap().0.max;
+        assert!((37.5..=82.5).contains(&health), "{health}");
+        healths.insert(health.to_bits());
+        ids.push((app.world().get::<Actor>(npc).unwrap().0, health));
+    }
+    assert!(healths.len() > 1, "traits change health");
+    // The same id and seed give the same person again.
+    for (id, health) in ids {
+        let again = modforge::actor::Personality::seed(id, 7);
+        assert_eq!(60.0 * again.health_mult(), health);
+    }
+}
+
 /// Whether `npc` has anything to do this tick (the AI only pushes
 /// when it sees a hostile).
 fn acting(app: &App, npc: Entity) -> bool {
@@ -214,7 +257,7 @@ fn health(app: &App, actor: Entity) -> f32 {
 fn the_scavenger_hits_the_player_and_the_player_shoots_back() {
     let (mut app, player) = playing_app();
     // In reach, facing each other.
-    let npc = spawn(&mut app, "scavenger", Vec3::new(0.0, 0.0, -1.5), std::f32::consts::PI);
+    let npc = spawn_plain(&mut app, "scavenger", Vec3::new(0.0, 0.0, -1.5), std::f32::consts::PI);
     app.update();
     // The hunter sees the player in reach and swings its pipe. A level
     // swing from eye height lands on the head: 20 doubled, no armor.
@@ -265,7 +308,7 @@ fn the_scavenger_hits_the_player_and_the_player_shoots_back() {
 #[test]
 fn the_hud_names_the_actor_under_the_crosshair_and_its_health() {
     let (mut app, player) = playing_app();
-    let npc = spawn(&mut app, "scavenger", Vec3::new(0.0, 0.0, -5.0), 0.0);
+    let npc = spawn_plain(&mut app, "scavenger", Vec3::new(0.0, 0.0, -5.0), 0.0);
     app.update();
     let target = app.world().resource::<HudRes>().0.target.clone();
     assert_eq!(target, Some(("scavenger".to_string(), 60.0, 60.0)));
@@ -291,7 +334,7 @@ fn the_hud_names_the_actor_under_the_crosshair_and_its_health() {
 #[test]
 fn a_dead_scavenger_leaves_a_box_with_its_pipe_and_its_row() {
     let (mut app, player) = playing_app();
-    let npc = spawn(&mut app, "scavenger", Vec3::new(0.0, 0.0, -1.5), std::f32::consts::PI);
+    let npc = spawn_plain(&mut app, "scavenger", Vec3::new(0.0, 0.0, -1.5), std::f32::consts::PI);
     let id = app.world().get::<Actor>(npc).unwrap().0;
     let feet = Vec3::new(0.0, 0.0, -1.5);
     // The scavenger carries a can besides its pipe.
@@ -329,7 +372,7 @@ fn a_dead_scavenger_leaves_a_box_with_its_pipe_and_its_row() {
 #[test]
 fn a_vest_guards_the_chest_and_only_the_chest() {
     let (mut app, player) = playing_app();
-    let npc = spawn(&mut app, "scavenger", Vec3::new(0.0, 0.0, -1.5), std::f32::consts::PI);
+    let npc = spawn_plain(&mut app, "scavenger", Vec3::new(0.0, 0.0, -1.5), std::f32::consts::PI);
     // Standing level, its swing from eye height would land on the
     // player's head; lower the scavenger so the swing lands on the
     // chest.

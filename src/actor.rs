@@ -41,6 +41,16 @@ impl Facing {
     }
 }
 
+/// The world seed every person's traits are drawn with. Set by the
+/// world roll; zero in headless tests that roll no world.
+#[derive(Resource, Default)]
+pub struct WorldSeed(pub u64);
+
+/// A person's seven axes (modforge), on every actor. The player's
+/// are all zero until the RPG lands.
+#[derive(Component, Default, Debug, Clone, Copy, PartialEq)]
+pub struct Personality(pub modforge::actor::Personality);
+
 /// An NPC: which def it was spawned from and its faction. The player
 /// has no `Npc`; everything else on an actor is shared (see
 /// `spawn_actor`). Identity is the `Actor` component beside it.
@@ -60,6 +70,7 @@ pub struct SpawnActor<'w, 's> {
     pub items: Res<'w, ItemRegistryRes>,
     pub factions: Res<'w, FactionRegistryRes>,
     pub actors: ResMut<'w, ActorMapRes>,
+    pub seed: Res<'w, WorldSeed>,
 }
 
 /// The ONE path through which an NPC enters the world (authority.md:
@@ -107,7 +118,6 @@ pub fn spawn_actor(
             hotbar,
             Equipment::default(),
             Survival::default(),
-            Health(def.health()),
             Protection(def.protection.clone()),
             Firing::default(),
             Actions::default(),
@@ -125,7 +135,16 @@ pub fn spawn_actor(
         spawn.commands.entity(entity).despawn();
         return None;
     };
-    spawn.commands.entity(entity).insert(Actor(id));
+    // Who this person is, drawn from the genome by id: the axes and
+    // the health they give.
+    let personality = modforge::actor::Personality::seed(id, spawn.seed.0);
+    let mut health = def.health();
+    health.max *= personality.health_mult();
+    health.current = health.max;
+    spawn
+        .commands
+        .entity(entity)
+        .insert((Actor(id), Personality(personality), Health(health)));
     Some(entity)
 }
 

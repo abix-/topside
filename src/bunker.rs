@@ -6,7 +6,7 @@ use bevy::prelude::*;
 
 use modforge::item::{Inventory, create};
 
-use crate::actor::{SpawnActor, spawn_actor};
+use crate::actor::{SpawnActor, WorldSeed, spawn_actor};
 use crate::cel::CelMaterial;
 use crate::content::{
     ActorRegistryRes, BiomeRegistryRes, ItemRegistryRes, MonumentRegistryRes, world_def,
@@ -288,5 +288,6 @@ pub fn setup(
         now,
     )
     .expect("a rolled world spawns");
+    commands.insert_resource(WorldSeed(world.seed));
     commands.insert_resource(WorldRes(world));
 }

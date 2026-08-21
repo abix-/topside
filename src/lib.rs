@@ -60,6 +60,7 @@ pub fn build_app(headless: bool) -> App {
     app.init_state::<AppState>();
     app.init_resource::<SimTick>();
     app.init_resource::<actor_map::ActorMapRes>();
+    app.init_resource::<actor::WorldSeed>();
     app.init_resource::<survival::Rates>();
     app.init_resource::<content::ItemRegistryRes>();
     app.init_resource::<content::DamageRegistryRes>();

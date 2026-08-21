@@ -11,7 +11,7 @@ use modforge::combat::{BodyArea, FireTimer, Hit, MultiDamage, Trigger, pellet_di
 pub use modforge::combat::{Health as HealthStats, Protection as ProtectionStats};
 
 use crate::SimTick;
-use crate::actor::{Equipment, Hotbar, Inventory};
+use crate::actor::{Equipment, Hotbar, Inventory, Personality};
 use crate::content::{DamageRegistryRes, ItemRegistryRes};
 use crate::input::{Action, ActionQueue, ThisTick};
 use crate::player::EYE_HEIGHT;
@@ -60,6 +60,7 @@ pub fn fire(
         &mut Inventory,
         &mut Hotbar,
         Option<&Children>,
+        &Personality,
     )>,
     mut structures: Query<(&Transform, &mut Pieces), With<StructureRoot>>,
     mut actors: Query<(&Transform, &Equipment, &mut Health, &mut Protection)>,
@@ -67,13 +68,18 @@ pub fn fire(
 ) {
     let dt = time.delta_secs();
     let armor_of = |name: &str| items.0.def(name).and_then(|d| d.armor);
-    for (shooter, transform, this_tick, mut firing, mut inventory, mut hotbar, children) in
+    for (shooter, transform, this_tick, mut firing, mut inventory, mut hotbar, children, personality) in
         &mut shooters
     {
         firing.0.tick(dt);
         if !ActionQueue::has(&this_tick.0, Action::Attack) {
             continue;
         }
+        // Who is swinging: Strong hits harder, a Berserker harder
+        // still when hurt, a Sharpshot reaches farther.
+        let own_health = actors.get(shooter).map_or(1.0, |(_, _, h, _)| h.0.fraction());
+        let damage_mult = personality.0.damage_mult(own_health);
+        let reach_mult = personality.0.range_mult();
         // What is in the hands: the held bar slot (Rust).
         let Some(weapon) = hotbar
             .0
@@ -105,13 +111,14 @@ pub fn fire(
             .chain(children.into_iter().flat_map(|c| c.iter()))
             .collect();
         let filter = SpatialQueryFilter::from_excluded_entities(own);
+        let reach = weapon.reach * reach_mult;
         let mut pellets = MultiDamage::default();
         let mut points: Vec<(Entity, Vec3)> = Vec::new();
         for dir in pellet_directions(aim, weapon.spread_degrees, weapon.pellets, tick.0) {
             let forward = Dir3::new(dir).unwrap_or(transform.forward());
             // The line first; melee gets the fat sweep on a miss.
             let hit = spatial
-                .cast_ray(eye, forward, weapon.reach, true, &filter)
+                .cast_ray(eye, forward, reach, true, &filter)
                 .map(|h| (h.entity, eye + forward * h.distance, h.distance))
                 .or_else(|| {
                     if weapon.ammo.is_some() {
@@ -127,7 +134,7 @@ pub fn fire(
                             eye,
                             Quat::IDENTITY,
                             forward,
-                            &ShapeCastConfig::from_max_distance(weapon.reach),
+                            &ShapeCastConfig::from_max_distance(reach),
                             &filter,
                         )
                         .map(|h| (h.entity, h.point1, h.distance))
@@ -150,7 +157,7 @@ pub fn fire(
                 def,
                 self_inflicted: target == shooter,
                 distance,
-                location_scale: count as f32,
+                location_scale: count as f32 * damage_mult,
             };
             if let Ok((root_transform, mut pieces)) = structures.get_mut(target) {
                 damage_at(&mut commands, target, root_transform, &mut pieces, point, &swing);
