@@ -11,7 +11,7 @@ use modforge::combat::{DamageDef, DamageRegistry, DamageType, Falloff};
 use modforge::item::{Armor, CombatStats, EquipSlot, FoodStats, ItemDef, ItemKind, ItemRegistry};
 use modforge::monument::{
     Arrangement, BuildingRegistry, BuildingSize, BuildingSlot, BuildingTypeDef,
-    MonumentRegistry, MonumentTypeDef,
+    MonumentRegistry, MonumentTypeDef, PropSpec,
 };
 use modforge::structure::Rgb;
 
@@ -100,8 +100,12 @@ pub fn world_def() -> WorldDef {
             ("sewer".to_string(), 1),
             ("harbor".to_string(), 1),
             ("ruined city".to_string(), 1),
+            // Minor sites: one within 150 m of almost anywhere.
+            ("wreck".to_string(), 40),
+            ("campsite".to_string(), 25),
+            ("supply drop".to_string(), 15),
+            ("body".to_string(), 25),
         ],
-        site_spacing: 180.0,
         bunker: Vec2::ZERO,
         bunker_clear: 50.0,
     }
@@ -456,7 +460,28 @@ pub fn register_monuments(reg: &mut MonumentRegistry, buildings: &BuildingRegist
             danger,
             gated,
             suffix: suffix.to_string(),
+            // Big monuments keep 180 m from each other.
+            spacing: 180.0,
+            props: vec![],
         }
+    };
+    // Minor sites (design.md: "something worth stopping for every 30
+    // seconds"): props around a loot box, no buildings, close spacing.
+    let prop = |size: [f32; 3], color: Rgb, count: (u32, u32), radius: f32| PropSpec {
+        size: Vec3::from(size),
+        color,
+        count,
+        radius,
+    };
+    let minor = |name: &str, danger, suffix: &str, props: Vec<PropSpec>| MonumentTypeDef {
+        name: name.to_string(),
+        slots: vec![],
+        arrangement: Clustered,
+        danger,
+        gated: false,
+        suffix: suffix.to_string(),
+        spacing: 60.0,
+        props,
     };
     let monuments = [
         def("roadside stop", vec![slot(&small, 1, 2)], AlongRoad, 1, false, "Stop"),
@@ -552,6 +577,44 @@ pub fn register_monuments(reg: &mut MonumentRegistry, buildings: &BuildingRegist
             true,
             "City",
         ),
+        // The minor sites.
+        minor(
+            "wreck",
+            0,
+            "Wreck",
+            vec![
+                prop([4.2, 1.4, 1.9], [0.45, 0.2, 0.15], (1, 2), 4.0),
+                prop([0.6, 0.9, 0.6], [0.3, 0.3, 0.32], (0, 3), 5.0),
+            ],
+        ),
+        minor(
+            "campsite",
+            1,
+            "Camp",
+            vec![
+                prop([2.4, 1.6, 2.4], [0.35, 0.3, 0.2], (1, 2), 4.0),
+                prop([1.0, 0.4, 1.0], [0.2, 0.2, 0.2], (1, 1), 2.5),
+                prop([0.5, 0.5, 0.5], [0.4, 0.32, 0.2], (1, 3), 3.5),
+            ],
+        ),
+        minor(
+            "supply drop",
+            1,
+            "Drop",
+            vec![
+                prop([1.6, 1.2, 1.6], [0.3, 0.4, 0.3], (1, 1), 1.5),
+                prop([3.0, 0.1, 3.0], [0.6, 0.6, 0.62], (1, 1), 4.0),
+            ],
+        ),
+        minor(
+            "body",
+            0,
+            "Grave",
+            vec![
+                prop([1.8, 0.3, 0.6], [0.3, 0.28, 0.25], (1, 1), 1.5),
+                prop([0.5, 0.5, 0.5], [0.4, 0.4, 0.38], (0, 2), 3.0),
+            ],
+        ),
     ];
     for monument in monuments {
         reg.register(monument, buildings)
@@ -581,6 +644,9 @@ pub fn register_biomes(reg: &mut BiomeRegistry) {
                 "roadside stop".to_string(),
                 "research station".to_string(),
                 "military outpost".to_string(),
+                "campsite".to_string(),
+                "body".to_string(),
+                "supply drop".to_string(),
             ],
             npcs: vec!["scavenger".to_string(), "hunter".to_string()],
             wildlife: vec!["deer".to_string(), "wolf".to_string()],
@@ -602,6 +668,9 @@ pub fn register_biomes(reg: &mut BiomeRegistry) {
                 "airfield".to_string(),
                 "train yard".to_string(),
                 "launch site".to_string(),
+                "wreck".to_string(),
+                "body".to_string(),
+                "supply drop".to_string(),
             ],
             npcs: vec!["raider".to_string(), "wanderer".to_string()],
             wildlife: vec!["rat".to_string()],
@@ -623,6 +692,9 @@ pub fn register_biomes(reg: &mut BiomeRegistry) {
                 "power plant".to_string(),
                 "sewer".to_string(),
                 "harbor".to_string(),
+                "wreck".to_string(),
+                "campsite".to_string(),
+                "body".to_string(),
             ],
             npcs: vec![
                 "raider".to_string(),
@@ -676,7 +748,7 @@ mod tests {
     fn every_monument_type_rolls_legal_monuments() {
         let regs = MonumentRegistryRes::default();
         assert_eq!(regs.buildings.len(), 19);
-        assert_eq!(regs.monuments.len(), 11);
+        assert_eq!(regs.monuments.len(), 15);
         let names: Vec<String> = regs.monuments.names().map(String::from).collect();
         for name in names {
             for seed in 0..5u64 {
@@ -714,8 +786,24 @@ mod tests {
         for seed in [1u64, 2, 3] {
             let world = modforge::worldgen::roll_world(&world_def(), seed, &biomes.0, &monuments.monuments)
                 .unwrap_or_else(|e| panic!("seed {seed}: {e}"));
-            assert_eq!(world.sites.len(), 16);
-            assert_eq!(world.roads.len(), 16);
+            assert_eq!(world.sites.len(), 121);
+            assert_eq!(world.roads.len(), 16, "roads reach the built monuments only");
+            // Bethesda's rule over the real world: from 200 random
+            // land points, a site within 150 m of at least 90 percent.
+            let mut roll = modforge::monument::Roll::new(seed ^ 77);
+            let (mut land, mut covered) = (0, 0);
+            for _ in 0..200 {
+                let p = Vec2::new(roll.measure(-950.0, 950.0), roll.measure(-950.0, 950.0));
+                let (c, r) = world.cell_of(p);
+                if world.is_water(c, r) {
+                    continue;
+                }
+                land += 1;
+                if world.sites.iter().any(|s| s.position.distance(p) <= 150.0) {
+                    covered += 1;
+                }
+            }
+            assert!(covered * 10 >= land * 9, "seed {seed}: {covered} of {land} within 150 m");
         }
     }
 }

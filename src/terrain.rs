@@ -180,7 +180,7 @@ pub fn spawn_world(
             };
             let p = world.cell_center(c, r);
             if p.distance(world.def.bunker) < world.def.bunker_clear
-                || world.sites.iter().any(|s| s.position.distance(p) < world.def.site_spacing * 0.3)
+                || world.sites.iter().any(|s| s.position.distance(p) < s.spacing * 0.3)
             {
                 continue;
             }

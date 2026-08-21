@@ -374,6 +374,25 @@ pub fn spawn_monument(
             Transform::from_translation(origin + gate.position),
         ));
     }
+    // Props: solid coloured boxes under the root (a wreck's hull, a
+    // camp's tent), despawned with it.
+    if !def.props.is_empty() {
+        let cube = meshes.add(Cuboid::new(1.0, 1.0, 1.0));
+        for prop in &def.props {
+            commands.spawn((
+                RigidBody::Static,
+                Collider::cuboid(1.0, 1.0, 1.0),
+                Mesh3d(cube.clone()),
+                MeshMaterial3d(materials.add(CelMaterial::from_srgb(
+                    prop.color[0],
+                    prop.color[1],
+                    prop.color[2],
+                ))),
+                Transform::from_translation(origin + prop.position).with_scale(prop.size),
+                ChildOf(root),
+            ));
+        }
+    }
     Ok(root)
 }
 
