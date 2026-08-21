@@ -34,6 +34,36 @@ fn status_op_reports_a_ticking_simulation() {
     );
 }
 
+/// The frame budget, readable from outside: every diagnostic Bevy
+/// records, printed sorted by value so the heaviest render passes
+/// read first. Run with --nocapture to see them.
+#[test]
+fn diagnostics_op_reports_frame_time_and_render_passes() {
+    let Some(resp) = ureq::post("http://127.0.0.1:15703/topside")
+        .send_json(json!({"op": "diagnostics", "args": {}}))
+        .ok()
+        .and_then(|r| r.into_body().read_json::<Json>().ok())
+    else {
+        eprintln!("skipping: no topside game listening on 127.0.0.1:15703");
+        return;
+    };
+    assert_eq!(resp["ok"], true, "diagnostics op must succeed: {resp}");
+    let Some(all) = resp["result"].as_object() else {
+        panic!("diagnostics must be a map of path to value: {resp}");
+    };
+    assert!(all.contains_key("fps"), "fps is recorded: {resp}");
+    assert!(all.contains_key("entity_count"), "entity count is recorded: {resp}");
+    let mut rows: Vec<(&String, f64)> = all
+        .iter()
+        .filter_map(|(k, v)| v.as_f64().map(|v| (k, v)))
+        .collect();
+    rows.sort_by(|a, b| b.1.total_cmp(&a.1));
+    eprintln!("--- diagnostics ({} entries) ---", rows.len());
+    for (path, value) in rows {
+        eprintln!("{value:>12.3}  {path}");
+    }
+}
+
 #[test]
 fn unknown_op_is_rejected_with_an_error() {
     let Some(resp) = ureq::post("http://127.0.0.1:15703/topside")

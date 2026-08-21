@@ -102,6 +102,11 @@ pub fn build_app(headless: bool) -> App {
     );
     if !headless {
         app.add_plugins(MaterialPlugin::<cel::CelMaterial>::default());
+        app.add_plugins((
+            bevy::diagnostic::FrameTimeDiagnosticsPlugin::default(),
+            bevy::diagnostic::EntityCountDiagnosticsPlugin::default(),
+            bevy::render::diagnostic::RenderDiagnosticsPlugin,
+        ));
         control_plane::start();
         app.add_systems(
             OnEnter(AppState::Playing),

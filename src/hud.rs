@@ -4,6 +4,7 @@
 //! place and forward gestures to modforge's decisions (start_drag,
 //! end_drag, use_slot, drop_slot). Atlas controls (design.md).
 
+use bevy::diagnostic::{DiagnosticsStore, FrameTimeDiagnosticsPlugin};
 use bevy::ecs::system::SystemParam;
 use bevy::prelude::*;
 use bevy::window::{CursorGrabMode, CursorOptions, PrimaryWindow};
@@ -477,6 +478,7 @@ pub fn write_prompt(
 /// player entity is the one owner, the HUD never copies them.
 pub fn render(
     state: Res<HudRes>,
+    diagnostics: Res<DiagnosticsStore>,
     players: Query<&Survival, With<Player>>,
     mut huds: Query<&mut Text, With<Hud>>,
 ) {
@@ -486,8 +488,12 @@ pub fn render(
     let Ok(survival) = players.single() else {
         return;
     };
+    let fps = diagnostics
+        .get(&FrameTimeDiagnosticsPlugin::FPS)
+        .and_then(|d| d.smoothed())
+        .unwrap_or(0.0);
     let mut line = format!(
-        "Hunger: {:.0}  Thirst: {:.0}",
+        "FPS: {fps:.0}  Hunger: {:.0}  Thirst: {:.0}",
         survival.0.hunger, survival.0.thirst
     );
     if state.0.prompt.can_interact {

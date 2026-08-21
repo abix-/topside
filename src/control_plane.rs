@@ -4,8 +4,10 @@
 //!
 //! POST http://127.0.0.1:15703/topside with {"op": "...", "args": {}}.
 
+use std::sync::Mutex;
 use std::sync::atomic::{AtomicU32, AtomicU64, AtomicUsize, Ordering};
 
+use bevy::diagnostic::{DiagnosticsStore, FrameTimeDiagnosticsPlugin};
 use bevy::prelude::*;
 use modforge::envelope::OpResponse;
 use modforge::ops::{OP_REGISTRY, OpDef};
@@ -20,10 +22,12 @@ static TICK: AtomicU64 = AtomicU64::new(0);
 static PEOPLE: AtomicUsize = AtomicUsize::new(0);
 static HUNGER_BITS: AtomicU32 = AtomicU32::new(0);
 static THIRST_BITS: AtomicU32 = AtomicU32::new(0);
+static FPS_BITS: AtomicU32 = AtomicU32::new(0);
 
 pub fn publish_system(
     tick: Res<crate::SimTick>,
     map: Res<crate::entity_map::EntityMap>,
+    diagnostics: Option<Res<DiagnosticsStore>>,
     players: Query<&crate::survival::Survival, With<crate::player::Player>>,
 ) {
     TICK.store(tick.0, Ordering::Relaxed);
@@ -32,7 +36,33 @@ pub fn publish_system(
         HUNGER_BITS.store(survival.0.hunger.to_bits(), Ordering::Relaxed);
         THIRST_BITS.store(survival.0.thirst.to_bits(), Ordering::Relaxed);
     }
+    // Frame rate exists only with a window; headless publishes 0.
+    let Some(diagnostics) = diagnostics else {
+        return;
+    };
+    let fps = diagnostics
+        .get(&FrameTimeDiagnosticsPlugin::FPS)
+        .and_then(|f| f.smoothed())
+        .unwrap_or(0.0) as f32;
+    FPS_BITS.store(fps.to_bits(), Ordering::Relaxed);
+    // Every diagnostic Bevy records (frame time, entity count,
+    // render pass CPU and GPU times), published once a second for
+    // the `diagnostics` op.
+    if tick.0 % 60 == 0 {
+        let mut all: Vec<(String, f64)> = diagnostics
+            .iter()
+            .filter_map(|d| d.smoothed().map(|v| (d.path().as_str().to_string(), v)))
+            .collect();
+        all.sort_by(|a, b| a.0.cmp(&b.0));
+        let map: serde_json::Map<String, Json> =
+            all.into_iter().map(|(k, v)| (k, json!(v))).collect();
+        if let Ok(mut slot) = DIAGNOSTICS.lock() {
+            *slot = Json::Object(map);
+        }
+    }
 }
+
+static DIAGNOSTICS: Mutex<Json> = Mutex::new(Json::Null);
 
 fn snapshot() -> Json {
     json!({
@@ -40,6 +70,7 @@ fn snapshot() -> Json {
         "people": PEOPLE.load(Ordering::Relaxed),
         "hunger": f32::from_bits(HUNGER_BITS.load(Ordering::Relaxed)),
         "thirst": f32::from_bits(THIRST_BITS.load(Ordering::Relaxed)),
+        "fps": f32::from_bits(FPS_BITS.load(Ordering::Relaxed)),
     })
 }
 
@@ -49,6 +80,12 @@ pub fn start() {
         "current simulation snapshot",
         "",
         |_args| Ok(snapshot()),
+    ));
+    OP_REGISTRY.register(OpDef::new(
+        "diagnostics",
+        "every engine diagnostic: frame time, entity count, render pass times",
+        "",
+        |_args| Ok(DIAGNOSTICS.lock().map(|d| d.clone()).unwrap_or(Json::Null)),
     ));
     modforge::server::spawn(
         modforge::server::Config {
