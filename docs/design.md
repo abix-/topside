@@ -627,6 +627,51 @@ Weapon categories:
   nail bomb, a sharpened road sign. The crafting system's creativity
   shows here.
 
+### How a hit works (operator-agreed 2026-08-20, from reading Quake 3,
+### Half-Life 1, Doom 3, and Rust's devblogs; references.md)
+
+The rules, engine-agnostic in modforge; topside only casts rays and
+moves bodies:
+
+1. One damage function for every hit: fists, bullets, arrows,
+   explosions, a wall. It takes the target, what hit it, who fired,
+   the direction, the point, and the damage def. Armor first, then
+   health, then die or pain. Quake 3's `G_Damage`.
+2. Damage is data. A weapon names a damage def in the registry:
+   amount, type, knockback, armor rules, falloff by distance. Doom 3.
+3. Damage types with resistances: slash, pierce, blunt, fire, and
+   more; creatures and worn gear multiply per type. Half-Life's type
+   bits, Valheim's resistances. Traits and affixes hang off this.
+4. Melee is a short ray from the eye; if the line misses, a fat
+   sweep takes its hit. Half-Life's crowbar.
+5. Guns are Rust's hybrid: the first N metres (per ammo) are an
+   instant ray, then the bullet is a projectile with gravity and
+   drag. Close range feels like Quake, long range keeps drop. One
+   code path, because a projectile step is a ray from last position
+   to new (Quake 3's missiles).
+6. Pellets add up per target: N rays with a seeded spread, damage
+   summed per target, one damage call per target. Half-Life's
+   multi-damage, Quake's seeded spread.
+7. Fire rate is a timer on the shooter, ticked in the simulation:
+   fire only when ready and the trigger is held; no ammo costs a
+   delay. Quake 3's `PM_Weapon`. NPCs use it unchanged.
+8. Protection per body area from worn gear (the equipment slots:
+   head, chest, hands, legs, feet), not one armor number. Rust after
+   it dropped hitboxes.
+9. Hit location multipliers come when actors have parts; today an
+   actor is one capsule. Half-Life's hitgroups.
+10. The simulation decides hits, never the renderer: casts run in
+    the fixed step against the physics world. Source's rule; single
+    player needs no rewind.
+11. Buildings are targets: a piece has health and no armor, and the
+    same function routes to it.
+
+Build order: the function and the defs, the timer, melee against the
+pipe, the NPC spawn path so there is something to hit back, then guns
+and pellets, then types and body-area protection as content grows.
+Left out for now: lag compensation, Rust's penetration and ricochet,
+Valheim's swept arcs.
+
 ### Enemy randomization
 
 Enemies are randomized the way Diablo 2 randomizes its monsters
