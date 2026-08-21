@@ -7,8 +7,8 @@ use topside::{
     cel::CelMaterial,
     player::{MovementInput, Player},
     structure::{
-        CONCRETE_FLOOR, CONCRETE_WALL, Door, Opening, RoomSpec, Side, StairSpec, StructureDef,
-        StructureRoot, StructureSolid, spawn_structure,
+        CONCRETE_FLOOR, CONCRETE_WALL, Door, Opening, RoomSpec, Side, StairSpec, StructureBatch,
+        StructureDef, StructureRoot, spawn_structure,
     },
 };
 
@@ -136,7 +136,8 @@ fn structure_root_owns_avian_geometry_and_collision() {
     );
     assert_eq!(
         app.world().get::<RigidBody>(root),
-        Some(&RigidBody::Static)
+        Some(&RigidBody::Static),
+        "the root is the building's one static body"
     );
     let owned_entities: Vec<Entity> = app
         .world()
@@ -145,28 +146,22 @@ fn structure_root_owns_avian_geometry_and_collision() {
         .iter()
         .collect();
 
-    let solid_entities: Vec<Entity> = owned_entities
-        .iter()
-        .copied()
-        .filter(|entity| app.world().get::<StructureSolid>(*entity).is_some())
-        .collect();
-    assert!(!solid_entities.is_empty(), "structure must contain solids");
-    for entity in solid_entities {
-        assert!(app.world().get::<Mesh3d>(entity).is_some());
-        assert!(
-            app.world().get::<Collider>(entity).is_none(),
-            "solids carry no collider of their own; the root's compound has their boxes"
-        );
-    }
-    // The building is one static shape to the physics (performance.md).
+    // Batched like Rust's buildings (performance.md): one compound
+    // collider on the root holding every piece's box, one merged
+    // mesh per material, no entity per piece.
     let compound = app
         .world()
         .get::<Collider>(root)
         .expect("the root carries the building's one collider");
-    assert!(
-        compound.shape().as_compound().is_some(),
-        "the root collider is a compound of every solid"
-    );
+    let pieces = compound
+        .shape()
+        .as_compound()
+        .expect("the root collider is a compound of every solid")
+        .shapes()
+        .len();
+    // Three whole walls, the two segments beside the doorway, the
+    // floor, and the ceiling.
+    assert_eq!(pieces, 7, "every solid's box is in the compound");
     assert_eq!(
         app.world()
             .get::<ColliderOf>(root)
@@ -174,6 +169,20 @@ fn structure_root_owns_avian_geometry_and_collision() {
             .body,
         root
     );
+    let batches: Vec<Entity> = owned_entities
+        .iter()
+        .copied()
+        .filter(|e| app.world().get::<StructureBatch>(*e).is_some())
+        .collect();
+    assert!(
+        (1..=4).contains(&batches.len()),
+        "one merged mesh per material, got {}",
+        batches.len()
+    );
+    for entity in &batches {
+        assert!(app.world().get::<Mesh3d>(*entity).is_some());
+        assert!(app.world().get::<Collider>(*entity).is_none());
+    }
 
     let door = owned_entities
         .iter()

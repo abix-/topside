@@ -48,10 +48,12 @@ pub fn body_shape() -> Collider {
 #[derive(Component, Debug, PartialEq)]
 pub struct StructureRoot;
 
-/// A wall, slab, step, or furniture piece: visible geometry and
-/// its collider on one child of the structure root.
+/// One merged mesh per material for a whole structure: every wall,
+/// slab, step, and furniture piece of that material drawn in one
+/// go. The pieces themselves are not entities; their boxes live in
+/// the root's compound collider.
 #[derive(Component, Debug, PartialEq)]
-pub struct StructureSolid;
+pub struct StructureBatch;
 
 /// A hinged door. All positions are world space, fixed at spawn;
 /// the collider applies only while closed. `origin` is the
@@ -93,6 +95,8 @@ pub fn spawn_structure(
 ) -> Result<Entity, String> {
     validate(def)?;
 
+    // The root owns every piece (despawn takes all) and is the
+    // building's one static body.
     let root = commands
         .spawn((
             StructureRoot,
@@ -107,21 +111,22 @@ pub fn spawn_structure(
     let door_mat = materials.add(CelMaterial::from_srgb(0.25, 0.28, 0.30));
     let stair_mat = materials.add(cel_from_rgb(def.floor_color));
 
-    // Solids are not entities of their own. Each solid's box is
-    // folded into one mesh per material (one draw per material per
-    // building) and into one compound collider on the root (one
-    // static shape to the physics). Both are built once here.
-    // Measured 2026-08-20 (performance.md): one entity per solid
-    // cost 12 ms a physics step, because Avian recomputes child
-    // colliders every step whether or not the body moved, and tens
-    // of milliseconds a frame in the renderer copying and binning
-    // 55K mesh entities. `center` is structure-local.
+    // Batched, the way Rust (the game) runs its buildings: the
+    // server combines building colliders into batched colliders with
+    // a lookup back to the piece, and meshes are batched (Facepunch
+    // devblogs 79 and 82). Here: every solid's box goes into one
+    // compound collider on the root and into one merged mesh per
+    // material; both built once. Measured 2026-08-20 in the city
+    // (performance.md): one collider per solid costs 12 ms a physics
+    // step as children of the root and 15 ms as standalone static
+    // bodies; the compound costs 1.6 ms. `center` is structure-local.
     let mut shapes: Vec<(Vec3, Quat, Collider)> = Vec::new();
     let mut batches: Vec<(Handle<CelMaterial>, Mesh)> = Vec::new();
     let mut solid = |_commands: &mut Commands,
                      center: Vec3,
                      size: Vec3,
                      material: Handle<CelMaterial>| {
+        shapes.push((center, Quat::IDENTITY, Collider::cuboid(size.x, size.y, size.z)));
         let piece = Mesh::from(Cuboid::new(size.x, size.y, size.z)).translated_by(center);
         match batches.iter_mut().find(|(m, _)| *m == material) {
             Some((_, mesh)) => mesh
@@ -129,7 +134,6 @@ pub fn spawn_structure(
                 .expect("every solid is the same cuboid mesh layout"),
             None => batches.push((material, piece)),
         }
-        shapes.push((center, Quat::IDENTITY, Collider::cuboid(size.x, size.y, size.z)));
     };
 
     for room in &def.rooms {
@@ -265,10 +269,10 @@ pub fn spawn_structure(
         solid(commands, piece.center, piece.size, material);
     }
 
-    // One mesh entity per material, one collider for the building.
+    // One mesh entity per material and one collider for the building.
     for (material, mesh) in batches {
         commands.spawn((
-            StructureSolid,
+            StructureBatch,
             ChildOf(root),
             Mesh3d(meshes.add(mesh)),
             MeshMaterial3d(material),

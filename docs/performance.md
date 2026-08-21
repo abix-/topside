@@ -106,6 +106,33 @@ storage boxes, ground tiles, UI. Not yet done: capping the fixed
 loop's catch-up (`Time<Virtual>::max_delta`) so a hitch never
 multiplies itself. A guard, not a fix.
 
+### The three collider layouts, measured in the same spot
+
+A third layout was tried the same day on the claim that Rust (the
+game) keeps one collider per building piece: every solid its own
+standalone static body (not a child of the root), meshes still
+merged. It was the worst per step.
+
+| Layout | physics per step | frame |
+|---|---:|---:|
+| One collider entity per solid, child of the root body | 12 ms | 96 ms |
+| One static body per solid, standalone | 15 ms | 24 ms (42 FPS, merged meshes holding the frame) |
+| One compound collider per building | 1.6 ms | 8.5 ms (118 FPS) |
+
+The claim was also wrong about Rust. Facepunch's devblogs: "I've been
+working on combining building colliders on the server side" and
+there is "a single point where I have to do the batched collider to
+individual collider lookup" (devblog 79); "Enabled server side
+collider batching by default" and a fix for "batched colliders not
+refreshing after building part rotation" (devblog 82); later a
+`collider_capacity` convar capping "the maximum vertex count of
+pooled mesh colliders", and mesh batching moved to a thread so
+"large meshes like buildings" refresh without stutter. Rust batches
+colliders per building with a lookup back to the piece and refreshes
+the batch when a piece changes. That is the compound layout plus two
+things this repo does not have yet: the hit-to-piece lookup and
+rebuild-on-change, both needed by Rust-style building (design.md).
+
 Endless hit the same wall at 16K sprite entities and answered with one
 entity per batch and a custom instanced pipeline (endless
 docs/rendering.md). Merged meshes are the 3D equivalent that keeps
