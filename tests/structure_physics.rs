@@ -7,8 +7,8 @@ use topside::{
     cel::CelMaterial,
     player::{MovementInput, Player},
     structure::{
-        CONCRETE_FLOOR, CONCRETE_WALL, Door, Opening, RoomSpec, Side, StairSpec, StructureBatch,
-        StructureDef, StructureRoot, spawn_structure,
+        CONCRETE_FLOOR, CONCRETE_WALL, Door, Opening, Pieces, Rebake, RoomSpec, Side, StairSpec,
+        StructureBatch, StructureDef, StructureRoot, damage_at, spawn_structure,
     },
 };
 
@@ -242,6 +242,84 @@ fn walls_block_and_the_doorway_does_not() {
         through.z < -5.0,
         "the body must pass through the open doorway, got {through}"
     );
+}
+
+/// A hit on the building's one collider resolves to a piece; killing
+/// the piece rebakes the building without it, and the body walks
+/// through where the wall was.
+#[test]
+fn a_hit_finds_its_piece_and_a_dead_piece_leaves_a_gap() {
+    // Start inside the room facing the east wall (x 3.0 to 3.2).
+    let (mut app, player) = walking_app(&one_room(), Vec3::new(1.0, 0.0, 0.0), -std::f32::consts::FRAC_PI_2);
+    let root = app
+        .world_mut()
+        .query_filtered::<Entity, With<StructureRoot>>()
+        .single(app.world())
+        .unwrap();
+    let pieces_before = app.world().get::<Pieces>(root).unwrap().0.len();
+    let boxes_before = app
+        .world()
+        .get::<Collider>(root)
+        .unwrap()
+        .shape()
+        .as_compound()
+        .unwrap()
+        .shapes()
+        .len();
+    assert_eq!(pieces_before, boxes_before, "one box in the compound per piece");
+
+    // Cast east from the player: Avian reports the root and the hit
+    // point on the wall.
+    let hit = {
+        let world = app.world_mut();
+        let mut state: SystemState<SpatialQuery> = SystemState::new(world);
+        let spatial = state.get(world).unwrap();
+        spatial
+            .cast_ray(
+                Vec3::new(1.0, 1.0, 0.0),
+                Dir3::X,
+                10.0,
+                true,
+                &SpatialQueryFilter::from_excluded_entities([player]),
+            )
+            .expect("the east wall is in the way")
+    };
+    assert_eq!(hit.entity, root, "hits land on the building's one collider");
+    let point = Vec3::new(1.0, 1.0, 0.0) + Vec3::X * hit.distance;
+
+    // Kill the wall piece at the hit point.
+    {
+        let world = app.world_mut();
+        let transform = *world.get::<Transform>(root).unwrap();
+        let taken = std::mem::take(&mut world.get_mut::<Pieces>(root).unwrap().0);
+        let mut fake = Pieces(taken);
+        let mut commands_state: SystemState<Commands> = SystemState::new(world);
+        let mut commands = commands_state.get_mut(world).unwrap();
+        let index = damage_at(&mut commands, root, &transform, &mut fake, point, 1000.0)
+            .expect("the hit point is inside a piece");
+        assert!(index < pieces_before);
+        commands_state.apply(world);
+        world.get_mut::<Pieces>(root).unwrap().0 = fake.0;
+    }
+    assert!(app.world().get::<Rebake>(root).is_some(), "a dead piece marks the root");
+    app.update();
+    assert!(app.world().get::<Rebake>(root).is_none(), "rebake ran");
+    let boxes_after = app
+        .world()
+        .get::<Collider>(root)
+        .unwrap()
+        .shape()
+        .as_compound()
+        .unwrap()
+        .shapes()
+        .len();
+    assert_eq!(boxes_after, boxes_before - 1, "the compound lost the dead piece");
+
+    // Walk east through the gap where the wall was.
+    app.update();
+    walk(&mut app, Vec2::new(0.0, -1.0), 120);
+    let out = feet(&app, player);
+    assert!(out.x > 4.0, "the body walks through where the wall was, got {out}");
 }
 
 #[test]

@@ -93,6 +93,7 @@ pub fn build_app(headless: bool) -> App {
             tick_system,
             survival::survival_tick,
             structure::lock_gates,
+            structure::rebake_structures.run_if(any_with_component::<structure::Rebake>),
             player::movement.run_if(not(hud::inventory_open)),
             interact::update_looking_at,
             interact::interact_on_press,

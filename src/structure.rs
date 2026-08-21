@@ -15,8 +15,9 @@ use crate::interact::{Container, spawn_item};
 use modforge::item::{Inventory, ItemRegistry, create};
 use modforge::monument::validate_monument;
 pub use modforge::structure::{
-    Aabb, CONCRETE_FLOOR, CONCRETE_WALL, LightSpec, MonumentDef, NpcSpot, Opening, Rgb, RoomSpec,
-    Side, SolidSpec, StairSpec, StructureDef, side_frame, validate,
+    Aabb, CONCRETE_FLOOR, CONCRETE_WALL, LightSpec, MonumentDef, NpcSpot, Opening, Piece,
+    PieceKind, Rgb, RoomSpec, Side, SolidSpec, StairSpec, StructureDef, damage, piece_at,
+    pieces_of, side_frame, validate,
 };
 
 fn cel_from_rgb(c: Rgb) -> CelMaterial {
@@ -27,9 +28,6 @@ pub const DOOR_HEIGHT: f32 = 2.6;
 const DOOR_THICKNESS: f32 = 0.1;
 pub const DOOR_REACH: f32 = 2.5;
 const DOOR_SWING_DEGREES: f32 = 100.0;
-const SLAB: f32 = 0.1;
-const STEP_RISE_MAX: f32 = 0.31;
-const STEP_DEPTH: f32 = 0.3;
 
 pub const BODY_RADIUS: f32 = 0.35;
 pub const BODY_TOP: f32 = 1.8;
@@ -48,12 +46,109 @@ pub fn body_shape() -> Collider {
 #[derive(Component, Debug, PartialEq)]
 pub struct StructureRoot;
 
-/// One merged mesh per material for a whole structure: every wall,
-/// slab, step, and furniture piece of that material drawn in one
-/// go. The pieces themselves are not entities; their boxes live in
-/// the root's compound collider.
+/// The structure's pieces (modforge data): the single source of
+/// truth for its solid boxes. The collider and the meshes are baked
+/// from this and rebaked when it changes.
+#[derive(Component)]
+pub struct Pieces(pub Vec<Piece>);
+
+/// Marks a root whose pieces changed; `rebake_structures` rebuilds
+/// its collider and meshes next fixed step.
+#[derive(Component)]
+pub struct Rebake;
+
+/// One merged mesh per colour for a whole structure: every wall,
+/// slab, step, and furniture piece of that colour drawn in one go.
+/// The pieces themselves are not entities; their boxes live in the
+/// root's compound collider.
 #[derive(Component, Debug, PartialEq)]
 pub struct StructureBatch;
+
+/// Turn a root's pieces into its one compound collider and one
+/// merged mesh per colour. Batched the way Rust (the game) runs its
+/// buildings (Facepunch devblogs 79 and 82: server side collider
+/// batching with a lookup back to the piece, mesh batching
+/// refreshed when a piece changes). Measured 2026-08-20
+/// (performance.md): one collider per piece costs 12 to 15 ms a
+/// physics step in the city; the compound 1.6 ms.
+fn bake(
+    commands: &mut Commands,
+    meshes: &mut Assets<Mesh>,
+    materials: &mut Assets<CelMaterial>,
+    root: Entity,
+    pieces: &[Piece],
+) {
+    let mut batches: Vec<(Rgb, Mesh)> = Vec::new();
+    let mut shapes = Vec::with_capacity(pieces.len());
+    for piece in pieces {
+        let size = piece.size;
+        shapes.push((
+            piece.center,
+            Quat::IDENTITY,
+            Collider::cuboid(size.x, size.y, size.z),
+        ));
+        let mesh = Mesh::from(Cuboid::new(size.x, size.y, size.z)).translated_by(piece.center);
+        match batches.iter_mut().find(|(c, _)| *c == piece.color) {
+            Some((_, batch)) => batch
+                .merge(&mesh)
+                .expect("every piece is the same cuboid mesh layout"),
+            None => batches.push((piece.color, mesh)),
+        }
+    }
+    for (color, mesh) in batches {
+        commands.spawn((
+            StructureBatch,
+            ChildOf(root),
+            Mesh3d(meshes.add(mesh)),
+            MeshMaterial3d(materials.add(cel_from_rgb(color))),
+            Transform::IDENTITY,
+        ));
+    }
+    if shapes.is_empty() {
+        commands.entity(root).remove::<Collider>();
+    } else {
+        commands.entity(root).insert(Collider::compound(shapes));
+    }
+}
+
+/// Rebuild every marked structure: drop its batches, bake again
+/// from its pieces. Once per change, never per frame.
+pub fn rebake_structures(
+    mut commands: Commands,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<CelMaterial>>,
+    roots: Query<(Entity, &Pieces, &Children), With<Rebake>>,
+    batches: Query<(), With<StructureBatch>>,
+) {
+    for (root, pieces, children) in &roots {
+        for child in children.iter() {
+            if batches.get(child).is_ok() {
+                commands.entity(child).despawn();
+            }
+        }
+        bake(&mut commands, &mut meshes, &mut materials, root, &pieces.0);
+        commands.entity(root).remove::<Rebake>();
+    }
+}
+
+/// A hit on a structure at a world point: find the piece, take
+/// `amount` off it, and mark the root for rebake if the piece died.
+/// Returns the piece index hit, if any.
+pub fn damage_at(
+    commands: &mut Commands,
+    root: Entity,
+    transform: &Transform,
+    pieces: &mut Pieces,
+    world_point: Vec3,
+    amount: f32,
+) -> Option<usize> {
+    let local = world_point - transform.translation;
+    let index = piece_at(&pieces.0, local)?;
+    if damage(&mut pieces.0, index, amount) {
+        commands.entity(root).insert(Rebake);
+    }
+    Some(index)
+}
 
 /// A hinged door. All positions are world space, fixed at spawn;
 /// the collider applies only while closed. `origin` is the
@@ -106,95 +201,17 @@ pub fn spawn_structure(
         ))
         .id();
 
-    let concrete = materials.add(cel_from_rgb(def.wall_color));
-    let floor_mat = materials.add(cel_from_rgb(def.floor_color));
+    // The solid boxes are modforge data; they bake into one compound
+    // collider and one mesh per colour (see `bake`). Doors are the
+    // moving parts, spawned from the openings.
+    let pieces = pieces_of(def);
+    bake(commands, meshes, materials, root, &pieces);
+    commands.entity(root).insert(Pieces(pieces));
+
     let door_mat = materials.add(CelMaterial::from_srgb(0.25, 0.28, 0.30));
-    let stair_mat = materials.add(cel_from_rgb(def.floor_color));
-
-    // Batched, the way Rust (the game) runs its buildings: the
-    // server combines building colliders into batched colliders with
-    // a lookup back to the piece, and meshes are batched (Facepunch
-    // devblogs 79 and 82). Here: every solid's box goes into one
-    // compound collider on the root and into one merged mesh per
-    // material; both built once. Measured 2026-08-20 in the city
-    // (performance.md): one collider per solid costs 12 ms a physics
-    // step as children of the root and 15 ms as standalone static
-    // bodies; the compound costs 1.6 ms. `center` is structure-local.
-    let mut shapes: Vec<(Vec3, Quat, Collider)> = Vec::new();
-    let mut batches: Vec<(Handle<CelMaterial>, Mesh)> = Vec::new();
-    let mut solid = |_commands: &mut Commands,
-                     center: Vec3,
-                     size: Vec3,
-                     material: Handle<CelMaterial>| {
-        shapes.push((center, Quat::IDENTITY, Collider::cuboid(size.x, size.y, size.z)));
-        let piece = Mesh::from(Cuboid::new(size.x, size.y, size.z)).translated_by(center);
-        match batches.iter_mut().find(|(m, _)| *m == material) {
-            Some((_, mesh)) => mesh
-                .merge(&piece)
-                .expect("every solid is the same cuboid mesh layout"),
-            None => batches.push((material, piece)),
-        }
-    };
-
     for room in &def.rooms {
         let t = room.wall_thickness;
         let height = room.interior.y;
-
-        for side in [Side::North, Side::South, Side::East, Side::West] {
-            let (axis, frame, length) = side_frame(side, room.interior, t);
-            let wall_center = room.origin + frame;
-            let mut cuts: Vec<(f32, f32)> = room
-                .openings
-                .iter()
-                .filter(|o| o.side == side)
-                .map(|o| (o.offset - o.width / 2.0, o.offset + o.width / 2.0))
-                .collect();
-            cuts.sort_by(|a, b| a.0.total_cmp(&b.0));
-            let mut cursor = -length / 2.0;
-            let mut segments = Vec::new();
-            for (start, end) in cuts {
-                if start > cursor {
-                    segments.push((cursor, start));
-                }
-                cursor = cursor.max(end);
-            }
-            if cursor < length / 2.0 {
-                segments.push((cursor, length / 2.0));
-            }
-            for (start, end) in segments {
-                let mid = (start + end) / 2.0;
-                let run = end - start;
-                let center = wall_center + axis * mid + Vec3::Y * (height / 2.0);
-                let size = axis * run + Vec3::Y * height + (Vec3::ONE - axis - Vec3::Y) * t;
-                solid(commands, center, size, concrete.clone());
-            }
-            // Panels below raised sills.
-            for opening in room
-                .openings
-                .iter()
-                .filter(|o| o.side == side && o.sill > 0.0)
-            {
-                let center =
-                    wall_center + axis * opening.offset + Vec3::Y * (opening.sill / 2.0);
-                let size = axis * opening.width
-                    + Vec3::Y * opening.sill
-                    + (Vec3::ONE - axis - Vec3::Y) * t;
-                solid(commands, center, size, concrete.clone());
-            }
-        }
-
-        let slab_xz = Vec3::new(room.interior.x + 2.0 * t, 0.0, room.interior.z + 2.0 * t);
-        if room.floor {
-            let center = room.origin + Vec3::Y * (SLAB / 2.0);
-            let size = slab_xz + Vec3::Y * SLAB;
-            solid(commands, center, size, floor_mat.clone());
-        }
-        if room.ceiling {
-            let center = room.origin + Vec3::Y * (height + SLAB);
-            let size = slab_xz + Vec3::Y * 0.2;
-            solid(commands, center, size, concrete.clone());
-        }
-
         for opening in room.openings.iter().filter(|o| o.door) {
             let (axis, frame, _) = side_frame(opening.side, room.interior, t);
             let door_h = DOOR_HEIGHT.min(height - opening.sill);
@@ -231,56 +248,6 @@ pub fn spawn_structure(
                 transform,
             ));
         }
-    }
-
-    for stair in &def.stairs {
-        let dir = stair.side.outward();
-        let across = Vec3::ONE - dir.abs() - Vec3::Y;
-        let steps = (stair.rise / STEP_RISE_MAX).ceil().max(1.0) as usize;
-        let step_rise = stair.rise / steps as f32;
-        for i in 0..steps {
-            let height = step_rise * (i + 1) as f32;
-            let center = stair.base
-                + dir * (STEP_DEPTH * (i as f32 + 0.5))
-                + Vec3::Y * (height / 2.0);
-            let size = dir.abs() * STEP_DEPTH + across * stair.width + Vec3::Y * height;
-            solid(commands, center, size, stair_mat.clone());
-        }
-        if stair.landing > 0.0 {
-            let center = stair.base
-                + dir * (STEP_DEPTH * steps as f32 + stair.landing / 2.0)
-                + Vec3::Y * (stair.rise - SLAB / 2.0);
-            let size = dir.abs() * stair.landing + across * stair.width + Vec3::Y * SLAB;
-            solid(commands, center, size, stair_mat.clone());
-        }
-    }
-
-    // Furniture shares one material per colour so it batches too.
-    let mut furniture_mats: Vec<(Rgb, Handle<CelMaterial>)> = Vec::new();
-    for piece in &def.furniture {
-        let material = match furniture_mats.iter().find(|(c, _)| *c == piece.color) {
-            Some((_, m)) => m.clone(),
-            None => {
-                let m = materials.add(cel_from_rgb(piece.color));
-                furniture_mats.push((piece.color, m.clone()));
-                m
-            }
-        };
-        solid(commands, piece.center, piece.size, material);
-    }
-
-    // One mesh entity per material and one collider for the building.
-    for (material, mesh) in batches {
-        commands.spawn((
-            StructureBatch,
-            ChildOf(root),
-            Mesh3d(meshes.add(mesh)),
-            MeshMaterial3d(material),
-            Transform::IDENTITY,
-        ));
-    }
-    if !shapes.is_empty() {
-        commands.entity(root).insert(Collider::compound(shapes));
     }
 
     for light in &def.lights {

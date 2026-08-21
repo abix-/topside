@@ -145,6 +145,34 @@ layouts, and their names re-roll with the world, while everything with an
 owner (your bunker, the factions' bunkers) carries forward. The map is never
 fully known, but the story of who holds what continues.
 
+## Building, the Rust way (operator, 2026-08-20: "think about how
+## Rust lets you build buildings. i want that")
+
+Rust's system, from its guides and Facepunch's devblogs: a building
+plan places pieces (foundation, wall, doorway, window, floor, stairs,
+roof) that snap to a grid anchored on foundations; a hammer upgrades,
+repairs, rotates, demolishes. Every piece has its own grade (twig,
+wood, stone, sheet metal, armoured: 10, 250, 500, 1000, 2000 health),
+its own health, and a stability percentage that falls with distance
+from support; zero collapses it. A tool cupboard makes the base
+yours, sets who may build, and eats upkeep; an empty cupboard means
+decay, faster for weaker grades. Doorways have a soft side that must
+face in. At runtime Rust batches the pieces' colliders per building
+with a lookup back to the piece and rebuilds the batch when a piece
+changes; meshes are batched the same way.
+
+Topside's model: a building is a list of pieces (modforge `Piece`:
+kind, box, colour, health), the single source of truth. Everything
+the player sees or bumps into is baked from the list (one collider
+and one mesh per colour per building) and rebaked once when the list
+changes, never per frame. A hit on the building resolves to the
+piece under the hit point; damage edits the piece; a dead piece is
+removed and the building rebaked. Monuments roll rooms and flatten
+them into the same pieces, so a monument building and a player base
+are the same thing: capturable, damageable, kept or swapped by the
+storm by owner. Grades, stability, the snap grid, the cupboard, and
+upkeep are the next layers on the same list.
+
 ## Seamless, no loading screens (operator-locked 2026-08-19)
 
 One continuous world, zero loading screens. The bunker is geometry in the
