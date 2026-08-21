@@ -2,13 +2,13 @@
 //! consuming the modforge crate. Ownership map: docs/authority.md.
 
 pub mod actor;
+pub mod actor_map;
 pub mod ai;
 pub mod bunker;
 pub mod cel;
 pub mod combat;
 pub mod content;
 pub mod control_plane;
-pub mod entity_map;
 pub mod ground;
 pub mod hud;
 pub mod input;
@@ -58,8 +58,7 @@ pub fn build_app(headless: bool) -> App {
     app.insert_resource(Time::<Fixed>::from_hz(60.0));
     app.init_state::<AppState>();
     app.init_resource::<SimTick>();
-    app.init_resource::<entity_map::GpuSlotPool>();
-    app.init_resource::<entity_map::EntityMap>();
+    app.init_resource::<actor_map::ActorMapRes>();
     app.init_resource::<survival::Rates>();
     app.init_resource::<content::ItemRegistryRes>();
     app.init_resource::<content::DamageRegistryRes>();

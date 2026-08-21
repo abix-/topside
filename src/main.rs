@@ -3,10 +3,10 @@
 
 use std::time::{Duration, Instant};
 
-use bevy::prelude::Transform;
+use bevy::prelude::{Entity, Transform};
 use modforge::survival::FULL;
 use topside::{
-    SimTick, build_app, entity_map::GpuSlotPool, player::Player, survival::Survival,
+    SimTick, actor_map::ActorMapRes, build_app, player::Player, survival::Survival,
 };
 
 fn main() {
@@ -34,15 +34,19 @@ fn run_boot_test() -> i32 {
     }
     println!("phase 2 pass: {ticks} simulation ticks in 500ms");
 
-    let mut pool = GpuSlotPool::default();
-    let first = pool.alloc().expect("empty pool must allocate");
-    pool.free(first);
-    let reused = pool.alloc().expect("pool with a freed slot must allocate");
-    if first != reused {
-        println!("phase 3 FAIL: freed slot {first} not reused (got {reused})");
+    let mut map = ActorMapRes::default().0;
+    let (first_id, first_row) = map.spawn(Entity::PLACEHOLDER).expect("empty map must spawn");
+    map.remove(first_id);
+    let (second_id, second_row) = map
+        .spawn(Entity::PLACEHOLDER)
+        .expect("map with a freed row must spawn");
+    if first_row != second_row || first_id == second_id {
+        println!(
+            "phase 3 FAIL: row {first_row} -> {second_row}, id {first_id:?} -> {second_id:?} (row reused, id never)"
+        );
         return 1;
     }
-    println!("phase 3 pass: slot pool allocates, frees, reuses");
+    println!("phase 3 pass: actor map reuses rows and never ids");
 
     let player = app
         .world_mut()

@@ -13,7 +13,7 @@ use topside::{
     cel::CelMaterial,
     combat::{Firing, Health, Protection},
     content::ActorRegistryRes,
-    entity_map::{EntityMap, GpuSlotPool},
+    actor_map::{Actor, ActorMapRes},
     input::{Actions, ThisTick},
     player::Player,
     survival::Survival,
@@ -64,10 +64,15 @@ fn spawn_actor_sets_identity_faction_position_and_the_shared_parts() {
     let npc = world.get::<Npc>(a).unwrap();
     assert_eq!(npc.def, "scavenger");
     assert_eq!(npc.faction, "raiders");
-    assert_ne!(npc.slot, world.get::<Npc>(b).unwrap().slot, "each NPC owns its slot");
-    assert_eq!(world.resource::<EntityMap>().entity_for_slot(npc.slot), Some(a));
-    assert_eq!(world.resource::<EntityMap>().npc_count(), 2);
-    assert_eq!(world.resource::<GpuSlotPool>().count(), 2);
+    // Identity: one ActorId each, registered in the one map.
+    let id_a = world.get::<Actor>(a).unwrap().0;
+    let id_b = world.get::<Actor>(b).unwrap().0;
+    assert_ne!(id_a, id_b, "each actor owns its id");
+    let map = &world.resource::<ActorMapRes>().0;
+    assert_eq!(map.handle_of(id_a), Some(a));
+    assert_eq!(map.id_of(b), Some(id_b));
+    assert_eq!(map.live_count(), 2);
+    assert_eq!(map.row_count(), 2);
 
     let at = world.get::<Transform>(a).unwrap().translation;
     assert_eq!(at, Vec3::new(5.0, EYE_HEIGHT, -5.0), "eyes above the feet");

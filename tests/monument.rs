@@ -12,7 +12,7 @@ use topside::{
     build_app,
     cel::CelMaterial,
     content::{ItemRegistryRes, MonumentRegistryRes},
-    entity_map::EntityMap,
+    actor_map::ActorMapRes,
     input::{Action, Actions},
     interact::{Container, LookingAt, WorldItem},
     player::Player,
@@ -106,7 +106,7 @@ fn a_rolled_monument_spawns_its_members_boxes_and_gate() {
         .filter(|e| world.get::<Npc>(**e).is_some())
         .count();
     assert_eq!(npcs, members, "one NPC per spot, parented to the root");
-    assert_eq!(world.resource::<EntityMap>().npc_count(), members);
+    assert_eq!(world.resource::<ActorMapRes>().0.live_count(), members);
 
     let locked: Vec<(Entity, u32)> = world
         .query::<(Entity, &Door, &Locked)>()

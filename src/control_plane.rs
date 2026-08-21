@@ -26,12 +26,12 @@ static FPS_BITS: AtomicU32 = AtomicU32::new(0);
 
 pub fn publish_system(
     tick: Res<crate::SimTick>,
-    map: Res<crate::entity_map::EntityMap>,
+    actors: Res<crate::actor_map::ActorMapRes>,
     diagnostics: Option<Res<DiagnosticsStore>>,
     players: Query<&crate::survival::Survival, With<crate::player::Player>>,
 ) {
     TICK.store(tick.0, Ordering::Relaxed);
-    PEOPLE.store(map.npc_count(), Ordering::Relaxed);
+    PEOPLE.store(actors.0.live_count(), Ordering::Relaxed);
     if let Ok(survival) = players.single() {
         HUNGER_BITS.store(survival.0.hunger.to_bits(), Ordering::Relaxed);
         THIRST_BITS.store(survival.0.thirst.to_bits(), Ordering::Relaxed);

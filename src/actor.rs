@@ -16,7 +16,7 @@ use modforge::item::{self, EquipSlot};
 use crate::cel::CelMaterial;
 use crate::combat::{Firing, Health, Protection};
 use crate::content::{ActorRegistryRes, ItemRegistryRes};
-use crate::entity_map::{EntityMap, GpuSlotPool};
+use crate::actor_map::{Actor, ActorMapRes};
 use crate::input::{Actions, ThisTick};
 use crate::structure::{BODY_RADIUS, BODY_TOP, MonumentRoot, body_shape};
 use crate::survival::Survival;
@@ -42,14 +42,13 @@ impl Facing {
     }
 }
 
-/// An NPC: which def it was spawned from, its faction, and its GPU
-/// slot. The player has no `Npc`; everything else on an actor is
-/// shared (see `spawn_actor`).
+/// An NPC: which def it was spawned from and its faction. The player
+/// has no `Npc`; everything else on an actor is shared (see
+/// `spawn_actor`). Identity is the `Actor` component beside it.
 #[derive(Component, Debug, Clone, PartialEq)]
 pub struct Npc {
     pub def: String,
     pub faction: String,
-    pub slot: usize,
 }
 
 /// What the one spawn path needs from the world.
@@ -59,8 +58,7 @@ pub struct SpawnActor<'w, 's> {
     pub meshes: ResMut<'w, Assets<Mesh>>,
     pub materials: ResMut<'w, Assets<CelMaterial>>,
     pub items: Res<'w, ItemRegistryRes>,
-    pub slots: ResMut<'w, GpuSlotPool>,
-    pub entity_map: ResMut<'w, EntityMap>,
+    pub actors: ResMut<'w, ActorMapRes>,
 }
 
 /// The ONE path through which an NPC enters the world (authority.md:
@@ -68,10 +66,9 @@ pub struct SpawnActor<'w, 's> {
 /// arrivals, saves, and tests all come here. The actor gets exactly
 /// what the player has (inventory, hotbar, equipment, survival,
 /// health, protection, a fire timer, an action queue) plus a body
-/// the world can hit and a GPU slot. `feet` is where it stands.
-/// Returns None when the slot pool is full.
+/// the world can hit and its `ActorId` from the one map. `feet` is
+/// where it stands. Returns None when the map has no row left.
 pub fn spawn_actor(spawn: &mut SpawnActor, def: &ActorDef, feet: Vec3, yaw: f32) -> Option<Entity> {
-    let slot = spawn.slots.alloc()?;
     let facing = Facing { yaw, pitch: 0.0 };
     let mut equipment = Equipment::default();
     if let Some(weapon) = def.weapon.as_deref().and_then(|w| spawn.items.0.def(w)) {
@@ -85,7 +82,6 @@ pub fn spawn_actor(spawn: &mut SpawnActor, def: &ActorDef, feet: Vec3, yaw: f32)
             Npc {
                 def: def.name.clone(),
                 faction: def.faction.clone(),
-                slot,
             },
             Transform::from_translation(feet + Vec3::Y * EYE_HEIGHT).with_rotation(facing.rotation()),
             Visibility::default(),
@@ -116,7 +112,12 @@ pub fn spawn_actor(spawn: &mut SpawnActor, def: &ActorDef, feet: Vec3, yaw: f32)
             ));
         })
         .id();
-    spawn.entity_map.insert_npc(slot, entity);
+    let Some((id, _row)) = spawn.actors.0.spawn(entity) else {
+        // No row left: the actor never existed.
+        spawn.commands.entity(entity).despawn();
+        return None;
+    };
+    spawn.commands.entity(entity).insert(Actor(id));
     Some(entity)
 }
 
