@@ -6,7 +6,7 @@ use avian3d::prelude::*;
 use bevy::prelude::*;
 use bevy::window::{CursorOptions, PrimaryWindow};
 use modforge::hud::{InteractKind, InteractResult, OpenPanel, interact};
-use modforge::item::ItemStack;
+use modforge::item::{ItemDef, ItemKind, ItemStack};
 use modforge::structure::Aabb;
 
 use crate::actor::Inventory;
@@ -25,6 +25,9 @@ pub struct Interactable {
     pub aabb: Aabb,
 }
 
+/// Anything from the item system sitting in the world: a dropped
+/// can, a storage box, a crafting bench (design.md). Items inside a
+/// box are stacks in its `Container`, not WorldItems.
 #[derive(Component)]
 pub struct WorldItem {
     pub stack: ItemStack,
@@ -33,7 +36,7 @@ pub struct WorldItem {
 #[derive(Resource, Default)]
 pub struct InteractInput(pub bool);
 
-/// A crate, chest, or corpse: an inventory in the world that opens
+/// The inventory a deployed WorldItem holds (a storage box). Opens
 /// through the interact path and transfers with the player.
 #[derive(Component)]
 pub struct Container(pub modforge::item::Inventory);
@@ -43,72 +46,52 @@ pub struct Container(pub modforge::item::Inventory);
 #[derive(Resource, Default)]
 pub struct OpenContainer(pub Option<Entity>);
 
-pub const CONTAINER_SLOTS: usize = 12;
-const CONTAINER_SIZE: f32 = 0.7;
+const DEPLOYABLE_HALF: f32 = 0.35;
 
-/// The ONE path from an inventory to a container entity in the
-/// world: a solid box with a collider, opened with E.
-pub fn spawn_container(
-    commands: &mut Commands,
-    meshes: &mut Assets<Mesh>,
-    materials: &mut Assets<CelMaterial>,
-    contents: modforge::item::Inventory,
-    position: Vec3,
-    color: [f32; 3],
-) -> Entity {
-    let half = CONTAINER_SIZE / 2.0;
-    commands
-        .spawn((
-            Interactable {
-                kind: InteractKind::Container,
-                aabb: Aabb {
-                    min: position - Vec3::splat(half),
-                    max: position + Vec3::splat(half),
-                },
-            },
-            Container(contents),
-            RigidBody::Static,
-            Collider::cuboid(CONTAINER_SIZE, CONTAINER_SIZE, CONTAINER_SIZE),
-            Mesh3d(meshes.add(Cuboid::new(CONTAINER_SIZE, CONTAINER_SIZE, CONTAINER_SIZE))),
-            MeshMaterial3d(materials.add(CelMaterial::from_srgb(color[0], color[1], color[2]))),
-            Transform::from_translation(position),
-            Visibility::default(),
-        ))
-        .id()
-}
-
-/// The ONE path from an item stack to a pickup entity in the world.
+/// The ONE path from an item stack to a WorldItem entity. A pickup
+/// is a small box E picks up; a deployable is a solid box E uses
+/// (with `Container` when its def has storage).
 pub fn spawn_item(
     commands: &mut Commands,
     meshes: &mut Assets<Mesh>,
     materials: &mut Assets<CelMaterial>,
+    def: &ItemDef,
     stack: ItemStack,
     position: Vec3,
     color: [f32; 3],
 ) -> Entity {
+    debug_assert_eq!(def.name, stack.item, "the stack must be of this def");
+    let deployable = def.kind == ItemKind::Deployable;
+    let half = if deployable { DEPLOYABLE_HALF } else { ITEM_HALF };
     let aabb = Aabb {
-        min: position - Vec3::splat(ITEM_HALF),
-        max: position + Vec3::splat(ITEM_HALF),
+        min: position - Vec3::splat(half),
+        max: position + Vec3::splat(half),
     };
-    let mesh = meshes.add(Cuboid::new(
-        ITEM_HALF * 2.0,
-        ITEM_HALF * 2.0,
-        ITEM_HALF * 2.0,
-    ));
-    let mat = materials.add(CelMaterial::from_srgb(color[0], color[1], color[2]));
-    commands
-        .spawn((
-            Interactable {
-                kind: InteractKind::Pickup,
-                aabb,
+    let mut entity = commands.spawn((
+        Interactable {
+            kind: if def.storage.is_some() {
+                InteractKind::Container
+            } else {
+                InteractKind::Pickup
             },
-            WorldItem { stack },
-            Mesh3d(mesh),
-            MeshMaterial3d(mat),
-            Transform::from_translation(position),
-            Visibility::default(),
-        ))
-        .id()
+            aabb,
+        },
+        WorldItem { stack },
+        Mesh3d(meshes.add(Cuboid::new(half * 2.0, half * 2.0, half * 2.0))),
+        MeshMaterial3d(materials.add(CelMaterial::from_srgb(color[0], color[1], color[2]))),
+        Transform::from_translation(position),
+        Visibility::default(),
+    ));
+    if deployable {
+        entity.insert((
+            RigidBody::Static,
+            Collider::cuboid(half * 2.0, half * 2.0, half * 2.0),
+        ));
+    }
+    if let Some(slots) = def.storage {
+        entity.insert(Container(modforge::item::Inventory::new(slots)));
+    }
+    entity.id()
 }
 
 /// Nearest interactable the player is looking at this frame.

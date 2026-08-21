@@ -19,7 +19,7 @@ use topside::{
     content::ItemRegistryRes,
     hud::{HoveredSlot, HudRes},
     interact::{
-        CONTAINER_SLOTS, Container, InteractInput, Interactable, LookingAt, OpenContainer,
+        Container, InteractInput, Interactable, LookingAt, OpenContainer,
         WorldItem,
     },
     player::Player,
@@ -342,9 +342,22 @@ fn container_opens_and_t_transfers_both_ways() {
     let (mut app, player) = playing_app();
     let scrap = stack(&app, "scrap", 8);
     let cloth = stack(&app, "cloth", 2);
-    let mut loot = modforge::item::Inventory::new(CONTAINER_SLOTS);
+    let slots = app
+        .world()
+        .resource::<ItemRegistryRes>()
+        .0
+        .def("storage box")
+        .unwrap()
+        .storage
+        .expect("a storage box holds an inventory");
+    let mut loot = modforge::item::Inventory::new(slots);
     loot.slots[0] = Some(scrap);
-    let crate_ = in_front(&mut app, InteractKind::Container, Container(loot));
+    let box_stack = stack(&app, "storage box", 1);
+    let crate_ = in_front(
+        &mut app,
+        InteractKind::Container,
+        (WorldItem { stack: box_stack }, Container(loot)),
+    );
     app.world_mut().get_mut::<Inventory>(player).unwrap().0.slots[0] = Some(cloth);
 
     // E on the crate: modforge opens the panel, topside remembers

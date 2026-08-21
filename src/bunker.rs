@@ -8,7 +8,7 @@ use modforge::item::{Inventory, create};
 
 use crate::cel::CelMaterial;
 use crate::content::ItemRegistryRes;
-use crate::interact::{CONTAINER_SLOTS, spawn_container, spawn_item};
+use crate::interact::{Container, spawn_item};
 use crate::structure::{
     LightSpec, Opening, RoomSpec, Side, SolidSpec, StairSpec, StructureDef, spawn_structure,
 };
@@ -207,51 +207,39 @@ pub fn setup(
             .def(name)
             .unwrap_or_else(|| panic!("item '{name}' is not registered"))
     };
-    spawn_item(
-        &mut commands,
-        &mut meshes,
-        &mut cel_materials,
-        create(def("canned food"), 6, &[], now, 1),
-        Vec3::new(-1.0, 0.3, 2.0),
-        [0.2, 0.6, 0.2],
-    );
-    spawn_item(
-        &mut commands,
-        &mut meshes,
-        &mut cel_materials,
-        create(def("water bottle"), 5, &[], now, 3),
-        Vec3::new(-1.0, 0.3, 2.6),
-        [0.3, 0.5, 0.8],
-    );
-    spawn_item(
-        &mut commands,
-        &mut meshes,
-        &mut cel_materials,
-        create(def("water bottle"), 1, &[], now, 4),
-        Vec3::new(-1.6, 0.3, 2.6),
-        [0.3, 0.5, 0.8],
-    );
-    spawn_item(
-        &mut commands,
-        &mut meshes,
-        &mut cel_materials,
-        create(def("scrap"), 3, &[], now, 2),
-        Vec3::new(1.0, 0.3, 2.0),
-        [0.5, 0.5, 0.5],
-    );
+    let floor = [
+        ("canned food", 6, 1, Vec3::new(-1.0, 0.3, 2.0), [0.2, 0.6, 0.2]),
+        ("water bottle", 5, 3, Vec3::new(-1.0, 0.3, 2.6), [0.3, 0.5, 0.8]),
+        ("water bottle", 1, 4, Vec3::new(-1.6, 0.3, 2.6), [0.3, 0.5, 0.8]),
+        ("scrap", 3, 2, Vec3::new(1.0, 0.3, 2.0), [0.5, 0.5, 0.5]),
+    ];
+    for (name, count, salt, position, color) in floor {
+        spawn_item(
+            &mut commands,
+            &mut meshes,
+            &mut cel_materials,
+            def(name),
+            create(def(name), count, &[], now, salt),
+            position,
+            color,
+        );
+    }
 
-    // The loot crate upstairs in the house: something to find.
-    let mut loot = Inventory::new(CONTAINER_SLOTS);
+    // The storage box upstairs in the house, with loot in it: a
+    // deployed WorldItem whose container is filled after spawn.
+    let mut loot = Inventory::new(def("storage box").storage.expect("a box has storage"));
     for (name, count, salt) in [("scrap", 8, 5), ("cloth", 4, 6), ("pipe", 1, 7)] {
         let rest = loot.add(create(def(name), count, &[], now, salt), def(name).max_stack);
-        debug_assert!(rest.is_none(), "the crate has room for its loot");
+        debug_assert!(rest.is_none(), "the box has room for its loot");
     }
-    spawn_container(
+    let box_ = spawn_item(
         &mut commands,
         &mut meshes,
         &mut cel_materials,
-        loot,
+        def("storage box"),
+        create(def("storage box"), 1, &[], now, 8),
         house_origin + Vec3::new(0.0, 3.45, 2.5),
         [0.55, 0.45, 0.20],
     );
+    commands.entity(box_).insert(Container(loot));
 }

@@ -15,9 +15,7 @@ use modforge::hud::{
 use crate::actor::{Hotbar, INVENTORY_SLOTS, Inventory};
 use crate::cel::CelMaterial;
 use crate::content::ItemRegistryRes;
-use crate::interact::{
-    CONTAINER_SLOTS, Container, LookingAt, OpenContainer, WorldItem, spawn_item,
-};
+use crate::interact::{Container, LookingAt, OpenContainer, WorldItem, spawn_item};
 use crate::player::Player;
 use crate::survival::Survival;
 
@@ -51,6 +49,9 @@ pub struct Slot(pub SlotRef);
 const SLOT_COLUMNS: usize = 5;
 const SLOT_SIZE: f32 = 96.0;
 const HOTBAR_SLOT_SIZE: f32 = 64.0;
+/// Slots the container panel paints: the largest storage any
+/// deployable has. Smaller boxes leave the rest blank.
+const CONTAINER_PANEL_SLOTS: usize = 12;
 
 pub fn setup(mut commands: Commands) {
     commands.spawn((
@@ -129,7 +130,7 @@ pub fn setup(mut commands: Commands) {
             Visibility::Hidden,
         ))
         .with_children(|panel| {
-            for index in 0..CONTAINER_SLOTS {
+            for index in 0..CONTAINER_PANEL_SLOTS {
                 spawn_slot(panel, Holder::Container, index, SLOT_SIZE);
             }
         });
@@ -369,6 +370,7 @@ pub fn drop_hovered(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<CelMaterial>>,
+    registry: Res<ItemRegistryRes>,
     mut holders: OnScreenHolders,
     players: Query<&Transform, With<Player>>,
 ) {
@@ -381,11 +383,15 @@ pub fn drop_hovered(
     let Some(stack) = holders.one(slot).and_then(|holder| drop_slot(holder, slot.index)) else {
         return;
     };
+    let Some(def) = registry.0.def(&stack.item) else {
+        return;
+    };
     let feet = transform.translation.with_y(0.3) + transform.forward().with_y(0.0) * 1.0;
     spawn_item(
         &mut commands,
         &mut meshes,
         &mut materials,
+        def,
         stack,
         feet,
         [0.6, 0.6, 0.6],

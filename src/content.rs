@@ -31,6 +31,7 @@ pub fn register_items(reg: &mut ItemRegistry) {
                 hunger: 50.0,
                 thirst: 0.0,
             }),
+            storage: None,
         },
         ItemDef {
             name: "water bottle".to_string(),
@@ -42,6 +43,16 @@ pub fn register_items(reg: &mut ItemRegistry) {
                 hunger: 0.0,
                 thirst: 50.0,
             }),
+            storage: None,
+        },
+        ItemDef {
+            name: "storage box".to_string(),
+            kind: ItemKind::Deployable,
+            max_stack: 1,
+            quality_siblings: 1,
+            combat: None,
+            food: None,
+            storage: Some(12),
         },
         ItemDef {
             name: "scrap".to_string(),
@@ -50,6 +61,7 @@ pub fn register_items(reg: &mut ItemRegistry) {
             quality_siblings: 1,
             combat: None,
             food: None,
+            storage: None,
         },
         ItemDef {
             name: "cloth".to_string(),
@@ -58,6 +70,7 @@ pub fn register_items(reg: &mut ItemRegistry) {
             quality_siblings: 1,
             combat: None,
             food: None,
+            storage: None,
         },
         ItemDef {
             name: "pipe".to_string(),
@@ -66,6 +79,7 @@ pub fn register_items(reg: &mut ItemRegistry) {
             quality_siblings: 3,
             combat: None,
             food: None,
+            storage: None,
         },
         ItemDef {
             name: "hatchet".to_string(),
@@ -74,6 +88,7 @@ pub fn register_items(reg: &mut ItemRegistry) {
             quality_siblings: 3,
             combat: None,
             food: None,
+            storage: None,
         },
     ];
     for item in items {
@@ -161,7 +176,7 @@ mod tests {
     fn all_items_register() {
         let mut reg = ItemRegistry::default();
         register_items(&mut reg);
-        assert_eq!(reg.len(), 6);
+        assert_eq!(reg.len(), 7);
         assert!(reg.def("canned food").is_some());
         assert!(reg.def("hatchet").is_some());
     }

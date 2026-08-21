@@ -467,6 +467,14 @@ they have equipment slots. all of those take items and should be their
 own thing in the struct"): the inventory, the hotbar, and the
 equipment slots. Not one list with index ranges.
 
+Everything placed in the world from the item system is a WorldItem:
+the food on the bunker floor, the storage box, a crafting bench
+(operator, 2026-08-20: "we need worlditem to handle ALL the
+worlditems"; "it's only the storage box in the world that's a world
+item or a crafting bench"). Items inside a box are stacks in its
+inventory, not WorldItems. One kind of thing in the world, one spawn
+path; a storage box is a WorldItem that also holds an inventory.
+
 The player and every NPC are the same kind of actor on the same
 structs; the only difference is who drives them (operator,
 2026-08-20: "npc action and human action need to be built on top of
