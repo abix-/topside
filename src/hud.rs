@@ -13,7 +13,7 @@ use modforge::hud::{
     hotbar_slot, prompt_for, slot_label, start_drag, toggle_panel, transfer_slot, use_slot,
 };
 
-use crate::actor::{Hotbar, INVENTORY_SLOTS, Inventory};
+use crate::actor::{Equipment, Hotbar, INVENTORY_SLOTS, Inventory};
 use crate::cel::CelMaterial;
 use crate::content::ItemRegistryRes;
 use crate::interact::{Container, LookingAt, OpenContainer, WorldItem, spawn_item};
@@ -248,7 +248,7 @@ pub fn inventory_open(hud: Res<HudRes>) -> bool {
 pub fn hotbar_keys(
     keys: Res<ButtonInput<KeyCode>>,
     registry: Res<ItemRegistryRes>,
-    mut players: Query<(&mut Hotbar, &mut Survival), With<Player>>,
+    mut players: Query<(&mut Hotbar, &mut Survival, &mut Equipment), With<Player>>,
 ) {
     const DIGITS: [(KeyCode, u8); 10] = [
         (KeyCode::Digit1, 1),
@@ -269,10 +269,10 @@ pub fn hotbar_keys(
     else {
         return;
     };
-    let Ok((mut hotbar, mut survival)) = players.single_mut() else {
+    let Ok((mut hotbar, mut survival, mut equipment)) = players.single_mut() else {
         return;
     };
-    let _ = use_slot(&mut survival.0, &mut hotbar.0, slot, &registry.0);
+    let _ = use_slot(&mut survival.0, &mut hotbar.0, slot, &registry.0, &mut equipment.0);
 }
 
 /// Double left click uses the slot (modforge `use_slot`; food is
@@ -282,7 +282,7 @@ fn slot_clicked(
     slots: Query<&Slot>,
     registry: Res<ItemRegistryRes>,
     mut holders: OnScreenHolders,
-    mut players: Query<&mut Survival, With<Player>>,
+    mut players: Query<(&mut Survival, &mut Equipment), With<Player>>,
 ) {
     if click.button != PointerButton::Primary || click.count < 2 {
         return;
@@ -290,11 +290,13 @@ fn slot_clicked(
     let Ok(slot) = slots.get(click.entity) else {
         return;
     };
-    let (Some(holder), Ok(mut survival)) = (holders.one(slot.0), players.single_mut()) else {
+    let (Some(holder), Ok((mut survival, mut equipment))) =
+        (holders.one(slot.0), players.single_mut())
+    else {
         return;
     };
     // A refused use (not food, empty) changes nothing.
-    let _ = use_slot(&mut survival.0, holder, slot.0.index, &registry.0);
+    let _ = use_slot(&mut survival.0, holder, slot.0.index, &registry.0, &mut equipment.0);
 }
 
 fn slot_drag_start(

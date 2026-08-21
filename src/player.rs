@@ -2,6 +2,7 @@
 //! click grabs the cursor, mouse looks, WASD walks, Escape releases.
 
 use crate::actor::{Equipment, Hotbar, Inventory};
+use crate::combat::{Attacking, Firing, Health, Protection};
 use crate::structure::{BODY_TOP, CLIMB, body_shape};
 use crate::survival::Survival;
 use avian3d::prelude::*;
@@ -10,9 +11,10 @@ use bevy::prelude::*;
 use bevy::window::{CursorGrabMode, CursorOptions, PrimaryWindow};
 
 /// The human-driven actor. Carries exactly what an NPC carries
-/// (actor.rs); the camera and input are the only difference.
+/// (actor.rs, combat.rs); the camera and input are the only
+/// difference.
 #[derive(Component)]
-#[require(Inventory, Hotbar, Equipment, Survival)]
+#[require(Inventory, Hotbar, Equipment, Survival, Health, Protection, Firing, Attacking)]
 pub struct Player {
     pub yaw: f32,
     pub pitch: f32,
@@ -21,7 +23,7 @@ pub struct Player {
 #[derive(Resource, Default)]
 pub struct MovementInput(pub Vec2);
 
-const EYE_HEIGHT: f32 = 1.7;
+pub const EYE_HEIGHT: f32 = 1.7;
 const WALK_SPEED: f32 = 5.0;
 const MOUSE_SENS: f32 = 0.002;
 const PITCH_LIMIT: f32 = 1.54;

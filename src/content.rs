@@ -5,7 +5,8 @@
 use bevy::math::Vec3;
 use bevy::prelude::Resource;
 use modforge::biome::{BiomeDef, BiomeRegistry, ScatterSpec};
-use modforge::item::{FoodStats, ItemDef, ItemKind, ItemRegistry};
+use modforge::combat::{DamageDef, DamageRegistry, DamageType, Falloff};
+use modforge::item::{CombatStats, FoodStats, ItemDef, ItemKind, ItemRegistry};
 use modforge::monument::{
     Arrangement, BuildingRegistry, BuildingSize, BuildingSlot, BuildingTypeDef,
     MonumentRegistry, MonumentTypeDef,
@@ -22,6 +23,38 @@ impl Default for ItemRegistryRes {
         let mut reg = ItemRegistry::default();
         register_items(&mut reg);
         Self(reg)
+    }
+}
+
+/// The damage registry as an app resource: every hit names a def
+/// from here (design.md "How a hit works").
+#[derive(Resource)]
+pub struct DamageRegistryRes(pub DamageRegistry);
+
+impl Default for DamageRegistryRes {
+    fn default() -> Self {
+        let mut reg = DamageRegistry::default();
+        register_damage(&mut reg);
+        Self(reg)
+    }
+}
+
+/// What each weapon's hit does. Melee has no falloff.
+pub fn register_damage(reg: &mut DamageRegistry) {
+    let melee = |name: &str, amount, kind| DamageDef {
+        name: name.to_string(),
+        amount,
+        kind,
+        knockback: 1.0,
+        ignores_armor: false,
+        self_scale: 0.5,
+        falloff: Falloff::NONE,
+    };
+    for def in [
+        melee("pipe swing", 20.0, DamageType::Blunt),
+        melee("hatchet chop", 30.0, DamageType::Slash),
+    ] {
+        reg.register(def).expect("damage defs must not collide");
     }
 }
 
@@ -104,7 +137,14 @@ pub fn register_items(reg: &mut ItemRegistry) {
             kind: ItemKind::Weapon,
             max_stack: 1,
             quality_siblings: 3,
-            combat: None,
+            combat: Some(CombatStats {
+                damage: "pipe swing".to_string(),
+                delay: 0.6,
+                reach: 2.0,
+                pellets: 1,
+                spread_degrees: 0.0,
+                ammo: None,
+            }),
             food: None,
             storage: None,
         },
@@ -113,7 +153,14 @@ pub fn register_items(reg: &mut ItemRegistry) {
             kind: ItemKind::Tool,
             max_stack: 1,
             quality_siblings: 3,
-            combat: None,
+            combat: Some(CombatStats {
+                damage: "hatchet chop".to_string(),
+                delay: 0.8,
+                reach: 1.8,
+                pellets: 1,
+                spread_degrees: 0.0,
+                ammo: None,
+            }),
             food: None,
             storage: None,
         },

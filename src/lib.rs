@@ -4,6 +4,7 @@
 pub mod actor;
 pub mod bunker;
 pub mod cel;
+pub mod combat;
 pub mod content;
 pub mod control_plane;
 pub mod entity_map;
@@ -59,6 +60,7 @@ pub fn build_app(headless: bool) -> App {
     app.init_resource::<entity_map::EntityMap>();
     app.init_resource::<survival::Rates>();
     app.init_resource::<content::ItemRegistryRes>();
+    app.init_resource::<content::DamageRegistryRes>();
     app.init_resource::<content::MonumentRegistryRes>();
     app.init_resource::<ButtonInput<KeyCode>>();
     app.init_resource::<interact::LookingAt>();
@@ -95,6 +97,7 @@ pub fn build_app(headless: bool) -> App {
             structure::lock_gates,
             structure::rebake_structures.run_if(any_with_component::<structure::Rebake>),
             player::movement.run_if(not(hud::inventory_open)),
+            combat::fire,
             interact::update_looking_at,
             interact::interact_on_press,
             control_plane::publish_system,
@@ -126,6 +129,7 @@ pub fn build_app(headless: bool) -> App {
             (
                 player::cursor_grab.run_if(not(hud::inventory_open)),
                 player::mouse_look.run_if(not(hud::inventory_open)),
+                combat::capture_attack_input,
                 hud::toggle_inventory,
                 hud::drop_hovered.run_if(hud::inventory_open),
                 hud::write_prompt,

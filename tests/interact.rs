@@ -324,11 +324,12 @@ fn drag_across_holders_hotbar_key_eats_and_o_drops() {
     assert_eq!(slot_label(holders.hotbar.slots[key_one].as_ref()), "canned food x2");
 
     survival.0.hunger = 10.0;
-    use_slot(&mut survival.0, holders.hotbar, key_one, &registry.0).unwrap();
+    let mut gear = modforge::item::Equipment::default();
+    use_slot(&mut survival.0, holders.hotbar, key_one, &registry.0, &mut gear).unwrap();
     assert_eq!(survival.0.hunger, 60.0);
     assert_eq!(slot_label(holders.hotbar.slots[key_one].as_ref()), "canned food");
     assert!(
-        use_slot(&mut survival.0, holders.inventory, 3, &registry.0).is_err(),
+        use_slot(&mut survival.0, holders.inventory, 3, &registry.0, &mut gear).is_err(),
         "scrap is not food"
     );
 

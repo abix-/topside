@@ -14,10 +14,11 @@ use crate::cel::CelMaterial;
 use crate::interact::{Container, spawn_item};
 use modforge::item::{Inventory, ItemRegistry, create};
 use modforge::monument::validate_monument;
+use modforge::combat::Hit;
 pub use modforge::structure::{
     Aabb, CONCRETE_FLOOR, CONCRETE_WALL, LightSpec, MonumentDef, NpcSpot, Opening, Piece,
-    PieceKind, Rgb, RoomSpec, Side, SolidSpec, StairSpec, StructureDef, damage, piece_at,
-    pieces_of, side_frame, validate,
+    PieceHit, PieceKind, Rgb, RoomSpec, Side, SolidSpec, StairSpec, StructureDef, damage,
+    piece_at, pieces_of, side_frame, validate,
 };
 
 fn cel_from_rgb(c: Rgb) -> CelMaterial {
@@ -131,23 +132,25 @@ pub fn rebake_structures(
     }
 }
 
-/// A hit on a structure at a world point: find the piece, take
-/// `amount` off it, and mark the root for rebake if the piece died.
-/// Returns the piece index hit, if any.
+/// A hit on a structure at a world point: find the piece, land the
+/// hit on it through the one damage function, and mark the root for
+/// rebake if the piece died. Returns what happened, if a piece was
+/// there.
 pub fn damage_at(
     commands: &mut Commands,
     root: Entity,
     transform: &Transform,
     pieces: &mut Pieces,
     world_point: Vec3,
-    amount: f32,
-) -> Option<usize> {
+    hit: &Hit<'_>,
+) -> Option<PieceHit> {
     let local = world_point - transform.translation;
     let index = piece_at(&pieces.0, local)?;
-    if damage(&mut pieces.0, index, amount) {
+    let result = damage(&mut pieces.0, index, hit)?;
+    if result.removed {
         commands.entity(root).insert(Rebake);
     }
-    Some(index)
+    Some(result)
 }
 
 /// A hinged door. All positions are world space, fixed at spawn;

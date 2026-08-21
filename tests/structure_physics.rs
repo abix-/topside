@@ -2,13 +2,18 @@ use std::time::Duration;
 
 use avian3d::prelude::*;
 use bevy::{ecs::system::SystemState, prelude::*, time::TimeUpdateStrategy};
+use modforge::item::EquipSlot;
 use topside::{
-    AppState, build_app,
+    AppState,
+    actor::Equipment,
+    build_app,
     cel::CelMaterial,
+    combat::Attacking,
+    content::ItemRegistryRes,
     player::{MovementInput, Player},
     structure::{
         CONCRETE_FLOOR, CONCRETE_WALL, Door, Opening, Pieces, Rebake, RoomSpec, Side, StairSpec,
-        StructureBatch, StructureDef, StructureRoot, damage_at, spawn_structure,
+        StructureBatch, StructureDef, StructureRoot, spawn_structure,
     },
 };
 
@@ -93,7 +98,8 @@ fn walking_app(def: &StructureDef, feet: Vec3, yaw: f32) -> (App, Entity) {
     let player = app
         .world_mut()
         .spawn((
-            Transform::from_translation(feet + Vec3::Y * EYE_HEIGHT),
+            Transform::from_translation(feet + Vec3::Y * EYE_HEIGHT)
+                .with_rotation(Quat::from_euler(EulerRot::YXZ, yaw, 0.0, 0.0)),
             Player { yaw, pitch: 0.0 },
         ))
         .id();
@@ -244,13 +250,15 @@ fn walls_block_and_the_doorway_does_not() {
     );
 }
 
-/// A hit on the building's one collider resolves to a piece; killing
-/// the piece rebakes the building without it, and the body walks
-/// through where the wall was.
+/// Swinging the pipe at a wall: the fire system casts from the eye,
+/// the hit resolves to a piece through the one damage function, the
+/// timer spaces the swings, a dead piece rebakes the building
+/// without it, and the body walks through where the wall was.
 #[test]
-fn a_hit_finds_its_piece_and_a_dead_piece_leaves_a_gap() {
-    // Start inside the room facing the east wall (x 3.0 to 3.2).
-    let (mut app, player) = walking_app(&one_room(), Vec3::new(1.0, 0.0, 0.0), -std::f32::consts::FRAC_PI_2);
+fn swinging_the_pipe_breaks_a_wall_piece_and_leaves_a_gap() {
+    // Start inside the room 1.5 m from the east wall (x 3.0 to 3.2),
+    // facing it, within the pipe's 2 m reach.
+    let (mut app, player) = walking_app(&one_room(), Vec3::new(1.5, 0.0, 0.0), -std::f32::consts::FRAC_PI_2);
     let root = app
         .world_mut()
         .query_filtered::<Entity, With<StructureRoot>>()
@@ -268,41 +276,43 @@ fn a_hit_finds_its_piece_and_a_dead_piece_leaves_a_gap() {
         .len();
     assert_eq!(pieces_before, boxes_before, "one box in the compound per piece");
 
-    // Cast east from the player: Avian reports the root and the hit
-    // point on the wall.
-    let hit = {
-        let world = app.world_mut();
-        let mut state: SystemState<SpatialQuery> = SystemState::new(world);
-        let spatial = state.get(world).unwrap();
-        spatial
-            .cast_ray(
-                Vec3::new(1.0, 1.0, 0.0),
-                Dir3::X,
-                10.0,
-                true,
-                &SpatialQueryFilter::from_excluded_entities([player]),
-            )
-            .expect("the east wall is in the way")
-    };
-    assert_eq!(hit.entity, root, "hits land on the building's one collider");
-    let point = Vec3::new(1.0, 1.0, 0.0) + Vec3::X * hit.distance;
-
-    // Kill the wall piece at the hit point.
+    // A pipe in hand, the trigger held.
     {
         let world = app.world_mut();
-        let transform = *world.get::<Transform>(root).unwrap();
-        let taken = std::mem::take(&mut world.get_mut::<Pieces>(root).unwrap().0);
-        let mut fake = Pieces(taken);
-        let mut commands_state: SystemState<Commands> = SystemState::new(world);
-        let mut commands = commands_state.get_mut(world).unwrap();
-        let index = damage_at(&mut commands, root, &transform, &mut fake, point, 1000.0)
-            .expect("the hit point is inside a piece");
-        assert!(index < pieces_before);
-        commands_state.apply(world);
-        world.get_mut::<Pieces>(root).unwrap().0 = fake.0;
+        let pipe = {
+            let items = world.resource::<ItemRegistryRes>();
+            modforge::item::create(items.0.def("pipe").unwrap(), 1, &[], 0.0, 0)
+        };
+        world
+            .get_mut::<Equipment>(player)
+            .unwrap()
+            .0
+            .set(EquipSlot::Weapon, Some(pipe));
+        world.get_mut::<Attacking>(player).unwrap().0 = true;
     }
-    assert!(app.world().get::<Rebake>(root).is_some(), "a dead piece marks the root");
-    app.update();
+    // One second of swings at 0.6 s apart: the first lands at once,
+    // the second at 0.6 s. Two hits of 20 off a 100 health wall.
+    for _ in 0..60 {
+        app.update();
+    }
+    let wall_health = |app: &App| {
+        app.world()
+            .get::<Pieces>(root)
+            .unwrap()
+            .0
+            .iter()
+            .find(|p| p.center.x > 2.5)
+            .map(|p| p.health)
+    };
+    assert_eq!(wall_health(&app), Some(60.0), "two swings in the first second");
+    assert_eq!(app.world().get::<Pieces>(root).unwrap().0.len(), pieces_before);
+
+    // Keep swinging until the wall dies (three more hits) and the
+    // building rebakes without it.
+    for _ in 0..150 {
+        app.update();
+    }
+    assert_eq!(wall_health(&app), None, "the wall piece is gone");
     assert!(app.world().get::<Rebake>(root).is_none(), "rebake ran");
     let boxes_after = app
         .world()
