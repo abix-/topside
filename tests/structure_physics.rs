@@ -4,13 +4,13 @@ use avian3d::prelude::*;
 use bevy::{ecs::system::SystemState, prelude::*, time::TimeUpdateStrategy};
 use modforge::item::EquipSlot;
 use topside::{
-    AppState,
+    AppState, SimTick,
     actor::Equipment,
     build_app,
     cel::CelMaterial,
-    combat::Attacking,
     content::ItemRegistryRes,
-    player::{MovementInput, Player},
+    input::{Action, Actions},
+    player::Player,
     structure::{
         CONCRETE_FLOOR, CONCRETE_WALL, Door, Opening, Pieces, Rebake, RoomSpec, Side, StairSpec,
         StructureBatch, StructureDef, StructureRoot, spawn_structure,
@@ -112,9 +112,20 @@ fn walking_app(def: &StructureDef, feet: Vec3, yaw: f32) -> (App, Entity) {
     (app, player)
 }
 
-fn walk(app: &mut App, input: Vec2, ticks: usize) {
+/// Push an action onto the player's queue for the next fixed tick,
+/// exactly as the keyboard would.
+fn act(app: &mut App, player: Entity, action: Action) {
+    let next = app.world().resource::<SimTick>().0 + 1;
+    app.world_mut()
+        .get_mut::<Actions>(player)
+        .unwrap()
+        .0
+        .push(next, action);
+}
+
+fn walk(app: &mut App, player: Entity, input: Vec2, ticks: usize) {
     for _ in 0..ticks {
-        app.world_mut().resource_mut::<MovementInput>().0 = input;
+        act(app, player, Action::Move { x: input.x, y: input.y });
         app.update();
     }
 }
@@ -216,7 +227,7 @@ fn walls_block_and_the_doorway_does_not() {
     // Start inside the room, walk north (negative z) beside the
     // doorway: the wall at z -4.1 stops the body.
     let (mut app, player) = walking_app(&one_room(), Vec3::new(2.0, 0.0, 0.0), 0.0);
-    walk(&mut app, Vec2::new(0.0, -1.0), 120);
+    walk(&mut app, player, Vec2::new(0.0, 1.0),120);
     let stopped = feet(&app, player);
     assert!(
         stopped.z > -4.1 && stopped.z < -3.3,
@@ -242,7 +253,7 @@ fn walls_block_and_the_doorway_does_not() {
         *transform = door.transform();
     }
     app.update();
-    walk(&mut app, Vec2::new(0.0, -1.0), 120);
+    walk(&mut app, player, Vec2::new(0.0, 1.0),120);
     let through = feet(&app, player);
     assert!(
         through.z < -5.0,
@@ -288,11 +299,11 @@ fn swinging_the_pipe_breaks_a_wall_piece_and_leaves_a_gap() {
             .unwrap()
             .0
             .set(EquipSlot::Weapon, Some(pipe));
-        world.get_mut::<Attacking>(player).unwrap().0 = true;
     }
     // One second of swings at 0.6 s apart: the first lands at once,
     // the second at 0.6 s. Two hits of 20 off a 100 health wall.
     for _ in 0..60 {
+        act(&mut app, player, Action::Attack);
         app.update();
     }
     let wall_health = |app: &App| {
@@ -310,6 +321,7 @@ fn swinging_the_pipe_breaks_a_wall_piece_and_leaves_a_gap() {
     // Keep swinging until the wall dies (three more hits) and the
     // building rebakes without it.
     for _ in 0..150 {
+        act(&mut app, player, Action::Attack);
         app.update();
     }
     assert_eq!(wall_health(&app), None, "the wall piece is gone");
@@ -327,7 +339,7 @@ fn swinging_the_pipe_breaks_a_wall_piece_and_leaves_a_gap() {
 
     // Walk east through the gap where the wall was.
     app.update();
-    walk(&mut app, Vec2::new(0.0, -1.0), 120);
+    walk(&mut app, player, Vec2::new(0.0, 1.0),120);
     let out = feet(&app, player);
     assert!(out.x > 4.0, "the body walks through where the wall was, got {out}");
 }
@@ -338,7 +350,7 @@ fn stairs_are_climbed_front_on() {
     // the landing (z -3.0 to -3.5). Further is walking off its far
     // edge, which is a fall, not a stairs defect.
     let (mut app, player) = walking_app(&stairs(), Vec3::new(0.0, 0.0, 1.0), 0.0);
-    walk(&mut app, Vec2::new(0.0, -1.0), 50);
+    walk(&mut app, player, Vec2::new(0.0, 1.0),50);
     let top = feet(&app, player);
     assert!(
         (top.y - 3.1).abs() < 0.05 && top.z < -3.0 && top.z > -3.5,
@@ -351,7 +363,7 @@ fn stairs_block_from_the_side() {
     // Stand west of the run halfway up its length and walk east
     // into its side: the stair is solid, so the body stays off it.
     let (mut app, player) = walking_app(&stairs(), Vec3::new(-2.0, 0.0, -1.5), 0.0);
-    walk(&mut app, Vec2::new(1.0, 0.0), 120);
+    walk(&mut app, player, Vec2::new(1.0, 0.0), 120);
     let side = feet(&app, player);
     assert!(
         side.x < -1.0 && side.y < 0.05,

@@ -13,8 +13,8 @@ pub use modforge::combat::{Health as HealthStats, Protection as ProtectionStats}
 
 use crate::actor::Equipment;
 use crate::content::{DamageRegistryRes, ItemRegistryRes};
-use crate::hud;
-use crate::player::{EYE_HEIGHT, Player};
+use crate::input::{Action, ActionQueue, ThisTick};
+use crate::player::EYE_HEIGHT;
 use crate::structure::{Pieces, StructureRoot, damage_at};
 
 /// Health on any actor: the player and every NPC.
@@ -35,47 +35,30 @@ pub struct Protection(pub ProtectionStats);
 #[derive(Component, Default, Debug, PartialEq)]
 pub struct Firing(pub FireTimer);
 
-/// The trigger is held this step. The player's input sets it; an
-/// NPC's AI sets it. Same fire path either way.
-#[derive(Component, Default, Debug, PartialEq)]
-pub struct Attacking(pub bool);
-
 /// Melee misses by a hair feel wrong, so after the line misses a
 /// fat sweep gets a second chance (Half-Life's crowbar: trace a
 /// line, then a hull).
 const SWING_HALF_WIDTH: f32 = 0.25;
 
-/// Read the player's trigger: left mouse while the cursor is
-/// grabbed and no panel is open.
-pub fn capture_attack_input(
-    buttons: Res<ButtonInput<MouseButton>>,
-    hud: Res<hud::HudRes>,
-    mut players: Query<&mut Attacking, With<Player>>,
-) {
-    let open = hud.0.open_panel != modforge::hud::OpenPanel::None;
-    for mut attacking in &mut players {
-        attacking.0 = !open && buttons.pressed(MouseButton::Left);
-    }
-}
-
-/// The fire system. For every actor holding a weapon with the
-/// trigger down and the timer ready: cast from the eye along its
-/// facing for the weapon's reach; on a miss sweep a box the same
-/// way; resolve the hit on what it touched.
+/// The fire system. For every actor holding a weapon with `Attack`
+/// among this tick's actions and the timer ready: cast from the eye
+/// along its facing for the weapon's reach; on a miss sweep a box
+/// the same way; resolve the hit on what it touched. The keyboard
+/// and an NPC's AI push the same `Attack`.
 pub fn fire(
     time: Res<Time<Fixed>>,
     items: Res<ItemRegistryRes>,
     damage: Res<DamageRegistryRes>,
     spatial: SpatialQuery,
     mut commands: Commands,
-    mut shooters: Query<(Entity, &Transform, &Equipment, &Attacking, &mut Firing)>,
+    mut shooters: Query<(Entity, &Transform, &Equipment, &ThisTick, &mut Firing)>,
     mut structures: Query<(&Transform, &mut Pieces), With<StructureRoot>>,
     mut actors: Query<(&mut Health, &mut Protection)>,
 ) {
     let dt = time.delta_secs();
-    for (shooter, transform, equipment, attacking, mut firing) in &mut shooters {
+    for (shooter, transform, equipment, this_tick, mut firing) in &mut shooters {
         firing.0.tick(dt);
-        if !attacking.0 {
+        if !ActionQueue::has(&this_tick.0, Action::Attack) {
             continue;
         }
         let Some(weapon) = equipment

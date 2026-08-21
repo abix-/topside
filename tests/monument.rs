@@ -7,10 +7,11 @@ use std::time::Duration;
 use bevy::{ecs::system::SystemState, prelude::*, time::TimeUpdateStrategy};
 use modforge::hud::InteractKind;
 use topside::{
-    AppState, build_app,
+    AppState, SimTick, build_app,
     cel::CelMaterial,
     content::{ItemRegistryRes, MonumentRegistryRes},
-    interact::{Container, InteractInput, LookingAt, WorldItem},
+    input::{Action, Actions},
+    interact::{Container, LookingAt, WorldItem},
     player::Player,
     structure::{Door, Locked, MonumentRoot, StructureRoot, spawn_monument},
 };
@@ -127,7 +128,12 @@ fn a_rolled_monument_spawns_its_members_boxes_and_gate() {
         Some(InteractKind::Gate { level }),
         "looking at the gate reports it locked"
     );
-    app.world_mut().resource_mut::<InteractInput>().0 = true;
+    let next = app.world().resource::<SimTick>().0 + 1;
+    app.world_mut()
+        .get_mut::<Actions>(player)
+        .unwrap()
+        .0
+        .push(next, Action::Use);
     app.update();
     assert!(!app.world().get::<Door>(gate).unwrap().open);
 

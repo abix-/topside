@@ -16,12 +16,11 @@ use topside::{
     AppState,
     actor::{Hotbar, INVENTORY_SLOTS, Inventory},
     build_app,
+    SimTick,
     content::ItemRegistryRes,
     hud::{HoveredSlot, HudRes},
-    interact::{
-        Container, InteractInput, Interactable, LookingAt, OpenContainer,
-        WorldItem,
-    },
+    input::{Action, Actions},
+    interact::{Container, Interactable, LookingAt, OpenContainer, WorldItem},
     player::Player,
     structure::Door,
     survival::{Rates, Survival},
@@ -63,25 +62,30 @@ fn playing_app() -> (App, Entity) {
 /// Press E at `target` for one fixed tick. `update_looking_at` runs
 /// before `interact_on_press` in the same chain, so the look target
 /// is forced by placing the interactable where the ray hits.
-fn press_e(app: &mut App, target: Entity, kind: InteractKind) {
+/// Push an action onto the player's queue for the next fixed tick,
+/// exactly as the keyboard would.
+fn act(app: &mut App, player: Entity, action: Action) {
+    let next = app.world().resource::<SimTick>().0 + 1;
+    app.world_mut()
+        .get_mut::<Actions>(player)
+        .unwrap()
+        .0
+        .push(next, action);
+}
+
+fn press_e(app: &mut App, player: Entity, target: Entity, kind: InteractKind) {
     let mut looking_at = app.world_mut().resource_mut::<LookingAt>();
     looking_at.entity = Some(target);
     looking_at.kind = Some(kind);
-    app.world_mut().resource_mut::<InteractInput>().0 = true;
+    act(app, player, Action::Use);
     app.update();
 }
 
-/// Hover `holder`/`index` and tap T for one frame. Headless has no
-/// input plugin, so the press is cleared by hand afterwards.
-fn hover_and_press_t(app: &mut App, holder: Holder, index: usize) {
+/// Hover `holder`/`index` and tap T for one tick.
+fn hover_and_press_t(app: &mut App, player: Entity, holder: Holder, index: usize) {
     app.world_mut().resource_mut::<HoveredSlot>().0 = Some(SlotRef { holder, index });
-    app.world_mut()
-        .resource_mut::<ButtonInput<KeyCode>>()
-        .press(KeyCode::KeyT);
+    act(app, player, Action::Transfer { half: false });
     app.update();
-    let mut keys = app.world_mut().resource_mut::<ButtonInput<KeyCode>>();
-    keys.clear_just_pressed(KeyCode::KeyT);
-    keys.release(KeyCode::KeyT);
 }
 
 fn in_front(app: &mut App, kind: InteractKind, bundle: impl Bundle) -> Entity {
@@ -103,7 +107,7 @@ fn pickup_moves_the_stack_into_the_player_inventory() {
     let (mut app, player) = playing_app();
     let scrap = stack(&app, "scrap", 3);
     let item = in_front(&mut app, InteractKind::Pickup, WorldItem { stack: scrap });
-    press_e(&mut app, item, InteractKind::Pickup);
+    press_e(&mut app, player,item, InteractKind::Pickup);
     assert!(app.world().get_entity(item).is_err(), "picked up item is gone");
     assert_eq!(
         app.world()
@@ -127,7 +131,7 @@ fn full_inventory_leaves_the_item_in_the_world() {
         }
     }
     let item = in_front(&mut app, InteractKind::Pickup, WorldItem { stack: scrap });
-    press_e(&mut app, item, InteractKind::Pickup);
+    press_e(&mut app, player,item, InteractKind::Pickup);
     assert!(
         app.world().get_entity(item).is_ok(),
         "a full inventory must not consume the item"
@@ -144,7 +148,7 @@ fn full_inventory_leaves_the_item_in_the_world() {
 
 #[test]
 fn door_toggles_open_and_closed() {
-    let (mut app, _) = playing_app();
+    let (mut app, player) = playing_app();
     let door = Door {
         open: false,
         origin: Vec3::ZERO,
@@ -155,9 +159,9 @@ fn door_toggles_open_and_closed() {
     };
     let transform = door.transform();
     let door = app.world_mut().spawn((door, transform)).id();
-    press_e(&mut app, door, InteractKind::Door { open: false });
+    press_e(&mut app, player,door, InteractKind::Door { open: false });
     assert!(app.world().get::<Door>(door).unwrap().open);
-    press_e(&mut app, door, InteractKind::Door { open: true });
+    press_e(&mut app, player,door, InteractKind::Door { open: true });
     assert!(!app.world().get::<Door>(door).unwrap().open);
 }
 
@@ -178,7 +182,7 @@ fn an_unregistered_item_is_never_picked_up() {
         quality: None,
     };
     let item = in_front(&mut app, InteractKind::Pickup, WorldItem { stack: bogus });
-    press_e(&mut app, item, InteractKind::Pickup);
+    press_e(&mut app, player,item, InteractKind::Pickup);
     assert!(app.world().get_entity(item).is_ok(), "the item stays in the world");
     assert!(
         app.world()
@@ -363,7 +367,7 @@ fn container_opens_and_t_transfers_both_ways() {
 
     // E on the crate: modforge opens the panel, topside remembers
     // which crate.
-    press_e(&mut app, crate_, InteractKind::Container);
+    press_e(&mut app, player,crate_, InteractKind::Container);
     assert_eq!(
         app.world().resource::<HudRes>().0.open_panel,
         OpenPanel::Inventory
@@ -372,14 +376,14 @@ fn container_opens_and_t_transfers_both_ways() {
 
     // Hover the crate's slot 0 and press T: the scrap comes over.
     // Hover inventory slot 0 and press T: the cloth goes in.
-    hover_and_press_t(&mut app, Holder::Container, 0);
+    hover_and_press_t(&mut app, player,Holder::Container, 0);
     assert_eq!(
         app.world().get::<Inventory>(player).unwrap().0.count_of("scrap"),
         8
     );
     assert_eq!(app.world().get::<Container>(crate_).unwrap().0.count_of("scrap"), 0);
 
-    hover_and_press_t(&mut app, Holder::Inventory, 0);
+    hover_and_press_t(&mut app, player,Holder::Inventory, 0);
     assert_eq!(app.world().get::<Container>(crate_).unwrap().0.count_of("cloth"), 2);
     assert_eq!(
         app.world().get::<Inventory>(player).unwrap().0.count_of("cloth"),
@@ -387,7 +391,7 @@ fn container_opens_and_t_transfers_both_ways() {
     );
 
     // E again closes the crate and the panel.
-    press_e(&mut app, crate_, InteractKind::Container);
+    press_e(&mut app, player,crate_, InteractKind::Container);
     assert_eq!(app.world().resource::<HudRes>().0.open_panel, OpenPanel::None);
     assert_eq!(app.world().resource::<OpenContainer>().0, None);
 }

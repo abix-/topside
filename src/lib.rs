@@ -10,6 +10,7 @@ pub mod control_plane;
 pub mod entity_map;
 pub mod ground;
 pub mod hud;
+pub mod input;
 pub mod interact;
 pub mod player;
 pub mod profile;
@@ -63,40 +64,34 @@ pub fn build_app(headless: bool) -> App {
     app.init_resource::<content::DamageRegistryRes>();
     app.init_resource::<content::MonumentRegistryRes>();
     app.init_resource::<ButtonInput<KeyCode>>();
+    app.init_resource::<ButtonInput<MouseButton>>();
+    app.init_resource::<input::BindingsRes>();
+    app.init_resource::<input::JournalRes>();
     app.init_resource::<interact::LookingAt>();
-    app.init_resource::<interact::InteractInput>();
-    app.init_resource::<player::MovementInput>();
     app.insert_resource(hud::HudRes(modforge::hud::HudState::new()));
     app.init_resource::<hud::HoveredSlot>();
     app.init_resource::<interact::OpenContainer>();
-    // Input is captured only while no panel is open: with the
-    // inventory up, the mouse and keys belong to the panel.
-    app.add_systems(
-        Update,
-        (
-            player::capture_movement_input,
-            interact::capture_interact_input,
-        )
-            .run_if(in_state(AppState::Playing))
-            .run_if(not(hud::inventory_open)),
-    );
-    // Item keys that need no window: the same in headless tests.
-    app.add_systems(
-        Update,
-        (
-            hud::transfer_hovered.run_if(hud::inventory_open),
-            hud::hotbar_keys,
-        )
-            .run_if(in_state(AppState::Playing)),
-    );
+    // The ONE place raw input is read (input.rs): every frame, into
+    // the player's action queue. Headless tests push actions
+    // themselves and never touch keys.
+    if !headless {
+        app.add_systems(Update, input::read_input.run_if(in_state(AppState::Playing)));
+    }
+    // Every fixed step: drain each actor's due actions, then every
+    // system reads actions, never keys.
     app.add_systems(
         FixedUpdate,
         (
             tick_system,
+            input::drain_actions,
             survival::survival_tick,
             structure::lock_gates,
             structure::rebake_structures.run_if(any_with_component::<structure::Rebake>),
-            player::movement.run_if(not(hud::inventory_open)),
+            hud::toggle_inventory,
+            hud::hotbar_keys,
+            hud::transfer_hovered.run_if(hud::inventory_open),
+            player::look,
+            player::movement,
             combat::fire,
             interact::update_looking_at,
             interact::interact_on_press,
@@ -127,16 +122,20 @@ pub fn build_app(headless: bool) -> App {
         app.add_systems(
             Update,
             (
-                player::cursor_grab.run_if(not(hud::inventory_open)),
-                player::mouse_look.run_if(not(hud::inventory_open)),
-                combat::capture_attack_input,
-                hud::toggle_inventory,
-                hud::drop_hovered.run_if(hud::inventory_open),
+                player::cursor_grab,
                 hud::write_prompt,
                 hud::render,
                 hud::render_inventory,
             )
                 .run_if(in_state(AppState::Playing)),
+        );
+        // Dropping spawns a mesh, so it stays with the window.
+        app.add_systems(
+            FixedUpdate,
+            hud::drop_hovered
+                .after(input::drain_actions)
+                .run_if(in_state(AppState::Playing))
+                .run_if(hud::inventory_open),
         );
     }
     app
@@ -189,16 +188,19 @@ mod tests {
         let door_transform = door.transform();
         let door = app.world_mut().spawn((door, door_transform)).id();
 
-        {
-            let mut keys = app.world_mut().resource_mut::<ButtonInput<KeyCode>>();
-            keys.press(KeyCode::KeyW);
-            keys.press(KeyCode::KeyE);
-        }
-        app.update();
-        app.world_mut()
-            .resource_mut::<ButtonInput<KeyCode>>()
-            .clear_just_pressed(KeyCode::KeyE);
-        for _ in 0..(6 * updates_per_tick) {
+        // Push actions the way the keyboard does: for the next fixed
+        // tick, once per frame. Use is a tap; Move is held.
+        let act = |app: &mut App, action: input::Action| {
+            let next = app.world().resource::<SimTick>().0 + 1;
+            app.world_mut()
+                .get_mut::<input::Actions>(player)
+                .unwrap()
+                .0
+                .push(next, action);
+        };
+        act(&mut app, input::Action::Use);
+        for _ in 0..(7 * updates_per_tick) {
+            act(&mut app, input::Action::Move { x: 0.0, y: 1.0 });
             app.update();
         }
 
@@ -225,16 +227,7 @@ mod tests {
             },
             interact::WorldItem { stack: scrap },
         ));
-        {
-            let mut keys = app.world_mut().resource_mut::<ButtonInput<KeyCode>>();
-            keys.release(KeyCode::KeyW);
-            keys.release(KeyCode::KeyE);
-            keys.press(KeyCode::KeyE);
-        }
-        app.update();
-        app.world_mut()
-            .resource_mut::<ButtonInput<KeyCode>>()
-            .clear_just_pressed(KeyCode::KeyE);
+        act(&mut app, input::Action::Use);
         for _ in 0..updates_per_tick {
             app.update();
         }

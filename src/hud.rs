@@ -9,13 +9,14 @@ use bevy::ecs::system::SystemParam;
 use bevy::prelude::*;
 use bevy::window::{CursorGrabMode, CursorOptions, PrimaryWindow};
 use modforge::hud::{
-    HOTBAR_SLOTS, Holder, Holders, HudState, OpenPanel, SlotRef, drop_slot, end_drag,
-    hotbar_slot, prompt_for, slot_label, start_drag, toggle_panel, transfer_slot, use_slot,
+    HOTBAR_SLOTS, Holder, Holders, HudState, OpenPanel, SlotRef, drop_slot, end_drag, prompt_for,
+    slot_label, start_drag, toggle_panel, transfer_slot, use_slot,
 };
 
 use crate::actor::{Equipment, Hotbar, INVENTORY_SLOTS, Inventory};
 use crate::cel::CelMaterial;
 use crate::content::ItemRegistryRes;
+use crate::input::{Action, ActionQueue, ThisTick};
 use crate::interact::{Container, LookingAt, OpenContainer, WorldItem, spawn_item};
 use crate::player::Player;
 use crate::survival::Survival;
@@ -222,18 +223,22 @@ pub fn panel_changed(
     }
 }
 
-/// I (Atlas) or Tab opens and closes the panel; Escape closes it.
+/// `Inventory` (I or Tab) opens and closes the panel; `Cancel`
+/// (Escape) closes it.
 pub fn toggle_inventory(
-    keys: Res<ButtonInput<KeyCode>>,
     mut hud: ResMut<HudRes>,
     mut hovered: ResMut<HoveredSlot>,
     mut open_container: ResMut<OpenContainer>,
     mut cursors: Query<&mut CursorOptions, With<PrimaryWindow>>,
+    players: Query<&ThisTick, With<Player>>,
 ) {
+    let Ok(this_tick) = players.single() else {
+        return;
+    };
     let open = hud.0.open_panel == OpenPanel::Inventory;
-    if keys.any_just_pressed([KeyCode::KeyI, KeyCode::Tab])
-        || (open && keys.just_pressed(KeyCode::Escape))
-    {
+    let toggle = ActionQueue::has(&this_tick.0, Action::Inventory);
+    let cancel = open && ActionQueue::has(&this_tick.0, Action::Cancel);
+    if toggle || cancel {
         toggle_panel(&mut hud.0, OpenPanel::Inventory);
         panel_changed(&mut hud.0, &mut hovered, &mut open_container, &mut cursors);
     }
@@ -243,36 +248,21 @@ pub fn inventory_open(hud: Res<HudRes>) -> bool {
     hud.0.open_panel == OpenPanel::Inventory
 }
 
-/// Digit keys use the hotbar slot (modforge `hotbar_slot` order),
-/// panel open or not.
+/// `Hotbar { index }` uses that bar slot, panel open or not. The
+/// key-to-slot order is modforge's `hotbar_slot`, applied by the
+/// bindings.
 pub fn hotbar_keys(
-    keys: Res<ButtonInput<KeyCode>>,
     registry: Res<ItemRegistryRes>,
-    mut players: Query<(&mut Hotbar, &mut Survival, &mut Equipment), With<Player>>,
+    mut players: Query<(&mut Hotbar, &mut Survival, &mut Equipment, &ThisTick), With<Player>>,
 ) {
-    const DIGITS: [(KeyCode, u8); 10] = [
-        (KeyCode::Digit1, 1),
-        (KeyCode::Digit2, 2),
-        (KeyCode::Digit3, 3),
-        (KeyCode::Digit4, 4),
-        (KeyCode::Digit5, 5),
-        (KeyCode::Digit6, 6),
-        (KeyCode::Digit7, 7),
-        (KeyCode::Digit8, 8),
-        (KeyCode::Digit9, 9),
-        (KeyCode::Digit0, 0),
-    ];
-    let Some(slot) = DIGITS
-        .iter()
-        .find(|(key, _)| keys.just_pressed(*key))
-        .and_then(|(_, digit)| hotbar_slot(*digit))
-    else {
+    let Ok((mut hotbar, mut survival, mut equipment, this_tick)) = players.single_mut() else {
         return;
     };
-    let Ok((mut hotbar, mut survival, mut equipment)) = players.single_mut() else {
-        return;
-    };
-    let _ = use_slot(&mut survival.0, &mut hotbar.0, slot, &registry.0, &mut equipment.0);
+    for stamped in &this_tick.0 {
+        if let Action::Hotbar { index } = stamped.action {
+            let _ = use_slot(&mut survival.0, &mut hotbar.0, index, &registry.0, &mut equipment.0);
+        }
+    }
 }
 
 /// Double left click uses the slot (modforge `use_slot`; food is
@@ -331,18 +321,23 @@ fn slot_drag_drop(
 /// Hover plus T (Atlas) sends the stack under the cursor to the
 /// other side, Shift+T half of it (modforge `transfer_slot`).
 pub fn transfer_hovered(
-    keys: Res<ButtonInput<KeyCode>>,
     hovered: Res<HoveredSlot>,
     registry: Res<ItemRegistryRes>,
     mut holders: OnScreenHolders,
+    players: Query<&ThisTick, With<Player>>,
 ) {
-    if !keys.just_pressed(KeyCode::KeyT) {
+    let Ok(this_tick) = players.single() else {
         return;
-    }
+    };
+    let Some(half) = this_tick.0.iter().find_map(|s| match s.action {
+        Action::Transfer { half } => Some(half),
+        _ => None,
+    }) else {
+        return;
+    };
     let (Some(slot), Some(mut holders)) = (hovered.0, holders.get()) else {
         return;
     };
-    let half = keys.any_pressed([KeyCode::ShiftLeft, KeyCode::ShiftRight]);
     transfer_slot(&mut holders, slot, half, &registry.0);
 }
 
@@ -368,21 +363,20 @@ fn slot_out(out: On<Pointer<Out>>, slots: Query<&Slot>, mut hovered: ResMut<Hove
 /// Hover plus O drops the stack under the cursor at the player's
 /// feet (modforge `drop_slot`, then the one spawn path).
 pub fn drop_hovered(
-    keys: Res<ButtonInput<KeyCode>>,
     hovered: Res<HoveredSlot>,
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<CelMaterial>>,
     registry: Res<ItemRegistryRes>,
     mut holders: OnScreenHolders,
-    players: Query<&Transform, With<Player>>,
+    players: Query<(&Transform, &ThisTick), With<Player>>,
 ) {
-    if !keys.just_pressed(KeyCode::KeyO) {
-        return;
-    }
-    let (Some(slot), Ok(transform)) = (hovered.0, players.single()) else {
+    let (Some(slot), Ok((transform, this_tick))) = (hovered.0, players.single()) else {
         return;
     };
+    if !ActionQueue::has(&this_tick.0, Action::Drop) {
+        return;
+    }
     let Some(stack) = holders.one(slot).and_then(|holder| drop_slot(holder, slot.index)) else {
         return;
     };

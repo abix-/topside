@@ -13,6 +13,7 @@ use crate::actor::Inventory;
 use crate::cel::CelMaterial;
 use crate::content::ItemRegistryRes;
 use crate::hud::{HoveredSlot, HudRes, panel_changed};
+use crate::input::{Action, ActionQueue, ThisTick};
 use crate::player::Player;
 use crate::structure::{Door, Locked};
 
@@ -32,9 +33,6 @@ pub struct Interactable {
 pub struct WorldItem {
     pub stack: ItemStack,
 }
-
-#[derive(Resource, Default)]
-pub struct InteractInput(pub bool);
 
 /// The inventory a deployed WorldItem holds (a storage box). Opens
 /// through the interact path and transfers with the player.
@@ -102,10 +100,6 @@ pub struct LookingAt {
     pub distance: f32,
 }
 
-pub fn capture_interact_input(keys: Res<ButtonInput<KeyCode>>, mut input: ResMut<InteractInput>) {
-    input.0 |= keys.just_pressed(KeyCode::KeyE);
-}
-
 /// Ray-AABB slab test. Returns the distance along the ray to the
 /// nearest face, or None if the ray misses.
 fn ray_aabb(origin: Vec3, dir: Vec3, aabb: &Aabb) -> Option<f32> {
@@ -165,29 +159,29 @@ pub fn update_looking_at(
     }
 }
 
+/// `Use` among this tick's actions: interact with what is looked at.
 pub fn interact_on_press(
     mut commands: Commands,
-    mut input: ResMut<InteractInput>,
     looking_at: Res<LookingAt>,
     mut hud: ResMut<HudRes>,
     registry: Res<ItemRegistryRes>,
     mut open_container: ResMut<OpenContainer>,
     mut hovered: ResMut<HoveredSlot>,
-    mut players: Query<&mut Inventory, With<Player>>,
+    mut players: Query<(&mut Inventory, &ThisTick), With<Player>>,
     mut doors: Query<(&mut Door, &mut Transform)>,
     items: Query<&WorldItem>,
     mut cursors: Query<&mut CursorOptions, With<PrimaryWindow>>,
 ) {
-    if !std::mem::take(&mut input.0) {
+    let Ok((mut inventory, this_tick)) = players.single_mut() else {
+        return;
+    };
+    if !ActionQueue::has(&this_tick.0, Action::Use) {
         return;
     }
     let Some(entity) = looking_at.entity else {
         return;
     };
     let Some(kind) = looking_at.kind else {
-        return;
-    };
-    let Ok(mut inventory) = players.single_mut() else {
         return;
     };
     // modforge decides what happens; this system carries out the
