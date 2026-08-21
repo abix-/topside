@@ -63,9 +63,15 @@ pub fn world_def() -> WorldDef {
     WorldDef {
         size: 2000.0,
         cell: 4.0,
-        height_scale: 40.0,
-        feature_size: 400.0,
-        water_level: 0.18,
+        // Rust-scale relief: sixty metres of base terrain flattened
+        // into plains and valleys, ridged ranges up to ninety more,
+        // plateaus in eight metre steps.
+        height_scale: 60.0,
+        feature_size: 500.0,
+        flatness: 1.8,
+        mountain_height: 90.0,
+        plateau_step: 8.0,
+        water_level: 0.15,
         biome_rules: vec![
             BiomeRule {
                 biome: "ruins".to_string(),
