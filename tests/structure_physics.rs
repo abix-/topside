@@ -153,15 +153,27 @@ fn structure_root_owns_avian_geometry_and_collision() {
     assert!(!solid_entities.is_empty(), "structure must contain solids");
     for entity in solid_entities {
         assert!(app.world().get::<Mesh3d>(entity).is_some());
-        assert!(app.world().get::<Collider>(entity).is_some());
-        assert_eq!(
-            app.world()
-                .get::<ColliderOf>(entity)
-                .expect("solid collider is attached to a rigid body")
-                .body,
-            root
+        assert!(
+            app.world().get::<Collider>(entity).is_none(),
+            "solids carry no collider of their own; the root's compound has their boxes"
         );
     }
+    // The building is one static shape to the physics (performance.md).
+    let compound = app
+        .world()
+        .get::<Collider>(root)
+        .expect("the root carries the building's one collider");
+    assert!(
+        compound.shape().as_compound().is_some(),
+        "the root collider is a compound of every solid"
+    );
+    assert_eq!(
+        app.world()
+            .get::<ColliderOf>(root)
+            .expect("the root collider is attached to its own body")
+            .body,
+        root
+    );
 
     let door = owned_entities
         .iter()

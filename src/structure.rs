@@ -107,25 +107,29 @@ pub fn spawn_structure(
     let door_mat = materials.add(CelMaterial::from_srgb(0.25, 0.28, 0.30));
     let stair_mat = materials.add(cel_from_rgb(def.floor_color));
 
-    // One child of the root per solid piece: mesh and collider
-    // together, positioned relative to the root. `center` is
-    // structure-local. Every solid shares one unit cube, scaled by
-    // its transform (Avian scales the collider with it), so a city
-    // of ten thousand solids is not ten thousand mesh assets.
-    let cube = meshes.add(Cuboid::new(1.0, 1.0, 1.0));
-    let solid = |commands: &mut Commands,
-                 _meshes: &mut Assets<Mesh>,
-                 center: Vec3,
-                 size: Vec3,
-                 material: Handle<CelMaterial>| {
-        commands.spawn((
-            StructureSolid,
-            ChildOf(root),
-            Collider::cuboid(1.0, 1.0, 1.0),
-            Mesh3d(cube.clone()),
-            MeshMaterial3d(material),
-            Transform::from_translation(center).with_scale(size),
-        ));
+    // Solids are not entities of their own. Each solid's box is
+    // folded into one mesh per material (one draw per material per
+    // building) and into one compound collider on the root (one
+    // static shape to the physics). Both are built once here.
+    // Measured 2026-08-20 (performance.md): one entity per solid
+    // cost 12 ms a physics step, because Avian recomputes child
+    // colliders every step whether or not the body moved, and tens
+    // of milliseconds a frame in the renderer copying and binning
+    // 55K mesh entities. `center` is structure-local.
+    let mut shapes: Vec<(Vec3, Quat, Collider)> = Vec::new();
+    let mut batches: Vec<(Handle<CelMaterial>, Mesh)> = Vec::new();
+    let mut solid = |_commands: &mut Commands,
+                     center: Vec3,
+                     size: Vec3,
+                     material: Handle<CelMaterial>| {
+        let piece = Mesh::from(Cuboid::new(size.x, size.y, size.z)).translated_by(center);
+        match batches.iter_mut().find(|(m, _)| *m == material) {
+            Some((_, mesh)) => mesh
+                .merge(&piece)
+                .expect("every solid is the same cuboid mesh layout"),
+            None => batches.push((material, piece)),
+        }
+        shapes.push((center, Quat::IDENTITY, Collider::cuboid(size.x, size.y, size.z)));
     };
 
     for room in &def.rooms {
@@ -158,7 +162,7 @@ pub fn spawn_structure(
                 let run = end - start;
                 let center = wall_center + axis * mid + Vec3::Y * (height / 2.0);
                 let size = axis * run + Vec3::Y * height + (Vec3::ONE - axis - Vec3::Y) * t;
-                solid(commands, meshes, center, size, concrete.clone());
+                solid(commands, center, size, concrete.clone());
             }
             // Panels below raised sills.
             for opening in room
@@ -171,7 +175,7 @@ pub fn spawn_structure(
                 let size = axis * opening.width
                     + Vec3::Y * opening.sill
                     + (Vec3::ONE - axis - Vec3::Y) * t;
-                solid(commands, meshes, center, size, concrete.clone());
+                solid(commands, center, size, concrete.clone());
             }
         }
 
@@ -179,12 +183,12 @@ pub fn spawn_structure(
         if room.floor {
             let center = room.origin + Vec3::Y * (SLAB / 2.0);
             let size = slab_xz + Vec3::Y * SLAB;
-            solid(commands, meshes, center, size, floor_mat.clone());
+            solid(commands, center, size, floor_mat.clone());
         }
         if room.ceiling {
             let center = room.origin + Vec3::Y * (height + SLAB);
             let size = slab_xz + Vec3::Y * 0.2;
-            solid(commands, meshes, center, size, concrete.clone());
+            solid(commands, center, size, concrete.clone());
         }
 
         for opening in room.openings.iter().filter(|o| o.door) {
@@ -236,20 +240,43 @@ pub fn spawn_structure(
                 + dir * (STEP_DEPTH * (i as f32 + 0.5))
                 + Vec3::Y * (height / 2.0);
             let size = dir.abs() * STEP_DEPTH + across * stair.width + Vec3::Y * height;
-            solid(commands, meshes, center, size, stair_mat.clone());
+            solid(commands, center, size, stair_mat.clone());
         }
         if stair.landing > 0.0 {
             let center = stair.base
                 + dir * (STEP_DEPTH * steps as f32 + stair.landing / 2.0)
                 + Vec3::Y * (stair.rise - SLAB / 2.0);
             let size = dir.abs() * stair.landing + across * stair.width + Vec3::Y * SLAB;
-            solid(commands, meshes, center, size, stair_mat.clone());
+            solid(commands, center, size, stair_mat.clone());
         }
     }
 
+    // Furniture shares one material per colour so it batches too.
+    let mut furniture_mats: Vec<(Rgb, Handle<CelMaterial>)> = Vec::new();
     for piece in &def.furniture {
-        let material = materials.add(cel_from_rgb(piece.color));
-        solid(commands, meshes, piece.center, piece.size, material);
+        let material = match furniture_mats.iter().find(|(c, _)| *c == piece.color) {
+            Some((_, m)) => m.clone(),
+            None => {
+                let m = materials.add(cel_from_rgb(piece.color));
+                furniture_mats.push((piece.color, m.clone()));
+                m
+            }
+        };
+        solid(commands, piece.center, piece.size, material);
+    }
+
+    // One mesh entity per material, one collider for the building.
+    for (material, mesh) in batches {
+        commands.spawn((
+            StructureSolid,
+            ChildOf(root),
+            Mesh3d(meshes.add(mesh)),
+            MeshMaterial3d(material),
+            Transform::IDENTITY,
+        ));
+    }
+    if !shapes.is_empty() {
+        commands.entity(root).insert(Collider::compound(shapes));
     }
 
     for light in &def.lights {

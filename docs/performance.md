@@ -69,19 +69,42 @@ Theories that the numbers killed: transform propagation and visibility
 over 55K entities (2.8 ms together), directional shadows (no shadow
 pass appears at all), topside's own systems (1.2 ms).
 
-Fixes, in order of measured payoff:
+Why Avian cost that much: `update_child_collider_position`
+(avian3d `collision/collider/collider_transform/plugin.rs`) runs
+every step over every collider that is a child of a body and writes
+its position from the parent's without checking whether the parent
+moved. That marks all 12,000 as changed, so the AABB update that
+would skip unchanged colliders recomputes every one. Child colliders
+are for a few shapes on one moving body. Avian's own examples mark
+each static piece as its own static body, and build one collider for
+a surface made of many boxes (`voxels_3d.rs`). We had one collider
+entity per wall because todo row 1 said "attached to the root" and
+it was read literally; despawn-takes-all only needs the entity
+parent link.
+
+Fixes applied the same day, both inside `spawn_structure`:
 
 1. One compound Avian collider per structure root instead of one
-   collider entity per solid (`spawn_structure`). Avian builds a
-   compound once and steps it as one shape. Removes `fixed_physics`
-   and with it the step spiral.
-2. One merged mesh per material per building instead of one mesh
-   entity per solid (`spawn_structure`). A 30-room building becomes
-   three render entities; the city drops from 55K entities to a few
-   hundred. Removes `bin_unpacking` and most of the opaque pass CPU.
-   Same vertex count drawn, so GPU rasterisation stays where it is.
-3. Cap the fixed loop's catch-up (`Time<Virtual>::max_delta`) so a
-   hitch never multiplies itself. A guard, not a fix.
+   collider entity per solid. `fixed_physics` 74.5 ms to 9.6 ms (the
+   6 catch-up steps still ran because the frame was still slow).
+2. One merged mesh per material per building (`Mesh::merge`) instead
+   of one mesh entity per solid; furniture shares one material per
+   colour. Measured after both, standing in the same spot:
+
+| Span | before | after |
+|---|---:|---:|
+| frame_time | 95.7 ms | 8.5 ms (118 FPS) |
+| main/fixed_physics | 74.5 | 0.9 |
+| main/fixed_steps_per_frame | 6.2 | 0.6 |
+| main/extract_and_wait | 25.1 | 5.4 |
+| render/bin_unpacking/elapsed_gpu | 19.9 | 0.8 |
+| render/main_opaque_pass_3d/elapsed_cpu | 7.3 | 0.6 |
+| entity_count | 55,642 | 9,796 |
+
+What remains as entities: doors (one kinematic body each), lights,
+storage boxes, ground tiles, UI. Not yet done: capping the fixed
+loop's catch-up (`Time<Virtual>::max_delta`) so a hitch never
+multiplies itself. A guard, not a fix.
 
 Endless hit the same wall at 16K sprite entities and answered with one
 entity per batch and a custom instanced pipeline (endless
@@ -100,7 +123,7 @@ after, only if merging is not enough.
 | interact::update_looking_at | Ray test from the camera to find the nearest interactable | One ray-AABB test per door and interactable | Low; O(doors + items) | Candidate for Avian's ray cast when the AABBs go |
 | interact::interact_on_press | On E, dispatches to modforge's interact | One entity lookup | Negligible | Keypress only |
 | control_plane::publish_system | Writes snapshot atomics; once a second copies the diagnostics store | A few atomics; one map per second | Negligible | |
-| Avian PhysicsPlugins (FixedPostUpdate) | Physics step: transforms, collider tree, broad and narrow phase | Every collider entity | 12 ms per step in the city before fix 1 | See the measured table |
+| Avian PhysicsPlugins (FixedPostUpdate) | Physics step: transforms, collider tree, broad and narrow phase | Every collider entity: one compound per building, one per door, one per box, one per ground tile | 1.6 ms per step in the city | Never give a building child colliders; see the measured table |
 
 ## Update (every render frame, presentation)
 
