@@ -15,6 +15,7 @@ use topside::{
     combat::{Firing, Health, Protection},
     content::{ActorRegistryRes, ItemRegistryRes},
     hud::HudRes,
+    interact::{Container, WorldItem},
     actor_map::{Actor, ActorMapRes},
     input::{Action, Actions, ThisTick},
     player::Player,
@@ -145,8 +146,11 @@ fn give(app: &mut App, actor: Entity, item: &str, count: u32) -> usize {
     slot
 }
 
+/// An actor's health; one that died and despawned reads as zero.
 fn health(app: &App, actor: Entity) -> f32 {
-    app.world().get::<Health>(actor).unwrap().0.current
+    app.world()
+        .get::<Health>(actor)
+        .map_or(0.0, |h| h.0.current)
 }
 
 #[test]
@@ -196,8 +200,8 @@ fn the_scavenger_hits_the_player_and_the_player_shoots_back() {
     }
     assert_eq!(app.world().get::<Hotbar>(player).unwrap().0.slots.count_of("shotgun shell"), 0);
     assert!(
-        app.world().get::<Health>(npc).unwrap().0.is_dead(),
-        "two shells of pellets at 1.5 m finish a 60 health scavenger"
+        app.world().get_entity(npc).is_err(),
+        "two shells of pellets at 1.5 m finish a 60 health scavenger, and it is gone"
     );
 }
 
@@ -225,6 +229,44 @@ fn the_hud_names_the_actor_under_the_crosshair_and_its_health() {
         Quat::from_rotation_y(std::f32::consts::FRAC_PI_2);
     app.update();
     assert_eq!(app.world().resource::<HudRes>().0.target, None);
+}
+
+#[test]
+fn a_dead_scavenger_leaves_a_box_with_its_pipe_and_its_row() {
+    let (mut app, player) = playing_app();
+    let npc = spawn(&mut app, "scavenger", Vec3::new(0.0, 0.0, -1.5), std::f32::consts::PI);
+    let id = app.world().get::<Actor>(npc).unwrap().0;
+    let feet = Vec3::new(0.0, 0.0, -1.5);
+    // The scavenger carries a can besides its pipe.
+    give(&mut app, npc, "canned food", 2);
+    // Swing the pipe until it drops: 60 health, head hits of 40.
+    let pipe = give(&mut app, player, "pipe", 1);
+    act(&mut app, player, Action::Hotbar { index: pipe });
+    for _ in 0..120 {
+        act(&mut app, player, Action::Attack);
+        app.update();
+        if app.world().get_entity(npc).is_err() {
+            break;
+        }
+    }
+    let world = app.world_mut();
+    assert!(world.get_entity(npc).is_err(), "the body is gone");
+    let map = &world.resource::<ActorMapRes>().0;
+    assert_eq!(map.handle_of(id), None, "it left the map");
+    assert_eq!(map.live_count(), 0);
+    assert_eq!(map.row_count(), 1, "the row is freed, the high-water mark stays");
+
+    // One storage box where it stood, holding the pipe and the cans.
+    let boxes: Vec<(Vec3, u32, u32)> = world
+        .query::<(&Transform, &WorldItem, &Container)>()
+        .iter(world)
+        .filter(|(_, w, _)| w.stack.item == "storage box")
+        .map(|(t, _, c)| (t.translation, c.0.count_of("pipe"), c.0.count_of("canned food")))
+        .collect();
+    assert_eq!(boxes.len(), 1, "one death box");
+    let (at, pipes, cans) = boxes[0];
+    assert!((at - feet).with_y(0.0).length() < 0.01, "where it stood: {at}");
+    assert_eq!((pipes, cans), (1, 2));
 }
 
 #[test]

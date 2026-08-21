@@ -100,6 +100,7 @@ pub fn build_app(headless: bool) -> App {
             player::look,
             player::movement,
             combat::fire,
+            actor::die.run_if(actor::any_dead),
             interact::update_looking_at,
             interact::interact_on_press,
             control_plane::publish_system,

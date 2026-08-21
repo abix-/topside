@@ -142,6 +142,60 @@ pub fn spawn_body(
 #[derive(Component)]
 pub struct Body;
 
+/// Run condition: some actor other than the player is at zero.
+pub fn any_dead(actors: Query<&Health, (With<Actor>, Without<crate::player::Player>)>) -> bool {
+    actors.iter().any(|h| h.0.is_dead())
+}
+
+/// Every actor but the player at zero health dies here, NPC, animal,
+/// turret, or vehicle alike (todo 11c): its three holders empty into
+/// one storage box where it stood (a deployed WorldItem through
+/// `spawn_item`, like every box), it leaves the `ActorMap` (the row
+/// is freed, the id never returns), and the body despawns with its
+/// children. The player's death is its own row.
+pub fn die(
+    mut commands: Commands,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<CelMaterial>>,
+    items: Res<ItemRegistryRes>,
+    time: Res<Time<Fixed>>,
+    mut actors: ResMut<ActorMapRes>,
+    mut dying: Query<
+        (Entity, &Actor, &Transform, &Health, &mut Inventory, &mut Hotbar, &mut Equipment),
+        Without<crate::player::Player>,
+    >,
+) {
+    for (entity, actor, transform, health, mut inventory, mut hotbar, mut equipment) in &mut dying {
+        if !health.0.is_dead() {
+            continue;
+        }
+        let loot = item::loot_all(&mut inventory.0, &mut hotbar.0.slots, &mut equipment.0);
+        if !loot.is_empty()
+            && let Some(box_def) = items.0.def("storage box")
+        {
+            // A death box holds everything, however much that is.
+            let mut contents = item::Inventory::new(loot.len().max(box_def.storage.unwrap_or(1)));
+            for stack in loot {
+                let max = items.0.def(&stack.item).map_or(1, |d| d.max_stack);
+                contents.add(stack, max);
+            }
+            let feet = transform.translation - Vec3::Y * EYE_HEIGHT;
+            let box_entity = crate::interact::spawn_item(
+                &mut commands,
+                &mut meshes,
+                &mut materials,
+                box_def,
+                item::create(box_def, 1, &[], time.elapsed_secs(), actor.0.0),
+                feet + Vec3::Y * 0.35,
+                [0.35, 0.25, 0.2],
+            );
+            commands.entity(box_entity).insert(crate::interact::Container(contents));
+        }
+        actors.0.remove(actor.0);
+        commands.entity(entity).despawn();
+    }
+}
+
 /// Every new player gets the same body an NPC gets, so NPC swings
 /// land on it. No mesh: the camera sits inside.
 pub fn body_for_new_players(
