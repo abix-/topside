@@ -6,15 +6,16 @@ use std::time::Duration;
 
 use avian3d::prelude::*;
 use bevy::{ecs::system::SystemState, prelude::*, time::TimeUpdateStrategy};
+use modforge::hud::HOTBAR_SLOTS;
 use modforge::item::EquipSlot;
 use topside::{
-    AppState, build_app,
+    AppState, SimTick, build_app,
     actor::{EYE_HEIGHT, Equipment, Facing, Hotbar, Inventory, Npc, SpawnActor, spawn_actor},
     cel::CelMaterial,
     combat::{Firing, Health, Protection},
-    content::ActorRegistryRes,
+    content::{ActorRegistryRes, ItemRegistryRes},
     actor_map::{Actor, ActorMapRes},
-    input::{Actions, ThisTick},
+    input::{Action, Actions, ThisTick},
     player::Player,
     survival::Survival,
 };
@@ -119,4 +120,104 @@ fn a_hunter_walks_at_the_player_through_the_same_action_queue() {
     );
     // The player never moved: its own queue was empty.
     assert_eq!(world.get::<Transform>(player).unwrap().translation, Vec3::new(0.0, EYE_HEIGHT, 0.0));
+}
+
+/// Push an action onto an actor's queue for the next fixed tick.
+fn act(app: &mut App, actor: Entity, action: Action) {
+    let next = app.world().resource::<SimTick>().0 + 1;
+    app.world_mut()
+        .get_mut::<Actions>(actor)
+        .unwrap()
+        .0
+        .push(next, action);
+}
+
+fn give(app: &mut App, actor: Entity, item: &str, count: u32) -> usize {
+    let stack = {
+        let items = app.world().resource::<ItemRegistryRes>();
+        let def = items.0.def(item).expect("registered");
+        (modforge::item::create(def, count, &[], 0.0, 0), def.max_stack)
+    };
+    let mut hotbar = app.world_mut().get_mut::<Hotbar>(actor).unwrap();
+    let slot = (0..HOTBAR_SLOTS).find(|i| hotbar.0.slots[*i].is_none()).unwrap();
+    hotbar.0.add(stack.0, stack.1);
+    slot
+}
+
+fn health(app: &App, actor: Entity) -> f32 {
+    app.world().get::<Health>(actor).unwrap().0.current
+}
+
+#[test]
+fn the_scavenger_hits_the_player_and_the_player_shoots_back() {
+    let (mut app, player) = playing_app();
+    // In reach, facing each other.
+    let npc = spawn(&mut app, "scavenger", Vec3::new(0.0, 0.0, -1.5), std::f32::consts::PI);
+    app.update();
+    // The hunter sees the player in reach and swings its pipe. A level
+    // swing from eye height lands on the head: 20 doubled, no armor.
+    for _ in 0..3 {
+        app.update();
+    }
+    assert_eq!(health(&app, player), 60.0, "one pipe swing landed on the player's head");
+
+    // The player equips a shotgun with shells from the hotbar and
+    // fires once: six pellets at 12, falloff none this close, most
+    // land on the chest or head of a body 1.5 m away.
+    let gun = give(&mut app, player, "pipe shotgun", 1);
+    give(&mut app, player, "shotgun shell", 2);
+    act(&mut app, player, Action::Hotbar { index: gun });
+    app.update();
+    assert!(
+        app.world().get::<Equipment>(player).unwrap().0.get(EquipSlot::Weapon).is_some(),
+        "the gun is in hand"
+    );
+    let before = health(&app, npc);
+    act(&mut app, player, Action::Attack);
+    app.update();
+    let after = health(&app, npc);
+    assert!(after < before, "pellets hurt: {before} -> {after}");
+    assert!(
+        before - after >= 12.0 * 3.0,
+        "at least half the pellets land at 1.5 m: {before} -> {after}"
+    );
+    assert_eq!(
+        app.world().get::<Hotbar>(player).unwrap().0.count_of("shotgun shell"),
+        1,
+        "one shell spent"
+    );
+    // Fire until the shells are gone, then a click on empty changes
+    // nothing.
+    for _ in 0..120 {
+        act(&mut app, player, Action::Attack);
+        app.update();
+    }
+    assert_eq!(app.world().get::<Hotbar>(player).unwrap().0.count_of("shotgun shell"), 0);
+    assert!(
+        app.world().get::<Health>(npc).unwrap().0.is_dead(),
+        "two shells of pellets at 1.5 m finish a 60 health scavenger"
+    );
+}
+
+#[test]
+fn a_vest_guards_the_chest_and_only_the_chest() {
+    let (mut app, player) = playing_app();
+    let npc = spawn(&mut app, "scavenger", Vec3::new(0.0, 0.0, -1.5), std::f32::consts::PI);
+    // Standing level, its swing from eye height would land on the
+    // player's head; lower the scavenger so the swing lands on the
+    // chest.
+    app.world_mut().get_mut::<Transform>(npc).unwrap().translation.y -= 0.6;
+    // Worn through the same use path as eating and equipping; the
+    // vest is on before the first swing lands in the same tick.
+    let vest = give(&mut app, player, "road sign vest", 1);
+    act(&mut app, player, Action::Hotbar { index: vest });
+    for _ in 0..4 {
+        app.update();
+    }
+    assert!(
+        app.world().get::<Equipment>(player).unwrap().0.get(EquipSlot::Chest).is_some(),
+        "the vest is worn on the chest"
+    );
+    let chest_hit = 100.0 - health(&app, player);
+    assert!(chest_hit > 0.0 && chest_hit < 20.0, "armor took part of the 20: {chest_hit}");
 }

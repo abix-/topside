@@ -475,13 +475,13 @@ pub fn write_prompt(
 pub fn render(
     state: Res<HudRes>,
     diagnostics: Res<DiagnosticsStore>,
-    players: Query<&Survival, With<Player>>,
+    players: Query<(&Survival, &crate::combat::Health), With<Player>>,
     mut huds: Query<&mut Text, With<Hud>>,
 ) {
     let Ok(mut text) = huds.single_mut() else {
         return;
     };
-    let Ok(survival) = players.single() else {
+    let Ok((survival, health)) = players.single() else {
         return;
     };
     let fps = diagnostics
@@ -489,8 +489,8 @@ pub fn render(
         .and_then(|d| d.smoothed())
         .unwrap_or(0.0);
     let mut line = format!(
-        "FPS: {fps:.0}  Hunger: {:.0}  Thirst: {:.0}",
-        survival.0.hunger, survival.0.thirst
+        "FPS: {fps:.0}  Health: {:.0}  Hunger: {:.0}  Thirst: {:.0}",
+        health.0.current, survival.0.hunger, survival.0.thirst
     );
     if state.0.prompt.can_interact {
         line.push('\n');

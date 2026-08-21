@@ -84,6 +84,7 @@ pub fn build_app(headless: bool) -> App {
         FixedUpdate,
         (
             tick_system,
+            actor::body_for_new_players,
             actor::populate_monuments.run_if(actor::monuments_to_populate),
             ai::think,
             input::drain_actions,

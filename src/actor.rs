@@ -75,7 +75,6 @@ pub fn spawn_actor(spawn: &mut SpawnActor, def: &ActorDef, feet: Vec3, yaw: f32)
         let stack = item::create(weapon, 1, &[], 0.0, 0);
         equipment.0.set(EquipSlot::Weapon, Some(stack));
     }
-    let half = BODY_TOP / 2.0;
     let entity = spawn
         .commands
         .spawn((
@@ -97,21 +96,12 @@ pub fn spawn_actor(spawn: &mut SpawnActor, def: &ActorDef, feet: Vec3, yaw: f32)
             ThisTick::default(),
             RigidBody::Kinematic,
         ))
-        .with_children(|parent| {
-            // The body: a capsule from the feet up, hit by the fire
-            // system and walked into by other bodies.
-            parent.spawn((
-                body_shape(),
-                Mesh3d(
-                    spawn
-                        .meshes
-                        .add(Capsule3d::new(BODY_RADIUS, BODY_TOP - 2.0 * BODY_RADIUS)),
-                ),
-                MeshMaterial3d(spawn.materials.add(CelMaterial::from_srgb(0.6, 0.2, 0.2))),
-                Transform::from_xyz(0.0, half - EYE_HEIGHT, 0.0),
-            ));
-        })
         .id();
+    spawn_body(
+        &mut spawn.commands,
+        entity,
+        Some((&mut spawn.meshes, &mut spawn.materials)),
+    );
     let Some((id, _row)) = spawn.actors.0.spawn(entity) else {
         // No row left: the actor never existed.
         spawn.commands.entity(entity).despawn();
@@ -119,6 +109,47 @@ pub fn spawn_actor(spawn: &mut SpawnActor, def: &ActorDef, feet: Vec3, yaw: f32)
     };
     spawn.commands.entity(entity).insert(Actor(id));
     Some(entity)
+}
+
+/// The body that hangs under an actor's eyes: a capsule from the
+/// feet up that the fire system hits and other bodies walk into. The
+/// ONE body for every actor; the player's has no mesh (the camera
+/// sits inside it). Returns the body entity.
+pub fn spawn_body(
+    commands: &mut Commands,
+    actor: Entity,
+    visuals: Option<(&mut Assets<Mesh>, &mut Assets<CelMaterial>)>,
+) -> Entity {
+    let half = BODY_TOP / 2.0;
+    let mut body = commands.spawn((
+        Body,
+        body_shape(),
+        Transform::from_xyz(0.0, half - EYE_HEIGHT, 0.0),
+        ChildOf(actor),
+    ));
+    if let Some((meshes, materials)) = visuals {
+        body.insert((
+            Mesh3d(meshes.add(Capsule3d::new(BODY_RADIUS, BODY_TOP - 2.0 * BODY_RADIUS))),
+            MeshMaterial3d(materials.add(CelMaterial::from_srgb(0.6, 0.2, 0.2))),
+        ));
+    }
+    body.id()
+}
+
+/// Marks an actor's body collider (the child under its root).
+#[derive(Component)]
+pub struct Body;
+
+/// Every new player gets the same body an NPC gets, so NPC swings
+/// land on it. No mesh: the camera sits inside.
+pub fn body_for_new_players(
+    mut commands: Commands,
+    players: Query<Entity, Added<crate::player::Player>>,
+) {
+    for player in &players {
+        commands.entity(player).insert(RigidBody::Kinematic);
+        spawn_body(&mut commands, player, None);
+    }
 }
 
 /// A monument whose NPC spots have been filled.

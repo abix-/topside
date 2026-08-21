@@ -229,6 +229,12 @@ pub fn setup(
         ("water bottle", 5, 3, Vec3::new(-1.0, 0.3, 2.6), [0.3, 0.5, 0.8]),
         ("water bottle", 1, 4, Vec3::new(-1.6, 0.3, 2.6), [0.3, 0.5, 0.8]),
         ("scrap", 3, 2, Vec3::new(1.0, 0.3, 2.0), [0.5, 0.5, 0.5]),
+        // The first gun, a pipe, and a vest: enough to meet the
+        // scavenger at the door (todo row 8).
+        ("pipe shotgun", 1, 9, Vec3::new(1.6, 0.3, 2.0), [0.3, 0.3, 0.3]),
+        ("shotgun shell", 8, 10, Vec3::new(1.6, 0.3, 2.6), [0.8, 0.3, 0.2]),
+        ("pipe", 1, 11, Vec3::new(1.0, 0.3, 2.6), [0.4, 0.4, 0.45]),
+        ("road sign vest", 1, 12, Vec3::new(2.2, 0.3, 2.0), [0.2, 0.5, 0.2]),
     ];
     for (name, count, salt, position, color) in floor {
         spawn_item(

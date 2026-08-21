@@ -7,7 +7,7 @@ use bevy::prelude::Resource;
 use modforge::actor::{ActorDef, ActorRegistry, Behaviour};
 use modforge::biome::{BiomeDef, BiomeRegistry, ScatterSpec};
 use modforge::combat::{DamageDef, DamageRegistry, DamageType, Falloff};
-use modforge::item::{CombatStats, FoodStats, ItemDef, ItemKind, ItemRegistry};
+use modforge::item::{Armor, CombatStats, EquipSlot, FoodStats, ItemDef, ItemKind, ItemRegistry};
 use modforge::monument::{
     Arrangement, BuildingRegistry, BuildingSize, BuildingSlot, BuildingTypeDef,
     MonumentRegistry, MonumentTypeDef,
@@ -85,9 +85,25 @@ pub fn register_damage(reg: &mut DamageRegistry) {
         self_scale: 0.5,
         falloff: Falloff::NONE,
     };
+    // Rust's pipe shotgun: a handful of pellets, full damage only up
+    // close (Facepunch devblog 123: shotguns fall off hardest).
+    let pellet = DamageDef {
+        name: "shotgun pellet".to_string(),
+        amount: 12.0,
+        kind: DamageType::Bullet,
+        knockback: 1.0,
+        ignores_armor: false,
+        self_scale: 0.5,
+        falloff: Falloff {
+            full_range: 8.0,
+            far_range: 30.0,
+            far_fraction: 0.2,
+        },
+    };
     for def in [
         melee("pipe swing", 20.0, DamageType::Blunt),
         melee("hatchet chop", 30.0, DamageType::Slash),
+        pellet,
     ] {
         reg.register(def).expect("damage defs must not collide");
     }
@@ -127,6 +143,7 @@ pub fn register_items(reg: &mut ItemRegistry) {
                 thirst: 0.0,
             }),
             storage: None,
+            armor: None,
         },
         ItemDef {
             name: "water bottle".to_string(),
@@ -139,6 +156,7 @@ pub fn register_items(reg: &mut ItemRegistry) {
                 thirst: 50.0,
             }),
             storage: None,
+            armor: None,
         },
         ItemDef {
             name: "storage box".to_string(),
@@ -148,6 +166,7 @@ pub fn register_items(reg: &mut ItemRegistry) {
             combat: None,
             food: None,
             storage: Some(12),
+            armor: None,
         },
         ItemDef {
             name: "scrap".to_string(),
@@ -157,6 +176,7 @@ pub fn register_items(reg: &mut ItemRegistry) {
             combat: None,
             food: None,
             storage: None,
+            armor: None,
         },
         ItemDef {
             name: "cloth".to_string(),
@@ -166,6 +186,7 @@ pub fn register_items(reg: &mut ItemRegistry) {
             combat: None,
             food: None,
             storage: None,
+            armor: None,
         },
         ItemDef {
             name: "pipe".to_string(),
@@ -182,6 +203,7 @@ pub fn register_items(reg: &mut ItemRegistry) {
             }),
             food: None,
             storage: None,
+            armor: None,
         },
         ItemDef {
             name: "hatchet".to_string(),
@@ -198,6 +220,50 @@ pub fn register_items(reg: &mut ItemRegistry) {
             }),
             food: None,
             storage: None,
+            armor: None,
+        },
+        // Rust's pipe shotgun: one shell, six pellets, wide spread,
+        // instant out to 40 m (the hybrid's instant part).
+        ItemDef {
+            name: "pipe shotgun".to_string(),
+            kind: ItemKind::Weapon,
+            max_stack: 1,
+            quality_siblings: 3,
+            combat: Some(CombatStats {
+                damage: "shotgun pellet".to_string(),
+                delay: 1.2,
+                reach: 40.0,
+                pellets: 6,
+                spread_degrees: 6.0,
+                ammo: Some("shotgun shell".to_string()),
+            }),
+            food: None,
+            storage: None,
+            armor: None,
+        },
+        ItemDef {
+            name: "shotgun shell".to_string(),
+            kind: ItemKind::Material,
+            max_stack: 20,
+            quality_siblings: 1,
+            combat: None,
+            food: None,
+            storage: None,
+            armor: None,
+        },
+        // Worn in the chest slot; guards the chest only.
+        ItemDef {
+            name: "road sign vest".to_string(),
+            kind: ItemKind::Tool,
+            max_stack: 1,
+            quality_siblings: 3,
+            combat: None,
+            food: None,
+            storage: None,
+            armor: Some(Armor {
+                slot: EquipSlot::Chest,
+                amount: 40.0,
+            }),
         },
     ];
     for item in items {
@@ -506,9 +572,15 @@ mod tests {
     fn all_items_register() {
         let mut reg = ItemRegistry::default();
         register_items(&mut reg);
-        assert_eq!(reg.len(), 7);
+        assert_eq!(reg.len(), 10);
         assert!(reg.def("canned food").is_some());
         assert!(reg.def("hatchet").is_some());
+        // Every gun's ammo is a registered item.
+        for name in ["pipe", "hatchet", "pipe shotgun"] {
+            if let Some(ammo) = reg.def(name).unwrap().combat.as_ref().unwrap().ammo.as_deref() {
+                assert!(reg.def(ammo).is_some(), "{name} fires unregistered {ammo}");
+            }
+        }
     }
 
     #[test]

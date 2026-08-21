@@ -7,15 +7,16 @@
 
 use avian3d::prelude::*;
 use bevy::prelude::*;
-use modforge::combat::{FireTimer, Hit, Trigger};
+use modforge::combat::{BodyArea, FireTimer, Hit, MultiDamage, Trigger, pellet_directions};
 use modforge::item::EquipSlot;
 pub use modforge::combat::{Health as HealthStats, Protection as ProtectionStats};
 
-use crate::actor::Equipment;
+use crate::SimTick;
+use crate::actor::{Equipment, Hotbar, Inventory};
 use crate::content::{DamageRegistryRes, ItemRegistryRes};
 use crate::input::{Action, ActionQueue, ThisTick};
 use crate::player::EYE_HEIGHT;
-use crate::structure::{Pieces, StructureRoot, damage_at};
+use crate::structure::{BODY_TOP, Pieces, StructureRoot, damage_at};
 
 /// Health on any actor: the player and every NPC.
 #[derive(Component, Debug, PartialEq)]
@@ -47,17 +48,30 @@ const SWING_HALF_WIDTH: f32 = 0.25;
 /// and an NPC's AI push the same `Attack`.
 pub fn fire(
     time: Res<Time<Fixed>>,
+    tick: Res<SimTick>,
     items: Res<ItemRegistryRes>,
     damage: Res<DamageRegistryRes>,
     spatial: SpatialQuery,
     mut commands: Commands,
-    mut shooters: Query<(Entity, &Transform, &Equipment, &ThisTick, &mut Firing, Option<&Children>)>,
+    mut shooters: Query<(
+        Entity,
+        &Transform,
+        &Equipment,
+        &ThisTick,
+        &mut Firing,
+        &mut Inventory,
+        &mut Hotbar,
+        Option<&Children>,
+    )>,
     mut structures: Query<(&Transform, &mut Pieces), With<StructureRoot>>,
-    mut actors: Query<(&mut Health, &mut Protection)>,
+    mut actors: Query<(&Transform, &Equipment, &mut Health, &mut Protection)>,
     bodies: Query<&ChildOf>,
 ) {
     let dt = time.delta_secs();
-    for (shooter, transform, equipment, this_tick, mut firing, children) in &mut shooters {
+    let armor_of = |name: &str| items.0.def(name).and_then(|d| d.armor);
+    for (shooter, transform, equipment, this_tick, mut firing, mut inventory, mut hotbar, children) in
+        &mut shooters
+    {
         firing.0.tick(dt);
         if !ActionQueue::has(&this_tick.0, Action::Attack) {
             continue;
@@ -73,61 +87,91 @@ pub fn fire(
         let Some(def) = damage.0.def(&weapon.damage) else {
             continue;
         };
-        // Melee and loaded guns have ammo; ammo counting lands with guns.
-        if firing.0.pull(weapon.delay, true) != Trigger::Fire {
+        // A gun needs a round: from the hotbar first, then the bag.
+        // Melee always has one.
+        let has_ammo = match weapon.ammo.as_deref() {
+            None => true,
+            Some(ammo) => hotbar.0.count_of(ammo) > 0 || inventory.0.count_of(ammo) > 0,
+        };
+        if firing.0.pull(weapon.delay, has_ammo) != Trigger::Fire {
             continue;
+        }
+        if let Some(ammo) = weapon.ammo.as_deref() {
+            let _ = hotbar.0.take_one(ammo) || inventory.0.take_one(ammo);
         }
 
         let eye = transform.translation;
-        let forward = transform.forward();
+        let aim = transform.forward().as_vec3();
         let own: Vec<Entity> = std::iter::once(shooter)
             .chain(children.into_iter().flat_map(|c| c.iter()))
             .collect();
         let filter = SpatialQueryFilter::from_excluded_entities(own);
-        // The line first, then the fat sweep.
-        let hit = spatial
-            .cast_ray(eye, forward, weapon.reach, true, &filter)
-            .map(|h| (h.entity, eye + forward * h.distance, h.distance))
-            .or_else(|| {
-                spatial
-                    .cast_shape(
-                        &Collider::cuboid(
-                            SWING_HALF_WIDTH * 2.0,
-                            SWING_HALF_WIDTH * 2.0,
-                            SWING_HALF_WIDTH * 2.0,
-                        ),
-                        eye,
-                        Quat::IDENTITY,
-                        forward,
-                        &ShapeCastConfig::from_max_distance(weapon.reach),
-                        &filter,
-                    )
-                    .map(|h| (h.entity, h.point1, h.distance))
-            });
-        let Some((target, point, distance)) = hit else {
-            continue;
-        };
-        let swing = Hit {
-            def,
-            self_inflicted: target == shooter,
-            distance,
-            location_scale: 1.0,
-        };
-        if let Ok((root_transform, mut pieces)) = structures.get_mut(target) {
-            damage_at(&mut commands, target, root_transform, &mut pieces, point, &swing);
-            continue;
+        let mut pellets = MultiDamage::default();
+        let mut points: Vec<(Entity, Vec3)> = Vec::new();
+        for dir in pellet_directions(aim, weapon.spread_degrees, weapon.pellets, tick.0) {
+            let forward = Dir3::new(dir).unwrap_or(transform.forward());
+            // The line first; melee gets the fat sweep on a miss.
+            let hit = spatial
+                .cast_ray(eye, forward, weapon.reach, true, &filter)
+                .map(|h| (h.entity, eye + forward * h.distance, h.distance))
+                .or_else(|| {
+                    if weapon.ammo.is_some() {
+                        return None;
+                    }
+                    spatial
+                        .cast_shape(
+                            &Collider::cuboid(
+                                SWING_HALF_WIDTH * 2.0,
+                                SWING_HALF_WIDTH * 2.0,
+                                SWING_HALF_WIDTH * 2.0,
+                            ),
+                            eye,
+                            Quat::IDENTITY,
+                            forward,
+                            &ShapeCastConfig::from_max_distance(weapon.reach),
+                            &filter,
+                        )
+                        .map(|h| (h.entity, h.point1, h.distance))
+                });
+            if let Some((target, point, distance)) = hit {
+                pellets.add(target, distance);
+                if !points.iter().any(|(e, _)| *e == target) {
+                    points.push((target, point));
+                }
+            }
         }
-        // An actor's body hangs under its root as a child; the
-        // health lives on the root.
-        let actor = if actors.contains(target) {
-            target
-        } else if let Ok(child_of) = bodies.get(target) {
-            child_of.parent()
-        } else {
-            continue;
-        };
-        if let Ok((mut health, mut protection)) = actors.get_mut(actor) {
-            modforge::combat::resolve_hit(&swing, &mut protection.0, &mut health.0);
+        // Every pellet on one target lands as one hit (Half-Life).
+        for (target, count, distance) in pellets.drain() {
+            let point = points
+                .iter()
+                .find(|(e, _)| *e == target)
+                .map(|(_, p)| *p)
+                .unwrap_or(eye);
+            let mut swing = Hit {
+                def,
+                self_inflicted: target == shooter,
+                distance,
+                location_scale: count as f32,
+            };
+            if let Ok((root_transform, mut pieces)) = structures.get_mut(target) {
+                damage_at(&mut commands, target, root_transform, &mut pieces, point, &swing);
+                continue;
+            }
+            // An actor's body hangs under its root as a child; the
+            // health lives on the root.
+            let actor = match bodies.get(target) {
+                Ok(child_of) => child_of.parent(),
+                Err(_) => target,
+            };
+            let Ok((t, worn, mut health, protection)) = actors.get_mut(actor) else {
+                continue;
+            };
+            // Where on the body, and what is worn there.
+            let feet = t.translation.y - EYE_HEIGHT;
+            let area = BodyArea::from_height((point.y - feet) / BODY_TOP);
+            swing.location_scale *= area.scale();
+            let mut guarded = protection.0.for_area(area, &worn.0, armor_of);
+            modforge::combat::resolve_hit(&swing, &mut guarded, &mut health.0);
         }
     }
 }
