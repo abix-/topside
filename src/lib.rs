@@ -100,6 +100,7 @@ pub fn build_app(headless: bool) -> App {
             hud::hotbar_keys,
             hud::transfer_hovered.run_if(hud::inventory_open),
             player::look,
+            player::toggle_fly,
             player::movement,
             combat::fire,
             actor::die.run_if(actor::any_dead),

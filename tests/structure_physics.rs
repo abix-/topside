@@ -223,6 +223,22 @@ fn structure_root_owns_avian_geometry_and_collision() {
 }
 
 #[test]
+fn flying_goes_through_the_wall_and_off_again_stops_at_it() {
+    let (mut app, player) = walking_app(&one_room(), Vec3::new(2.0, 0.0, 0.0), 0.0);
+    act(&mut app, player, Action::Fly);
+    walk(&mut app, player, Vec2::new(0.0, 1.0), 30);
+    let through = feet(&app, player);
+    assert!(through.z < -8.0, "flying passes the wall at z -4.1, got {through}");
+    // Off again: back inside, the wall stops the body as before.
+    act(&mut app, player, Action::Fly);
+    app.update();
+    app.world_mut().get_mut::<Transform>(player).unwrap().translation = Vec3::new(2.0, EYE_HEIGHT, 0.0);
+    walk(&mut app, player, Vec2::new(0.0, 1.0), 120);
+    let stopped = feet(&app, player);
+    assert!(stopped.z > -4.1 && stopped.z < -3.3, "walking again, got {stopped}");
+}
+
+#[test]
 fn walls_block_and_the_doorway_does_not() {
     // Start inside the room, walk north (negative z) beside the
     // doorway: the wall at z -4.1 stops the body.

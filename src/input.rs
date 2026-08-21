@@ -54,6 +54,7 @@ fn key_of(code: KeyCode) -> Option<Key> {
         KeyCode::KeyI => Key::I,
         KeyCode::KeyO => Key::O,
         KeyCode::KeyT => Key::T,
+        KeyCode::KeyV => Key::V,
         KeyCode::Tab => Key::Tab,
         KeyCode::Escape => Key::Escape,
         KeyCode::ShiftLeft => Key::ShiftLeft,
@@ -126,7 +127,7 @@ pub fn read_input(
             Action::Move { .. } | Action::Attack | Action::Use => in_world,
             Action::Drop | Action::Transfer { .. } => panel_open,
             Action::Inventory | Action::Cancel | Action::Hotbar { .. } => true,
-            Action::Look { .. } => in_world,
+            Action::Look { .. } | Action::Fly => in_world,
         };
         if allowed {
             moved |= matches!(action, Action::Move { .. });

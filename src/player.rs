@@ -22,7 +22,31 @@ pub use crate::actor::EYE_HEIGHT;
 pub struct Player;
 
 const WALK_SPEED: f32 = 5.0;
+/// Admin flight (Quake's noclip): fast, along the look direction,
+/// through everything.
+const FLY_SPEED: f32 = 40.0;
 const PITCH_LIMIT: f32 = 1.54;
+
+/// The actor is flying through everything (V toggles it).
+#[derive(Component)]
+pub struct Flying;
+
+/// `Fly` among this tick's actions toggles `Flying` on the player.
+pub fn toggle_fly(
+    mut commands: Commands,
+    players: Query<(Entity, &ThisTick, Has<Flying>), With<Player>>,
+) {
+    for (entity, this_tick, flying) in &players {
+        if !ActionQueue::has(&this_tick.0, Action::Fly) {
+            continue;
+        }
+        if flying {
+            commands.entity(entity).remove::<Flying>();
+        } else {
+            commands.entity(entity).insert(Flying);
+        }
+    }
+}
 
 /// The sun and the camera. The ground is spawned by bunker::setup
 /// once it knows where the basements are (ground.rs).
@@ -91,16 +115,30 @@ pub fn look(mut actors: Query<(&mut Transform, &mut Facing, &ThisTick)>) {
 pub fn movement(
     time: Res<Time<Fixed>>,
     move_and_slide: MoveAndSlide,
-    mut actors: Query<(Entity, &mut Transform, &Facing, &ThisTick, Option<&Children>)>,
+    mut actors: Query<(
+        Entity,
+        &mut Transform,
+        &Facing,
+        &ThisTick,
+        Option<&Children>,
+        Has<Flying>,
+    )>,
 ) {
     let shape = body_shape();
     let config = MoveAndSlideConfig::default();
     let half = BODY_TOP / 2.0;
-    for (entity, mut transform, facing, this_tick, children) in &mut actors {
+    for (entity, mut transform, facing, this_tick, children, flying) in &mut actors {
         // Actions say y is forward; the world's forward is -z.
         let (x, y) = ActionQueue::movement(&this_tick.0);
         let wish = Vec3::new(x, 0.0, -y);
         if wish == Vec3::ZERO {
+            continue;
+        }
+        if flying {
+            // Along the full look direction, pitch included, through
+            // everything.
+            let step = (facing.rotation() * wish).normalize() * FLY_SPEED * time.delta_secs();
+            transform.translation += step;
             continue;
         }
         let velocity = (Quat::from_rotation_y(facing.yaw) * wish).normalize() * WALK_SPEED;
