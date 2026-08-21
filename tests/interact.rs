@@ -46,10 +46,7 @@ fn playing_app() -> (App, Entity) {
         .world_mut()
         .spawn((
             Transform::from_xyz(0.0, 1.7, 0.0),
-            Player {
-                yaw: 0.0,
-                pitch: 0.0,
-            },
+            Player,
         ))
         .id();
     app.world_mut()

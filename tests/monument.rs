@@ -7,9 +7,12 @@ use std::time::Duration;
 use bevy::{ecs::system::SystemState, prelude::*, time::TimeUpdateStrategy};
 use modforge::hud::InteractKind;
 use topside::{
-    AppState, SimTick, build_app,
+    AppState, SimTick,
+    actor::{Facing, Npc},
+    build_app,
     cel::CelMaterial,
     content::{ItemRegistryRes, MonumentRegistryRes},
+    entity_map::EntityMap,
     input::{Action, Actions},
     interact::{Container, LookingAt, WorldItem},
     player::Player,
@@ -35,10 +38,7 @@ fn spawn_gated(kind: &str) -> (App, Entity, usize) {
     app.init_resource::<Assets<CelMaterial>>();
     app.world_mut().spawn((
         Transform::from_xyz(0.0, 1.7, 0.0),
-        Player {
-            yaw: 0.0,
-            pitch: 0.0,
-        },
+        Player,
     ));
     app.world_mut()
         .resource_mut::<NextState<AppState>>()
@@ -99,6 +99,15 @@ fn a_rolled_monument_spawns_its_members_boxes_and_gate() {
         .count();
     assert_eq!(stocked, members, "every loot box holds scrap");
 
+    // Every NPC spot was filled through the one spawn path, under
+    // the root.
+    let npcs = children
+        .iter()
+        .filter(|e| world.get::<Npc>(**e).is_some())
+        .count();
+    assert_eq!(npcs, members, "one NPC per spot, parented to the root");
+    assert_eq!(world.resource::<EntityMap>().npc_count(), members);
+
     let locked: Vec<(Entity, u32)> = world
         .query::<(Entity, &Door, &Locked)>()
         .iter(world)
@@ -121,7 +130,7 @@ fn a_rolled_monument_spawns_its_members_boxes_and_gate() {
     let mut transform = world.get_mut::<Transform>(player).unwrap();
     transform.translation = center + Vec3::new(-1.5, 0.4, 0.0);
     transform.rotation = Quat::from_euler(EulerRot::YXZ, yaw, 0.0, 0.0);
-    world.get_mut::<Player>(player).unwrap().yaw = yaw;
+    world.get_mut::<Facing>(player).unwrap().yaw = yaw;
     app.update();
     assert_eq!(
         app.world().resource::<LookingAt>().kind,

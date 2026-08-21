@@ -4,6 +4,7 @@
 
 use bevy::math::Vec3;
 use bevy::prelude::Resource;
+use modforge::actor::{ActorDef, ActorRegistry, Behaviour};
 use modforge::biome::{BiomeDef, BiomeRegistry, ScatterSpec};
 use modforge::combat::{DamageDef, DamageRegistry, DamageType, Falloff};
 use modforge::item::{CombatStats, FoodStats, ItemDef, ItemKind, ItemRegistry};
@@ -36,6 +37,40 @@ impl Default for DamageRegistryRes {
         let mut reg = DamageRegistry::default();
         register_damage(&mut reg);
         Self(reg)
+    }
+}
+
+/// The actor registry as an app resource: every NPC spawned through
+/// `spawn_actor` is one of these defs.
+#[derive(Resource)]
+pub struct ActorRegistryRes(pub ActorRegistry);
+
+impl Default for ActorRegistryRes {
+    fn default() -> Self {
+        let mut reg = ActorRegistry::default();
+        register_actors(&mut reg);
+        Self(reg)
+    }
+}
+
+/// The hostile people found at monuments.
+pub fn register_actors(reg: &mut ActorRegistry) {
+    let hostile = |name: &str, behaviour, max_health, weapon: &str| ActorDef {
+        name: name.to_string(),
+        faction: "raiders".to_string(),
+        behaviour,
+        max_health,
+        protection: Default::default(),
+        weapon: Some(weapon.to_string()),
+        sight: 25.0,
+        reach: 1.8,
+    };
+    for def in [
+        hostile("scavenger", Behaviour::Hunter, 60.0, "pipe"),
+        hostile("raider", Behaviour::Hunter, 100.0, "hatchet"),
+        hostile("lookout", Behaviour::Guard, 80.0, "pipe"),
+    ] {
+        reg.register(def).expect("actor registered once");
     }
 }
 
@@ -474,6 +509,21 @@ mod tests {
         assert_eq!(reg.len(), 7);
         assert!(reg.def("canned food").is_some());
         assert!(reg.def("hatchet").is_some());
+    }
+
+    #[test]
+    fn all_actors_register_and_hold_registered_weapons() {
+        let mut items = ItemRegistry::default();
+        register_items(&mut items);
+        let mut reg = ActorRegistry::default();
+        register_actors(&mut reg);
+        let names: Vec<&str> = reg.names().collect();
+        assert_eq!(names, ["scavenger", "raider", "lookout"]);
+        for name in names {
+            let def = reg.def(name).unwrap();
+            let weapon = def.weapon.as_deref().expect("every hostile is armed");
+            assert!(items.def(weapon).is_some(), "{name} holds unregistered {weapon}");
+        }
     }
 
     #[test]

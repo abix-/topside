@@ -1,7 +1,7 @@
 //! First-person camera on a flat ground plane. Skeleton controls:
 //! click grabs the cursor, mouse looks, WASD walks, Escape releases.
 
-use crate::actor::{Equipment, Hotbar, Inventory};
+use crate::actor::{Equipment, Facing, Hotbar, Inventory};
 use crate::combat::{Firing, Health, Protection};
 use crate::input::{Action, ActionQueue, Actions, ThisTick};
 use crate::structure::{BODY_TOP, CLIMB, body_shape};
@@ -10,17 +10,17 @@ use avian3d::prelude::*;
 use bevy::prelude::*;
 use bevy::window::{CursorGrabMode, CursorOptions, PrimaryWindow};
 
+pub use crate::actor::EYE_HEIGHT;
+
 /// The human-driven actor. Carries exactly what an NPC carries
 /// (actor.rs, combat.rs, input.rs); the camera and who fills the
 /// action queue are the only difference.
-#[derive(Component)]
-#[require(Inventory, Hotbar, Equipment, Survival, Health, Protection, Firing, Actions, ThisTick)]
-pub struct Player {
-    pub yaw: f32,
-    pub pitch: f32,
-}
+#[derive(Component, Default)]
+#[require(
+    Facing, Inventory, Hotbar, Equipment, Survival, Health, Protection, Firing, Actions, ThisTick
+)]
+pub struct Player;
 
-pub const EYE_HEIGHT: f32 = 1.7;
 const WALK_SPEED: f32 = 5.0;
 const PITCH_LIMIT: f32 = 1.54;
 
@@ -39,10 +39,7 @@ pub fn setup_scene(mut commands: Commands) {
     commands.spawn((
         Camera3d::default(),
         Transform::from_xyz(0.0, EYE_HEIGHT, 2.0),
-        Player {
-            yaw: 0.0,
-            pitch: 0.0,
-        },
+        Player,
     ));
 }
 
@@ -72,16 +69,16 @@ pub fn cursor_grab(
     }
 }
 
-/// Turn the view by this tick's look actions.
-pub fn look(mut players: Query<(&mut Transform, &mut Player, &ThisTick)>) {
-    for (mut transform, mut player, this_tick) in &mut players {
+/// Turn every actor by this tick's look actions.
+pub fn look(mut actors: Query<(&mut Transform, &mut Facing, &ThisTick)>) {
+    for (mut transform, mut facing, this_tick) in &mut actors {
         let (yaw, pitch) = ActionQueue::look(&this_tick.0);
         if yaw == 0.0 && pitch == 0.0 {
             continue;
         }
-        player.yaw += yaw;
-        player.pitch = (player.pitch + pitch).clamp(-PITCH_LIMIT, PITCH_LIMIT);
-        transform.rotation = Quat::from_euler(EulerRot::YXZ, player.yaw, player.pitch, 0.0);
+        facing.yaw += yaw;
+        facing.pitch = (facing.pitch + pitch).clamp(-PITCH_LIMIT, PITCH_LIMIT);
+        transform.rotation = facing.rotation();
     }
 }
 
@@ -94,20 +91,25 @@ pub fn look(mut players: Query<(&mut Transform, &mut Player, &ThisTick)>) {
 pub fn movement(
     time: Res<Time<Fixed>>,
     move_and_slide: MoveAndSlide,
-    mut players: Query<(Entity, &mut Transform, &Player, &ThisTick)>,
+    mut actors: Query<(Entity, &mut Transform, &Facing, &ThisTick, Option<&Children>)>,
 ) {
     let shape = body_shape();
     let config = MoveAndSlideConfig::default();
     let half = BODY_TOP / 2.0;
-    for (entity, mut transform, player, this_tick) in &mut players {
+    for (entity, mut transform, facing, this_tick, children) in &mut actors {
         // Actions say y is forward; the world's forward is -z.
         let (x, y) = ActionQueue::movement(&this_tick.0);
         let wish = Vec3::new(x, 0.0, -y);
         if wish == Vec3::ZERO {
             continue;
         }
-        let velocity = (Quat::from_rotation_y(player.yaw) * wish).normalize() * WALK_SPEED;
-        let filter = SpatialQueryFilter::from_excluded_entities([entity]);
+        let velocity = (Quat::from_rotation_y(facing.yaw) * wish).normalize() * WALK_SPEED;
+        // An actor never collides with itself: not its root, not the
+        // body hanging under it.
+        let own: Vec<Entity> = std::iter::once(entity)
+            .chain(children.into_iter().flat_map(|c| c.iter()))
+            .collect();
+        let filter = SpatialQueryFilter::from_excluded_entities(own);
         let start = transform.translation - Vec3::Y * EYE_HEIGHT + Vec3::Y * half;
         let slide = |from: Vec3| {
             move_and_slide

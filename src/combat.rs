@@ -51,12 +51,13 @@ pub fn fire(
     damage: Res<DamageRegistryRes>,
     spatial: SpatialQuery,
     mut commands: Commands,
-    mut shooters: Query<(Entity, &Transform, &Equipment, &ThisTick, &mut Firing)>,
+    mut shooters: Query<(Entity, &Transform, &Equipment, &ThisTick, &mut Firing, Option<&Children>)>,
     mut structures: Query<(&Transform, &mut Pieces), With<StructureRoot>>,
     mut actors: Query<(&mut Health, &mut Protection)>,
+    bodies: Query<&ChildOf>,
 ) {
     let dt = time.delta_secs();
-    for (shooter, transform, equipment, this_tick, mut firing) in &mut shooters {
+    for (shooter, transform, equipment, this_tick, mut firing, children) in &mut shooters {
         firing.0.tick(dt);
         if !ActionQueue::has(&this_tick.0, Action::Attack) {
             continue;
@@ -79,7 +80,10 @@ pub fn fire(
 
         let eye = transform.translation;
         let forward = transform.forward();
-        let filter = SpatialQueryFilter::from_excluded_entities([shooter]);
+        let own: Vec<Entity> = std::iter::once(shooter)
+            .chain(children.into_iter().flat_map(|c| c.iter()))
+            .collect();
+        let filter = SpatialQueryFilter::from_excluded_entities(own);
         // The line first, then the fat sweep.
         let hit = spatial
             .cast_ray(eye, forward, weapon.reach, true, &filter)
@@ -111,7 +115,18 @@ pub fn fire(
         };
         if let Ok((root_transform, mut pieces)) = structures.get_mut(target) {
             damage_at(&mut commands, target, root_transform, &mut pieces, point, &swing);
-        } else if let Ok((mut health, mut protection)) = actors.get_mut(target) {
+            continue;
+        }
+        // An actor's body hangs under its root as a child; the
+        // health lives on the root.
+        let actor = if actors.contains(target) {
+            target
+        } else if let Ok(child_of) = bodies.get(target) {
+            child_of.parent()
+        } else {
+            continue;
+        };
+        if let Ok((mut health, mut protection)) = actors.get_mut(actor) {
             modforge::combat::resolve_hit(&swing, &mut protection.0, &mut health.0);
         }
     }

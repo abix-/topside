@@ -2,6 +2,7 @@
 //! consuming the modforge crate. Ownership map: docs/authority.md.
 
 pub mod actor;
+pub mod ai;
 pub mod bunker;
 pub mod cel;
 pub mod combat;
@@ -63,6 +64,7 @@ pub fn build_app(headless: bool) -> App {
     app.init_resource::<content::ItemRegistryRes>();
     app.init_resource::<content::DamageRegistryRes>();
     app.init_resource::<content::MonumentRegistryRes>();
+    app.init_resource::<content::ActorRegistryRes>();
     app.init_resource::<ButtonInput<KeyCode>>();
     app.init_resource::<ButtonInput<MouseButton>>();
     app.init_resource::<input::BindingsRes>();
@@ -83,6 +85,8 @@ pub fn build_app(headless: bool) -> App {
         FixedUpdate,
         (
             tick_system,
+            actor::populate_monuments.run_if(actor::monuments_to_populate),
+            ai::think,
             input::drain_actions,
             survival::survival_tick,
             structure::lock_gates,
@@ -171,10 +175,7 @@ mod tests {
             .world_mut()
             .spawn((
                 Transform::from_xyz(0.0, 1.7, 2.0),
-                player::Player {
-                    yaw: 0.0,
-                    pitch: 0.0,
-                },
+                player::Player,
             ))
             .id();
         let door = structure::Door {

@@ -5,7 +5,7 @@ use bevy::{ecs::system::SystemState, prelude::*, time::TimeUpdateStrategy};
 use modforge::item::EquipSlot;
 use topside::{
     AppState, SimTick,
-    actor::Equipment,
+    actor::{Equipment, Facing},
     build_app,
     cel::CelMaterial,
     content::ItemRegistryRes,
@@ -100,7 +100,8 @@ fn walking_app(def: &StructureDef, feet: Vec3, yaw: f32) -> (App, Entity) {
         .spawn((
             Transform::from_translation(feet + Vec3::Y * EYE_HEIGHT)
                 .with_rotation(Quat::from_euler(EulerRot::YXZ, yaw, 0.0, 0.0)),
-            Player { yaw, pitch: 0.0 },
+            Player,
+            Facing { yaw, pitch: 0.0 },
         ))
         .id();
     app.world_mut()

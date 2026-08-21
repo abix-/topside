@@ -48,10 +48,7 @@ fn run_boot_test() -> i32 {
         .world_mut()
         .spawn((
             Transform::from_xyz(0.0, 1.7, 0.0),
-            Player {
-                yaw: 0.0,
-                pitch: 0.0,
-            },
+            Player,
         ))
         .id();
     let start = Instant::now();
