@@ -6,8 +6,9 @@ use bevy::prelude::*;
 
 use modforge::item::{Inventory, create};
 
+use crate::actor::{SpawnActor, spawn_actor};
 use crate::cel::CelMaterial;
-use crate::content::{ItemRegistryRes, MonumentRegistryRes};
+use crate::content::{ActorRegistryRes, ItemRegistryRes, MonumentRegistryRes};
 use crate::ground::spawn_ground;
 use crate::interact::{Container, spawn_item};
 use crate::structure::{
@@ -18,6 +19,14 @@ use modforge::monument::footprint;
 
 /// One game day in real seconds (Valheim-scale pacing; tune later).
 pub const GAME_DAY_SECS: f32 = 1200.0;
+
+/// One scavenger waiting outside the bunker door (the north wall is
+/// at z -4; it stands 6 m past it, facing the door), through the one
+/// spawn path.
+pub fn setup_enemy(mut spawn: SpawnActor, actors: Res<ActorRegistryRes>) {
+    let def = actors.0.def("scavenger").expect("scavenger is registered");
+    spawn_actor(&mut spawn, def, Vec3::new(0.0, 0.0, -10.0), std::f32::consts::PI);
+}
 
 /// The starting bunker: one room with exactly a bed, a crafting
 /// bench, and the food crate (design.md: three things), door north

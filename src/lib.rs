@@ -119,6 +119,7 @@ pub fn build_app(headless: bool) -> App {
                 cel::load_shader,
                 player::setup_scene,
                 bunker::setup,
+                bunker::setup_enemy,
                 hud::setup,
             )
                 .chain(),
