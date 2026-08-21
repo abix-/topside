@@ -494,8 +494,8 @@ pub fn render(
         .and_then(|d| d.smoothed())
         .unwrap_or(0.0);
     let mut line = format!(
-        "FPS: {fps:.0}  Health: {:.0}  Hunger: {:.0}  Thirst: {:.0}",
-        health.0.current, survival.0.hunger, survival.0.thirst
+        "FPS: {fps:.0}  Health: {:.0}  Hunger: {:.0}  Thirst: {:.0}  Rest: {:.0}  Safety: {:.0}",
+        health.0.current, survival.0.hunger, survival.0.thirst, survival.0.rest, survival.0.safety
     );
     // What is in the hands and, for a gun, the rounds left anywhere
     // on the player.

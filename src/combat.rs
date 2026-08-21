@@ -16,6 +16,7 @@ use crate::content::{DamageRegistryRes, ItemRegistryRes};
 use crate::input::{Action, ActionQueue, ThisTick};
 use crate::player::EYE_HEIGHT;
 use crate::structure::{BODY_TOP, Pieces, StructureRoot, damage_at};
+use crate::survival::Survival;
 
 /// Health on any actor: the player and every NPC.
 #[derive(Component, Debug, PartialEq)]
@@ -63,7 +64,7 @@ pub fn fire(
         &Personality,
     )>,
     mut structures: Query<(&Transform, &mut Pieces), With<StructureRoot>>,
-    mut actors: Query<(&Transform, &Equipment, &mut Health, &mut Protection)>,
+    mut actors: Query<(&Transform, &Equipment, &mut Health, &mut Protection, &mut Survival)>,
     bodies: Query<&ChildOf>,
 ) {
     let dt = time.delta_secs();
@@ -77,7 +78,7 @@ pub fn fire(
         }
         // Who is swinging: Strong hits harder, a Berserker harder
         // still when hurt, a Sharpshot reaches farther.
-        let own_health = actors.get(shooter).map_or(1.0, |(_, _, h, _)| h.0.fraction());
+        let own_health = actors.get(shooter).map_or(1.0, |(_, _, h, _, _)| h.0.fraction());
         let damage_mult = personality.0.damage_mult(own_health);
         let reach_mult = personality.0.range_mult();
         // What is in the hands: the held bar slot (Rust).
@@ -169,7 +170,7 @@ pub fn fire(
                 Ok(child_of) => child_of.parent(),
                 Err(_) => target,
             };
-            let Ok((t, worn, mut health, protection)) = actors.get_mut(actor) else {
+            let Ok((t, worn, mut health, protection, mut needs)) = actors.get_mut(actor) else {
                 continue;
             };
             // Where on the body, and what is worn there.
@@ -177,7 +178,9 @@ pub fn fire(
             let area = BodyArea::from_height((point.y - feet) / BODY_TOP);
             swing.location_scale *= area.scale();
             let mut guarded = protection.0.for_area(area, &worn.0, armor_of);
-            modforge::combat::resolve_hit(&swing, &mut guarded, &mut health.0);
+            let result = modforge::combat::resolve_hit(&swing, &mut guarded, &mut health.0);
+            // Being hit is frightening: safety falls by the damage.
+            needs.0.hit_taken(result.damage_dealt);
         }
     }
 }

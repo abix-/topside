@@ -22,7 +22,7 @@ use topside::{
     actor_map::{Actor, ActorMapRes},
     input::{Action, Actions, ThisTick},
     player::Player,
-    survival::Survival,
+    survival::{ActorCondition, Condition, Need, Survival},
 };
 
 fn playing_app() -> (App, Entity) {
@@ -171,6 +171,36 @@ fn people_from_one_def_differ_by_their_traits_and_a_seed_repeats_them() {
         let again = modforge::actor::Personality::seed(id, 7);
         assert_eq!(60.0 * again.health_mult(), health);
     }
+}
+
+#[test]
+fn needs_move_with_hits_sleep_and_home() {
+    let (mut app, player) = playing_app();
+    let npc = spawn_plain(&mut app, "scavenger", Vec3::new(0.0, 0.0, -1.5), std::f32::consts::PI);
+    // The scavenger's swing lands: the player's safety falls by the damage.
+    for _ in 0..3 {
+        app.update();
+    }
+    let needs = app.world().get::<Survival>(player).unwrap().0;
+    assert!((needs.safety - 60.0).abs() < 0.5, "40 of head hit: safety {}", needs.safety);
+    assert_eq!(needs.worst_need().0, Need::Safety);
+
+    // Rest: awake it falls; asleep it climbs.
+    let before = app.world().get::<Survival>(npc).unwrap().0.rest;
+    for _ in 0..60 {
+        app.update();
+    }
+    let awake = app.world().get::<Survival>(npc).unwrap().0.rest;
+    assert!(awake < before, "rest drains awake");
+    app.world_mut().entity_mut(npc).insert(ActorCondition(Condition {
+        asleep: true,
+        ..Default::default()
+    }));
+    for _ in 0..60 {
+        app.update();
+    }
+    let asleep = app.world().get::<Survival>(npc).unwrap().0.rest;
+    assert!(asleep > awake, "rest refills asleep");
 }
 
 /// Whether `npc` has anything to do this tick (the AI only pushes
