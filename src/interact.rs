@@ -14,7 +14,7 @@ use crate::cel::CelMaterial;
 use crate::content::ItemRegistryRes;
 use crate::hud::{HoveredSlot, HudRes, panel_changed};
 use crate::player::Player;
-use crate::structure::Door;
+use crate::structure::{Door, Locked};
 
 const INTERACT_RANGE: f32 = 3.0;
 const ITEM_HALF: f32 = 0.2;
@@ -128,7 +128,7 @@ fn ray_aabb(origin: Vec3, dir: Vec3, aabb: &Aabb) -> Option<f32> {
 pub fn update_looking_at(
     players: Query<&Transform, With<Player>>,
     interactables: Query<(Entity, &Interactable)>,
-    doors: Query<(Entity, &Door)>,
+    doors: Query<(Entity, &Door, Option<&Locked>)>,
     mut looking_at: ResMut<LookingAt>,
 ) {
     looking_at.entity = None;
@@ -141,12 +141,15 @@ pub fn update_looking_at(
     let origin = player.translation;
     let dir = player.forward().as_vec3();
 
-    for (entity, door) in &doors {
+    for (entity, door, locked) in &doors {
         if let Some(t) = ray_aabb(origin, dir, &door.collider)
             && t < looking_at.distance
         {
             looking_at.entity = Some(entity);
-            looking_at.kind = Some(InteractKind::Door { open: door.open });
+            looking_at.kind = Some(match locked {
+                Some(Locked(level)) => InteractKind::Gate { level: *level },
+                None => InteractKind::Door { open: door.open },
+            });
             looking_at.distance = t;
         }
     }
@@ -214,6 +217,7 @@ pub fn interact_on_press(
                 open_container.0 = Some(entity);
             }
         }
-        InteractResult::InventoryFull => {}
+        // The gate stays shut; the prompt already says so.
+        InteractResult::Locked(_) | InteractResult::InventoryFull => {}
     }
 }

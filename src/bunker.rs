@@ -7,10 +7,11 @@ use bevy::prelude::*;
 use modforge::item::{Inventory, create};
 
 use crate::cel::CelMaterial;
-use crate::content::ItemRegistryRes;
+use crate::content::{ItemRegistryRes, MonumentRegistryRes};
 use crate::interact::{Container, spawn_item};
 use crate::structure::{
-    LightSpec, Opening, RoomSpec, Side, SolidSpec, StairSpec, StructureDef, spawn_structure,
+    LightSpec, Opening, RoomSpec, Side, SolidSpec, StairSpec, StructureDef, spawn_monument,
+    spawn_structure,
 };
 
 /// One game day in real seconds (Valheim-scale pacing; tune later).
@@ -175,6 +176,7 @@ pub fn setup(
     mut meshes: ResMut<Assets<Mesh>>,
     mut cel_materials: ResMut<Assets<CelMaterial>>,
     items: Res<ItemRegistryRes>,
+    monuments: Res<MonumentRegistryRes>,
     time: Res<Time>,
 ) {
     spawn_structure(
@@ -242,4 +244,23 @@ pub fn setup(
         [0.55, 0.45, 0.20],
     );
     commands.entity(box_).insert(Container(loot));
+
+    // One rolled monument east of the house: a roadside stop, the
+    // first destination worth walking to. The seed changes with
+    // every launch; the storm will re-roll it.
+    let seed = now.to_bits() as u64 ^ 0xA5A5;
+    let stop = monuments
+        .monuments
+        .roll("roadside stop", &monuments.buildings, seed)
+        .expect("the roadside stop type is registered");
+    spawn_monument(
+        &mut commands,
+        &mut meshes,
+        &mut cel_materials,
+        &items.0,
+        &stop,
+        Vec3::new(45.0, 0.0, -20.0),
+        now,
+    )
+    .expect("a rolled monument is legal");
 }

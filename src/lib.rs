@@ -57,6 +57,7 @@ pub fn build_app(headless: bool) -> App {
     app.init_resource::<entity_map::EntityMap>();
     app.init_resource::<survival::Rates>();
     app.init_resource::<content::ItemRegistryRes>();
+    app.init_resource::<content::MonumentRegistryRes>();
     app.init_resource::<ButtonInput<KeyCode>>();
     app.init_resource::<interact::LookingAt>();
     app.init_resource::<interact::InteractInput>();
@@ -89,6 +90,7 @@ pub fn build_app(headless: bool) -> App {
         (
             tick_system,
             survival::survival_tick,
+            structure::lock_gates,
             player::movement.run_if(not(hud::inventory_open)),
             interact::update_looking_at,
             interact::interact_on_press,

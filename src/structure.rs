@@ -11,9 +11,12 @@
 use avian3d::prelude::*;
 use bevy::prelude::*;
 use crate::cel::CelMaterial;
+use crate::interact::{Container, spawn_item};
+use modforge::item::{Inventory, ItemRegistry, create};
+use modforge::monument::validate_monument;
 pub use modforge::structure::{
-    Aabb, LightSpec, Opening, Rgb, RoomSpec, Side, SolidSpec, StairSpec, StructureDef, side_frame,
-    validate,
+    Aabb, LightSpec, MonumentDef, NpcSpot, Opening, Rgb, RoomSpec, Side, SolidSpec, StairSpec,
+    StructureDef, side_frame, validate,
 };
 
 fn cel_from_rgb(c: Rgb) -> CelMaterial {
@@ -259,6 +262,136 @@ pub fn spawn_structure(
     }
 
     Ok(root)
+}
+
+/// The root of one spawned monument; its member structures hang
+/// off it, so despawning it takes the whole monument (the storm).
+#[derive(Component)]
+pub struct MonumentRoot {
+    pub name: String,
+    /// World position the monument was rolled at.
+    pub origin: Vec3,
+    /// Where this monument's NPCs spawn, world space, kept until
+    /// the one NPC spawn path lands.
+    pub npc_spots: Vec<NpcSpot>,
+}
+
+/// A gate waiting for its door: placed at the gate position when the
+/// monument spawns; `lock_gates` finds the door that was spawned
+/// there and locks it.
+#[derive(Component)]
+pub struct PendingGate {
+    pub level: u32,
+}
+
+/// A door that stays shut until `level` of progression, which
+/// nothing grants yet (Rust's card rooms).
+#[derive(Component, Debug, PartialEq)]
+pub struct Locked(pub u32);
+
+/// The one path from a MonumentDef to the world: every member goes
+/// through `spawn_structure` under one root, every loot spot becomes
+/// a storage box through `spawn_item`, every gate marks its door.
+/// Loot is a fixed list scaled by the spot's danger until loot
+/// tables land.
+pub fn spawn_monument(
+    commands: &mut Commands,
+    meshes: &mut Assets<Mesh>,
+    materials: &mut Assets<CelMaterial>,
+    items: &ItemRegistry,
+    def: &MonumentDef,
+    origin: Vec3,
+    now: f32,
+) -> Result<Entity, String> {
+    validate_monument(def)?;
+    // The root owns the members (despawn takes all) but sits at the
+    // world origin: every member, door, and box keeps world-space
+    // positions, as the structure contract requires.
+    let root = commands
+        .spawn((
+            MonumentRoot {
+                name: def.name.clone(),
+                origin,
+                npc_spots: def
+                    .npc_spots
+                    .iter()
+                    .map(|s| NpcSpot {
+                        position: origin + s.position,
+                        danger: s.danger,
+                    })
+                    .collect(),
+            },
+            Transform::default(),
+            Visibility::default(),
+        ))
+        .id();
+    for member in &def.members {
+        let structure = spawn_structure(
+            commands,
+            meshes,
+            materials,
+            &member.structure,
+            origin + member.offset,
+        )?;
+        commands.entity(structure).insert(ChildOf(root));
+    }
+    let box_def = items
+        .def("storage box")
+        .ok_or("the storage box item is not registered")?;
+    for (i, spot) in def.loot_spots.iter().enumerate() {
+        let mut loot = Inventory::new(box_def.storage.unwrap_or(0));
+        let salt = i as u64 + 100;
+        for (name, count) in [
+            ("scrap", 4 + spot.danger * 2),
+            ("cloth", 2 + spot.danger),
+            ("canned food", 1 + spot.danger / 2),
+        ] {
+            let item = items.def(name).ok_or(format!("item '{name}' is not registered"))?;
+            loot.add(create(item, count, &[], now, salt), item.max_stack);
+        }
+        if spot.danger >= 3 {
+            let pipe = items.def("pipe").ok_or("item 'pipe' is not registered")?;
+            loot.add(create(pipe, 1, &[], now, salt + 1), pipe.max_stack);
+        }
+        let entity = spawn_item(
+            commands,
+            meshes,
+            materials,
+            box_def,
+            create(box_def, 1, &[], now, salt + 2),
+            origin + spot.position,
+            [0.55, 0.45, 0.20],
+        );
+        commands.entity(entity).insert(Container(loot));
+    }
+    for gate in &def.gates {
+        commands.spawn((
+            PendingGate { level: gate.level },
+            Transform::from_translation(origin + gate.position),
+        ));
+    }
+    Ok(root)
+}
+
+/// Lock the door nearest each pending gate. Doors are spawned by
+/// commands, so this runs a tick after `spawn_monument`.
+pub fn lock_gates(
+    mut commands: Commands,
+    gates: Query<(Entity, &PendingGate, &Transform)>,
+    doors: Query<(Entity, &Door), Without<Locked>>,
+) {
+    const REACH: f32 = 1.5;
+    for (gate, pending, transform) in &gates {
+        let nearest = doors
+            .iter()
+            .map(|(e, d)| (e, d.closed_center.distance(transform.translation)))
+            .filter(|(_, dist)| *dist < REACH)
+            .min_by(|a, b| a.1.total_cmp(&b.1));
+        if let Some((door, _)) = nearest {
+            commands.entity(door).insert(Locked(pending.level));
+            commands.entity(gate).despawn();
+        }
+    }
 }
 
 pub fn door_interact(
