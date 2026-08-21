@@ -17,6 +17,7 @@ pub mod player;
 pub mod profile;
 pub mod structure;
 pub mod survival;
+pub mod terrain;
 
 use bevy::prelude::*;
 
@@ -63,6 +64,7 @@ pub fn build_app(headless: bool) -> App {
     app.init_resource::<content::ItemRegistryRes>();
     app.init_resource::<content::DamageRegistryRes>();
     app.init_resource::<content::MonumentRegistryRes>();
+    app.init_resource::<content::BiomeRegistryRes>();
     app.init_resource::<content::ActorRegistryRes>();
     app.init_resource::<ButtonInput<KeyCode>>();
     app.init_resource::<ButtonInput<MouseButton>>();

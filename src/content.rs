@@ -2,8 +2,9 @@
 //! topside. modforge owns the shapes; this file says what
 //! concretely exists in this game.
 
-use bevy::math::Vec3;
+use bevy::math::{Vec2, Vec3};
 use bevy::prelude::Resource;
+use modforge::worldgen::{BiomeRule, WorldDef};
 use modforge::actor::{ActorDef, ActorRegistry, Behaviour};
 use modforge::biome::{BiomeDef, BiomeRegistry, ScatterSpec};
 use modforge::combat::{DamageDef, DamageRegistry, DamageType, Falloff};
@@ -37,6 +38,66 @@ impl Default for DamageRegistryRes {
         let mut reg = DamageRegistry::default();
         register_damage(&mut reg);
         Self(reg)
+    }
+}
+
+/// The biome registry as an app resource: worldgen paints cells from
+/// these and places monuments where a biome allows them.
+#[derive(Resource)]
+pub struct BiomeRegistryRes(pub BiomeRegistry);
+
+impl Default for BiomeRegistryRes {
+    fn default() -> Self {
+        let mut reg = BiomeRegistry::default();
+        register_biomes(&mut reg);
+        Self(reg)
+    }
+}
+
+/// The world to roll (design.md "The world"): two kilometres
+/// square, four metre cells, forty metres of relief, the bunker at
+/// the origin on flat ground with the starting house beside it.
+/// Wasteland in the dry lowlands, forest in the wet ones, ruins on
+/// the high ground.
+pub fn world_def() -> WorldDef {
+    WorldDef {
+        size: 2000.0,
+        cell: 4.0,
+        height_scale: 40.0,
+        feature_size: 400.0,
+        water_level: 0.18,
+        biome_rules: vec![
+            BiomeRule {
+                biome: "ruins".to_string(),
+                height: (0.6, 1.0),
+                moisture: (0.0, 1.0),
+            },
+            BiomeRule {
+                biome: "forest".to_string(),
+                height: (0.0, 1.0),
+                moisture: (0.5, 1.0),
+            },
+            BiomeRule {
+                biome: "wasteland".to_string(),
+                height: (0.0, 1.0),
+                moisture: (0.0, 1.0),
+            },
+        ],
+        monuments: vec![
+            ("roadside stop".to_string(), 6),
+            ("airfield".to_string(), 1),
+            ("train yard".to_string(), 1),
+            ("launch site".to_string(), 1),
+            ("research station".to_string(), 1),
+            ("military outpost".to_string(), 2),
+            ("power plant".to_string(), 1),
+            ("sewer".to_string(), 1),
+            ("harbor".to_string(), 1),
+            ("ruined city".to_string(), 1),
+        ],
+        site_spacing: 180.0,
+        bunker: Vec2::ZERO,
+        bunker_clear: 50.0,
     }
 }
 
@@ -510,7 +571,11 @@ pub fn register_biomes(reg: &mut BiomeRegistry) {
                 },
             ],
             weather: vec!["rain".to_string(), "fog".to_string()],
-            monuments: vec!["ranger station".to_string(), "campsite".to_string()],
+            monuments: vec![
+                "roadside stop".to_string(),
+                "research station".to_string(),
+                "military outpost".to_string(),
+            ],
             npcs: vec!["scavenger".to_string(), "hunter".to_string()],
             wildlife: vec!["deer".to_string(), "wolf".to_string()],
             harvest: vec!["scrap".to_string(), "cloth".to_string()],
@@ -527,8 +592,10 @@ pub fn register_biomes(reg: &mut BiomeRegistry) {
             ],
             weather: vec!["dust storm".to_string(), "clear".to_string()],
             monuments: vec![
-                "gas station".to_string(),
-                "wrecked convoy".to_string(),
+                "roadside stop".to_string(),
+                "airfield".to_string(),
+                "train yard".to_string(),
+                "launch site".to_string(),
             ],
             npcs: vec!["raider".to_string(), "wanderer".to_string()],
             wildlife: vec!["rat".to_string()],
@@ -546,9 +613,10 @@ pub fn register_biomes(reg: &mut BiomeRegistry) {
             ],
             weather: vec!["rain".to_string(), "fog".to_string(), "clear".to_string()],
             monuments: vec![
-                "warehouse".to_string(),
-                "apartment block".to_string(),
-                "hospital".to_string(),
+                "ruined city".to_string(),
+                "power plant".to_string(),
+                "sewer".to_string(),
+                "harbor".to_string(),
             ],
             npcs: vec![
                 "raider".to_string(),
@@ -624,5 +692,24 @@ mod tests {
         assert_eq!(reg.len(), 3);
         assert!(reg.def("forest").is_some());
         assert!(reg.def("ruins").is_some());
+        // Every monument a biome allows is a registered type.
+        let monuments = MonumentRegistryRes::default();
+        for name in ["forest", "wasteland", "ruins"] {
+            for allowed in &reg.def(name).unwrap().monuments {
+                assert!(monuments.monuments.def(allowed).is_some(), "{name} allows unregistered {allowed}");
+            }
+        }
+    }
+
+    #[test]
+    fn the_world_def_rolls_with_the_real_registries() {
+        let biomes = BiomeRegistryRes::default();
+        let monuments = MonumentRegistryRes::default();
+        for seed in [1u64, 2, 3] {
+            let world = modforge::worldgen::roll_world(&world_def(), seed, &biomes.0, &monuments.monuments)
+                .unwrap_or_else(|e| panic!("seed {seed}: {e}"));
+            assert_eq!(world.sites.len(), 16);
+            assert_eq!(world.roads.len(), 16);
+        }
     }
 }

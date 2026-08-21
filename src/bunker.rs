@@ -8,14 +8,16 @@ use modforge::item::{Inventory, create};
 
 use crate::actor::{SpawnActor, spawn_actor};
 use crate::cel::CelMaterial;
-use crate::content::{ActorRegistryRes, ItemRegistryRes, MonumentRegistryRes};
-use crate::ground::spawn_ground;
+use crate::content::{
+    ActorRegistryRes, BiomeRegistryRes, ItemRegistryRes, MonumentRegistryRes, world_def,
+};
 use crate::interact::{Container, spawn_item};
 use crate::structure::{
-    Aabb, CONCRETE_FLOOR, CONCRETE_WALL, LightSpec, Opening, RoomSpec, Side, SolidSpec,
-    StairSpec, StructureDef, spawn_monument, spawn_structure,
+    CONCRETE_FLOOR, CONCRETE_WALL, LightSpec, Opening, RoomSpec, Side, SolidSpec, StairSpec,
+    StructureDef, spawn_structure,
 };
-use modforge::monument::footprint;
+use crate::terrain::{WorldRes, spawn_world};
+use modforge::worldgen::roll_world;
 
 /// One game day in real seconds (Valheim-scale pacing; tune later).
 pub const GAME_DAY_SECS: f32 = 1200.0;
@@ -192,6 +194,7 @@ pub fn setup(
     mut cel_materials: ResMut<Assets<CelMaterial>>,
     items: Res<ItemRegistryRes>,
     monuments: Res<MonumentRegistryRes>,
+    biomes: Res<BiomeRegistryRes>,
     time: Res<Time>,
 ) {
     spawn_structure(
@@ -266,40 +269,24 @@ pub fn setup(
     );
     commands.entity(box_).insert(Container(loot));
 
-    // Two rolled monuments: a roadside stop just east of the house,
-    // and the ruined city beyond it. The seed changes with every
-    // launch; the storm will re-roll them.
+    // The world rolls around the bunker from a seed that changes
+    // with every launch (design.md "The world"); the storm will roll
+    // another. Terrain, roads, scatter, and every monument come from
+    // the one path in terrain.rs.
     let seed = now.to_bits() as u64 ^ 0xA5A5;
-    let mut holes = Vec::new();
-    for (kind, at, salt) in [
-        ("roadside stop", Vec3::new(45.0, 0.0, -20.0), 1),
-        ("ruined city", Vec3::new(260.0, 0.0, -40.0), 2),
-    ] {
-        let rolled = monuments
-            .monuments
-            .roll(kind, &monuments.buildings, seed ^ salt)
-            .expect("the monument type is registered");
-        // Buildings that go below ground need the ground cut away.
-        for member in &rolled.members {
-            if member.structure.rooms.iter().any(|r| r.origin.y < 0.0) {
-                let foot = footprint(&member.structure);
-                let by = at + member.offset;
-                holes.push(Aabb {
-                    min: foot.min + by,
-                    max: foot.max + by,
-                });
-            }
-        }
-        spawn_monument(
-            &mut commands,
-            &mut meshes,
-            &mut cel_materials,
-            &items.0,
-            &rolled,
-            at,
-            now,
-        )
-        .expect("a rolled monument is legal");
-    }
-    spawn_ground(&mut commands, &mut meshes, &mut cel_materials, &holes);
+    let world = roll_world(&world_def(), seed, &biomes.0, &monuments.monuments)
+        .expect("the world def rolls with the registered content");
+    spawn_world(
+        &mut commands,
+        &mut meshes,
+        &mut cel_materials,
+        &world,
+        &biomes.0,
+        &monuments.monuments,
+        &monuments.buildings,
+        &items.0,
+        now,
+    )
+    .expect("a rolled world spawns");
+    commands.insert_resource(WorldRes(world));
 }
