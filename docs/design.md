@@ -458,7 +458,8 @@ double click uses an item (eat food, equip gear), drag and drop moves
 stacks, hover plus T transfers the stack to the other open inventory
 (Shift+T half), hover plus O drops it on the ground, 0-9 uses the
 hotbar slot, Shift+0-9 equips to it, E picks up in the world, F opens
-another's inventory.
+another's inventory. E on a crate opens it; E again, Escape, Tab, or I
+closes it (operator, 2026-08-20: "make esc and e again close it").
 
 An actor carries three separate item holders, each its own thing
 (operator, 2026-08-20: "a player has inventory. they have hotbar. and

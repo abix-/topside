@@ -2,15 +2,17 @@
 //! nearest interactable, feeds the prompt into the HUD, and E
 //! dispatches to modforge's interact function.
 
+use avian3d::prelude::*;
 use bevy::prelude::*;
-use modforge::hud::{InteractKind, InteractResult, interact};
+use bevy::window::{CursorOptions, PrimaryWindow};
+use modforge::hud::{InteractKind, InteractResult, OpenPanel, interact};
 use modforge::item::ItemStack;
 use modforge::structure::Aabb;
 
+use crate::actor::Inventory;
 use crate::cel::CelMaterial;
 use crate::content::ItemRegistryRes;
-use crate::hud::HudRes;
-use crate::actor::Inventory;
+use crate::hud::{HoveredSlot, HudRes, panel_changed};
 use crate::player::Player;
 use crate::structure::Door;
 
@@ -30,6 +32,50 @@ pub struct WorldItem {
 
 #[derive(Resource, Default)]
 pub struct InteractInput(pub bool);
+
+/// A crate, chest, or corpse: an inventory in the world that opens
+/// through the interact path and transfers with the player.
+#[derive(Component)]
+pub struct Container(pub modforge::item::Inventory);
+
+/// The container the player has open, if any. Engine-side handle;
+/// modforge only knows "a container is open" through `OpenPanel`.
+#[derive(Resource, Default)]
+pub struct OpenContainer(pub Option<Entity>);
+
+pub const CONTAINER_SLOTS: usize = 12;
+const CONTAINER_SIZE: f32 = 0.7;
+
+/// The ONE path from an inventory to a container entity in the
+/// world: a solid box with a collider, opened with E.
+pub fn spawn_container(
+    commands: &mut Commands,
+    meshes: &mut Assets<Mesh>,
+    materials: &mut Assets<CelMaterial>,
+    contents: modforge::item::Inventory,
+    position: Vec3,
+    color: [f32; 3],
+) -> Entity {
+    let half = CONTAINER_SIZE / 2.0;
+    commands
+        .spawn((
+            Interactable {
+                kind: InteractKind::Container,
+                aabb: Aabb {
+                    min: position - Vec3::splat(half),
+                    max: position + Vec3::splat(half),
+                },
+            },
+            Container(contents),
+            RigidBody::Static,
+            Collider::cuboid(CONTAINER_SIZE, CONTAINER_SIZE, CONTAINER_SIZE),
+            Mesh3d(meshes.add(Cuboid::new(CONTAINER_SIZE, CONTAINER_SIZE, CONTAINER_SIZE))),
+            MeshMaterial3d(materials.add(CelMaterial::from_srgb(color[0], color[1], color[2]))),
+            Transform::from_translation(position),
+            Visibility::default(),
+        ))
+        .id()
+}
 
 /// The ONE path from an item stack to a pickup entity in the world.
 pub fn spawn_item(
@@ -139,9 +185,12 @@ pub fn interact_on_press(
     looking_at: Res<LookingAt>,
     mut hud: ResMut<HudRes>,
     registry: Res<ItemRegistryRes>,
+    mut open_container: ResMut<OpenContainer>,
+    mut hovered: ResMut<HoveredSlot>,
     mut players: Query<&mut Inventory, With<Player>>,
     mut doors: Query<(&mut Door, &mut Transform)>,
     items: Query<&WorldItem>,
+    mut cursors: Query<&mut CursorOptions, With<PrimaryWindow>>,
 ) {
     if !std::mem::take(&mut input.0) {
         return;
@@ -174,6 +223,14 @@ pub fn interact_on_press(
             }
         }
         InteractResult::PickedUp => commands.entity(entity).despawn(),
-        InteractResult::InventoryFull | InteractResult::OpenContainer => {}
+        InteractResult::OpenContainer => {
+            // modforge toggled the panel: E opens the crate, E again
+            // closes it. Same follow-up as the inventory keys.
+            panel_changed(&mut hud.0, &mut hovered, &mut open_container, &mut cursors);
+            if hud.0.open_panel == OpenPanel::Inventory {
+                open_container.0 = Some(entity);
+            }
+        }
+        InteractResult::InventoryFull => {}
     }
 }

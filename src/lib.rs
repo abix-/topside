@@ -63,6 +63,7 @@ pub fn build_app(headless: bool) -> App {
     app.init_resource::<player::MovementInput>();
     app.insert_resource(hud::HudRes(modforge::hud::HudState::new()));
     app.init_resource::<hud::HoveredSlot>();
+    app.init_resource::<interact::OpenContainer>();
     // Input is captured only while no panel is open: with the
     // inventory up, the mouse and keys belong to the panel.
     app.add_systems(
@@ -73,6 +74,15 @@ pub fn build_app(headless: bool) -> App {
         )
             .run_if(in_state(AppState::Playing))
             .run_if(not(hud::inventory_open)),
+    );
+    // Item keys that need no window: the same in headless tests.
+    app.add_systems(
+        Update,
+        (
+            hud::transfer_hovered.run_if(hud::inventory_open),
+            hud::hotbar_keys,
+        )
+            .run_if(in_state(AppState::Playing)),
     );
     app.add_systems(
         FixedUpdate,
@@ -107,7 +117,6 @@ pub fn build_app(headless: bool) -> App {
                 player::mouse_look.run_if(not(hud::inventory_open)),
                 hud::toggle_inventory,
                 hud::drop_hovered.run_if(hud::inventory_open),
-                hud::hotbar_keys,
                 hud::write_prompt,
                 hud::render,
                 hud::render_inventory,

@@ -17,8 +17,11 @@ use topside::{
     actor::{Hotbar, INVENTORY_SLOTS, Inventory},
     build_app,
     content::ItemRegistryRes,
-    hud::HudRes,
-    interact::{InteractInput, Interactable, LookingAt, WorldItem},
+    hud::{HoveredSlot, HudRes},
+    interact::{
+        CONTAINER_SLOTS, Container, InteractInput, Interactable, LookingAt, OpenContainer,
+        WorldItem,
+    },
     player::Player,
     structure::Door,
     survival::{Rates, Survival},
@@ -66,6 +69,19 @@ fn press_e(app: &mut App, target: Entity, kind: InteractKind) {
     looking_at.kind = Some(kind);
     app.world_mut().resource_mut::<InteractInput>().0 = true;
     app.update();
+}
+
+/// Hover `holder`/`index` and tap T for one frame. Headless has no
+/// input plugin, so the press is cleared by hand afterwards.
+fn hover_and_press_t(app: &mut App, holder: Holder, index: usize) {
+    app.world_mut().resource_mut::<HoveredSlot>().0 = Some(SlotRef { holder, index });
+    app.world_mut()
+        .resource_mut::<ButtonInput<KeyCode>>()
+        .press(KeyCode::KeyT);
+    app.update();
+    let mut keys = app.world_mut().resource_mut::<ButtonInput<KeyCode>>();
+    keys.clear_just_pressed(KeyCode::KeyT);
+    keys.release(KeyCode::KeyT);
 }
 
 fn in_front(app: &mut App, kind: InteractKind, bundle: impl Bundle) -> Entity {
@@ -289,6 +305,7 @@ fn drag_across_holders_hotbar_key_eats_and_o_drops() {
     let mut holders = Holders {
         inventory: &mut inventory.0,
         hotbar: &mut hotbar.0,
+        container: None,
     };
 
     // Within the inventory.
@@ -321,12 +338,42 @@ fn drag_across_holders_hotbar_key_eats_and_o_drops() {
 }
 
 #[test]
-fn container_opens_the_inventory_panel() {
-    let (mut app, _) = playing_app();
-    let crate_ = in_front(&mut app, InteractKind::Container, ());
+fn container_opens_and_t_transfers_both_ways() {
+    let (mut app, player) = playing_app();
+    let scrap = stack(&app, "scrap", 8);
+    let cloth = stack(&app, "cloth", 2);
+    let mut loot = modforge::item::Inventory::new(CONTAINER_SLOTS);
+    loot.slots[0] = Some(scrap);
+    let crate_ = in_front(&mut app, InteractKind::Container, Container(loot));
+    app.world_mut().get_mut::<Inventory>(player).unwrap().0.slots[0] = Some(cloth);
+
+    // E on the crate: modforge opens the panel, topside remembers
+    // which crate.
     press_e(&mut app, crate_, InteractKind::Container);
     assert_eq!(
         app.world().resource::<HudRes>().0.open_panel,
         OpenPanel::Inventory
     );
+    assert_eq!(app.world().resource::<OpenContainer>().0, Some(crate_));
+
+    // Hover the crate's slot 0 and press T: the scrap comes over.
+    // Hover inventory slot 0 and press T: the cloth goes in.
+    hover_and_press_t(&mut app, Holder::Container, 0);
+    assert_eq!(
+        app.world().get::<Inventory>(player).unwrap().0.count_of("scrap"),
+        8
+    );
+    assert_eq!(app.world().get::<Container>(crate_).unwrap().0.count_of("scrap"), 0);
+
+    hover_and_press_t(&mut app, Holder::Inventory, 0);
+    assert_eq!(app.world().get::<Container>(crate_).unwrap().0.count_of("cloth"), 2);
+    assert_eq!(
+        app.world().get::<Inventory>(player).unwrap().0.count_of("cloth"),
+        0
+    );
+
+    // E again closes the crate and the panel.
+    press_e(&mut app, crate_, InteractKind::Container);
+    assert_eq!(app.world().resource::<HudRes>().0.open_panel, OpenPanel::None);
+    assert_eq!(app.world().resource::<OpenContainer>().0, None);
 }

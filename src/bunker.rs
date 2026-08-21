@@ -4,11 +4,11 @@
 
 use bevy::prelude::*;
 
-use modforge::item::create;
+use modforge::item::{Inventory, create};
 
 use crate::cel::CelMaterial;
 use crate::content::ItemRegistryRes;
-use crate::interact::spawn_item;
+use crate::interact::{CONTAINER_SLOTS, spawn_container, spawn_item};
 use crate::structure::{
     LightSpec, Opening, RoomSpec, Side, SolidSpec, StairSpec, StructureDef, spawn_structure,
 };
@@ -147,12 +147,9 @@ pub fn two_story_house() -> StructureDef {
             rise: 3.1,
             landing: 0.5,
         }],
-        // Something to discover upstairs.
-        furniture: vec![SolidSpec {
-            center: Vec3::new(0.0, 3.45, 2.5),
-            size: Vec3::new(0.7, 0.7, 0.7),
-            color: [0.55, 0.45, 0.20],
-        }],
+        // The loot crate upstairs is spawned by `setup` through
+        // `spawn_container`, not as furniture: it has an inventory.
+        furniture: vec![],
         lights: vec![
             LightSpec {
                 position: Vec3::new(0.0, 2.6, 0.0),
@@ -188,12 +185,13 @@ pub fn setup(
         Vec3::ZERO,
     )
     .expect("the starting bunker def is valid");
+    let house_origin = Vec3::new(0.0, 0.0, -30.0);
     spawn_structure(
         &mut commands,
         &mut meshes,
         &mut cel_materials,
         &two_story_house(),
-        Vec3::new(0.0, 0.0, -30.0),
+        house_origin,
     )
     .expect("the two-story house def is valid");
 
@@ -240,5 +238,20 @@ pub fn setup(
         create(def("scrap"), 3, &[], now, 2),
         Vec3::new(1.0, 0.3, 2.0),
         [0.5, 0.5, 0.5],
+    );
+
+    // The loot crate upstairs in the house: something to find.
+    let mut loot = Inventory::new(CONTAINER_SLOTS);
+    for (name, count, salt) in [("scrap", 8, 5), ("cloth", 4, 6), ("pipe", 1, 7)] {
+        let rest = loot.add(create(def(name), count, &[], now, salt), def(name).max_stack);
+        debug_assert!(rest.is_none(), "the crate has room for its loot");
+    }
+    spawn_container(
+        &mut commands,
+        &mut meshes,
+        &mut cel_materials,
+        loot,
+        house_origin + Vec3::new(0.0, 3.45, 2.5),
+        [0.55, 0.45, 0.20],
     );
 }
