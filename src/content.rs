@@ -66,11 +66,14 @@ pub fn world_def() -> WorldDef {
         // Rust-scale relief: sixty metres of base terrain flattened
         // into plains and valleys, ridged ranges up to ninety more,
         // plateaus in eight metre steps.
-        height_scale: 60.0,
+        // Operator (2026-08-21): "mountain high up to 400". A hundred
+        // metres of base terrain pressed into plains and valleys,
+        // ridges up to four hundred more, plateaus in ten metre steps.
+        height_scale: 100.0,
         feature_size: 500.0,
-        flatness: 1.8,
-        mountain_height: 90.0,
-        plateau_step: 8.0,
+        flatness: 2.2,
+        mountain_height: 400.0,
+        plateau_step: 10.0,
         water_level: 0.15,
         biome_rules: vec![
             BiomeRule {
@@ -101,10 +104,10 @@ pub fn world_def() -> WorldDef {
             ("harbor".to_string(), 1),
             ("ruined city".to_string(), 1),
             // Minor sites: one within 150 m of almost anywhere.
-            ("wreck".to_string(), 40),
-            ("campsite".to_string(), 25),
+            ("wreck".to_string(), 50),
+            ("campsite".to_string(), 30),
             ("supply drop".to_string(), 15),
-            ("body".to_string(), 25),
+            ("body".to_string(), 30),
         ],
         bunker: Vec2::ZERO,
         bunker_clear: 50.0,
@@ -786,7 +789,7 @@ mod tests {
         for seed in [1u64, 2, 3] {
             let world = modforge::worldgen::roll_world(&world_def(), seed, &biomes.0, &monuments.monuments)
                 .unwrap_or_else(|e| panic!("seed {seed}: {e}"));
-            assert_eq!(world.sites.len(), 121);
+            assert_eq!(world.sites.len(), 141);
             assert_eq!(world.roads.len(), 16, "roads reach the built monuments only");
             // Bethesda's rule over the real world: from 200 random
             // land points, a site within 150 m of at least 90 percent.
