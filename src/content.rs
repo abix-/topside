@@ -61,7 +61,9 @@ impl Default for BiomeRegistryRes {
 /// the high ground.
 pub fn world_def() -> WorldDef {
     WorldDef {
-        size: 2000.0,
+        // Rust's default map (operator, 2026-08-21: "i want 3500 m
+        // like rust").
+        size: 3500.0,
         cell: 4.0,
         // Rust-scale relief: sixty metres of base terrain flattened
         // into plains and valleys, ridged ranges up to ninety more,
@@ -92,22 +94,23 @@ pub fn world_def() -> WorldDef {
                 moisture: (0.0, 1.0),
             },
         ],
+        // Counts scale with the area (three times the 2 km world).
         monuments: vec![
-            ("roadside stop".to_string(), 6),
-            ("airfield".to_string(), 1),
-            ("train yard".to_string(), 1),
+            ("roadside stop".to_string(), 18),
+            ("airfield".to_string(), 2),
+            ("train yard".to_string(), 2),
             ("launch site".to_string(), 1),
-            ("research station".to_string(), 1),
-            ("military outpost".to_string(), 2),
-            ("power plant".to_string(), 1),
-            ("sewer".to_string(), 1),
-            ("harbor".to_string(), 1),
-            ("ruined city".to_string(), 1),
+            ("research station".to_string(), 3),
+            ("military outpost".to_string(), 5),
+            ("power plant".to_string(), 2),
+            ("sewer".to_string(), 2),
+            ("harbor".to_string(), 2),
+            ("ruined city".to_string(), 2),
             // Minor sites: one within 150 m of almost anywhere.
-            ("wreck".to_string(), 50),
-            ("campsite".to_string(), 30),
-            ("supply drop".to_string(), 15),
-            ("body".to_string(), 30),
+            ("wreck".to_string(), 150),
+            ("campsite".to_string(), 90),
+            ("supply drop".to_string(), 45),
+            ("body".to_string(), 90),
         ],
         bunker: Vec2::ZERO,
         bunker_clear: 50.0,
@@ -789,14 +792,14 @@ mod tests {
         for seed in [1u64, 2, 3] {
             let world = modforge::worldgen::roll_world(&world_def(), seed, &biomes.0, &monuments.monuments)
                 .unwrap_or_else(|e| panic!("seed {seed}: {e}"));
-            assert_eq!(world.sites.len(), 141);
-            assert_eq!(world.roads.len(), 16, "roads reach the built monuments only");
+            assert_eq!(world.sites.len(), 414);
+            assert_eq!(world.roads.len(), 39, "roads reach the built monuments only");
             // Bethesda's rule over the real world: from 200 random
             // land points, a site within 150 m of at least 90 percent.
             let mut roll = modforge::monument::Roll::new(seed ^ 77);
             let (mut land, mut covered) = (0, 0);
             for _ in 0..200 {
-                let p = Vec2::new(roll.measure(-950.0, 950.0), roll.measure(-950.0, 950.0));
+                let p = Vec2::new(roll.measure(-1700.0, 1700.0), roll.measure(-1700.0, 1700.0));
                 let (c, r) = world.cell_of(p);
                 if world.is_water(c, r) {
                     continue;
