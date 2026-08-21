@@ -14,6 +14,7 @@ use topside::{
     cel::CelMaterial,
     combat::{Firing, Health, Protection},
     content::{ActorRegistryRes, ItemRegistryRes},
+    hud::HudRes,
     actor_map::{Actor, ActorMapRes},
     input::{Action, Actions, ThisTick},
     player::Player,
@@ -198,6 +199,32 @@ fn the_scavenger_hits_the_player_and_the_player_shoots_back() {
         app.world().get::<Health>(npc).unwrap().0.is_dead(),
         "two shells of pellets at 1.5 m finish a 60 health scavenger"
     );
+}
+
+#[test]
+fn the_hud_names_the_actor_under_the_crosshair_and_its_health() {
+    let (mut app, player) = playing_app();
+    let npc = spawn(&mut app, "scavenger", Vec3::new(0.0, 0.0, -5.0), 0.0);
+    app.update();
+    let target = app.world().resource::<HudRes>().0.target.clone();
+    assert_eq!(target, Some(("scavenger".to_string(), 60.0, 60.0)));
+
+    // Shoot it: the line follows its health down.
+    let gun = give(&mut app, player, "pipe shotgun", 1);
+    give(&mut app, player, "shotgun shell", 1);
+    act(&mut app, player, Action::Hotbar { index: gun });
+    app.update();
+    act(&mut app, player, Action::Attack);
+    app.update();
+    let after = app.world().resource::<HudRes>().0.target.clone().unwrap();
+    assert_eq!(after.1, health(&app, npc));
+    assert!(after.1 < 60.0, "the line shows the hit: {after:?}");
+
+    // Look away: no target line.
+    app.world_mut().get_mut::<Transform>(player).unwrap().rotation =
+        Quat::from_rotation_y(std::f32::consts::FRAC_PI_2);
+    app.update();
+    assert_eq!(app.world().resource::<HudRes>().0.target, None);
 }
 
 #[test]

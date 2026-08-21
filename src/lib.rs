@@ -78,6 +78,9 @@ pub fn build_app(headless: bool) -> App {
     if !headless {
         app.add_systems(Update, input::read_input.run_if(in_state(AppState::Playing)));
     }
+    // The actor under the crosshair, written into the HUD state each
+    // frame; headless too so a test can read it.
+    app.add_systems(Update, hud::write_target.run_if(in_state(AppState::Playing)));
     // Every fixed step: drain each actor's due actions, then every
     // system reads actions, never keys.
     app.add_systems(

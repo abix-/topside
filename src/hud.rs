@@ -479,13 +479,14 @@ pub fn write_prompt(
 pub fn render(
     state: Res<HudRes>,
     diagnostics: Res<DiagnosticsStore>,
-    players: Query<(&Survival, &crate::combat::Health), With<Player>>,
+    registry: Res<ItemRegistryRes>,
+    players: Query<(&Survival, &crate::combat::Health, &Inventory, &Hotbar), With<Player>>,
     mut huds: Query<&mut Text, With<Hud>>,
 ) {
     let Ok(mut text) = huds.single_mut() else {
         return;
     };
-    let Ok((survival, health)) = players.single() else {
+    let Ok((survival, health, inventory, hotbar)) = players.single() else {
         return;
     };
     let fps = diagnostics
@@ -496,9 +497,55 @@ pub fn render(
         "FPS: {fps:.0}  Health: {:.0}  Hunger: {:.0}  Thirst: {:.0}",
         health.0.current, survival.0.hunger, survival.0.thirst
     );
+    // What is in the hands and, for a gun, the rounds left anywhere
+    // on the player.
+    if let Some(held) = hotbar.0.held_stack() {
+        line.push_str(&format!("  Held: {}", held.item));
+        if let Some(ammo) = registry
+            .0
+            .def(&held.item)
+            .and_then(|d| d.combat.as_ref())
+            .and_then(|c| c.ammo.as_deref())
+        {
+            let rounds = hotbar.0.slots.count_of(ammo) + inventory.0.count_of(ammo);
+            line.push_str(&format!(" ({ammo} x{rounds})"));
+        }
+    }
     if state.0.prompt.can_interact {
         line.push('\n');
         line.push_str(&state.0.prompt.text);
     }
+    if let Some((name, current, max)) = &state.0.target {
+        line.push_str(&format!("\n{name}: {current:.0}/{max:.0}"));
+    }
     text.0 = line;
+}
+
+/// The actor under the crosshair, for the HUD: a ray from the eye
+/// against the bodies, the health read off the body's root.
+pub fn write_target(
+    spatial: avian3d::prelude::SpatialQuery,
+    players: Query<(Entity, &Transform, Option<&Children>), With<Player>>,
+    bodies: Query<&ChildOf, With<crate::actor::Body>>,
+    actors: Query<(&crate::actor::Npc, &crate::combat::Health)>,
+    mut state: ResMut<HudRes>,
+) {
+    state.0.target = None;
+    let Ok((player, transform, children)) = players.single() else {
+        return;
+    };
+    let own: Vec<Entity> = std::iter::once(player)
+        .chain(children.into_iter().flat_map(|c| c.iter()))
+        .collect();
+    let filter = avian3d::prelude::SpatialQueryFilter::from_excluded_entities(own);
+    let Some(hit) = spatial.cast_ray(transform.translation, transform.forward(), 50.0, true, &filter)
+    else {
+        return;
+    };
+    let Ok(child_of) = bodies.get(hit.entity) else {
+        return;
+    };
+    if let Ok((npc, health)) = actors.get(child_of.parent()) {
+        state.0.target = Some((npc.def.clone(), health.0.current, health.0.max));
+    }
 }
