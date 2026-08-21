@@ -135,60 +135,71 @@ const CLEAN: &[Rgb] = &[[0.8, 0.82, 0.85], [0.6, 0.7, 0.75], [0.3, 0.5, 0.6]];
 /// out at two until multi-flight stairwells land.
 pub fn register_buildings(reg: &mut BuildingRegistry) {
     use BuildingSize::*;
-    #[allow(clippy::too_many_arguments)]
-    fn def(
-        name: &str,
+    struct Spec {
+        name: &'static str,
         size: BuildingSize,
         columns: (u32, u32),
         rows: (u32, u32),
         floors: (u32, u32),
+        basements: (u32, u32),
         width: (f32, f32),
         length: (f32, f32),
-        height: f32,
+        height: (f32, f32),
         windows: u64,
         clutter: u64,
         lights: u64,
-        palette: &[Rgb],
-    ) -> BuildingTypeDef {
-        BuildingTypeDef {
-            name: name.to_string(),
-            size,
-            columns,
-            rows,
-            floors,
-            width,
-            length,
-            height,
-            windows,
-            clutter,
-            lights,
-            palette: palette.to_vec(),
-        }
+        damage: u64,
+        carve: u64,
+        palette: &'static [Rgb],
     }
+    // Columns: name, size, columns, rows, floors up, floors down,
+    // room width, room length, floor height, window / clutter /
+    // light / damage / carve chances per mille, palette.
     let buildings = [
-        // Small: one room, one floor.
-        def("gas station", Small, (1, 2), (1, 1), (1, 1), (5.0, 8.0), (5.0, 7.0), 3.0, 600, 500, 800, STEEL),
-        def("convenience store", Small, (2, 3), (1, 1), (1, 1), (5.0, 7.0), (6.0, 9.0), 3.0, 500, 700, 800, CONCRETE),
-        def("water well", Small, (1, 1), (1, 1), (1, 1), (3.5, 4.5), (3.5, 4.5), 3.0, 0, 300, 0, CONCRETE),
-        def("guard tower", Small, (1, 1), (1, 1), (2, 2), (3.5, 4.0), (5.0, 6.0), 3.0, 800, 200, 800, WOOD),
-        def("shack", Small, (1, 1), (1, 1), (1, 1), (4.0, 6.0), (4.0, 6.0), 2.8, 400, 500, 800, WOOD),
-        def("lighthouse", Small, (1, 1), (1, 1), (2, 2), (4.0, 5.0), (5.0, 6.0), 3.0, 500, 200, 800, CLEAN),
-        // Medium: two to four rooms, one or two floors.
-        def("warehouse", Medium, (2, 3), (1, 1), (1, 1), (8.0, 12.0), (10.0, 16.0), 5.0, 300, 800, 600, STEEL),
-        def("office building", Medium, (2, 2), (1, 2), (2, 2), (5.0, 6.0), (6.0, 8.0), 3.0, 800, 600, 400, CONCRETE),
-        def("workshop", Medium, (2, 3), (1, 1), (1, 1), (6.0, 8.0), (7.0, 10.0), 4.0, 400, 900, 600, STEEL),
-        def("barracks", Medium, (2, 2), (1, 2), (1, 1), (5.0, 6.0), (7.0, 9.0), 3.0, 500, 700, 500, WOOD),
-        def("lab", Medium, (2, 2), (1, 2), (1, 2), (5.0, 7.0), (6.0, 8.0), 3.0, 300, 800, 600, CLEAN),
-        def("supermarket", Medium, (2, 3), (1, 1), (1, 1), (10.0, 14.0), (10.0, 14.0), 4.0, 200, 900, 500, CONCRETE),
-        // Large: twenty or more rooms on two floors (operator,
-        // 2026-08-20: "each with 20+ rooms").
-        def("hangar", Large, (3, 4), (4, 4), (2, 2), (8.0, 12.0), (8.0, 12.0), 6.0, 100, 600, 200, STEEL),
-        def("industrial plant", Large, (4, 5), (3, 4), (2, 2), (6.0, 9.0), (6.0, 9.0), 5.0, 300, 900, 250, STEEL),
-        def("silo", Large, (3, 4), (4, 4), (2, 2), (4.0, 6.0), (4.0, 6.0), 3.0, 100, 500, 200, CONCRETE),
-        def("dock building", Large, (4, 5), (3, 3), (2, 2), (5.0, 7.0), (6.0, 9.0), 4.0, 400, 700, 200, WOOD),
-        def("apartment block", Large, (4, 5), (3, 4), (2, 2), (4.5, 6.0), (5.0, 7.0), 3.0, 700, 700, 200, CONCRETE),
-        def("hospital", Large, (4, 6), (3, 4), (2, 2), (5.0, 7.0), (5.0, 7.0), 3.2, 500, 800, 250, CLEAN),
-    ];
+        // Small: one or two rooms, one floor.
+        Spec { name: "gas station", size: Small, columns: (1, 2), rows: (1, 1), floors: (1, 1), basements: (0, 0), width: (5.0, 8.0), length: (5.0, 7.0), height: (2.8, 3.4), windows: 600, clutter: 500, lights: 800, damage: 150, carve: 0, palette: STEEL },
+        Spec { name: "convenience store", size: Small, columns: (2, 3), rows: (1, 1), floors: (1, 1), basements: (0, 1), width: (5.0, 7.0), length: (6.0, 9.0), height: (2.8, 3.4), windows: 500, clutter: 700, lights: 800, damage: 150, carve: 0, palette: CONCRETE },
+        Spec { name: "water well", size: Small, columns: (1, 1), rows: (1, 1), floors: (1, 1), basements: (0, 0), width: (3.5, 4.5), length: (3.5, 4.5), height: (2.6, 3.2), windows: 0, clutter: 300, lights: 0, damage: 300, carve: 0, palette: CONCRETE },
+        Spec { name: "guard tower", size: Small, columns: (1, 1), rows: (1, 1), floors: (3, 5), basements: (0, 0), width: (3.5, 4.0), length: (5.0, 6.0), height: (2.8, 3.2), windows: 800, clutter: 200, lights: 600, damage: 100, carve: 0, palette: WOOD },
+        Spec { name: "shack", size: Small, columns: (1, 1), rows: (1, 1), floors: (1, 1), basements: (0, 0), width: (4.0, 6.0), length: (4.0, 6.0), height: (2.5, 3.0), windows: 400, clutter: 500, lights: 800, damage: 350, carve: 0, palette: WOOD },
+        Spec { name: "lighthouse", size: Small, columns: (1, 1), rows: (1, 1), floors: (5, 8), basements: (0, 0), width: (4.0, 5.0), length: (5.0, 6.0), height: (2.8, 3.2), windows: 500, clutter: 200, lights: 500, damage: 100, carve: 0, palette: CLEAN },
+        // Medium: two to six rooms, one to three floors.
+        Spec { name: "warehouse", size: Medium, columns: (2, 3), rows: (1, 2), floors: (1, 1), basements: (0, 0), width: (8.0, 12.0), length: (10.0, 16.0), height: (4.5, 6.0), windows: 300, clutter: 800, lights: 600, damage: 200, carve: 200, palette: STEEL },
+        Spec { name: "office building", size: Medium, columns: (2, 3), rows: (1, 2), floors: (2, 4), basements: (0, 1), width: (5.0, 6.0), length: (6.0, 8.0), height: (2.8, 3.4), windows: 800, clutter: 600, lights: 400, damage: 150, carve: 200, palette: CONCRETE },
+        Spec { name: "workshop", size: Medium, columns: (2, 3), rows: (1, 1), floors: (1, 1), basements: (0, 0), width: (6.0, 8.0), length: (7.0, 10.0), height: (3.5, 4.5), windows: 400, clutter: 900, lights: 600, damage: 200, carve: 0, palette: STEEL },
+        Spec { name: "barracks", size: Medium, columns: (2, 3), rows: (1, 2), floors: (1, 2), basements: (0, 0), width: (5.0, 6.0), length: (7.0, 9.0), height: (2.8, 3.2), windows: 500, clutter: 700, lights: 500, damage: 150, carve: 200, palette: WOOD },
+        Spec { name: "lab", size: Medium, columns: (2, 2), rows: (1, 2), floors: (1, 2), basements: (1, 3), width: (5.0, 7.0), length: (6.0, 8.0), height: (2.8, 3.2), windows: 300, clutter: 800, lights: 600, damage: 100, carve: 100, palette: CLEAN },
+        Spec { name: "supermarket", size: Medium, columns: (2, 3), rows: (1, 2), floors: (1, 1), basements: (0, 0), width: (10.0, 14.0), length: (10.0, 14.0), height: (3.5, 4.5), windows: 200, clutter: 900, lights: 500, damage: 200, carve: 200, palette: CONCRETE },
+        // Large: twenty or more rooms (operator, 2026-08-20: "each
+        // with 20+ rooms"), up to ten floors up or down or both
+        // (operator: "up to 10 floors up OR down like a bunker",
+        // "BOTH up and down"). Minimum grids keep the room count
+        // past twenty even after carving.
+        Spec { name: "hangar", size: Large, columns: (3, 4), rows: (4, 4), floors: (2, 3), basements: (0, 0), width: (8.0, 12.0), length: (8.0, 12.0), height: (5.0, 7.0), windows: 100, clutter: 600, lights: 200, damage: 150, carve: 100, palette: STEEL },
+        Spec { name: "industrial plant", size: Large, columns: (4, 5), rows: (3, 4), floors: (2, 4), basements: (0, 2), width: (6.0, 9.0), length: (6.0, 9.0), height: (4.0, 5.5), windows: 300, clutter: 900, lights: 250, damage: 250, carve: 150, palette: STEEL },
+        Spec { name: "silo", size: Large, columns: (3, 4), rows: (4, 4), floors: (1, 2), basements: (4, 10), width: (4.0, 6.0), length: (4.0, 6.0), height: (2.8, 3.2), windows: 100, clutter: 500, lights: 300, damage: 100, carve: 100, palette: CONCRETE },
+        Spec { name: "dock building", size: Large, columns: (4, 5), rows: (3, 3), floors: (2, 2), basements: (0, 0), width: (5.0, 7.0), length: (6.0, 9.0), height: (3.5, 4.5), windows: 400, clutter: 700, lights: 200, damage: 300, carve: 150, palette: WOOD },
+        Spec { name: "apartment block", size: Large, columns: (4, 5), rows: (3, 4), floors: (3, 10), basements: (0, 1), width: (4.5, 6.0), length: (5.0, 7.0), height: (2.8, 3.2), windows: 700, clutter: 700, lights: 200, damage: 200, carve: 150, palette: CONCRETE },
+        Spec { name: "hospital", size: Large, columns: (4, 6), rows: (3, 4), floors: (3, 6), basements: (1, 2), width: (5.0, 7.0), length: (5.0, 7.0), height: (3.0, 3.4), windows: 500, clutter: 800, lights: 250, damage: 150, carve: 100, palette: CLEAN },
+        Spec { name: "bunker complex", size: Large, columns: (3, 5), rows: (3, 4), floors: (1, 1), basements: (5, 10), width: (4.5, 6.5), length: (5.0, 7.0), height: (2.6, 3.0), windows: 0, clutter: 700, lights: 400, damage: 50, carve: 100, palette: CONCRETE },
+    ]
+    .map(|s| BuildingTypeDef {
+        name: s.name.to_string(),
+        size: s.size,
+        columns: s.columns,
+        rows: s.rows,
+        floors: s.floors,
+        basements: s.basements,
+        width: s.width,
+        length: s.length,
+        height: s.height,
+        windows: s.windows,
+        clutter: s.clutter,
+        lights: s.lights,
+        damage: s.damage,
+        carve: s.carve,
+        palette: s.palette.to_vec(),
+    });
     for building in buildings {
         reg.register(building).expect("building type defs must not collide");
     }
@@ -309,7 +320,15 @@ pub fn register_monuments(reg: &mut MonumentRegistry, buildings: &BuildingRegist
         def(
             "ruined city",
             vec![slot(
-                &["apartment block", "hospital", "industrial plant", "silo", "dock building"],
+                &[
+                    "apartment block",
+                    "hospital",
+                    "industrial plant",
+                    "silo",
+                    "dock building",
+                    "bunker complex",
+                    "hangar",
+                ],
                 50,
                 50,
             )],
@@ -413,7 +432,7 @@ mod tests {
     #[test]
     fn every_monument_type_rolls_legal_monuments() {
         let regs = MonumentRegistryRes::default();
-        assert_eq!(regs.buildings.len(), 18);
+        assert_eq!(regs.buildings.len(), 19);
         assert_eq!(regs.monuments.len(), 11);
         let names: Vec<String> = regs.monuments.names().map(String::from).collect();
         for name in names {

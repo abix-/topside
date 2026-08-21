@@ -7,6 +7,7 @@ pub mod cel;
 pub mod content;
 pub mod control_plane;
 pub mod entity_map;
+pub mod ground;
 pub mod hud;
 pub mod interact;
 pub mod player;

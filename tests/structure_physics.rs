@@ -7,8 +7,8 @@ use topside::{
     cel::CelMaterial,
     player::{MovementInput, Player},
     structure::{
-        Door, Opening, RoomSpec, Side, StairSpec, StructureDef, StructureRoot, StructureSolid,
-        spawn_structure,
+        CONCRETE_FLOOR, CONCRETE_WALL, Door, Opening, RoomSpec, Side, StairSpec, StructureDef,
+        StructureRoot, StructureSolid, spawn_structure,
     },
 };
 
@@ -23,6 +23,8 @@ const EYE_HEIGHT: f32 = 1.7;
 fn one_room() -> StructureDef {
     StructureDef {
         name: "one room".to_string(),
+        wall_color: CONCRETE_WALL,
+        floor_color: CONCRETE_FLOOR,
         rooms: vec![RoomSpec {
             origin: Vec3::ZERO,
             interior: Vec3::new(6.0, 3.0, 8.0),
@@ -46,6 +48,8 @@ fn one_room() -> StructureDef {
 fn stairs() -> StructureDef {
     StructureDef {
         name: "stairs".to_string(),
+        wall_color: CONCRETE_WALL,
+        floor_color: CONCRETE_FLOOR,
         rooms: vec![],
         stairs: vec![StairSpec {
             base: Vec3::ZERO,

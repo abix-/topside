@@ -15,8 +15,8 @@ use crate::interact::{Container, spawn_item};
 use modforge::item::{Inventory, ItemRegistry, create};
 use modforge::monument::validate_monument;
 pub use modforge::structure::{
-    Aabb, LightSpec, MonumentDef, NpcSpot, Opening, Rgb, RoomSpec, Side, SolidSpec, StairSpec,
-    StructureDef, side_frame, validate,
+    Aabb, CONCRETE_FLOOR, CONCRETE_WALL, LightSpec, MonumentDef, NpcSpot, Opening, Rgb, RoomSpec,
+    Side, SolidSpec, StairSpec, StructureDef, side_frame, validate,
 };
 
 fn cel_from_rgb(c: Rgb) -> CelMaterial {
@@ -102,10 +102,10 @@ pub fn spawn_structure(
         ))
         .id();
 
-    let concrete = materials.add(CelMaterial::from_srgb(0.45, 0.45, 0.47));
-    let floor_mat = materials.add(CelMaterial::from_srgb(0.35, 0.35, 0.36));
+    let concrete = materials.add(cel_from_rgb(def.wall_color));
+    let floor_mat = materials.add(cel_from_rgb(def.floor_color));
     let door_mat = materials.add(CelMaterial::from_srgb(0.25, 0.28, 0.30));
-    let stair_mat = materials.add(CelMaterial::from_srgb(0.40, 0.38, 0.36));
+    let stair_mat = materials.add(cel_from_rgb(def.floor_color));
 
     // One child of the root per solid piece: mesh and collider
     // together, positioned relative to the root. `center` is

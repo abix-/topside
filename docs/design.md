@@ -311,6 +311,15 @@ Each building type has parameters that vary on every roll (operator-locked
 - Color palette (within the type's feel).
 - Furniture and interior layout.
 - Condition (intact, damaged, partially collapsed).
+- Floors: up to ten up, up to ten down like a bunker, or both
+  (operator, 2026-08-20: "they should be up to 10 floors up OR down
+  like a bunker", "BOTH up and down"). Levels connect through one
+  switchback stair tower.
+- Scale: a monument can be fifty buildings of twenty or more rooms
+  (operator, 2026-08-20: "a monument with 50 buildings, each with 20+
+  rooms"). Footprints are carved into L and step shapes so buildings
+  stop repeating (operator: "some of the buildings are boring and
+  repeating").
 
 ### Monument composition
 

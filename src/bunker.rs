@@ -8,11 +8,13 @@ use modforge::item::{Inventory, create};
 
 use crate::cel::CelMaterial;
 use crate::content::{ItemRegistryRes, MonumentRegistryRes};
+use crate::ground::spawn_ground;
 use crate::interact::{Container, spawn_item};
 use crate::structure::{
-    LightSpec, Opening, RoomSpec, Side, SolidSpec, StairSpec, StructureDef, spawn_monument,
-    spawn_structure,
+    Aabb, CONCRETE_FLOOR, CONCRETE_WALL, LightSpec, Opening, RoomSpec, Side, SolidSpec,
+    StairSpec, StructureDef, spawn_monument, spawn_structure,
 };
+use modforge::monument::footprint;
 
 /// One game day in real seconds (Valheim-scale pacing; tune later).
 pub const GAME_DAY_SECS: f32 = 1200.0;
@@ -23,6 +25,8 @@ pub const GAME_DAY_SECS: f32 = 1200.0;
 pub fn starting_bunker() -> StructureDef {
     StructureDef {
         name: "the starting bunker".to_string(),
+        wall_color: CONCRETE_WALL,
+        floor_color: CONCRETE_FLOOR,
         rooms: vec![RoomSpec {
             origin: Vec3::ZERO,
             interior: Vec3::new(6.0, 3.0, 8.0),
@@ -70,6 +74,8 @@ pub fn starting_bunker() -> StructureDef {
 pub fn two_story_house() -> StructureDef {
     StructureDef {
         name: "the two-story house".to_string(),
+        wall_color: CONCRETE_WALL,
+        floor_color: CONCRETE_FLOOR,
         rooms: vec![
             // Ground room. Ceiling skipped: the upper room's floor
             // slab covers it.
@@ -249,6 +255,7 @@ pub fn setup(
     // and the ruined city beyond it. The seed changes with every
     // launch; the storm will re-roll them.
     let seed = now.to_bits() as u64 ^ 0xA5A5;
+    let mut holes = Vec::new();
     for (kind, at, salt) in [
         ("roadside stop", Vec3::new(45.0, 0.0, -20.0), 1),
         ("ruined city", Vec3::new(260.0, 0.0, -40.0), 2),
@@ -257,6 +264,17 @@ pub fn setup(
             .monuments
             .roll(kind, &monuments.buildings, seed ^ salt)
             .expect("the monument type is registered");
+        // Buildings that go below ground need the ground cut away.
+        for member in &rolled.members {
+            if member.structure.rooms.iter().any(|r| r.origin.y < 0.0) {
+                let foot = footprint(&member.structure);
+                let by = at + member.offset;
+                holes.push(Aabb {
+                    min: foot.min + by,
+                    max: foot.max + by,
+                });
+            }
+        }
         spawn_monument(
             &mut commands,
             &mut meshes,
@@ -268,4 +286,5 @@ pub fn setup(
         )
         .expect("a rolled monument is legal");
     }
+    spawn_ground(&mut commands, &mut meshes, &mut cel_materials, &holes);
 }

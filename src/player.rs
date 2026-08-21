@@ -2,7 +2,6 @@
 //! click grabs the cursor, mouse looks, WASD walks, Escape releases.
 
 use crate::actor::{Equipment, Hotbar, Inventory};
-use crate::cel::CelMaterial;
 use crate::structure::{BODY_TOP, CLIMB, body_shape};
 use crate::survival::Survival;
 use avian3d::prelude::*;
@@ -27,17 +26,9 @@ const WALK_SPEED: f32 = 5.0;
 const MOUSE_SENS: f32 = 0.002;
 const PITCH_LIMIT: f32 = 1.54;
 
-pub fn setup_scene(
-    mut commands: Commands,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<CelMaterial>>,
-) {
-    commands.spawn((
-        Mesh3d(meshes.add(Plane3d::default().mesh().size(1200.0, 1200.0))),
-        MeshMaterial3d(materials.add(CelMaterial::from_srgb(0.35, 0.40, 0.30))),
-        RigidBody::Static,
-        Collider::half_space(Vec3::Y),
-    ));
+/// The sun and the camera. The ground is spawned by bunker::setup
+/// once it knows where the basements are (ground.rs).
+pub fn setup_scene(mut commands: Commands) {
     commands.spawn((
         DirectionalLight {
             illuminance: 10_000.0,
