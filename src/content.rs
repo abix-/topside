@@ -8,6 +8,7 @@ use modforge::worldgen::{BiomeRule, WorldDef};
 use modforge::actor::{ActorDef, ActorRegistry, Behaviour};
 use modforge::biome::{BiomeDef, BiomeRegistry, ScatterSpec};
 use modforge::combat::{DamageDef, DamageRegistry, DamageType, Falloff};
+use modforge::faction::{FactionDef, FactionKind, FactionRegistry};
 use modforge::item::{Armor, CombatStats, EquipSlot, FoodStats, ItemDef, ItemKind, ItemRegistry};
 use modforge::monument::{
     Arrangement, BuildingRegistry, BuildingSize, BuildingSlot, BuildingTypeDef,
@@ -130,22 +131,58 @@ impl Default for ActorRegistryRes {
     }
 }
 
-/// The hostile people found at monuments.
+/// The faction registry as an app resource (design.md "Factions and
+/// relationships"): the player's, the hostile ones, the builders.
+#[derive(Resource)]
+pub struct FactionRegistryRes(pub FactionRegistry);
+
+impl Default for FactionRegistryRes {
+    fn default() -> Self {
+        let mut reg = FactionRegistry::default();
+        register_factions(&mut reg);
+        Self(reg)
+    }
+}
+
+/// The player's faction name; the player entity carries no `Npc`, so
+/// the AI names it by this.
+pub const PLAYER_FACTION: &str = "player";
+
+pub fn register_factions(reg: &mut FactionRegistry) {
+    for (name, kind) in [
+        (PLAYER_FACTION, FactionKind::Player),
+        ("raiders", FactionKind::Hostile),
+        ("warlords", FactionKind::Hostile),
+        ("settlers", FactionKind::Builder),
+    ] {
+        reg.register(FactionDef {
+            name: name.to_string(),
+            kind,
+        })
+        .expect("faction registered once");
+    }
+}
+
+/// The people found at monuments: raiders, and a neutral wanderer
+/// who belongs to no side.
 pub fn register_actors(reg: &mut ActorRegistry) {
-    let hostile = |name: &str, behaviour, max_health, weapon: &str| ActorDef {
-        name: name.to_string(),
-        faction: "raiders".to_string(),
-        behaviour,
-        max_health,
-        protection: Default::default(),
-        weapon: Some(weapon.to_string()),
-        sight: 25.0,
-        reach: 1.8,
+    let person = |name: &str, faction: Option<&str>, behaviour, max_health, weapon: &str| {
+        ActorDef {
+            name: name.to_string(),
+            faction: faction.map(String::from),
+            behaviour,
+            max_health,
+            protection: Default::default(),
+            weapon: Some(weapon.to_string()),
+            sight: 25.0,
+            reach: 1.8,
+        }
     };
     for def in [
-        hostile("scavenger", Behaviour::Hunter, 60.0, "pipe"),
-        hostile("raider", Behaviour::Hunter, 100.0, "hatchet"),
-        hostile("lookout", Behaviour::Guard, 80.0, "pipe"),
+        person("scavenger", Some("raiders"), Behaviour::Hunter, 60.0, "pipe"),
+        person("raider", Some("raiders"), Behaviour::Hunter, 100.0, "hatchet"),
+        person("lookout", Some("raiders"), Behaviour::Guard, 80.0, "pipe"),
+        person("wanderer", None, Behaviour::Guard, 70.0, "pipe"),
     ] {
         reg.register(def).expect("actor registered once");
     }
@@ -742,12 +779,17 @@ mod tests {
         let mut reg = ActorRegistry::default();
         register_actors(&mut reg);
         let names: Vec<&str> = reg.names().collect();
-        assert_eq!(names, ["scavenger", "raider", "lookout"]);
+        assert_eq!(names, ["scavenger", "raider", "lookout", "wanderer"]);
+        let factions = FactionRegistryRes::default();
         for name in names {
             let def = reg.def(name).unwrap();
-            let weapon = def.weapon.as_deref().expect("every hostile is armed");
+            let weapon = def.weapon.as_deref().expect("everyone is armed");
             assert!(items.def(weapon).is_some(), "{name} holds unregistered {weapon}");
+            if let Some(faction) = def.faction.as_deref() {
+                assert!(factions.0.def(faction).is_some(), "{name} is in unregistered {faction}");
+            }
         }
+        assert!(reg.def("wanderer").unwrap().faction.is_none(), "the wanderer is neutral");
     }
 
     #[test]

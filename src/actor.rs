@@ -14,7 +14,7 @@ use modforge::item;
 
 use crate::cel::CelMaterial;
 use crate::combat::{Firing, Health, Protection};
-use crate::content::{ActorRegistryRes, ItemRegistryRes};
+use crate::content::{ActorRegistryRes, FactionRegistryRes, ItemRegistryRes};
 use crate::actor_map::{Actor, ActorMapRes};
 use crate::input::{Actions, ThisTick};
 use crate::structure::{BODY_RADIUS, BODY_TOP, MonumentRoot, body_shape};
@@ -47,7 +47,8 @@ impl Facing {
 #[derive(Component, Debug, Clone, PartialEq)]
 pub struct Npc {
     pub def: String,
-    pub faction: String,
+    /// A registered faction, or None for a neutral.
+    pub faction: Option<String>,
 }
 
 /// What the one spawn path needs from the world.
@@ -57,6 +58,7 @@ pub struct SpawnActor<'w, 's> {
     pub meshes: ResMut<'w, Assets<Mesh>>,
     pub materials: ResMut<'w, Assets<CelMaterial>>,
     pub items: Res<'w, ItemRegistryRes>,
+    pub factions: Res<'w, FactionRegistryRes>,
     pub actors: ResMut<'w, ActorMapRes>,
 }
 
@@ -66,8 +68,22 @@ pub struct SpawnActor<'w, 's> {
 /// what the player has (inventory, hotbar, equipment, survival,
 /// health, protection, a fire timer, an action queue) plus a body
 /// the world can hit and its `ActorId` from the one map. `feet` is
-/// where it stands. Returns None when the map has no row left.
-pub fn spawn_actor(spawn: &mut SpawnActor, def: &ActorDef, feet: Vec3, yaw: f32) -> Option<Entity> {
+/// where it stands. `faction` overrides the def's (a placed actor
+/// takes its placer's). Returns None when the map has no row left or
+/// the faction is not registered.
+pub fn spawn_actor(
+    spawn: &mut SpawnActor,
+    def: &ActorDef,
+    feet: Vec3,
+    yaw: f32,
+    faction: Option<&str>,
+) -> Option<Entity> {
+    let faction = faction.map(String::from).or_else(|| def.faction.clone());
+    if let Some(name) = faction.as_deref()
+        && spawn.factions.0.def(name).is_none()
+    {
+        return None;
+    }
     let facing = Facing { yaw, pitch: 0.0 };
     // The weapon goes in the first bar slot and into the hands, the
     // same way the player holds one.
@@ -82,7 +98,7 @@ pub fn spawn_actor(spawn: &mut SpawnActor, def: &ActorDef, feet: Vec3, yaw: f32)
         .spawn((
             Npc {
                 def: def.name.clone(),
-                faction: def.faction.clone(),
+                faction,
             },
             Transform::from_translation(feet + Vec3::Y * EYE_HEIGHT).with_rotation(facing.rotation()),
             Visibility::default(),
@@ -237,7 +253,7 @@ pub fn populate_monuments(
             };
             // Face away from the building's front, toward where the
             // player walks in from.
-            if let Some(npc) = spawn_actor(&mut spawn, def, spot.position, 0.0) {
+            if let Some(npc) = spawn_actor(&mut spawn, def, spot.position, 0.0, None) {
                 spawn.commands.entity(npc).insert(ChildOf(root));
             }
         }

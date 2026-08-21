@@ -27,7 +27,7 @@ pub const GAME_DAY_SECS: f32 = 1200.0;
 /// spawn path.
 pub fn setup_enemy(mut spawn: SpawnActor, actors: Res<ActorRegistryRes>) {
     let def = actors.0.def("scavenger").expect("scavenger is registered");
-    spawn_actor(&mut spawn, def, Vec3::new(0.0, 0.0, -10.0), std::f32::consts::PI);
+    spawn_actor(&mut spawn, def, Vec3::new(0.0, 0.0, -10.0), std::f32::consts::PI, None);
 }
 
 /// The starting bunker: one room with exactly a bed, a crafting

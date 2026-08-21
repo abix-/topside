@@ -43,6 +43,12 @@ fn playing_app() -> (App, Entity) {
 }
 
 fn spawn(app: &mut App, def: &str, feet: Vec3, yaw: f32) -> Entity {
+    try_spawn(app, def, feet, yaw, None).expect("a free row and a registered faction")
+}
+
+/// Through the one path, with a faction override as a placed actor
+/// would carry.
+fn try_spawn(app: &mut App, def: &str, feet: Vec3, yaw: f32, faction: Option<&str>) -> Option<Entity> {
     let def = app
         .world()
         .resource::<ActorRegistryRes>()
@@ -52,7 +58,7 @@ fn spawn(app: &mut App, def: &str, feet: Vec3, yaw: f32) -> Entity {
         .clone();
     let mut state: SystemState<SpawnActor> = SystemState::new(app.world_mut());
     let mut params = state.get_mut(app.world_mut()).expect("spawn params");
-    let entity = spawn_actor(&mut params, &def, feet, yaw).expect("a free slot");
+    let entity = spawn_actor(&mut params, &def, feet, yaw, faction);
     state.apply(app.world_mut());
     entity
 }
@@ -66,7 +72,7 @@ fn spawn_actor_sets_identity_faction_position_and_the_shared_parts() {
 
     let npc = world.get::<Npc>(a).unwrap();
     assert_eq!(npc.def, "scavenger");
-    assert_eq!(npc.faction, "raiders");
+    assert_eq!(npc.faction.as_deref(), Some("raiders"));
     // Identity: one ActorId each, registered in the one map.
     let id_a = world.get::<Actor>(a).unwrap().0;
     let id_b = world.get::<Actor>(b).unwrap().0;
@@ -122,6 +128,57 @@ fn a_hunter_walks_at_the_player_through_the_same_action_queue() {
     );
     // The player never moved: its own queue was empty.
     assert_eq!(world.get::<Transform>(player).unwrap().translation, Vec3::new(0.0, EYE_HEIGHT, 0.0));
+}
+
+/// Whether `npc` has anything to do this tick (the AI only pushes
+/// when it sees a hostile).
+fn acting(app: &App, npc: Entity) -> bool {
+    !app.world().get::<ThisTick>(npc).unwrap().0.is_empty()
+}
+
+#[test]
+fn targets_come_from_the_faction_table() {
+    let (mut app, _player) = playing_app();
+    // A raider 5 m ahead of the player sees a hostile: it acts.
+    let raider = spawn(&mut app, "scavenger", Vec3::new(0.0, 0.0, -5.0), 0.0);
+    // A neutral wanderer beside it sees no one.
+    let neutral = spawn(&mut app, "wanderer", Vec3::new(6.0, 0.0, -5.0), 0.0);
+    for _ in 0..3 {
+        app.update();
+    }
+    assert!(acting(&app, raider), "a raider targets the player");
+    assert!(!acting(&app, neutral), "a neutral targets no one");
+
+    // Nor is the neutral a target: alone with a raider, far from the
+    // player, the raider stands still.
+    let (mut app, player) = playing_app();
+    app.world_mut().get_mut::<Transform>(player).unwrap().translation = Vec3::new(500.0, EYE_HEIGHT, 0.0);
+    let raider = spawn(&mut app, "scavenger", Vec3::new(0.0, 0.0, -5.0), 0.0);
+    let _neutral = spawn(&mut app, "wanderer", Vec3::new(0.0, 0.0, -10.0), 0.0);
+    for _ in 0..3 {
+        app.update();
+    }
+    assert!(!acting(&app, raider), "a raider leaves a neutral alone");
+
+    // Two hostile factions target each other: a warlord's lookout
+    // (a placed actor carries its placer's faction) against a raider.
+    let (mut app, player) = playing_app();
+    app.world_mut().get_mut::<Transform>(player).unwrap().translation = Vec3::new(500.0, EYE_HEIGHT, 0.0);
+    let raider = spawn(&mut app, "scavenger", Vec3::new(0.0, 0.0, -5.0), 0.0);
+    let warlord = try_spawn(&mut app, "lookout", Vec3::new(0.0, 0.0, -12.0), 0.0, Some("warlords"))
+        .expect("warlords is registered");
+    assert_eq!(
+        app.world().get::<Npc>(warlord).unwrap().faction.as_deref(),
+        Some("warlords"),
+        "the placed faction wins over the def's"
+    );
+    for _ in 0..3 {
+        app.update();
+    }
+    assert!(acting(&app, raider) && acting(&app, warlord), "hostile factions fight each other");
+
+    // An unregistered faction never enters the world.
+    assert!(try_spawn(&mut app, "scavenger", Vec3::ZERO, 0.0, Some("nobody")).is_none());
 }
 
 /// Push an action onto an actor's queue for the next fixed tick.

@@ -66,6 +66,7 @@ pub fn build_app(headless: bool) -> App {
     app.init_resource::<content::MonumentRegistryRes>();
     app.init_resource::<content::BiomeRegistryRes>();
     app.init_resource::<content::ActorRegistryRes>();
+    app.init_resource::<content::FactionRegistryRes>();
     app.init_resource::<ButtonInput<KeyCode>>();
     app.init_resource::<ButtonInput<MouseButton>>();
     app.init_resource::<input::BindingsRes>();
