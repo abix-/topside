@@ -45,6 +45,19 @@ verbatim.
   is movement and perception (a navmesh, cover, belief instead of
   truth), not the life.
 
+## Where it lives (operator: "as much of this in modforge as possible")
+
+modforge: the needs and their drain rules, the good-for fields on
+the defs, `Memory` and its staleness, `Activity`, `CombatState`,
+`Perception`, `decide`, the day clock rules, the far-people record
+and its paper resolution, faction knowledge sharing, faction stores.
+All plain data and pure functions, tested without an engine.
+
+topside only: building a `Perception` from Avian rays and entity
+positions, pushing the returned actions onto the queue, dropping and
+rebuilding bodies at the radius, and the content (which defs say good
+for what).
+
 ## The shape: sense, decide, act
 
 Three layers kept apart so each is tested alone (Millington, "AI for
