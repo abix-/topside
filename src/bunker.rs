@@ -4,12 +4,13 @@
 
 use bevy::prelude::*;
 
-use modforge::item::{Inventory, create};
+use modforge::item::{Inventory, create, write};
 
 use crate::actor::{SpawnActor, WorldSeed, spawn_actor};
 use crate::cel::CelMaterial;
 use crate::content::{
-    ActorRegistryRes, BiomeRegistryRes, ItemRegistryRes, MonumentRegistryRes, world_def,
+    ActorRegistryRes, BiomeRegistryRes, ItemRegistryRes, MonumentRegistryRes, starting_note,
+    world_def,
 };
 use crate::interact::{Container, spawn_item};
 use crate::structure::{
@@ -253,6 +254,23 @@ pub fn setup(
         );
     }
 
+    // The world's seed changes with every launch (design.md "The
+    // world"); the storm will roll another. The note and the world
+    // both come from it.
+    let seed = now.to_bits() as u64 ^ 0xA5A5;
+
+    // The first question, on the bench (design.md "The first hour"):
+    // the note that tells you not to go outside.
+    spawn_item(
+        &mut commands,
+        &mut meshes,
+        &mut cel_materials,
+        def("note"),
+        write(def("note"), starting_note(seed), now, 13).expect("the note def is a note"),
+        Vec3::new(2.2, 0.9 + 0.2, 3.5),
+        [0.9, 0.88, 0.8],
+    );
+
     // The storage box upstairs in the house, with loot in it: a
     // deployed WorldItem whose container is filled after spawn.
     let mut loot = Inventory::new(def("storage box").storage.expect("a box has storage"));
@@ -271,11 +289,8 @@ pub fn setup(
     );
     commands.entity(box_).insert(Container(loot));
 
-    // The world rolls around the bunker from a seed that changes
-    // with every launch (design.md "The world"); the storm will roll
-    // another. Terrain, roads, scatter, and every monument come from
-    // the one path in terrain.rs.
-    let seed = now.to_bits() as u64 ^ 0xA5A5;
+    // The world rolls around the bunker. Terrain, roads, scatter, and
+    // every monument come from the one path in terrain.rs.
     let def = world_def(&world_name.0).expect("the world name was checked at startup");
     let world = roll_world(&def, seed, &biomes.0, &monuments.monuments)
         .expect("the world def rolls with the registered content");

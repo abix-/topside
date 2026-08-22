@@ -11,7 +11,8 @@ use modforge::combat::{DamageDef, DamageRegistry, DamageType, Falloff};
 use modforge::faction::{FactionDef, FactionKind, FactionRegistry};
 use modforge::memory::GoodFor;
 use modforge::survival::Need;
-use modforge::item::{Armor, CombatStats, EquipSlot, FoodStats, ItemDef, ItemKind, ItemRegistry};
+use modforge::item::{Armor, CombatStats, EquipSlot, FoodStats, ItemDef, ItemKind, ItemRegistry, Note};
+use modforge::monument::Roll;
 use modforge::monument::{
     Arrangement, BuildingRegistry, BuildingSize, BuildingSlot, BuildingTypeDef,
     MonumentRegistry, MonumentTypeDef, PropSpec,
@@ -284,8 +285,45 @@ impl Default for MonumentRegistryRes {
     }
 }
 
+/// The first hour's first question (design.md "The first hour"): the
+/// words on the note in the starting room, one of these, and the
+/// name that signs it. Operator, 2026-08-21: "the note tells you not
+/// to go outside."
+pub const STARTING_NOTES: [&str; 3] = [
+    "do not go outside",
+    "DO NOT GO OUTSIDE. not yet. wait for me",
+    "whatever you hear, do not open the door",
+];
+
+/// Names the world signs things with.
+pub const NAMES: [&str; 12] = [
+    "M.", "Tomas", "Ida", "Reyes", "Cal", "the doctor", "Anja", "Booker", "Sol", "Wren",
+    "your brother", "H.",
+];
+
+/// The note the starting room holds for this world: same seed, same
+/// note.
+pub fn starting_note(seed: u64) -> Note {
+    let mut roll = Roll::new(seed ^ 0x4e4f_5445);
+    Note {
+        text: (*roll.pick(&STARTING_NOTES)).to_string(),
+        signed: (*roll.pick(&NAMES)).to_string(),
+    }
+}
+
 pub fn register_items(reg: &mut ItemRegistry) {
     let items = [
+        ItemDef {
+            name: "note".to_string(),
+            kind: ItemKind::Note,
+            max_stack: 1,
+            quality_siblings: 1,
+            combat: None,
+            food: None,
+            storage: None,
+            armor: None,
+            good_for: Default::default(),
+        },
         ItemDef {
             name: "canned food".to_string(),
             kind: ItemKind::Food,
@@ -822,9 +860,10 @@ mod tests {
     fn all_items_register() {
         let mut reg = ItemRegistry::default();
         register_items(&mut reg);
-        assert_eq!(reg.len(), 10);
+        assert_eq!(reg.len(), 11);
         assert!(reg.def("canned food").is_some());
         assert!(reg.def("hatchet").is_some());
+        assert_eq!(reg.def("note").map(|d| d.kind), Some(ItemKind::Note));
         // Every gun's ammo is a registered item.
         for name in ["pipe", "hatchet", "pipe shotgun"] {
             if let Some(ammo) = reg.def(name).unwrap().combat.as_ref().unwrap().ammo.as_deref() {

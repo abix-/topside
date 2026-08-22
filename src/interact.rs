@@ -69,6 +69,8 @@ pub fn spawn_item(
         Interactable {
             kind: if def.storage.is_some() {
                 InteractKind::Container
+            } else if def.kind == ItemKind::Note {
+                InteractKind::Read
             } else {
                 InteractKind::Pickup
             },
@@ -211,7 +213,8 @@ pub fn interact_on_press(
                 open_container.0 = Some(entity);
             }
         }
+        // The note's words are in the HUD state now; nothing moves.
         // The gate stays shut; the prompt already says so.
-        InteractResult::Locked(_) | InteractResult::InventoryFull => {}
+        InteractResult::Read | InteractResult::Locked(_) | InteractResult::InventoryFull => {}
     }
 }

@@ -9,7 +9,7 @@ use modforge::hud::{
     Holder, Holders, InteractKind, OpenPanel, SlotRef, drop_slot, end_drag, hotbar_slot,
     slot_label, start_drag, toggle_panel, use_slot,
 };
-use modforge::item::{ItemStack, create};
+use modforge::item::{ItemStack, create, write};
 use modforge::structure::Aabb;
 use modforge::survival::FULL;
 use topside::{
@@ -17,7 +17,7 @@ use topside::{
     actor::{Hotbar, INVENTORY_SLOTS, Inventory},
     build_app,
     SimTick,
-    content::ItemRegistryRes,
+    content::{ItemRegistryRes, STARTING_NOTES, starting_note},
     hud::{HoveredSlot, HudRes},
     input::{Action, Actions},
     interact::{Container, Interactable, LookingAt, OpenContainer, WorldItem},
@@ -177,6 +177,7 @@ fn an_unregistered_item_is_never_picked_up() {
         item: "bogus".to_string(),
         count: 1,
         quality: None,
+        note: None,
     };
     let item = in_front(&mut app, InteractKind::Pickup, WorldItem { stack: bogus });
     press_e(&mut app, player,item, InteractKind::Pickup);
@@ -391,4 +392,35 @@ fn container_opens_and_t_transfers_both_ways() {
     press_e(&mut app, player,crate_, InteractKind::Container);
     assert_eq!(app.world().resource::<HudRes>().0.open_panel, OpenPanel::None);
     assert_eq!(app.world().resource::<OpenContainer>().0, None);
+}
+
+/// The first hour's first question (design.md): the note on the
+/// bench is read where it lies, its words and its signature in the
+/// HUD, and it is still there afterward. Same seed, same note.
+#[test]
+fn the_note_is_read_where_it_lies_and_the_same_seed_writes_the_same_note() {
+    let (mut app, player) = playing_app();
+    let seed = 41;
+    let note = starting_note(seed);
+    assert_eq!(note, starting_note(seed), "same seed, same note");
+    assert!(STARTING_NOTES.contains(&note.text.as_str()));
+    let paper = {
+        let registry = app.world().resource::<ItemRegistryRes>();
+        write(registry.0.def("note").unwrap(), note.clone(), 0.0, 13).unwrap()
+    };
+    let item = in_front(&mut app, InteractKind::Read, WorldItem { stack: paper });
+
+    press_e(&mut app, player, item, InteractKind::Read);
+    let hud = app.world().resource::<HudRes>();
+    assert_eq!(hud.0.open_panel, OpenPanel::Note);
+    assert_eq!(hud.0.reading, Some(note));
+    assert!(app.world().get_entity(item).is_ok(), "the note stays on the bench");
+    assert_eq!(app.world().get::<Inventory>(player).unwrap().0.count_of("note"), 0);
+
+    // Escape closes it.
+    act(&mut app, player, Action::Cancel);
+    app.update();
+    let hud = app.world().resource::<HudRes>();
+    assert_eq!(hud.0.open_panel, OpenPanel::None);
+    assert_eq!(hud.0.reading, None);
 }

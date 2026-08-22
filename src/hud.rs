@@ -235,11 +235,19 @@ pub fn toggle_inventory(
     let Ok(this_tick) = players.single() else {
         return;
     };
+    // Escape closes whatever panel is open; a note closes without
+    // touching the cursor, as opening it never released it.
+    if hud.0.open_panel == OpenPanel::Note && ActionQueue::has(&this_tick.0, Action::Cancel) {
+        toggle_panel(&mut hud.0, OpenPanel::Note);
+        hud.0.reading = None;
+        return;
+    }
     let open = hud.0.open_panel == OpenPanel::Inventory;
     let toggle = ActionQueue::has(&this_tick.0, Action::Inventory);
     let cancel = open && ActionQueue::has(&this_tick.0, Action::Cancel);
     if toggle || cancel {
         toggle_panel(&mut hud.0, OpenPanel::Inventory);
+        hud.0.reading = None;
         panel_changed(&mut hud.0, &mut hovered, &mut open_container, &mut cursors);
     }
 }
@@ -517,6 +525,12 @@ pub fn render(
     }
     if let Some((name, current, max)) = &state.0.target {
         line.push_str(&format!("\n{name}: {current:.0}/{max:.0}"));
+    }
+    // The note panel: its words, then who signed them.
+    if state.0.open_panel == OpenPanel::Note
+        && let Some(note) = &state.0.reading
+    {
+        line.push_str(&format!("\n\n{}\n    {}", note.text, note.signed));
     }
     text.0 = line;
 }
