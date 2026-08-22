@@ -343,6 +343,7 @@ pub fn register_items(reg: &mut ItemRegistry) {
             storage: None,
             armor: None,
             good_for: Default::default(),
+            model: None,
         },
         ItemDef {
             name: "canned food".to_string(),
@@ -357,6 +358,7 @@ pub fn register_items(reg: &mut ItemRegistry) {
             storage: None,
             armor: None,
             good_for: Default::default(),
+            model: None,
         },
         ItemDef {
             name: "water bottle".to_string(),
@@ -371,6 +373,7 @@ pub fn register_items(reg: &mut ItemRegistry) {
             storage: None,
             armor: None,
             good_for: Default::default(),
+            model: None,
         },
         ItemDef {
             name: "storage box".to_string(),
@@ -384,6 +387,7 @@ pub fn register_items(reg: &mut ItemRegistry) {
             // A box is where food is: whoever remembers one may come
             // to eat from it.
             good_for: GoodFor::new(&[(Need::Hunger, 50.0), (Need::Thirst, 50.0)]),
+            model: None,
         },
         ItemDef {
             name: "scrap".to_string(),
@@ -395,6 +399,7 @@ pub fn register_items(reg: &mut ItemRegistry) {
             storage: None,
             armor: None,
             good_for: Default::default(),
+            model: None,
         },
         ItemDef {
             name: "cloth".to_string(),
@@ -406,6 +411,7 @@ pub fn register_items(reg: &mut ItemRegistry) {
             storage: None,
             armor: None,
             good_for: Default::default(),
+            model: None,
         },
         ItemDef {
             name: "pipe".to_string(),
@@ -424,6 +430,8 @@ pub fn register_items(reg: &mut ItemRegistry) {
             storage: None,
             armor: None,
             good_for: Default::default(),
+            // scripts/models/pipe.py builds it.
+            model: Some("pipe.glb".to_string()),
         },
         ItemDef {
             name: "hatchet".to_string(),
@@ -442,6 +450,7 @@ pub fn register_items(reg: &mut ItemRegistry) {
             storage: None,
             armor: None,
             good_for: Default::default(),
+            model: None,
         },
         // Rust's pipe shotgun: one shell, six pellets, wide spread,
         // instant out to 40 m (the hybrid's instant part).
@@ -462,6 +471,7 @@ pub fn register_items(reg: &mut ItemRegistry) {
             storage: None,
             armor: None,
             good_for: Default::default(),
+            model: None,
         },
         ItemDef {
             name: "shotgun shell".to_string(),
@@ -473,6 +483,7 @@ pub fn register_items(reg: &mut ItemRegistry) {
             storage: None,
             armor: None,
             good_for: Default::default(),
+            model: None,
         },
         // Worn in the chest slot; guards the chest only.
         ItemDef {
@@ -488,6 +499,7 @@ pub fn register_items(reg: &mut ItemRegistry) {
                 amount: 40.0,
             }),
             good_for: Default::default(),
+            model: None,
         },
     ];
     for item in items {

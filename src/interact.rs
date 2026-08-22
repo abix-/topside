@@ -72,8 +72,6 @@ pub fn spawn_item(
             },
         },
         WorldItem { stack },
-        Mesh3d(meshes.add(Cuboid::new(half * 2.0, half * 2.0, half * 2.0))),
-        MeshMaterial3d(materials.add(CelMaterial::from_srgb(color[0], color[1], color[2]))),
         Transform::from_translation(position),
         Visibility::default(),
         // The one box: Avian's. The E ray finds it; a deployable
@@ -84,6 +82,20 @@ pub fn spawn_item(
     ));
     if !deployable {
         entity.insert(Sensor);
+    }
+    // What it looks like: the def's model file when it has one
+    // (`model::attach` loads it in the windowed app), else a box
+    // of the item's colour.
+    match &def.model {
+        Some(file) => {
+            entity.insert(crate::model::Model(file.clone()));
+        }
+        None => {
+            entity.insert((
+                Mesh3d(meshes.add(Cuboid::new(half * 2.0, half * 2.0, half * 2.0))),
+                MeshMaterial3d(materials.add(CelMaterial::from_srgb(color[0], color[1], color[2]))),
+            ));
+        }
     }
     if let Some(slots) = def.storage {
         entity.insert(Container(modforge::item::Inventory::new(slots)));

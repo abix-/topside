@@ -16,9 +16,13 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 # Arguments pass through to the exe: restart.ps1 --world labyrinth
+# The game's output lands in topside.log (Bevy's asset and render
+# errors included); the previous run's log is overwritten.
+$out = Join-Path $repo "topside.log"
+$err = Join-Path $repo "topside.err.log"
 if ($args.Count -gt 0) {
-    Start-Process $exe -WorkingDirectory $repo -ArgumentList $args
+    Start-Process $exe -WorkingDirectory $repo -ArgumentList $args -RedirectStandardOutput $out -RedirectStandardError $err
 } else {
-    Start-Process $exe -WorkingDirectory $repo
+    Start-Process $exe -WorkingDirectory $repo -RedirectStandardOutput $out -RedirectStandardError $err
 }
-Write-Host "topside launched $args"
+Write-Host "topside launched $args (log: topside.log, topside.err.log)"

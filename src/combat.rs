@@ -7,7 +7,7 @@
 
 use avian3d::prelude::*;
 use bevy::prelude::*;
-use modforge::combat::{BodyArea, FireTimer, Hit, MultiDamage, Trigger, pellet_directions};
+use modforge::combat::{BodyArea, FireTimer, Hit, MultiDamage, Swing, Trigger, pellet_directions};
 pub use modforge::combat::{Health as HealthStats, Protection as ProtectionStats};
 
 use crate::SimTick;
@@ -75,6 +75,8 @@ pub fn fire(
     {
         firing.0.tick(dt);
         if !ActionQueue::has(&this_tick.0, Action::Attack) {
+            // Let go: the next press may chain on the beat.
+            firing.0.release();
             continue;
         }
         // Who is swinging: Strong hits harder, a Berserker harder
@@ -100,7 +102,20 @@ pub fn fire(
             None => true,
             Some(ammo) => hotbar.0.slots.count_of(ammo) > 0 || inventory.0.count_of(ammo) > 0,
         };
-        if firing.0.pull(weapon.delay, has_ammo) != Trigger::Fire {
+        // Melee: Gothic's four moves from the attack key plus the
+        // move direction held, at this person's swing speed, chained
+        // on the beat if they can. Guns: the plain trigger.
+        let trigger = if weapon.ammo.is_none() {
+            let (x, y) = ActionQueue::movement(&this_tick.0);
+            firing.0.pull_melee(
+                personality.0.swing_delay(weapon.delay),
+                Swing::from_move(x, y),
+                personality.0.can_chain(),
+            )
+        } else {
+            firing.0.pull(weapon.delay, has_ammo)
+        };
+        if trigger != Trigger::Fire {
             continue;
         }
         if let Some(ammo) = weapon.ammo.as_deref() {
@@ -114,6 +129,15 @@ pub fn fire(
             .collect();
         let filter = SpatialQueryFilter::from_excluded_entities(own);
         let reach = weapon.reach * reach_mult;
+        // The fat sweep follows the swing: a left swing starts off
+        // the left shoulder and crosses to the right, an overhead
+        // starts above and comes down the line.
+        let right = transform.right().as_vec3();
+        let (sweep_from, sweep_to) = match firing.0.swing {
+            Swing::Left => (-right, aim + right * 0.5),
+            Swing::Right => (right, aim - right * 0.5),
+            Swing::Overhead | Swing::Block => (Vec3::Y * 0.5, aim - Vec3::Y * 0.25),
+        };
         let mut pellets = MultiDamage::default();
         let mut points: Vec<(Entity, Vec3)> = Vec::new();
         for dir in pellet_directions(aim, weapon.spread_degrees, weapon.pellets, tick.0) {
@@ -137,9 +161,9 @@ pub fn fire(
                                 SWING_HALF_WIDTH * 2.0,
                                 SWING_HALF_WIDTH * 2.0,
                             ),
-                            eye,
+                            eye + sweep_from * SWING_HALF_WIDTH * 2.0,
                             Quat::IDENTITY,
-                            forward,
+                            Dir3::new(sweep_to).unwrap_or(forward),
                             &ShapeCastConfig::from_max_distance(reach),
                             &filter,
                             &solid,

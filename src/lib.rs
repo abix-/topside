@@ -13,6 +13,7 @@ pub mod ground;
 pub mod hud;
 pub mod input;
 pub mod interact;
+pub mod model;
 pub mod player;
 pub mod profile;
 pub mod structure;
@@ -51,13 +52,22 @@ pub fn build_app(headless: bool) -> App {
         app.add_plugins(MinimalPlugins);
         app.add_plugins(bevy::state::app::StatesPlugin);
     } else {
-        app.add_plugins(DefaultPlugins.set(WindowPlugin {
-            primary_window: Some(Window {
-                title: "topside".to_string(),
-                ..default()
-            }),
-            ..default()
-        }));
+        app.add_plugins(
+            DefaultPlugins
+                .set(WindowPlugin {
+                    primary_window: Some(Window {
+                        title: "topside".to_string(),
+                        ..default()
+                    }),
+                    ..default()
+                })
+                // The exe lives in the shared target directory, not
+                // beside assets/: point Bevy at the repo's folder.
+                .set(AssetPlugin {
+                    file_path: concat!(env!("CARGO_MANIFEST_DIR"), "/assets").to_string(),
+                    ..default()
+                }),
+        );
     }
     app.add_plugins(avian3d::prelude::PhysicsPlugins::default());
     if headless {
@@ -154,6 +164,15 @@ pub fn build_app(headless: bool) -> App {
                 hud::render_inventory,
             )
                 .run_if(in_state(AppState::Playing)),
+        );
+        // Models need the asset server: windowed only.
+        app.add_systems(
+            Update,
+            (
+                model::attach,
+                model::cel_shade,
+                model::held.run_if(in_state(AppState::Playing)),
+            ),
         );
         // Dropping spawns a mesh, so it stays with the window.
         app.add_systems(
