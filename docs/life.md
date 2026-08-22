@@ -125,13 +125,35 @@ need presses, so nobody ever stands frozen.
 
 ## What things are good for
 
-Every kind of thing in the world says what it is good for as a field
-on its def, the way an item has `food` stats: a box is good for food
-and loot, a bed for rest, a bunker or a camp for safety and rest, a
-bench for work. Nothing is broadcast to anyone (operator: no
-advertising, "things describe what they are good for and people
-remember what they saw"). A new kind of thing is a new def with
-those fields, never a new rule in the brain.
+The RimWorld way (decided 2026-08-22, operator: "we're building this
+like rimworld needs system", "we need to do this right"; read from
+RimWorld's decompiled `JobGiver_GetFood`, `FoodUtility`,
+`JobGiver_GetJoy`):
+
+- Each definition carries a field named after the need it fills,
+  with that need's numbers, the way an item already has `food`
+  (hunger, thirst). A camp, a building type, or a bed gets `shelter`
+  (rest, safety). RimWorld's `ingestible` and `building.bed`. There
+  is no general "good for" list on any def; `good_for` and `GoodFor`
+  go away.
+- A box does not feed anyone; the cans inside do. A person remembers
+  the box: its kind, where, when, and what they saw inside it. When
+  hungry they look through memory for a thing whose definition has
+  `food` and find "the box at X had canned food". The box definition
+  has no food numbers. RimWorld finds a meal in a stockpile, not a
+  stockpile that is good for food.
+- The brain has one rule per need, the way RimWorld has one job giver
+  per need: hungry, look in memory for food; tired or afraid, look in
+  memory for shelter. Memory stores only what kind of thing it saw;
+  the registry says what that kind does. No copy of a definition's
+  numbers lives in memory.
+
+Nothing is broadcast to anyone (operator: no advertising, "things
+describe what they are good for and people remember what they saw";
+The Sims advertises, we do not). Where we differ from RimWorld on
+purpose: RimWorld scans the whole map for the nearest food; we look
+only in memory. A new kind of thing is a new def with the need's
+field, never a new rule in the brain.
 
 ## What a person knows
 
