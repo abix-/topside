@@ -622,6 +622,80 @@ done. Order after the mixed world: the Backrooms first, then the
 Death Gate worlds, the Labyrinth before the others because it is the
 closest to what the game is about.
 
+### The Labyrinth, mined (operator, 2026-08-21: "i like the idea of
+### stalker anomalies and traps. this is a labyrinth after all. and
+### honestly lets mine the death gate cycle books for ideas")
+
+The Labyrinth is built as data: 10 m corridors (operator: "wide
+enough for 4 people"), walls as high as the corridor is wide, paths
+and dead ends, the bunker in a clearing the maze grows out of. That
+is the stage. What makes it a place is that the maze is the
+antagonist: in the books it is sentient, it hates its prisoners, and
+it moves its own terrain and creatures to kill them. Everything
+below follows from that one fact.
+
+From STALKER, anomalies and the bolt:
+
+- An anomaly is a patch of corridor that kills: a vortex that pulls
+  and crushes, a burner that flares when something enters, an
+  electro that arcs, a chemical pool. Each has a tell (a shimmer,
+  scorched ground, a hum, bones) that a careful player reads; a
+  careless one walks in. Anomalies live in dead ends and narrow
+  spots where the maze wants you to go.
+- The bolt: the player throws something cheap ahead and watches. This
+  is the whole of STALKER's exploration feel in one action: the world
+  answers what you do. Throwing a bolt is an action on the queue like
+  any other.
+- Artefacts: the reward is inside the anomaly. Some of the best loot
+  in the maze sits where going to get it can kill you. That is the
+  "it can kill you and you go anyway" rule made concrete.
+
+Traps, because it is a labyrinth: a floor piece that gives way (a
+pit), a corridor that closes behind you (the walls move), a dead end
+that was not a dead end a minute ago, a gate that shuts when the
+guard sees you. Traps are pieces and walls, the same data as the
+rest, so the player can break them, and the maze can re-lay them.
+
+From the books (Weis and Hickman, Into the Labyrinth and The Seventh
+Gate; the fandom wiki and TV Tropes read 2026-08-21, the rest from
+memory of the books and marked so):
+
+- The walls move. The Labyrinth manipulates its terrain against you.
+  For us: on the storm's smaller cousin, runs of wall vanish and new
+  ones stand, a corridor you walked is not there next time, and the
+  map you drew yourself is wrong. This is the maze's own version of
+  "coming back is not safe".
+- Gates. The prison is crossed by numbered gates toward the centre;
+  each gate is a milestone a runner counts. For us: gate monuments
+  across corridors, locked, guarded, stocked, and knowing how many
+  gates you have passed is the only measure of progress the maze
+  gives you. The way out is through the last one.
+- Runners and squatters. The two ways to live there: keep moving, or
+  hold a place and raise children in it. For us: two factions. Runner
+  bands roam and fight anything; squatters hold a gate or a clearing
+  and trade if you are not a threat. A runner who stops becomes a
+  squatter; a squatter camp that is overrun scatters into runners.
+- The creatures, sent by the maze: wolfen, man-sized wolves hunting
+  in packs of thirty to forty; chaodyn, insect things (from memory:
+  killed in one blow or they split into two); snogs; tiger-men;
+  dragons. For us: the Labyrinth's NPC pools are these, not raiders,
+  and each is a rule, not a reskin. A wolfen pack is a crowd that
+  flanks in corridors; a chaodyn punishes a weak hit; a dragon is the
+  thing you hear and never want to meet.
+- Runes. Patryns carry their magic as tattoos and read runes on
+  things; runners mark the way. For us: marks on walls left by people
+  who passed (a rune, a scratch, an arrow, a warning), part of what a
+  person knows and tells. Reading the maze's marks is the Outer Wilds
+  move: knowledge is the progression.
+- The dog. Haplo's dog goes where he cannot and comes back. For us,
+  later: an animal companion is an actor whose queue the player can
+  fill with one order (go, come, stay), and the first thing the
+  player can send into a dead end instead of themselves.
+
+The order to build the teeth, after the stage stands: anomalies with
+the bolt, then the gates, then the runners and squatters, then the
+walls that move, then the creatures.
+
 Sources read 2026-08-21: [The Backrooms (Wikipedia)](https://en.wikipedia.org/wiki/The_Backrooms),
 [The Death Gate Cycle (Wikipedia)](https://en.wikipedia.org/wiki/The_Death_Gate_Cycle),
 [Dragon Wing (Wikipedia)](https://en.wikipedia.org/wiki/Dragon_Wing).
