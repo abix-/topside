@@ -143,6 +143,7 @@ pub fn spawn_actor(
             Firing::default(),
             Actions::default(),
             ThisTick::default(),
+            crate::player::Fall::default(),
             RigidBody::Kinematic,
         ))
         .id();

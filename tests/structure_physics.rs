@@ -7,9 +7,10 @@ use topside::{
     actor::{Facing, Hotbar},
     build_app,
     cel::CelMaterial,
+    combat::Health,
     content::ItemRegistryRes,
     input::{Action, Actions},
-    player::Player,
+    player::{Fall, Player, SAFE_LANDING_SPEED},
     structure::{
         CONCRETE_FLOOR, CONCRETE_WALL, Door, Opening, Pieces, Rebake, RoomSpec, Side, StairSpec,
         StructureBatch, StructureDef, StructureRoot, spawn_structure,
@@ -356,6 +357,36 @@ fn swinging_the_pipe_breaks_a_wall_piece_and_leaves_a_gap() {
     walk(&mut app, player, Vec2::new(0.0, 1.0),120);
     let out = feet(&app, player);
     assert!(out.x > 4.0, "the body walks through where the wall was, got {out}");
+}
+
+#[test]
+fn walking_off_the_roof_falls_to_the_ground_and_hurts() {
+    // On the one room's roof, walk north past its edge (interior
+    // 8 m deep: the edge is at z -4.2), fall to the ground plane.
+    let (mut app, player) = walking_app(&one_room(), Vec3::new(0.0, 3.5, 0.0), 0.0);
+    walk(&mut app, player, Vec2::ZERO, 5);
+    let on_roof = feet(&app, player);
+    assert!(on_roof.y > 3.0, "standing on the roof, got {on_roof}");
+    let health_before = app.world().get::<Health>(player).unwrap().0.current;
+
+    walk(&mut app, player, Vec2::new(0.0, 1.0), 70);
+    walk(&mut app, player, Vec2::ZERO, 60);
+    let down = feet(&app, player);
+    assert!(down.z < -4.2, "walked off the edge, got {down}");
+    assert!(down.y.abs() < 0.05, "landed on the ground plane, got {down}");
+    assert_eq!(app.world().get::<Fall>(player).unwrap().0, 0.0, "standing again");
+
+    // Landing from the roof height is faster than the safe speed;
+    // the difference is the hit, at 10 health per m/s over.
+    let drop = on_roof.y - down.y;
+    let landing_speed = (2.0 * 9.81 * drop).sqrt();
+    let expected = 10.0 * (landing_speed - SAFE_LANDING_SPEED);
+    let lost = health_before - app.world().get::<Health>(player).unwrap().0.current;
+    assert!(expected > 10.0, "the drop is worth a hit: {expected}");
+    assert!(
+        (lost - expected).abs() < 3.0,
+        "fall damage {lost} for a {drop:.2} m drop, expected about {expected:.1}"
+    );
 }
 
 #[test]

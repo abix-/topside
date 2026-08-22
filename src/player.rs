@@ -2,8 +2,10 @@
 //! click grabs the cursor, mouse looks, WASD walks, Escape releases.
 
 use crate::actor::{Equipment, Facing, Hotbar, Inventory, Personality};
-use crate::combat::{Firing, Health, Protection};
+use crate::combat::{Firing, Health, Protection, ProtectionStats};
+use crate::content::DamageRegistryRes;
 use crate::input::{Action, ActionQueue, Actions, ThisTick};
+use modforge::combat::{Hit, resolve_hit};
 use crate::structure::{BODY_TOP, CLIMB, body_shape};
 use crate::survival::Survival;
 use avian3d::prelude::*;
@@ -18,9 +20,18 @@ pub use crate::actor::EYE_HEIGHT;
 #[derive(Component, Default)]
 #[require(
     Facing, Inventory, Hotbar, Equipment, Survival, Health, Protection, Firing, Actions, ThisTick,
-    Personality
+    Personality, Fall
 )]
 pub struct Player;
+
+/// How fast this actor is falling, metres per second down, zero
+/// when something is under the feet. Avian's `Gravity` drives it;
+/// the body is kinematic so Avian does not (authority.md Physics).
+#[derive(Component, Default, Debug, Clone, Copy)]
+pub struct Fall(pub f32);
+
+/// Landing at or under this speed hurts nobody (a 1.8 m drop).
+pub const SAFE_LANDING_SPEED: f32 = 6.0;
 
 const WALK_SPEED: f32 = 5.0;
 /// Admin flight (Quake's noclip): fast, along the look direction,
@@ -111,10 +122,13 @@ pub fn look(mut actors: Query<(&mut Transform, &mut Facing, &ThisTick)>) {
 /// walls (Quake III PM_SlideMove, as shipped by Avian), retry the
 /// move raised by CLIMB when blocked so steps are climbed (Quake's
 /// step slide move), then cast down to land on whatever is under
-/// the feet. Nothing under the feet within CLIMB means the body
-/// stays at its height; there is no gravity yet.
+/// the feet. Nothing under the feet means the body falls under
+/// Avian's gravity, and landing faster than SAFE_LANDING_SPEED is a
+/// hit through the one damage function (Quake 3's PM_CrashLand).
 pub fn movement(
     time: Res<Time<Fixed>>,
+    gravity: Res<Gravity>,
+    damage: Res<DamageRegistryRes>,
     move_and_slide: MoveAndSlide,
     mut actors: Query<(
         Entity,
@@ -124,29 +138,41 @@ pub fn movement(
         Option<&Children>,
         Has<Flying>,
         &Personality,
+        &mut Fall,
+        &mut Health,
+        &mut Survival,
     )>,
 ) {
     let shape = body_shape();
     let config = MoveAndSlideConfig::default();
     let half = BODY_TOP / 2.0;
-    for (entity, mut transform, facing, this_tick, children, flying, personality) in &mut actors {
+    let dt = time.delta_secs();
+    let g = -gravity.0.y;
+    let fall_def = damage.0.def("fall").expect("the fall damage def is registered");
+    for (entity, mut transform, facing, this_tick, children, flying, personality, mut fall, mut health, mut needs) in
+        &mut actors
+    {
         // Actions say y is forward; the world's forward is -z.
         let (x, y) = ActionQueue::movement(&this_tick.0);
         let wish = Vec3::new(x, 0.0, -y);
-        if wish == Vec3::ZERO {
-            continue;
-        }
         if flying {
             // Along the full look direction, pitch included, through
-            // everything.
-            let step = (facing.rotation() * wish).normalize() * FLY_SPEED * time.delta_secs();
-            transform.translation += step;
+            // everything; never falling.
+            fall.0 = 0.0;
+            if wish != Vec3::ZERO {
+                let step = (facing.rotation() * wish).normalize() * FLY_SPEED * dt;
+                transform.translation += step;
+            }
             continue;
         }
         // Swift people walk faster, Slow ones slower.
-        let velocity = (Quat::from_rotation_y(facing.yaw) * wish).normalize()
-            * WALK_SPEED
-            * personality.0.speed_mult();
+        let velocity = if wish == Vec3::ZERO {
+            Vec3::ZERO
+        } else {
+            (Quat::from_rotation_y(facing.yaw) * wish).normalize()
+                * WALK_SPEED
+                * personality.0.speed_mult()
+        };
         // An actor never collides with itself: not its root, not the
         // body hanging under it.
         let own: Vec<Entity> = std::iter::once(entity)
@@ -168,22 +194,55 @@ pub fn movement(
                 )
                 .position
         };
-        let flat = slide(start);
-        let raised = slide(start + Vec3::Y * CLIMB);
-        let progress = |p: Vec3| (p - start).with_y(0.0).length();
-        let mut center = if progress(raised) > progress(flat) + 1e-4 {
-            raised
+        let mut center = if velocity == Vec3::ZERO {
+            start
         } else {
-            flat
+            let flat = slide(start);
+            let raised = slide(start + Vec3::Y * CLIMB);
+            let progress = |p: Vec3| (p - start).with_y(0.0).length();
+            if progress(raised) > progress(flat) + 1e-4 {
+                raised
+            } else {
+                flat
+            }
         };
-        // Land: cast down by up to CLIMB plus the step lift.
-        let drop = Vec3::NEG_Y * (CLIMB + (center.y - start.y).max(0.0));
-        if let Some(hit) =
-            move_and_slide.cast_move(&shape, center, Quat::IDENTITY, drop, 0.0, &filter)
-        {
-            center += drop.normalize() * hit.distance;
+        // Fall this tick under Avian's gravity, then land: cast down
+        // and stop on the first hit. On the ground the cast reaches
+        // a step down (CLIMB plus the step lift); in the air it
+        // reaches only as far as the fall, so the landing speed is
+        // the real one and not the speed a step above the floor.
+        let airborne = fall.0 > 0.0;
+        fall.0 += g * dt;
+        let reach = if airborne {
+            fall.0 * dt
         } else {
-            center.y = start.y;
+            CLIMB + (center.y - start.y).max(0.0) + fall.0 * dt
+        };
+        let drop = Vec3::NEG_Y * reach;
+        match move_and_slide.cast_move(&shape, center, Quat::IDENTITY, drop, 0.0, &filter) {
+            Some(hit) => {
+                center.y -= hit.distance;
+                // Landed. Faster than safe hurts, through the one
+                // damage function, no armor, legs.
+                let over = fall.0 - SAFE_LANDING_SPEED;
+                if over > 0.0 {
+                    let crash = Hit {
+                        def: fall_def,
+                        self_inflicted: false,
+                        distance: 0.0,
+                        location_scale: over,
+                    };
+                    let mut guarded = ProtectionStats::default();
+                    let result = resolve_hit(&crash, &mut guarded, &mut health.0);
+                    needs.0.hit_taken(result.damage_dealt);
+                }
+                fall.0 = 0.0;
+            }
+            None => {
+                // Nothing under the feet: keep the step reach, drop
+                // by the fall only.
+                center.y -= fall.0 * dt;
+            }
         }
         transform.translation = center - Vec3::Y * half + Vec3::Y * EYE_HEIGHT;
     }

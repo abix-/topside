@@ -262,10 +262,23 @@ pub fn register_damage(reg: &mut DamageRegistry) {
             far_fraction: 0.2,
         },
     };
+    // Landing hard (Quake 3's PM_CrashLand, Rust's fall damage):
+    // `amount` per metre per second over the safe landing speed, no
+    // armor helps, through the one damage function like every hit.
+    let fall = DamageDef {
+        name: "fall".to_string(),
+        amount: 10.0,
+        kind: DamageType::Blunt,
+        knockback: 0.0,
+        ignores_armor: true,
+        self_scale: 1.0,
+        falloff: Falloff::NONE,
+    };
     for def in [
         melee("pipe swing", 20.0, DamageType::Blunt),
         melee("hatchet chop", 30.0, DamageType::Slash),
         pellet,
+        fall,
     ] {
         reg.register(def).expect("damage defs must not collide");
     }
