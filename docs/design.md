@@ -649,9 +649,16 @@ a monument is rolled then spawned. What a roll decides:
   in a biome that allows that monument type; the monument at each
   site rolls as before.
 - Roads: Rust's model. Roads are laid by the generator between the
-  monuments and the bunker by pathing over the heightmap, following
-  the easy slopes, so a road is how you find the next monument and
-  the roadside stops and gas stations sit along it.
+  monuments by pathing over the heightmap, following the easy slopes,
+  so a road is how you find the next monument and the roadside stops
+  and gas stations sit along it.
+- No road leads to the bunker (operator, 2026-08-22): "this is a game
+  of alternate realities. In the first reality this bunker was hidden
+  somewhere to survive the apocalypse. It worked. But the fact that it
+  was hidden means no roads. In our generated worlds there may or may
+  not be roads depending on the history of that reality." The first
+  world has none; a generator whose history says otherwise may lay
+  one.
 - The bunker stays where it is; the world rolls around it.
 
 Rivers, rain and wildlife per biome, and the people who live at the

@@ -56,6 +56,7 @@ These rules govern `docs/changelog.md`. Follow them exactly.
 | src/bunker.rs | [x] The house comment naming a `spawn_container` that never existed now says `spawn_item` with a `Container` on it | grep spawn_container finds nothing in src or tests |
 | docs/design.md | [x] The apartment block, hospital, and bunker complex building types and the ruined city monument (50 large buildings on city blocks, from the operator's "a monument with 50 buildings, each with 20+ rooms", 2026-08-20) written into Building types and Monument composition | Every building type and monument type content.rs registers is listed in design.md |
 | docs/authority.md | [x] The ActorMap row's "Lives in topside" replaced: the map, its rules, and its tests are modforge `ActorMap`; topside holds it as `ActorMapRes` and carries the id as the `Actor` component | The sentence names where the struct and the resource each live |
+| docs/design.md | [x] "The world": roads run between the monuments; no road leads to the bunker, in the operator's words (the bunker was hidden to survive the apocalypse, and hidden means no roads; a reality with another history may lay one) | design.md and the worldgen road test say the same thing about the bunker |
 
 ## 2026-08-21
 
