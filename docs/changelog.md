@@ -26,6 +26,7 @@ These rules govern `docs/changelog.md`. Follow them exactly.
 
 | System | Item | Done when |
 |---|---|---|
+| modforge worldgen | [x] `WorldDef` gets a `generator` field: `Generator::Relief` carrying the existing shaping fields (flatness, mountain height, plateau step) and `roll_world` reads it; nothing else changes | The mixed world rolls identical for the same seed before and after (`the_mixed_world_rolls_as_it_always_has`, fingerprint recorded before the change); topside's `world_def()` builds `Relief`; modforge worldgen 7 tests and every topside test pass |
 | Spawner | [x] Build the one NPC spawn path: hostile NPCs at monuments enter through one function with position, faction, and combat stats. modforge `ActorDef` + `ActorRegistry` + `decide` (the AI: look, move, attack from what it sees); topside `spawn_actor` gives an NPC exactly the player's parts (`Facing` is now shared, `Player` is a marker) plus a body and a GPU slot; `populate_monuments` fills every NPC spot; `ai::think` pushes actions onto the NPC's queue so `look`, `movement`, `fire` run unchanged | tests/actor.rs spawns through the one path and checks identity, faction, position, shared parts, and a hunter walking at the player; tests/monument.rs checks one NPC per spot under the root |
 
 ## 2026-08-20

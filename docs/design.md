@@ -375,6 +375,12 @@ not hope:
    note. The dread loop's "lingering mystery" governs sites and
    encounters, not only incursions.
 
+7. Every map rolls 0 to 5 secrets (operator, 2026-08-21: "every map
+   should have the possibility to have 0-5 secrets"). A secret is a
+   place the roll hides on purpose: off every road and site, and in a
+   maze behind a wall. Zero is a legal roll; the player never knows
+   how many this world has.
+
 Minor sites are the danger here: hundreds of "a box and some scatter"
 is exactly the samey feeling this section exists to kill. Every minor
 site type must carry at least one of rules 3, 4, or 6.

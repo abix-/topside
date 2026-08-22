@@ -4,7 +4,7 @@
 
 use bevy::math::{Vec2, Vec3};
 use bevy::prelude::Resource;
-use modforge::worldgen::{BiomeRule, WorldDef};
+use modforge::worldgen::{BiomeRule, Generator, WorldDef};
 use modforge::actor::{ActorDef, ActorRegistry, Behaviour};
 use modforge::biome::{BiomeDef, BiomeRegistry, ScatterSpec};
 use modforge::combat::{DamageDef, DamageRegistry, DamageType, Falloff};
@@ -76,9 +76,11 @@ pub fn world_def() -> WorldDef {
         // ridges up to four hundred more, plateaus in ten metre steps.
         height_scale: 100.0,
         feature_size: 500.0,
-        flatness: 2.2,
-        mountain_height: 400.0,
-        plateau_step: 10.0,
+        generator: Generator::Relief {
+            flatness: 2.2,
+            mountain_height: 400.0,
+            plateau_step: 10.0,
+        },
         water_level: 0.15,
         biome_rules: vec![
             BiomeRule {
