@@ -57,12 +57,48 @@ impl Default for BiomeRegistryRes {
     }
 }
 
+/// The realities that can be rolled, by name (design.md "The
+/// generators we want"; operator 2026-08-21: "call the first one
+/// topside and this one labyrinth"). `--world <name>` picks one
+/// until the storm rolls it.
+pub const WORLDS: [&str; 2] = ["topside", "labyrinth"];
+
+/// The world to roll for a reality name, or the names it knows.
+pub fn world_def(name: &str) -> Result<WorldDef, String> {
+    match name {
+        "topside" => Ok(topside_def()),
+        "labyrinth" => Ok(labyrinth_def()),
+        other => Err(format!("unknown world '{other}'; one of {WORLDS:?}")),
+    }
+}
+
+/// The Labyrinth (design.md): the same size as topside, flat, a maze
+/// of corridors wide enough for the bunker and its house to share a
+/// cell (the house stands 30 m north of the bunker), walls too high
+/// to see over, and only the minor sites, which fit in a corridor.
+pub fn labyrinth_def() -> WorldDef {
+    let mut def = topside_def();
+    def.generator = Generator::Labyrinth {
+        corridor: 70.0,
+        wall_height: 8.0,
+        wall_thickness: 1.0,
+    };
+    def.water_level = 0.0;
+    def.monuments = vec![
+        ("wreck".to_string(), 150),
+        ("campsite".to_string(), 90),
+        ("supply drop".to_string(), 45),
+        ("body".to_string(), 90),
+    ];
+    def
+}
+
 /// The world to roll (design.md "The world"): two kilometres
 /// square, four metre cells, forty metres of relief, the bunker at
 /// the origin on flat ground with the starting house beside it.
 /// Wasteland in the dry lowlands, forest in the wet ones, ruins on
 /// the high ground.
-pub fn world_def() -> WorldDef {
+pub fn topside_def() -> WorldDef {
     WorldDef {
         // Rust's default map (operator, 2026-08-21: "i want 3500 m
         // like rust").
@@ -857,7 +893,7 @@ mod tests {
         let biomes = BiomeRegistryRes::default();
         let monuments = MonumentRegistryRes::default();
         for seed in [1u64, 2, 3] {
-            let world = modforge::worldgen::roll_world(&world_def(), seed, &biomes.0, &monuments.monuments)
+            let world = modforge::worldgen::roll_world(&topside_def(), seed, &biomes.0, &monuments.monuments)
                 .unwrap_or_else(|e| panic!("seed {seed}: {e}"));
             assert_eq!(world.sites.len(), 414);
             assert_eq!(world.roads.len(), 39, "roads reach the built monuments only");
@@ -878,5 +914,20 @@ mod tests {
             }
             assert!(covered * 10 >= land * 9, "seed {seed}: {covered} of {land} within 150 m");
         }
+    }
+
+    #[test]
+    fn every_named_world_rolls_and_an_unknown_name_is_refused() {
+        let biomes = BiomeRegistryRes::default();
+        let monuments = MonumentRegistryRes::default();
+        for name in WORLDS {
+            let def = world_def(name).unwrap();
+            modforge::worldgen::roll_world(&def, 2, &biomes.0, &monuments.monuments)
+                .unwrap_or_else(|e| panic!("{name}: {e}"));
+        }
+        let labyrinth = modforge::worldgen::roll_world(&labyrinth_def(), 2, &biomes.0, &monuments.monuments).unwrap();
+        assert!(labyrinth.walls.len() > 1000, "{} wall runs", labyrinth.walls.len());
+        assert_eq!(labyrinth.sites.len(), 375);
+        assert!(world_def("backrooms").is_err());
     }
 }

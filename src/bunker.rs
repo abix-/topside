@@ -16,6 +16,7 @@ use crate::structure::{
     CONCRETE_FLOOR, CONCRETE_WALL, LightSpec, Opening, RoomSpec, Side, SolidSpec, StairSpec,
     StructureDef, spawn_structure,
 };
+use crate::WorldName;
 use crate::terrain::{WorldRes, spawn_world};
 use modforge::worldgen::roll_world;
 
@@ -195,6 +196,7 @@ pub fn setup(
     items: Res<ItemRegistryRes>,
     monuments: Res<MonumentRegistryRes>,
     biomes: Res<BiomeRegistryRes>,
+    world_name: Res<WorldName>,
     time: Res<Time>,
 ) {
     spawn_structure(
@@ -274,7 +276,8 @@ pub fn setup(
     // another. Terrain, roads, scatter, and every monument come from
     // the one path in terrain.rs.
     let seed = now.to_bits() as u64 ^ 0xA5A5;
-    let world = roll_world(&world_def(), seed, &biomes.0, &monuments.monuments)
+    let def = world_def(&world_name.0).expect("the world name was checked at startup");
+    let world = roll_world(&def, seed, &biomes.0, &monuments.monuments)
         .expect("the world def rolls with the registered content");
     spawn_world(
         &mut commands,

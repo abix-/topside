@@ -10,7 +10,7 @@ use modforge::worldgen::{Generator, roll_world};
 use topside::{
     AppState, build_app,
     cel::CelMaterial,
-    content::{BiomeRegistryRes, ItemRegistryRes, MonumentRegistryRes, world_def},
+    content::{BiomeRegistryRes, ItemRegistryRes, MonumentRegistryRes, topside_def},
     structure::{MonumentRoot, StructureRoot},
     terrain::{CHUNK, WorldPiece, spawn_world},
 };
@@ -25,7 +25,7 @@ fn a_rolled_world_stands_in_the_scene() {
     app.init_resource::<Assets<CelMaterial>>();
     // A small world so the test is quick: the same def, a quarter the
     // side, fewer sites.
-    let mut def = world_def();
+    let mut def = topside_def();
     def.size = 600.0;
     def.monuments = vec![("roadside stop".to_string(), 3), ("military outpost".to_string(), 1)];
     let world = {
@@ -124,7 +124,7 @@ fn the_labyrinth_walls_stand_as_structures() {
     )));
     app.init_resource::<Assets<Mesh>>();
     app.init_resource::<Assets<CelMaterial>>();
-    let mut def = world_def();
+    let mut def = topside_def();
     def.size = 400.0;
     def.water_level = 0.0;
     def.generator = Generator::Labyrinth {

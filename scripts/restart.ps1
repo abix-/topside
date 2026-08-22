@@ -15,5 +15,10 @@ if ($LASTEXITCODE -ne 0) {
     exit 1
 }
 
-Start-Process $exe -WorkingDirectory $repo
-Write-Host "topside launched"
+# Arguments pass through to the exe: restart.ps1 --world labyrinth
+if ($args.Count -gt 0) {
+    Start-Process $exe -WorkingDirectory $repo -ArgumentList $args
+} else {
+    Start-Process $exe -WorkingDirectory $repo
+}
+Write-Host "topside launched $args"

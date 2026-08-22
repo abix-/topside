@@ -1,20 +1,31 @@
 //! App entry. `topside` runs the game; `topside --test` runs the
-//! boot test headless and exits 0/1.
+//! boot test headless and exits 0/1; `topside --world <name>` rolls
+//! that reality (`content::WORLDS`) instead of the first.
 
 use std::time::{Duration, Instant};
 
 use bevy::prelude::{Entity, Transform};
 use modforge::survival::FULL;
 use topside::{
-    SimTick, actor_map::ActorMapRes, build_app, player::Player, survival::Survival,
+    SimTick, WorldName, actor_map::ActorMapRes, build_app, content::world_def, player::Player,
+    survival::Survival,
 };
 
 fn main() {
-    let test_mode = std::env::args().any(|a| a == "--test");
-    if test_mode {
+    let args: Vec<String> = std::env::args().collect();
+    if args.iter().any(|a| a == "--test") {
         std::process::exit(run_boot_test());
     }
-    build_app(false).run();
+    let mut app = build_app(false);
+    if let Some(i) = args.iter().position(|a| a == "--world") {
+        let name = args.get(i + 1).cloned().unwrap_or_default();
+        if let Err(e) = world_def(&name) {
+            eprintln!("{e}");
+            std::process::exit(2);
+        }
+        app.insert_resource(WorldName(name));
+    }
+    app.run();
 }
 
 /// Phased boot test, Endless-style: each phase checks one layer and

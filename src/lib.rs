@@ -32,6 +32,17 @@ pub enum AppState {
 #[derive(Resource, Default)]
 pub struct SimTick(pub u64);
 
+/// Which reality the world rolls from at startup (`content::WORLDS`;
+/// `--world <name>` on the command line). Until the storm rolls it.
+#[derive(Resource)]
+pub struct WorldName(pub String);
+
+impl Default for WorldName {
+    fn default() -> Self {
+        Self(content::WORLDS[0].to_string())
+    }
+}
+
 /// Build the full app. `headless` skips window, rendering, input,
 /// and the control plane so tests can run the simulation bare.
 pub fn build_app(headless: bool) -> App {
@@ -61,6 +72,7 @@ pub fn build_app(headless: bool) -> App {
     app.init_resource::<SimTick>();
     app.init_resource::<actor_map::ActorMapRes>();
     app.init_resource::<actor::WorldSeed>();
+    app.init_resource::<WorldName>();
     app.init_resource::<survival::Rates>();
     app.init_resource::<content::ItemRegistryRes>();
     app.init_resource::<content::DamageRegistryRes>();
