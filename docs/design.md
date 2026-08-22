@@ -4,6 +4,13 @@
 In progress: decisions land here as the operator makes them. The ownership
 boundaries live in authority.md; the games we mine live in references.md.
 
+## The founding idea (operator, 2026-08-22)
+
+The world is a simulation that lives. The player is one actor in it,
+not the center of it. The world keeps running if the player hides and
+starves in the bunker: people eat, sleep, fight, trade, and die whether
+anyone is watching or not.
+
 ## The story
 
 You wake up in a bunker after a post-apocalyptic something. You know nothing.
