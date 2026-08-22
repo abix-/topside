@@ -15,11 +15,11 @@ use bevy::prelude::*;
 use modforge::biome::BiomeRegistry;
 use modforge::item::ItemRegistry;
 use modforge::monument::{MonumentRegistry, BuildingRegistry, footprint};
-use modforge::structure::Rgb;
-use modforge::worldgen::World;
+use modforge::structure::{Rgb, SolidSpec, StructureDef};
+use modforge::worldgen::{Wall, World};
 
 use crate::cel::CelMaterial;
-use crate::structure::{Aabb, spawn_monument};
+use crate::structure::{Aabb, spawn_monument, spawn_structure};
 
 /// Cells per chunk side.
 pub const CHUNK: usize = 32;
@@ -181,6 +181,7 @@ pub fn spawn_world(
             let p = world.cell_center(c, r);
             if p.distance(world.def.bunker) < world.def.bunker_clear
                 || world.sites.iter().any(|s| s.position.distance(p) < s.spacing * 0.3)
+                || !world.in_corridor(p)
             {
                 continue;
             }
@@ -207,7 +208,53 @@ pub fn spawn_world(
             }
         }
     }
+
+    // The generator's walls (the Labyrinth): every run is one
+    // structure of wall pieces, so it bakes to one collider, takes
+    // damage piece by piece, and has no ceiling.
+    for wall in &world.walls {
+        let def = wall_def(wall);
+        let mid = (wall.start + wall.end) / 2.0;
+        let at = Vec3::new(mid.x, world.height_at(mid), mid.y);
+        let root = spawn_structure(commands, meshes, materials, &def, at)?;
+        commands.entity(root).insert(WorldPiece);
+    }
     Ok(roots)
+}
+
+/// Length of one wall piece along a run.
+pub const WALL_PIECE: f32 = 4.0;
+const WALL_COLOR: Rgb = [0.38, 0.36, 0.33];
+
+/// A wall run as a building: a row of solid pieces `WALL_PIECE` long
+/// (the last one shorter) centred on the run, no rooms, no roof.
+pub fn wall_def(wall: &Wall) -> StructureDef {
+    let d = wall.end - wall.start;
+    let length = d.length();
+    let along = Vec3::new(d.x, 0.0, d.y) / length.max(1e-6);
+    let across = if d.x.abs() > d.y.abs() { Vec3::Z } else { Vec3::X };
+    let mut furniture = Vec::new();
+    let mut from = 0.0;
+    while from < length - 1e-3 {
+        let len = (length - from).min(WALL_PIECE);
+        let center = along * (from + len / 2.0 - length / 2.0) + Vec3::Y * wall.height / 2.0;
+        let size = along.abs() * len + across * wall.thickness + Vec3::Y * wall.height;
+        furniture.push(SolidSpec {
+            center,
+            size,
+            color: WALL_COLOR,
+        });
+        from += len;
+    }
+    StructureDef {
+        name: "wall".to_string(),
+        wall_color: WALL_COLOR,
+        floor_color: WALL_COLOR,
+        rooms: vec![],
+        stairs: vec![],
+        furniture,
+        lights: vec![],
+    }
 }
 
 /// Vertices and triangles for a set of cells: four corners per cell

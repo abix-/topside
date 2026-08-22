@@ -6,12 +6,12 @@ use std::time::Duration;
 
 use avian3d::prelude::*;
 use bevy::{ecs::system::SystemState, prelude::*, time::TimeUpdateStrategy};
-use modforge::worldgen::roll_world;
+use modforge::worldgen::{Generator, roll_world};
 use topside::{
     AppState, build_app,
     cel::CelMaterial,
     content::{BiomeRegistryRes, ItemRegistryRes, MonumentRegistryRes, world_def},
-    structure::MonumentRoot,
+    structure::{MonumentRoot, StructureRoot},
     terrain::{CHUNK, WorldPiece, spawn_world},
 };
 
@@ -111,4 +111,101 @@ fn a_rolled_world_stands_in_the_scene() {
         .expect("the road has ground under it");
     let landed = expected + 50.0 - hit.distance;
     assert!((landed - expected).abs() < 1.0, "road ground at {landed}, heightmap {expected}");
+}
+
+/// The Labyrinth's walls are real structures: one root with a
+/// collider per wall run, and a ray across a corridor stops at the
+/// wall's face.
+#[test]
+fn the_labyrinth_walls_stand_as_structures() {
+    let mut app = build_app(true);
+    app.insert_resource(TimeUpdateStrategy::ManualDuration(Duration::from_secs_f64(
+        1.0 / 60.0,
+    )));
+    app.init_resource::<Assets<Mesh>>();
+    app.init_resource::<Assets<CelMaterial>>();
+    let mut def = world_def();
+    def.size = 400.0;
+    def.water_level = 0.0;
+    def.generator = Generator::Labyrinth {
+        corridor: 40.0,
+        wall_height: 6.0,
+        wall_thickness: 1.0,
+    };
+    def.monuments = vec![("wreck".to_string(), 6)];
+    let world = {
+        let w = app.world();
+        roll_world(
+            &def,
+            5,
+            &w.resource::<BiomeRegistryRes>().0,
+            &w.resource::<MonumentRegistryRes>().monuments,
+        )
+        .unwrap()
+    };
+    assert!(world.walls.len() > 20);
+    {
+        let mut state: SystemState<(
+            Commands,
+            ResMut<Assets<Mesh>>,
+            ResMut<Assets<CelMaterial>>,
+            Res<BiomeRegistryRes>,
+            Res<MonumentRegistryRes>,
+            Res<ItemRegistryRes>,
+        )> = SystemState::new(app.world_mut());
+        let (mut commands, mut meshes, mut materials, biomes, monuments, items) =
+            state.get_mut(app.world_mut()).unwrap();
+        spawn_world(
+            &mut commands,
+            &mut meshes,
+            &mut materials,
+            &world,
+            &biomes.0,
+            &monuments.monuments,
+            &monuments.buildings,
+            &items.0,
+            0.0,
+        )
+        .unwrap();
+        state.apply(app.world_mut());
+    }
+    app.world_mut()
+        .resource_mut::<NextState<AppState>>()
+        .set(AppState::Playing);
+    app.update();
+    app.update();
+    let w = app.world_mut();
+
+    // One structure root with a collider per wall run, beyond the
+    // monument roots.
+    let wall_roots = w
+        .query_filtered::<&Collider, (With<StructureRoot>, With<WorldPiece>, Without<MonumentRoot>)>()
+        .iter(w)
+        .count();
+    assert_eq!(wall_roots, world.walls.len(), "one structure per wall run");
+
+    // Stand 5 m off the middle of a long wall and look at it: the ray
+    // stops at its face, half a thickness before the centre line.
+    let wall = world
+        .walls
+        .iter()
+        .max_by(|a, b| a.start.distance(a.end).total_cmp(&b.start.distance(b.end)))
+        .unwrap();
+    let mid = (wall.start + wall.end) / 2.0;
+    let across = if (wall.end - wall.start).x.abs() > (wall.end - wall.start).y.abs() {
+        Vec3::Z
+    } else {
+        Vec3::X
+    };
+    let eye = Vec3::new(mid.x, 1.7, mid.y) - across * 5.0;
+    let mut spatial: SystemState<SpatialQuery> = SystemState::new(w);
+    let spatial = spatial.get(w).unwrap();
+    let hit = spatial
+        .cast_ray(eye, Dir3::new(across).unwrap(), 20.0, true, &SpatialQueryFilter::default())
+        .expect("the wall is there");
+    assert!(
+        (hit.distance - (5.0 - wall.thickness / 2.0)).abs() < 0.05,
+        "the wall's face is {} m away",
+        hit.distance
+    );
 }
