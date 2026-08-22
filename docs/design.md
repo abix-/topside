@@ -432,10 +432,14 @@ not by its size. Reference games, and what each one does that we keep:
   back, because the people moved.
 
 What we do NOT do: the Assassin's Creed watchtower. No map reveal, no
-climb-and-see-everything, no icons for things the player has not
-walked to. The map shows the bunker, where the player has been, and
-what people told them (see "What a person knows" in life.md). Nothing
-else.
+climb-and-see-everything, no minimap, no compass, no heading indicator,
+no system-placed waypoints or markers of any kind. The map is a
+fog-of-war panel the player opens deliberately, showing the bunker,
+where the player has walked, and what people told them (see "What a
+person knows" in life.md). Nothing the player has not found appears on
+it. The player can place their own marks on the map (operator,
+2026-08-22: lower priority). No other orientation aid exists; the
+player navigates by landmarks, memory, and what people say.
 
 The rules that force the unknown into what we build, so it is data and
 not hope:
@@ -951,11 +955,21 @@ An empty parked truck is an actor doing nothing, like a sleeping
 raider. This is why there is one spawn path and one AI: a raider in a
 truck is the raider's brain on the truck's body.
 
+Healing: food restores health and hunger (Valheim model,
+operator-locked 2026-08-22: each food can have multiple benefits,
+different foods restore different amounts of health, hunger, or
+both). This is the primary healing mechanic. A craftable bandage
+from the crafting bench restores health faster than food, giving
+the player a reason to craft before going outside and a way to
+recover quickly after combat. Healing applies to every actor
+through the same path (player and NPC alike).
+
 Hunger: you eat food items from your inventory or your bunker's stores.
 No food, you starve. The three-day starting clock is the first taste.
 Food spoils over time (perishability forces you to keep scavenging,
-never stockpile forever). Different foods restore different amounts.
-Cooking at a station makes food last longer and restore more.
+never stockpile forever). Different foods restore different amounts
+of hunger and health. Cooking at a station makes food last longer
+and restore more.
 
 Thirst: you drink water. Clean water is crafted (purification at a
 chemistry table) or found. Dirty water works but makes you sick.
@@ -1173,6 +1187,20 @@ works through it.
 
 - Initially two death settings: drop items on death, or keep items on death.
 - We build keep-items-on-death first because it is easier.
+
+## The v1 session model (operator, 2026-08-22)
+
+v1 is a roguelike session loop. Each session starts fresh: the player
+wakes in the bunker with the starting items, the world rolls from a
+new seed, and the 1000 people spawn at their sites. The storm provides
+the within-session repeat (the world shifts to a different reality,
+the player goes out again into a changed world with the same people).
+Different seeds provide between-session variety: different questions,
+different worlds, different NPCs, different loot rolls. Save and load
+(v2) adds persistence across sessions. Until then, "worth repeating
+once" means the player closes the game and starts a new session
+because the last one was fun, not because they have progress to
+continue.
 
 ## Cel shading, no textures
 
