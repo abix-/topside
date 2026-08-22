@@ -6,11 +6,11 @@ use std::time::Duration;
 
 use avian3d::prelude::*;
 use bevy::{ecs::system::SystemState, prelude::*, time::TimeUpdateStrategy};
-use modforge::worldgen::{Generator, roll_world};
+use modforge::worldgen::roll_world;
 use topside::{
     AppState, build_app,
     cel::CelMaterial,
-    content::{BiomeRegistryRes, ItemRegistryRes, MonumentRegistryRes, topside_def},
+    content::{BiomeRegistryRes, ItemRegistryRes, MonumentRegistryRes, labyrinth_def, topside_def},
     structure::{MonumentRoot, StructureRoot},
     terrain::{CHUNK, WorldPiece, spawn_world},
 };
@@ -124,13 +124,9 @@ fn the_labyrinth_walls_stand_as_structures() {
     )));
     app.init_resource::<Assets<Mesh>>();
     app.init_resource::<Assets<CelMaterial>>();
-    let mut def = topside_def();
+    // The real Labyrinth def, a small one.
+    let mut def = labyrinth_def();
     def.size = 400.0;
-    def.water_level = 0.0;
-    def.generator = Generator::Labyrinth {
-        corridor: 10.0,
-        wall_thickness: 1.0,
-    };
     def.monuments = vec![("wreck".to_string(), 6)];
     let world = {
         let w = app.world();

@@ -91,6 +91,9 @@ pub fn labyrinth_def() -> WorldDef {
         ("supply drop".to_string(), 45),
         ("body".to_string(), 90),
     ];
+    // Nothing in the maze stands over its walls yet (the gate tower
+    // is row 11v), so no landmark can be in sight from the door.
+    def.landmarks = 0;
     def
 }
 
@@ -154,6 +157,10 @@ pub fn topside_def() -> WorldDef {
             ("supply drop".to_string(), 45),
             ("body".to_string(), 90),
         ],
+        // The door opens on one big triangle: the launch site's
+        // gantry in sight from the bunker (design.md "The first
+        // hour").
+        landmarks: 1,
         bunker: Vec2::ZERO,
         bunker_clear: 50.0,
     }
@@ -599,6 +606,17 @@ pub fn register_monuments(reg: &mut MonumentRegistry, buildings: &BuildingRegist
             // Walls and a roof: the people who live there rest and
             // feel safe there.
             good_for: GoodFor::new(&[(Need::Rest, 100.0), (Need::Safety, 60.0)]),
+            // The tallest thing there (design.md "The triangle
+            // rule"): the launch site's gantry is the landmark seen
+            // from the bunker door; the power plant's stacks and the
+            // city's towers are next.
+            height: match name {
+                "launch site" => 60.0,
+                "power plant" => 35.0,
+                "ruined city" => 30.0,
+                "research station" | "military outpost" => 12.0,
+                _ => 8.0,
+            },
         }
     };
     // Minor sites (design.md: "something worth stopping for every 30
@@ -624,6 +642,8 @@ pub fn register_monuments(reg: &mut MonumentRegistry, buildings: &BuildingRegist
         } else {
             GoodFor::default()
         },
+        // Low things, hidden behind any rise.
+        height: 2.0,
     };
     let monuments = [
         def("roadside stop", vec![slot(&small, 1, 2)], AlongRoad, 1, false, "Stop"),
@@ -935,7 +955,16 @@ mod tests {
             let world = modforge::worldgen::roll_world(&topside_def(), seed, &biomes.0, &monuments.monuments)
                 .unwrap_or_else(|e| panic!("seed {seed}: {e}"));
             assert_eq!(world.sites.len(), 414);
-            assert_eq!(world.roads.len(), 39, "roads reach the built monuments only");
+            assert_eq!(world.roads.len(), 38, "roads join the 39 built monuments, none to the bunker");
+            // The door opens on the launch site's gantry (design.md
+            // "The first hour").
+            let door = Vec3::new(0.0, 1.7, 0.0);
+            let gantry = world.sites.iter().find(|s| s.monument == "launch site").unwrap();
+            let top = world.height_at(gantry.position) + 60.0;
+            assert!(
+                world.sees(door, Vec3::new(gantry.position.x, top, gantry.position.y)),
+                "seed {seed}: the launch site is hidden from the door"
+            );
             // Bethesda's rule over the real world: from 200 random
             // land points, a site within 150 m of at least 90 percent.
             let mut roll = modforge::monument::Roll::new(seed ^ 77);
