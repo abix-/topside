@@ -58,6 +58,7 @@ These rules govern `docs/changelog.md`. Follow them exactly.
 | docs/authority.md | [x] The ActorMap row's "Lives in topside" replaced: the map, its rules, and its tests are modforge `ActorMap`; topside holds it as `ActorMapRes` and carries the id as the `Actor` component | The sentence names where the struct and the resource each live |
 | docs/design.md | [x] "The world": roads run between the monuments; no road leads to the bunker, in the operator's words (the bunker was hidden to survive the apocalypse, and hidden means no roads; a reality with another history may lay one) | design.md and the worldgen road test say the same thing about the bunker |
 | docs/design.md | [x] Bethesda's rule written into "The world" in the operator's words: something worth stopping for every 30 seconds, 150 m of walking, minor sites at their own spacing | design.md states the rule and the 150 m figure the worldgen test checks |
+| tests/actor.rs | [x] `needs_move_with_hits_sleep_and_home` gets its home half: with the scavenger gone, safety at 20 refills over 60 ticks away from home and refills more at home | `k3sc cargo-lock test --test actor -- needs_move`: 1 passed |
 
 ## 2026-08-21
 

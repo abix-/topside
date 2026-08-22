@@ -206,6 +206,25 @@ fn needs_move_with_hits_sleep_and_home() {
     }
     let asleep = app.world().get::<Survival>(player).unwrap().0.rest;
     assert!(asleep > awake, "rest refills asleep");
+
+    // Home: safety refills away, and faster at home. The scavenger
+    // goes first so no swing lowers it meanwhile.
+    app.world_mut().entity_mut(npc).despawn();
+    let refill = |app: &mut App, at_home: bool| {
+        app.world_mut().get_mut::<Survival>(player).unwrap().0.safety = 20.0;
+        app.world_mut().entity_mut(player).insert(ActorCondition(Condition {
+            at_home,
+            ..Default::default()
+        }));
+        for _ in 0..60 {
+            app.update();
+        }
+        app.world().get::<Survival>(player).unwrap().0.safety
+    };
+    let away = refill(&mut app, false);
+    let home = refill(&mut app, true);
+    assert!(away > 20.0, "safety refills away from home: {away}");
+    assert!(home > away, "safety refills faster at home: {home} vs {away}");
 }
 
 #[test]

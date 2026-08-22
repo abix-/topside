@@ -6,7 +6,6 @@ v3: polish and endgame (NPC memory, vehicles, GPU simulation, quality/named uniq
 
 | Priority | Version | System | Todo | Done when |
 |---:|---|---|---|---|
-| 11e1 | v1 | tests/actor.rs | [ ] `needs_move_with_hits_sleep_and_home` has no home half: add it, an actor standing at its `Home` refills safety faster than one away | The test asserts the at-home refill beats the away refill over the same ticks |
 | 2 | v1 | interact::update_looking_at | [ ] The E prompt asks Avian what the player is looking at: one `cast_ray` from the eye, the hit entity's `Door` or `Interactable` gives the kind; delete `Door.collider`, `Interactable.aabb`, and `ray_aabb` | A test puts a storage box behind a wall and gets no prompt, then in the open gets one; no second copy of any collider box exists in src |
 | 2a | v1 | player::movement | [ ] Every actor falls when nothing is under it (the down cast misses), and landing hard deals fall damage through `resolve_hit` | A test walks the player off a ledge, sees them drop to the floor below, and sees health fall by the drop; verified in-game off a breached floor |
 | 4 | v1 | interact::interact_on_press | [ ] NPCs open doors the same way the player does: an NPC's `Use` action goes through the same `modforge::interact` call as the player's, so the system runs over every actor with a `Use` this tick, not only the player | A test walks an NPC up to a closed door, pushes `Use`, and sees the door open; no second door-toggle path in src |
