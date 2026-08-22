@@ -517,6 +517,77 @@ do not care which one rolled it, and the set of generators is part of
 "The unknown": the player does not know which reality the storm will
 drop them in.
 
+### The generators we want (operator, 2026-08-21)
+
+The mixed world above is the first. The next two:
+
+The Backrooms. The 2019 creepypasta: "noclip out of reality in the
+wrong areas" and you are in "six hundred million square miles of
+randomly segmented empty rooms", yellow wallpaper, damp carpet,
+fluorescent hum, and something wandering that has already heard you.
+The fandom grew it into numbered levels, each with its own look and
+its own entities, and exits that drop you to the next level. For us:
+a reality with no sky and no terrain, only rooms. The generator rolls
+rooms, halls, and openings forever around the actors, the way the
+mixed world rolls chunks; monuments are the places that break the
+pattern (a flooded hall, an office, a pool, a parking deck); minor
+sites are an odd door or a hum that changes; the people are whatever
+crossed with you plus the things that live here. This is the reality
+that proves the rule that a generator need not be a heightmap: the
+`World` data needs to carry rooms, not only cells. It is also the
+purest form of "The unknown": the map is useless, every hall looks
+the same until it does not.
+
+The Death Gate worlds (Weis and Hickman, 1990 to 1994). The Sundering
+split one world into four elemental ones plus a prison, and each is a
+complete way to live that is nothing like the others. We take them as
+generators, one each:
+
+- Arianus, the world of air: porous floating islands of coralite in
+  three bands of altitude, the Maelstrom, an eternal storm, filling
+  the bottom third. Water is scarce and made by one continent-sized
+  machine (the Kicksey-winsey) in the low realm, and the people who
+  hold it hold everyone. For us: a heightmap with void cells, islands
+  at three heights, falling is death, the storm lives below you
+  instead of coming over you, water is the scarce pressure, the
+  machine is the one monument everyone fights over, and crossing
+  between islands needs a vehicle.
+- Pryan, the world of fire: a hollow sphere lit by small suns at its
+  centre, so there is no night, covered in jungle miles high; people
+  live in the canopy and on country-sized moss mats, and almost nobody
+  has seen the ground. Giants roam, asking a question and killing
+  whoever cannot answer. For us: the day clock has no night, the
+  world is a canopy with holes to a ground you never reach, citadels
+  are the monuments, and one wandering actor is bigger than anything
+  else and not hostile until you fail it.
+- Abarrach, the world of stone: solid rock honeycombed with tunnels,
+  volcanic at the core and frozen at the edge, livable only in the
+  band between; a lava sea, poison air, and a people who keep their
+  dead working. For us: the underground generator, heat and
+  radiation as the pressures, the livable band as the map, the dead
+  as a faction.
+- Chelestra, the world of water: an egg of ice with a seasun moving
+  through it, thawing and refreezing the floating islands people live
+  in as it passes; the water itself undoes the old magic. For us: a
+  world that changes while you are in it (the sun's path thaws and
+  freezes the map on a clock), boats, and water that ruins gear.
+- The Labyrinth: a prison world that hates you, a maze split by gates,
+  where the people are runners (keep moving) or squatters (hold a
+  place). For us: a maze generator whose walls move on the storm's
+  smaller cousin, gates as monuments, and the two ways of living as
+  the factions. This one is the game's own theme, chaos against
+  order, made into a map.
+
+Each of these is one `WorldDef` plus its roll, each ends in the same
+`World` data, and none of them is built until the mixed world is
+done. Order after the mixed world: the Backrooms first, then the
+Death Gate worlds, the Labyrinth before the others because it is the
+closest to what the game is about.
+
+Sources read 2026-08-21: [The Backrooms (Wikipedia)](https://en.wikipedia.org/wiki/The_Backrooms),
+[The Death Gate Cycle (Wikipedia)](https://en.wikipedia.org/wiki/The_Death_Gate_Cycle),
+[Dragon Wing (Wikipedia)](https://en.wikipedia.org/wiki/Dragon_Wing).
+
 ## Your people
 
 Your bunker's people run themselves by default, on the same genome and acts
