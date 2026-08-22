@@ -553,6 +553,15 @@ Large (five or more rooms, two or more floors):
 - Industrial plant: machinery floor, control room, pipe runs, storage.
 - Silo: deep vertical shaft, access rooms at each level.
 - Dock building: long structure along water, crane platforms, cargo holds.
+- Apartment block: three to ten floors of small rooms, many windows.
+- Hospital: three to six floors, wards and corridors, a basement or two,
+  the clean palette.
+- Bunker complex: one floor above ground and five to ten below, no
+  windows, the deepest thing in the world.
+
+The last three arrived with the ruined city (2026-08-20, from the
+operator's "a monument with 50 buildings, each with 20+ rooms"): the
+city needed tall and deep buildings the first list did not have.
 
 Each building type has parameters that vary on every roll (operator-locked
 2026-08-20: "the buildings should have parameters that change"):
@@ -597,6 +606,11 @@ Monument types (from Rust's monuments, adapted):
 - Sewer: underground access, 1 silo, maintenance rooms.
 - Launch site: 1 hangar, 1 industrial plant, 1 to 2 medium buildings,
   the most dangerous and rewarding monument.
+- Ruined city: 50 large buildings (apartment blocks, hospitals,
+  industrial plants, silos, dock buildings, bunker complexes, hangars)
+  on city blocks, gated, danger 4; the "monument with 50 buildings,
+  each with 20+ rooms" (operator, 2026-08-20) and the performance test
+  for everything (performance.md).
 
 Each monument type also defines:
 - Loot spots: where crates and items appear, scaled by danger.

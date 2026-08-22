@@ -6,7 +6,6 @@ v3: polish and endgame (NPC memory, vehicles, GPU simulation, quality/named uniq
 
 | Priority | Version | System | Todo | Done when |
 |---:|---|---|---|---|
-| 9 | v1 | docs/design.md | [ ] Write the ruined city monument and the apartment block, hospital, and bunker complex building types (registered in content.rs) into "Building types" and "Monument composition", with the operator's words for when they were decided | design.md lists every building type and monument type that content.rs registers |
 | 11a | v1 | docs/authority.md | [ ] The ActorMap row says "Lives in topside"; say the map is modforge `ActorMap` (src/actor.rs in modforge, with its tests) and topside holds it as the `ActorMapRes` resource with the `Actor` component | The sentence names where the struct and the resource each live |
 | 11l | v1 | docs/design.md | [ ] "The world" says roads are laid between the monuments and the bunker; the code lays none to the bunker (commit ed5fbfd, worldgen.rs "no road leads to the bunker"). Write that decision into the roads sentence with the operator's words | design.md and the worldgen road test say the same thing about the bunker |
 | 11n | v1 | docs/design.md | [ ] Write Bethesda's rule into "The world" with the operator's words (2026-08-21: "something worth stopping for every 30 seconds"; 30 s of walking is 150 m); today only the todo and the worldgen test carry it | design.md states the rule and the 150 m figure the test checks |
