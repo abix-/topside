@@ -167,8 +167,9 @@ pub fn two_story_house() -> StructureDef {
             rise: 3.1,
             landing: 0.5,
         }],
-        // The loot crate upstairs is spawned by `setup` through
-        // `spawn_container`, not as furniture: it has an inventory.
+        // The loot box upstairs is spawned by `setup` through
+        // `spawn_item` with a `Container` on it, not as furniture:
+        // it has an inventory.
         furniture: vec![],
         lights: vec![
             LightSpec {
