@@ -22,6 +22,12 @@ These rules govern `docs/changelog.md`. Follow them exactly.
 - Use plain terms. Do not use vague descriptions, invented language, or design
   essays.
 
+## 2026-08-22
+
+| System | Item | Done when |
+|---|---|---|
+| Structure physics | [x] Avian 0.7 in the app; each spawned structure root is one static body carrying one compound collider of every piece's box and one merged mesh per colour as child entities, doors as kinematic children; the movement compatibility output is gone (row 2) | tests/structure_physics.rs spawns a structure, proves the root's compound holds every solid, the batches carry meshes and no colliders, the door is kinematic, and despawning the root removes every child; reviewed against design.md "Building, the Rust way" 2026-08-22 |
+
 ## 2026-08-21
 
 | System | Item | Done when |
