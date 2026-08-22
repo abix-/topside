@@ -9,6 +9,15 @@ boundaries live in authority.md; the games we mine live in references.md.
 You wake up in a bunker after a post-apocalyptic something. You know nothing.
 Go.
 
+The backstory (operator, 2026-08-21): alternate realities. The storm does
+not destroy anything. It shifts the actors, computer and human alike,
+between realities. The world you walk out into after a storm is a
+different reality, not a rebuilt one. The bunkers and the people cross
+with you because they are actors; the ground, the buildings, and the
+things in them belong to whichever reality you are in now. The player
+is never told this outright; it is something to wonder about (see "The
+unknown").
+
 ## The goal
 
 The goal of this game is to make the player FEEL like they are in a struggle
@@ -144,6 +153,12 @@ This is what keeps the world from ever being memorized: monuments, their
 layouts, and their names re-roll with the world, while everything with an
 owner (your bunker, the factions' bunkers) carries forward. The map is never
 fully known, but the story of who holds what continues.
+
+What the storm is (operator, 2026-08-21): a shift between alternate
+realities, not destruction. "Regenerate" above means the actors arrive
+in a different reality. That is why the people and bunkers persist and
+nothing else does, and why the next world may be made by a completely
+different generator (see "The world").
 
 ## Building, the Rust way (operator, 2026-08-20: "think about how
 ## Rust lets you build buildings. i want that")
@@ -482,6 +497,25 @@ Rivers, rain and wildlife per biome, and the people who live at the
 sites come after the first world stands. The storm re-rolls the
 world by rolling a new seed through the same path and rebuilding
 everything except the bunkers and the people.
+
+Many generators, very different (operator, 2026-08-21: "i want my
+generators to be VERY different... pretty extreme"). The mixed world
+above is the first generator, not the only one. Each storm may hand
+the actors to a different reality made by a different generator, and
+the generators should be extreme in their differences, not variations
+on one heightmap: a drowned world where the monuments are on the
+ridges and everything else is under water; a city that never ends; a
+desert of one road; a world of islands; a world that is mostly
+underground; a world where the buildings stand but the ground is
+gone. Prior art for a game whose worlds differ this much between
+rolls: Minecraft's world types (amplified, superflat, large biomes),
+Terraria's seeds (drunk world, not the bees, for the worthy), No Man's
+Sky's planet kinds, Noita's biome stack. The rule for us: a generator
+is a `WorldDef` plus the code that rolls it, every generator ends in
+the same `World` data so terrain, sites, roads, and `spawn_monument`
+do not care which one rolled it, and the set of generators is part of
+"The unknown": the player does not know which reality the storm will
+drop them in.
 
 ## Your people
 
