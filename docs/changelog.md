@@ -22,6 +22,12 @@ These rules govern `docs/changelog.md`. Follow them exactly.
 - Use plain terms. Do not use vague descriptions, invented language, or design
   essays.
 
+## 2026-08-21
+
+| System | Item | Done when |
+|---|---|---|
+| Spawner | [x] Build the one NPC spawn path: hostile NPCs at monuments enter through one function with position, faction, and combat stats. modforge `ActorDef` + `ActorRegistry` + `decide` (the AI: look, move, attack from what it sees); topside `spawn_actor` gives an NPC exactly the player's parts (`Facing` is now shared, `Player` is a marker) plus a body and a GPU slot; `populate_monuments` fills every NPC spot; `ai::think` pushes actions onto the NPC's queue so `look`, `movement`, `fire` run unchanged | tests/actor.rs spawns through the one path and checks identity, faction, position, shared parts, and a hunter walking at the player; tests/monument.rs checks one NPC per spot under the root |
+
 ## 2026-08-20
 
 | System | Item | Done when |
