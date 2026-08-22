@@ -384,6 +384,18 @@ not hope:
    place the roll hides on purpose: off every road and site, and in a
    maze behind a wall. Zero is a legal roll; the player never knows
    how many this world has.
+8. The assassin (operator, 2026-08-21: "there should always be the
+   chance that an assassin comes after the player character. we'd
+   need a cooldown of course. but the assassin should always be
+   (10-200) levels higher than the player. when the assassin comes
+   sometimes the only possibility is death"). At any time, on a
+   cooldown, an assassin may come for the player. It is always 10 to
+   200 levels above the player, rolled, so sometimes it can be fought
+   and sometimes the only way out is to die. It rides the
+   storyteller's Randy Random side (never adaptive), so it can come
+   when the player is weakest as easily as strongest. The assassin is
+   an actor through `spawn_actor` like everyone else; levels come
+   from the RPG row.
 
 Minor sites are the danger here: hundreds of "a box and some scatter"
 is exactly the samey feeling this section exists to kill. Every minor
