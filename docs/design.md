@@ -323,7 +323,11 @@ knowing it.
 
 The feeling the game is built for is "I wonder what's out there", never
 "I wonder what's left on the list". The player should not know what is
-going to happen. Reference games, and what each one does that we keep:
+going to happen. Operator-locked 2026-08-21: "size doesn't make
+memories. moments do." A bigger map, more sites, more walls are not
+the goal; the moment the player tells someone about afterward is.
+Every generator and every site is judged by the moments it can make,
+not by its size. Reference games, and what each one does that we keep:
 
 - Fallout 2's random encounters: walking the map rolls things you could
   not predict. The Mysterious Stranger who shows up in a fight, the
