@@ -397,6 +397,22 @@ not hope:
    an actor through `spawn_actor` like everyone else; levels come
    from the RPG row.
 
+History, not decoration (operator-agreed 2026-08-21). "You're not an
+explorer, you're a man walking through a wallpaper pattern" is the
+failure every generator here risks: once the player can predict the
+next wreck from the last one they are pattern-matching, not
+exploring. The answer the great ones found (Dwarf Fortress, Caves of
+Qud, STALKER) is that things are where they are because something
+happened. So before the player wakes, the world is run: the people
+(the brain, needs, memory, factions) live for some days in the rolled
+world. A camp is where squatters settled, a wreck is where a band
+fought, a body is someone who died, the loot is what someone left,
+and a note says what they knew. The minor sites stop being stamps
+and become traces. Then the world keeps running, so coming back
+finds what the people did since. Every site should ask a question
+(whose body, why is the door barred from inside) whose answer is
+another place or a person; not every question is answered.
+
 Minor sites are the danger here: hundreds of "a box and some scatter"
 is exactly the samey feeling this section exists to kill. Every minor
 site type must carry at least one of rules 3, 4, or 6.
