@@ -171,7 +171,7 @@ game-state store. Runtime ownership follows these rules:
 
 | Bevy concept | Topside use | Ownership rule |
 |---|---|---|
-| Entity | One runtime thing: player, NPC, item, door, wall, floor, or structure root | Despawning the entity removes the thing and every fact owned by it. A structure root owns its spawned parts as child entities so recursive despawn removes geometry and collision together. |
+| Entity | One runtime thing: player, NPC, item, door, wall, floor, or structure root | Despawning the entity removes the thing and every fact owned by it. A structure root is one static body carrying the pieces as data (`Pieces`) and one compound collider of every piece; its children are one merged mesh per colour and the doors (kinematic bodies with their own collider). Recursive despawn removes geometry and collision together. |
 | Component | One fact about that thing: transform, inventory, health, faction, collider, interactable state, or world item | If a fact describes one thing, it lives on that entity. Gameplay must not mirror it in a resource, HUD model, physics store, or index. |
 | System | One operation over the entities with the required components: movement, hunger, interaction, combat, or spawning | Gameplay systems run in `FixedUpdate`. Presentation systems may read World state in `Update`, but do not decide or own gameplay facts. |
 | Resource | A value that genuinely applies to the whole World: simulation tick, world seed, registry, identity index, slot allocator, or transient input latch | A resource may index or derive entity data, but it is not a second owner. Per-player, per-NPC, per-item, and per-structure state belongs in components. |
@@ -182,7 +182,9 @@ decisions. A Topside binder reads the required ECS components, calls the
 modforge system, and applies the result back to ECS components. The binder
 does not keep its own state or repeat the decision. For structures, the flow
 is `StructureDef -> spawn_structure -> root entity + child entities`. The
-children own their meshes and Avian colliders.
+root owns the pieces and the one compound collider baked from them; the
+children are the merged meshes (one per colour) and the doors. `bake` in
+src/structure.rs rebuilds both once when a piece changes.
 
 The HUD is a projection of the World. Player inventory, health, skills, and
 other gameplay state live on the player entity; HUD systems copy only the
@@ -220,9 +222,11 @@ relationships are Bevy ECS data; there is no second authoritative physics
 world. Avian's acceleration structures and contact caches are derived
 implementation details.
 
-`spawn_structure` creates one structure root whose child entities own their
-mesh and Avian collider together. Removing the root removes both presentation
-and collision. Player movement, stairs, doors, raycasts, and future dynamic
+`spawn_structure` creates one static structure root with one compound Avian
+collider of every piece and one merged mesh per colour as child entities;
+doors are kinematic children with their own collider (performance.md: one
+collider per piece cost 12 ms a step in the city). Removing the root removes
+both presentation and collision. Player movement, stairs, doors, raycasts, and future dynamic
 objects use Avian rather than a Topside collision or physics implementation.
 
 ## GPU offload (decided 2026-08-19)

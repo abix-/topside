@@ -6,7 +6,6 @@ v3: polish and endgame (NPC memory, vehicles, GPU simulation, quality/named uniq
 
 | Priority | Version | System | Todo | Done when |
 |---:|---|---|---|---|
-| 1 | v1 | docs/authority.md | [ ] Fix the three structure ownership sentences (the ECS table's Entity row, the boundary paragraph after it, and the Physics section) to say what the code does: one static root with one compound collider of every piece and one merged mesh per colour, pieces as data on the root, doors as kinematic children | authority.md nowhere says a child entity owns a collider; the sentences match `bake` in src/structure.rs |
 | 7 | v1 | src/bunker.rs | [ ] The house comment at line 170 names a spawn_container that does not exist; say spawn_item plus Container | grep spawn_container finds nothing in src |
 | 9 | v1 | docs/design.md | [ ] Write the ruined city monument and the apartment block, hospital, and bunker complex building types (registered in content.rs) into "Building types" and "Monument composition", with the operator's words for when they were decided | design.md lists every building type and monument type that content.rs registers |
 | 11a | v1 | docs/authority.md | [ ] The ActorMap row says "Lives in topside"; say the map is modforge `ActorMap` (src/actor.rs in modforge, with its tests) and topside holds it as the `ActorMapRes` resource with the `Actor` component | The sentence names where the struct and the resource each live |
