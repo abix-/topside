@@ -11,6 +11,13 @@ not the center of it. The world keeps running if the player hides and
 starves in the bunker: people eat, sleep, fight, trade, and die whether
 anyone is watching or not.
 
+Who it is for (operator, 2026-08-22): "they split gamers into killers,
+achievers, socializers, and explorers" (Bartle, 1996). "Outer Wilds was
+made for explorers. I want this game to be made for explorers and
+killers." Every system earns its place by giving one of those two
+something: a place to find out, or a fight to win. Achievers and
+socializers are not the audience.
+
 ## The story
 
 You wake up in a bunker after a post-apocalyptic something. You know nothing.
