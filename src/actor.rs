@@ -293,24 +293,12 @@ pub fn populate_monuments(
         // What a person who lives here knows from the start: the
         // place itself and the boxes in it (life.md "Home").
         let mut home_memory = modforge::memory::Memory::default();
-        home_memory.see(
-            root.to_bits(),
-            "home",
-            monument.origin,
-            &monument.good_for,
-            tick.0,
-        );
+        home_memory.see(root.to_bits(), &monument.kind, monument.origin, tick.0);
         for child in children.into_iter().flat_map(|c| c.iter()) {
             if let Ok((transform, item)) = boxes.get(child)
                 && let Some(def) = spawn.items.0.def(&item.stack.item)
             {
-                home_memory.see(
-                    child.to_bits(),
-                    &def.name,
-                    transform.translation,
-                    &def.good_for,
-                    tick.0,
-                );
+                home_memory.see(child.to_bits(), &def.name, transform.translation, tick.0);
             }
         }
         for spot in &monument.npc_spots {

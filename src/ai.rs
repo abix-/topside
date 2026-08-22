@@ -10,13 +10,17 @@
 
 use bevy::prelude::*;
 use modforge::brain::{Activity, CombatState, Decision, Do, Perception, REACH, decide};
+use modforge::memory::Known;
 use modforge::monument::Roll;
+use modforge::survival::Need;
 
 use crate::SimTick;
 use crate::actor::{Facing, Home, Inventory, Memory, Npc, Personality};
 use crate::actor_map::Actor;
 use crate::combat::Health;
-use crate::content::{ActorRegistryRes, FactionRegistryRes, ItemRegistryRes, PLAYER_FACTION};
+use crate::content::{
+    ActorRegistryRes, FactionRegistryRes, ItemRegistryRes, MonumentRegistryRes, PLAYER_FACTION,
+};
 use crate::input::Actions;
 use crate::interact::Container;
 use crate::player::Player;
@@ -77,14 +81,39 @@ pub struct Thinkers<'w, 's> {
     containers: Query<'w, 's, &'static mut Container>,
 }
 
+/// The kinds of stacks in a box, what a person remembers after
+/// looking inside (life.md: memory stores what it saw).
+fn kinds_in(inventory: &modforge::item::Inventory) -> Vec<String> {
+    inventory
+        .slots
+        .iter()
+        .flatten()
+        .map(|s| s.item.clone())
+        .collect()
+}
+
 /// Every fixed step: sense, decide, act, for every NPC.
 pub fn think(
     tick: Res<SimTick>,
     registry: Res<ActorRegistryRes>,
     factions: Res<FactionRegistryRes>,
     items: Res<ItemRegistryRes>,
+    monuments: Res<MonumentRegistryRes>,
     mut thinkers: Thinkers,
 ) {
+    // What a remembered kind of thing is worth for a need: the
+    // registries' answer (life.md: memory remembers the kind, the
+    // definition says what it does). An item's kind is an item def;
+    // a place's kind is a monument type.
+    let worth = |known: &Known, need: Need| -> f32 {
+        if let Some(def) = items.0.def(&known.kind) {
+            return def.good_for.satisfies(need);
+        }
+        monuments
+            .monuments
+            .def(&known.kind)
+            .map_or(0.0, |d| d.good_for.satisfies(need))
+    };
     // Everyone's position and faction first, so the pass below holds
     // no second borrow.
     let actors: Vec<(Entity, modforge::actor::ActorId, Vec3, Option<String>)> = thinkers
@@ -163,6 +192,7 @@ pub fn think(
             arrived,
             memory: &memory.0,
             personality: &personality.0,
+            worth: &worth,
         };
 
         // Decide: seeded by the tick and the person, so a replay
@@ -185,16 +215,10 @@ pub fn think(
             None => {}
             Some(Do::Sleep) => condition.0.asleep = true,
             Some(Do::Wake) => condition.0.asleep = false,
-            Some(Do::Check { key }) => {
-                let had = thinkers
-                    .containers
-                    .get(Entity::from_bits(key))
-                    .map(|c| c.0.slots.iter().any(|s| s.is_some()));
-                match had {
-                    Ok(had) => memory.0.checked(key, had, tick.0),
-                    Err(_) => memory.0.gone(key),
-                }
-            }
+            Some(Do::Check { key }) => match thinkers.containers.get(Entity::from_bits(key)) {
+                Ok(container) => memory.0.checked(key, kinds_in(&container.0), tick.0),
+                Err(_) => memory.0.gone(key),
+            },
             Some(Do::Eat { key }) => {
                 // Take one food item from the box into the inventory,
                 // then eat it through the one eating path the player
@@ -209,7 +233,7 @@ pub fn think(
                         .is_some_and(|d| d.food.is_some())
                 });
                 let Some(slot) = food_slot else {
-                    memory.0.checked(key, false, tick.0);
+                    memory.0.checked(key, kinds_in(&container.0), tick.0);
                     continue;
                 };
                 let Some(taken) = container.0.remove(slot, 1) else {
@@ -230,12 +254,7 @@ pub fn think(
                 {
                     let _ = needs.0.eat_from_slot(&mut inventory.0, mine, &items.0);
                 }
-                let left = container.0.slots.iter().any(|s| {
-                    s.as_ref()
-                        .and_then(|s| items.0.def(&s.item))
-                        .is_some_and(|d| d.food.is_some())
-                });
-                memory.0.checked(key, left, tick.0);
+                memory.0.checked(key, kinds_in(&container.0), tick.0);
             }
         }
     }

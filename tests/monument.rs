@@ -121,8 +121,13 @@ fn a_rolled_monument_spawns_its_members_boxes_and_gate() {
     let memory = &world.get::<Memory>(npc).unwrap().0;
     assert_eq!(memory.known.len(), 1 + members, "the place and one box per building");
     assert!(memory.knows(root.to_bits()));
-    assert!(memory.good_for(Need::Rest).count() >= 1, "home is good for rest");
-    assert_eq!(memory.good_for(Need::Hunger).count(), members, "every box is good for hunger");
+    // Remembered by kind, never by a copy of the def: the place as
+    // its monument type, the boxes as "storage box", none looked in.
+    let place = memory.known.iter().find(|k| k.key == root.to_bits()).unwrap();
+    assert_eq!(place.kind, world.get::<MonumentRoot>(root).unwrap().kind);
+    let boxes = memory.known.iter().filter(|k| k.kind == "storage box").count();
+    assert_eq!(boxes, members, "every box is remembered as a storage box");
+    assert!(memory.known.iter().all(|k| k.held.is_none()), "nothing looked in yet");
     assert!(memory.unchecked_nearest(home.position).is_some(), "boxes not yet checked");
 
     // Hungry, it heads for a box it knows (the brain): the activity

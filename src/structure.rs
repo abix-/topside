@@ -268,6 +268,9 @@ pub fn spawn_structure(
 #[derive(Component)]
 pub struct MonumentRoot {
     pub name: String,
+    /// The monument type it rolled from; what a person remembers it
+    /// as (the registry says what such a place is worth).
+    pub kind: String,
     /// World position the monument was rolled at.
     pub origin: Vec3,
     /// Where this monument's NPCs spawn, world space; `populate_monuments`
@@ -312,6 +315,7 @@ pub fn spawn_monument(
         .spawn((
             MonumentRoot {
                 name: def.name.clone(),
+                kind: def.kind.clone(),
                 origin,
                 npc_spots: def
                     .npc_spots

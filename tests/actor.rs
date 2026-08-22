@@ -267,7 +267,7 @@ fn a_hungry_person_walks_to_the_box_it_knows_takes_a_can_and_eats_it() {
             .get_mut::<Memory>(npc)
             .unwrap()
             .0
-            .see(box_entity.to_bits(), &box_def.name, box_at, &box_def.good_for, 0);
+            .see(box_entity.to_bits(), &box_def.name, box_at, 0);
         world.get_mut::<Survival>(npc).unwrap().0.hunger = 20.0;
     }
     // Twelve metres at five a second: there in three seconds, eating
