@@ -18,6 +18,16 @@ killers." Every system earns its place by giving one of those two
 something: a place to find out, or a fight to win. Achievers and
 socializers are not the audience.
 
+"A struggle to survive and maybe thrive... and kill" (operator,
+2026-08-22). Survivalists are the explorer with stakes: the world is
+there to find out, and hunger, thirst, and the people out there make
+finding it out cost something. Bartle has no survivalist type; the
+struggle itself is the draw (Quantic Foundry's Challenge motivation),
+so survival is how the explorer half and the killer half meet.
+
+In one line (operator, 2026-08-22): "think of it like Diablo 2 but with
+survival and exploration and incremental and building."
+
 ## The story
 
 You wake up in a bunker after a post-apocalyptic something. You know nothing.
