@@ -397,6 +397,25 @@ not hope:
    an actor through `spawn_actor` like everyone else; levels come
    from the RPG row.
 
+The triangle rule (operator, 2026-08-21, Breath of the Wild's rule
+from its GDC 2017 talk): "big triangles as landmarks. medium
+triangles blocking your view. a hill you can't see over is a
+question. small triangle, the ground rhythm. every triangle has two
+purposes. it gives you a goal and hides a surprise." What pulls a
+person toward something far away is a question they cannot answer
+from where they stand, and a triangle is a question: you see the
+top, you cannot see behind it. So the generators place in three
+sizes. Big: a few things visible from almost anywhere, never
+labelled (a tower, a tall ruin, a light over the maze). Medium: the
+hills, ridges, and wall runs that hide what is past them, placed so
+the road bends around them and the far thing disappears and comes
+back. Small: the bumps, rocks, and scatter that make the ground a
+rhythm instead of a plane. Behind every one of them, something: that
+is the surprise half. A site is placed behind a triangle, never in
+the open beside the road. In the Labyrinth the walls are all medium
+triangles; its big ones must rise over them (a gate's tower, smoke,
+a light at night) or it has no far things at all.
+
 History, not decoration (operator-agreed 2026-08-21). "You're not an
 explorer, you're a man walking through a wallpaper pattern" is the
 failure every generator here risks: once the player can predict the
