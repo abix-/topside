@@ -69,6 +69,11 @@ those rules.
    know, a radio that clicks twice an hour. One question, planted
    before daylight. Told knowledge starts here. The three things in
    the room (bed, bench, food) stay; the question is a fourth.
+   Operator, 2026-08-21: "even better, the note tells you not to go
+   outside." The first thing the game says to the player is do not
+   do the one thing the game is. Three days of food says you will
+   have to anyway. Whoever wrote it knew something; finding out what
+   is the first question, and the door is the first answer to "do I?".
 2. The door opens on one big triangle. Not a road. One thing on the
    horizon you cannot explain (a tower, a light, smoke), and a medium
    triangle between you and it so it vanishes as you walk. The way is
