@@ -66,6 +66,7 @@ pub fn fire(
     mut structures: Query<(&Transform, &mut Pieces), With<StructureRoot>>,
     mut actors: Query<(&Transform, &Equipment, &mut Health, &mut Protection, &mut Survival)>,
     bodies: Query<&ChildOf>,
+    sensors: Query<(), With<Sensor>>,
 ) {
     let dt = time.delta_secs();
     let armor_of = |name: &str| items.0.def(name).and_then(|d| d.armor);
@@ -118,15 +119,19 @@ pub fn fire(
         for dir in pellet_directions(aim, weapon.spread_degrees, weapon.pellets, tick.0) {
             let forward = Dir3::new(dir).unwrap_or(transform.forward());
             // The line first; melee gets the fat sweep on a miss.
+            // Small items on the floor are sensors: a swing or a
+            // pellet passes through them (Avian's own controller
+            // skips sensors the same way).
+            let solid = |entity: Entity| sensors.get(entity).is_err();
             let hit = spatial
-                .cast_ray(eye, forward, reach, true, &filter)
+                .cast_ray_predicate(eye, forward, reach, true, &filter, &solid)
                 .map(|h| (h.entity, eye + forward * h.distance, h.distance))
                 .or_else(|| {
                     if weapon.ammo.is_some() {
                         return None;
                     }
                     spatial
-                        .cast_shape(
+                        .cast_shape_predicate(
                             &Collider::cuboid(
                                 SWING_HALF_WIDTH * 2.0,
                                 SWING_HALF_WIDTH * 2.0,
@@ -137,6 +142,7 @@ pub fn fire(
                             forward,
                             &ShapeCastConfig::from_max_distance(reach),
                             &filter,
+                            &solid,
                         )
                         .map(|h| (h.entity, h.point1, h.distance))
                 });

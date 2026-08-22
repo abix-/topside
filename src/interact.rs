@@ -7,7 +7,6 @@ use bevy::prelude::*;
 use bevy::window::{CursorOptions, PrimaryWindow};
 use modforge::hud::{InteractKind, InteractResult, OpenPanel, interact};
 use modforge::item::{ItemDef, ItemKind, ItemStack};
-use modforge::structure::Aabb;
 
 use crate::actor::Inventory;
 use crate::cel::CelMaterial;
@@ -20,10 +19,11 @@ use crate::structure::{Door, Locked};
 const INTERACT_RANGE: f32 = 3.0;
 const ITEM_HALF: f32 = 0.2;
 
+/// What E does to this entity. Where it is and how big is its Avian
+/// collider; the E prompt asks Avian, never a second box.
 #[derive(Component)]
 pub struct Interactable {
     pub kind: InteractKind,
-    pub aabb: Aabb,
 }
 
 /// Anything from the item system sitting in the world: a dropped
@@ -61,10 +61,6 @@ pub fn spawn_item(
     debug_assert_eq!(def.name, stack.item, "the stack must be of this def");
     let deployable = def.kind == ItemKind::Deployable;
     let half = if deployable { DEPLOYABLE_HALF } else { ITEM_HALF };
-    let aabb = Aabb {
-        min: position - Vec3::splat(half),
-        max: position + Vec3::splat(half),
-    };
     let mut entity = commands.spawn((
         Interactable {
             kind: if def.storage.is_some() {
@@ -74,19 +70,20 @@ pub fn spawn_item(
             } else {
                 InteractKind::Pickup
             },
-            aabb,
         },
         WorldItem { stack },
         Mesh3d(meshes.add(Cuboid::new(half * 2.0, half * 2.0, half * 2.0))),
         MeshMaterial3d(materials.add(CelMaterial::from_srgb(color[0], color[1], color[2]))),
         Transform::from_translation(position),
         Visibility::default(),
+        // The one box: Avian's. The E ray finds it; a deployable
+        // also blocks the body, a small item is a sensor the walk
+        // and the swing pass through.
+        RigidBody::Static,
+        Collider::cuboid(half * 2.0, half * 2.0, half * 2.0),
     ));
-    if deployable {
-        entity.insert((
-            RigidBody::Static,
-            Collider::cuboid(half * 2.0, half * 2.0, half * 2.0),
-        ));
+    if !deployable {
+        entity.insert(Sensor);
     }
     if let Some(slots) = def.storage {
         entity.insert(Container(modforge::item::Inventory::new(slots)));
@@ -102,63 +99,49 @@ pub struct LookingAt {
     pub distance: f32,
 }
 
-/// Ray-AABB slab test. Returns the distance along the ray to the
-/// nearest face, or None if the ray misses.
-fn ray_aabb(origin: Vec3, dir: Vec3, aabb: &Aabb) -> Option<f32> {
-    let inv = Vec3::new(1.0 / dir.x, 1.0 / dir.y, 1.0 / dir.z);
-    let t1 = (aabb.min - origin) * inv;
-    let t2 = (aabb.max - origin) * inv;
-    let tmin = t1.min(t2);
-    let tmax = t1.max(t2);
-    let enter = tmin.x.max(tmin.y).max(tmin.z);
-    let exit = tmax.x.min(tmax.y).min(tmax.z);
-    if enter <= exit && exit >= 0.0 {
-        let t = if enter >= 0.0 { enter } else { exit };
-        if t <= INTERACT_RANGE {
-            return Some(t);
-        }
-    }
-    None
-}
-
+/// What the E prompt names: one Avian ray from the eye along the
+/// look, the first thing it touches within reach. A door or an
+/// interactable gives the kind; a wall in between gives nothing.
 pub fn update_looking_at(
-    players: Query<&Transform, With<Player>>,
-    interactables: Query<(Entity, &Interactable)>,
-    doors: Query<(Entity, &Door, Option<&Locked>)>,
+    spatial: SpatialQuery,
+    players: Query<(Entity, &Transform, Option<&Children>), With<Player>>,
+    interactables: Query<&Interactable>,
+    doors: Query<(&Door, Option<&Locked>)>,
     mut looking_at: ResMut<LookingAt>,
 ) {
     looking_at.entity = None;
     looking_at.kind = None;
     looking_at.distance = f32::MAX;
 
-    let Ok(player) = players.single() else {
+    let Ok((player, transform, children)) = players.single() else {
         return;
     };
-    let origin = player.translation;
-    let dir = player.forward().as_vec3();
-
-    for (entity, door, locked) in &doors {
-        if let Some(t) = ray_aabb(origin, dir, &door.collider)
-            && t < looking_at.distance
-        {
-            looking_at.entity = Some(entity);
-            looking_at.kind = Some(match locked {
-                Some(Locked(level)) => InteractKind::Gate { level: *level },
-                None => InteractKind::Door { open: door.open },
-            });
-            looking_at.distance = t;
+    let own: Vec<Entity> = std::iter::once(player)
+        .chain(children.into_iter().flat_map(|c| c.iter()))
+        .collect();
+    let filter = SpatialQueryFilter::from_excluded_entities(own);
+    let Some(hit) = spatial.cast_ray(
+        transform.translation,
+        transform.forward(),
+        INTERACT_RANGE,
+        true,
+        &filter,
+    ) else {
+        return;
+    };
+    let kind = if let Ok((door, locked)) = doors.get(hit.entity) {
+        match locked {
+            Some(Locked(level)) => InteractKind::Gate { level: *level },
+            None => InteractKind::Door { open: door.open },
         }
-    }
-
-    for (entity, interactable) in &interactables {
-        if let Some(t) = ray_aabb(origin, dir, &interactable.aabb)
-            && t < looking_at.distance
-        {
-            looking_at.entity = Some(entity);
-            looking_at.kind = Some(interactable.kind);
-            looking_at.distance = t;
-        }
-    }
+    } else if let Ok(interactable) = interactables.get(hit.entity) {
+        interactable.kind
+    } else {
+        return;
+    };
+    looking_at.entity = Some(hit.entity);
+    looking_at.kind = Some(kind);
+    looking_at.distance = hit.distance;
 }
 
 /// `Use` among this tick's actions: interact with what is looked at.

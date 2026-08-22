@@ -9,8 +9,8 @@ use modforge::hud::{
     Holder, Holders, InteractKind, OpenPanel, SlotRef, drop_slot, end_drag, hotbar_slot,
     slot_label, start_drag, toggle_panel, use_slot,
 };
+use avian3d::prelude::{Collider, RigidBody, Sensor};
 use modforge::item::{ItemStack, create, write};
-use modforge::structure::Aabb;
 use modforge::survival::FULL;
 use topside::{
     AppState,
@@ -89,11 +89,11 @@ fn in_front(app: &mut App, kind: InteractKind, bundle: impl Bundle) -> Entity {
     let position = Vec3::new(0.0, 1.7, -1.0);
     app.world_mut()
         .spawn((
-            Interactable {
-                kind,
-                aabb: Aabb::from_center_size(position, Vec3::splat(0.4)),
-            },
+            Interactable { kind },
             Transform::from_translation(position),
+            RigidBody::Static,
+            Collider::cuboid(0.4, 0.4, 0.4),
+            Sensor,
             bundle,
         ))
         .id()
@@ -152,14 +152,66 @@ fn door_toggles_open_and_closed() {
         closed_center: Vec3::new(0.0, 1.3, -1.0),
         hinge: Vec3::new(-0.5, 1.3, -1.0),
         closed_rotation: Quat::IDENTITY,
-        collider: Aabb::from_center_size(Vec3::new(0.0, 1.3, -1.0), Vec3::new(1.0, 2.6, 0.1)),
     };
     let transform = door.transform();
-    let door = app.world_mut().spawn((door, transform)).id();
+    let door = app
+        .world_mut()
+        .spawn((
+            door,
+            transform,
+            RigidBody::Kinematic,
+            Collider::cuboid(1.0, 2.6, 0.1),
+        ))
+        .id();
     press_e(&mut app, player,door, InteractKind::Door { open: false });
     assert!(app.world().get::<Door>(door).unwrap().open);
+    // The E prompt is Avian's ray: the open door swung away from
+    // where it was closed, so the player looks at where it is now.
+    let swung = app.world().get::<Transform>(door).unwrap().translation;
+    app.world_mut().get_mut::<Transform>(player).unwrap().look_at(swung, Vec3::Y);
     press_e(&mut app, player,door, InteractKind::Door { open: true });
     assert!(!app.world().get::<Door>(door).unwrap().open);
+}
+
+#[test]
+fn the_prompt_asks_avian_so_a_wall_hides_the_box() {
+    let (mut app, _player) = playing_app();
+    // A storage box 2 m ahead: Avian's collider is the only box.
+    let crate_ = app
+        .world_mut()
+        .spawn((
+            Interactable {
+                kind: InteractKind::Container,
+            },
+            Transform::from_xyz(0.0, 1.7, -2.0),
+            RigidBody::Static,
+            Collider::cuboid(0.6, 0.6, 0.6),
+        ))
+        .id();
+    // A wall between, as a structure root would carry it.
+    let wall = app
+        .world_mut()
+        .spawn((
+            Transform::from_xyz(0.0, 1.5, -1.0),
+            RigidBody::Static,
+            Collider::cuboid(4.0, 3.0, 0.2),
+        ))
+        .id();
+    for _ in 0..2 {
+        app.update();
+    }
+    let looking_at = app.world().resource::<LookingAt>();
+    assert_eq!(looking_at.entity, None, "the wall hides the box");
+    assert_eq!(looking_at.kind, None);
+
+    app.world_mut().entity_mut(wall).despawn();
+    for _ in 0..2 {
+        app.update();
+    }
+    let looking_at = app.world().resource::<LookingAt>();
+    assert_eq!(looking_at.entity, Some(crate_), "in the open the box is seen");
+    assert_eq!(looking_at.kind, Some(InteractKind::Container));
+    assert!((looking_at.distance - 1.7).abs() < 0.05, "to its near face: {}", looking_at.distance);
 }
 
 #[test]

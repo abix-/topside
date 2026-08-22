@@ -542,6 +542,7 @@ pub fn write_target(
     players: Query<(Entity, &Transform, Option<&Children>), With<Player>>,
     bodies: Query<&ChildOf, With<crate::actor::Body>>,
     actors: Query<(&crate::actor::Npc, &crate::combat::Health)>,
+    sensors: Query<(), With<avian3d::prelude::Sensor>>,
     mut state: ResMut<HudRes>,
 ) {
     state.0.target = None;
@@ -552,8 +553,16 @@ pub fn write_target(
         .chain(children.into_iter().flat_map(|c| c.iter()))
         .collect();
     let filter = avian3d::prelude::SpatialQueryFilter::from_excluded_entities(own);
-    let Some(hit) = spatial.cast_ray(transform.translation, transform.forward(), 50.0, true, &filter)
-    else {
+    // Small items are sensors; the target line looks past them.
+    let solid = |entity: Entity| sensors.get(entity).is_err();
+    let Some(hit) = spatial.cast_ray_predicate(
+        transform.translation,
+        transform.forward(),
+        50.0,
+        true,
+        &filter,
+        &solid,
+    ) else {
         return;
     };
     let Ok(child_of) = bodies.get(hit.entity) else {

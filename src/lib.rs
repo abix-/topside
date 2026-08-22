@@ -178,7 +178,6 @@ mod tests {
     use super::*;
     use bevy::time::TimeUpdateStrategy;
     use modforge::hud::InteractKind;
-    use modforge::structure::Aabb;
 
     struct GameplayOutcome {
         player_position: Vec3,
@@ -206,10 +205,17 @@ mod tests {
             closed_center: Vec3::new(0.0, 1.3, 1.0),
             hinge: Vec3::new(-0.5, 1.3, 1.0),
             closed_rotation: Quat::IDENTITY,
-            collider: Aabb::from_center_size(Vec3::new(0.0, 1.3, 1.0), Vec3::new(1.0, 2.6, 0.1)),
         };
         let door_transform = door.transform();
-        let door = app.world_mut().spawn((door, door_transform)).id();
+        let door = app
+            .world_mut()
+            .spawn((
+                door,
+                door_transform,
+                avian3d::prelude::RigidBody::Kinematic,
+                avian3d::prelude::Collider::cuboid(1.0, 2.6, 0.1),
+            ))
+            .id();
 
         // Push actions the way the keyboard does: for the next fixed
         // tick, once per frame. Use is a tap; Move is held.
@@ -246,9 +252,12 @@ mod tests {
         app.world_mut().spawn((
             interact::Interactable {
                 kind: InteractKind::Pickup,
-                aabb: Aabb::from_center_size(item_position, Vec3::splat(0.4)),
             },
             interact::WorldItem { stack: scrap },
+            Transform::from_translation(item_position),
+            avian3d::prelude::RigidBody::Static,
+            avian3d::prelude::Collider::cuboid(0.4, 0.4, 0.4),
+            avian3d::prelude::Sensor,
         ));
         act(&mut app, input::Action::Use);
         for _ in 0..updates_per_tick {

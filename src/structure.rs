@@ -154,9 +154,9 @@ pub fn damage_at(
 }
 
 /// A hinged door. All positions are world space, fixed at spawn;
-/// the collider applies only while closed. `origin` is the
-/// structure root's position, so the door's local transform is
-/// its world pose minus the origin.
+/// its Avian collider is a kinematic child that swings with it.
+/// `origin` is the structure root's position, so the door's local
+/// transform is its world pose minus the origin.
 #[derive(Component)]
 pub struct Door {
     pub open: bool,
@@ -164,7 +164,6 @@ pub struct Door {
     pub closed_center: Vec3,
     pub hinge: Vec3,
     pub closed_rotation: Quat,
-    pub collider: Aabb,
 }
 
 impl Door {
@@ -229,16 +228,12 @@ pub fn spawn_structure(
             } else {
                 Quat::from_rotation_y(90f32.to_radians())
             };
-            let collider_size = axis * opening.width
-                + Vec3::Y * door_h
-                + (Vec3::ONE - axis - Vec3::Y) * DOOR_THICKNESS;
             let door = Door {
                 open: false,
                 origin,
                 closed_center,
                 hinge,
                 closed_rotation,
-                collider: Aabb::from_center_size(closed_center, collider_size),
             };
             let transform = door.transform();
             commands.spawn((
