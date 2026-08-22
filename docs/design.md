@@ -323,7 +323,10 @@ knowing it.
 
 The feeling the game is built for is "I wonder what's out there", never
 "I wonder what's left on the list". The player should not know what is
-going to happen. Operator-locked 2026-08-21: "size doesn't make
+going to happen. Operator-locked 2026-08-21: "finding out is the
+game." Not the fight, not the loot, not the base: finding out. Every
+system below is judged by whether it gives the player something to
+find out and makes them work to find it. Operator-locked 2026-08-21: "size doesn't make
 memories. moments do." A bigger map, more sites, more walls are not
 the goal; the moment the player tells someone about afterward is.
 Every generator and every site is judged by the moments it can make,
