@@ -217,10 +217,29 @@ systems through the same binders, and identity persists across the switch.
 
 ## Physics (decided 2026-08-20)
 
-Topside uses Avian 3D. Physics bodies, colliders, positions, velocities, and
-relationships are Bevy ECS data; there is no second authoritative physics
-world. Avian's acceleration structures and contact caches are derived
-implementation details.
+Avian 3D is the ONE physics system (operator, 2026-08-22: "everything in
+the game should be part of the same physics system"). Every body, every
+collider, every ray, every sweep, every fall, and the one gravity value
+(Avian's `Gravity` resource) are Avian's. Nothing in topside keeps its own
+box, its own ray test, its own gravity number, or its own idea of what
+touches what; if a system needs to know what is where, it asks Avian
+(row 2 deleted the last hand-kept boxes, `Door.collider`,
+`Interactable.aabb`, and `ray_aabb`). Physics bodies, colliders, positions,
+velocities, and relationships are Bevy ECS data; there is no second
+authoritative physics world. Avian's acceleration structures and contact
+caches are derived implementation details.
+
+Actors (the player and every NPC) are kinematic bodies moved by Avian's
+`move_and_slide`, the way Avian's own character controller, Rust, and
+Quake move characters: a dynamic capsule gets shoved by doors and slides on
+stairs. Kinematic means Avian does not apply gravity to them, so the fall
+is driven by the movement system from Avian's `Gravity` and lands through
+Avian's casts (todo row 2a). That is still one physics system: one gravity,
+one collision world, Avian decides every hit.
+
+Every WorldItem carries an Avian collider; a small item's is a sensor, so
+the walk, the swing, the pellets, and the crosshair look through it and
+only the E prompt's ray stops on it.
 
 `spawn_structure` creates one static structure root with one compound Avian
 collider of every piece and one merged mesh per colour as child entities;
