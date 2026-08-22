@@ -304,6 +304,66 @@ the same while the layout varies; here the randomization goes further, and
 even the monument NAME is random. You never walk into a monument already
 knowing it.
 
+## The unknown (operator, 2026-08-21: "i wonder what's out there")
+
+The feeling the game is built for is "I wonder what's out there", never
+"I wonder what's left on the list". The player should not know what is
+going to happen. Reference games, and what each one does that we keep:
+
+- Fallout 2's random encounters: walking the map rolls things you could
+  not predict. The Mysterious Stranger who shows up in a fight, the
+  crashed whale, the Cafe of Broken Dreams, the bridge keeper. Some
+  help, some kill you, some are a joke, and you never know which roll
+  you got until you are in it.
+- Morrowind: no quest markers, directions in people's words, and
+  one-offs that never repeat (the wizard falling out of the sky). The
+  one-offs prove the world can surprise you, so you keep believing it
+  can.
+- Secret rooms (Doom, Zelda, Spelunky): a place exists that nothing
+  announces. You find it by noticing something off.
+- Breath of the Wild: you see the hint (smoke, a light, an odd shape
+  behind a ridge), not the thing. You walk toward a question.
+- STALKER's A-Life: a place you explored is unknown again when you come
+  back, because the people moved.
+
+What we do NOT do: the Assassin's Creed watchtower. No map reveal, no
+climb-and-see-everything, no icons for things the player has not
+walked to. The map shows the bunker, where the player has been, and
+what people told them (see "What a person knows" in life.md). Nothing
+else.
+
+The rules that force the unknown into what we build, so it is data and
+not hope:
+
+1. Random encounters ride the storyteller. While the player walks,
+   Randy Random rolls encounters from a registered table: a stranger
+   who joins a fight, a merchant in the middle of nowhere, a body with
+   a note, a band crossing the road, something that fell from the sky.
+   Good, bad, and strange all roll from the same table. The player
+   never sees the roll coming.
+2. One-offs roll at most once per world. A registry of things that can
+   exist only once (a building type that exists once, a person with an
+   impossible item, a crashed thing). The storm re-rolls which ones
+   this world has, so two worlds have different oddities.
+3. Every site type can hide a part. A monument or building roll may
+   carry a secret: a basement not on the stairs, a walled-off room, a
+   box under a floor piece. The generator never advertises it. The
+   player finds it by looking: a window count that does not match the
+   rooms, a sound, a faint light.
+4. Show the hint, hide the thing. Worldgen puts minor sites where the
+   road does not see them; what the road sees is smoke, a light at
+   night, birds, a shape.
+5. Coming back is not safe. The storm and the people mean a visited
+   site can be different next visit: a faction moved in, the loot is
+   gone, the door is now barred from inside.
+6. Not every question gets an answer. Some bodies just lie there with a
+   note. The dread loop's "lingering mystery" governs sites and
+   encounters, not only incursions.
+
+Minor sites are the danger here: hundreds of "a box and some scatter"
+is exactly the samey feeling this section exists to kill. Every minor
+site type must carry at least one of rules 3, 4, or 6.
+
 ### Building types
 
 Buildings are the pieces monuments are made of. Each building type is a
