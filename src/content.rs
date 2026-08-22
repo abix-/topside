@@ -9,6 +9,8 @@ use modforge::actor::{ActorDef, ActorRegistry, Behaviour};
 use modforge::biome::{BiomeDef, BiomeRegistry, ScatterSpec};
 use modforge::combat::{DamageDef, DamageRegistry, DamageType, Falloff};
 use modforge::faction::{FactionDef, FactionKind, FactionRegistry};
+use modforge::memory::GoodFor;
+use modforge::survival::Need;
 use modforge::item::{Armor, CombatStats, EquipSlot, FoodStats, ItemDef, ItemKind, ItemRegistry};
 use modforge::monument::{
     Arrangement, BuildingRegistry, BuildingSize, BuildingSlot, BuildingTypeDef,
@@ -258,6 +260,7 @@ pub fn register_items(reg: &mut ItemRegistry) {
             }),
             storage: None,
             armor: None,
+            good_for: Default::default(),
         },
         ItemDef {
             name: "water bottle".to_string(),
@@ -271,6 +274,7 @@ pub fn register_items(reg: &mut ItemRegistry) {
             }),
             storage: None,
             armor: None,
+            good_for: Default::default(),
         },
         ItemDef {
             name: "storage box".to_string(),
@@ -281,6 +285,9 @@ pub fn register_items(reg: &mut ItemRegistry) {
             food: None,
             storage: Some(12),
             armor: None,
+            // A box is where food is: whoever remembers one may come
+            // to eat from it.
+            good_for: GoodFor::new(&[(Need::Hunger, 50.0), (Need::Thirst, 50.0)]),
         },
         ItemDef {
             name: "scrap".to_string(),
@@ -291,6 +298,7 @@ pub fn register_items(reg: &mut ItemRegistry) {
             food: None,
             storage: None,
             armor: None,
+            good_for: Default::default(),
         },
         ItemDef {
             name: "cloth".to_string(),
@@ -301,6 +309,7 @@ pub fn register_items(reg: &mut ItemRegistry) {
             food: None,
             storage: None,
             armor: None,
+            good_for: Default::default(),
         },
         ItemDef {
             name: "pipe".to_string(),
@@ -318,6 +327,7 @@ pub fn register_items(reg: &mut ItemRegistry) {
             food: None,
             storage: None,
             armor: None,
+            good_for: Default::default(),
         },
         ItemDef {
             name: "hatchet".to_string(),
@@ -335,6 +345,7 @@ pub fn register_items(reg: &mut ItemRegistry) {
             food: None,
             storage: None,
             armor: None,
+            good_for: Default::default(),
         },
         // Rust's pipe shotgun: one shell, six pellets, wide spread,
         // instant out to 40 m (the hybrid's instant part).
@@ -354,6 +365,7 @@ pub fn register_items(reg: &mut ItemRegistry) {
             food: None,
             storage: None,
             armor: None,
+            good_for: Default::default(),
         },
         ItemDef {
             name: "shotgun shell".to_string(),
@@ -364,6 +376,7 @@ pub fn register_items(reg: &mut ItemRegistry) {
             food: None,
             storage: None,
             armor: None,
+            good_for: Default::default(),
         },
         // Worn in the chest slot; guards the chest only.
         ItemDef {
@@ -378,6 +391,7 @@ pub fn register_items(reg: &mut ItemRegistry) {
                 slot: EquipSlot::Chest,
                 amount: 40.0,
             }),
+            good_for: Default::default(),
         },
     ];
     for item in items {
@@ -506,6 +520,9 @@ pub fn register_monuments(reg: &mut MonumentRegistry, buildings: &BuildingRegist
             // Big monuments keep 180 m from each other.
             spacing: 180.0,
             props: vec![],
+            // Walls and a roof: the people who live there rest and
+            // feel safe there.
+            good_for: GoodFor::new(&[(Need::Rest, 100.0), (Need::Safety, 60.0)]),
         }
     };
     // Minor sites (design.md: "something worth stopping for every 30
@@ -525,6 +542,12 @@ pub fn register_monuments(reg: &mut MonumentRegistry, buildings: &BuildingRegist
         suffix: suffix.to_string(),
         spacing: 60.0,
         props,
+        // A camp is a place to sleep; a wreck or a grave is not.
+        good_for: if name == "campsite" {
+            GoodFor::new(&[(Need::Rest, 100.0), (Need::Safety, 30.0)])
+        } else {
+            GoodFor::default()
+        },
     };
     let monuments = [
         def("roadside stop", vec![slot(&small, 1, 2)], AlongRoad, 1, false, "Stop"),

@@ -275,9 +275,11 @@ pub struct MonumentRoot {
     pub name: String,
     /// World position the monument was rolled at.
     pub origin: Vec3,
-    /// Where this monument's NPCs spawn, world space, kept until
-    /// the one NPC spawn path lands.
+    /// Where this monument's NPCs spawn, world space; `populate_monuments`
+    /// fills them through the one spawn path.
     pub npc_spots: Vec<NpcSpot>,
+    /// What the place is good for to the people who know it (life.md).
+    pub good_for: modforge::memory::GoodFor,
 }
 
 /// A gate waiting for its door: placed at the gate position when the
@@ -324,6 +326,7 @@ pub fn spawn_monument(
                         danger: s.danger,
                     })
                     .collect(),
+                good_for: def.good_for.clone(),
             },
             Transform::default(),
             Visibility::default(),
@@ -366,7 +369,9 @@ pub fn spawn_monument(
             origin + spot.position,
             [0.55, 0.45, 0.20],
         );
-        commands.entity(entity).insert(Container(loot));
+        // Under the root: the storm takes it, and the people who live
+        // here know it from the start.
+        commands.entity(entity).insert((Container(loot), ChildOf(root)));
     }
     for gate in &def.gates {
         commands.spawn((

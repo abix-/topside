@@ -6,9 +6,10 @@ use std::time::Duration;
 
 use bevy::{ecs::system::SystemState, prelude::*, time::TimeUpdateStrategy};
 use modforge::hud::InteractKind;
+use modforge::survival::Need;
 use topside::{
     AppState, SimTick,
-    actor::{Facing, Npc},
+    actor::{Facing, Home, Memory, Npc},
     build_app,
     cel::CelMaterial,
     content::{ItemRegistryRes, MonumentRegistryRes},
@@ -107,6 +108,19 @@ fn a_rolled_monument_spawns_its_members_boxes_and_gate() {
         .count();
     assert_eq!(npcs, members, "one NPC per spot, parented to the root");
     assert_eq!(world.resource::<ActorMapRes>().0.live_count(), members);
+
+    // Each of them knows its home from the start: the place (good
+    // for rest and safety) and every box in it (good for hunger),
+    // and nothing else (life.md "What a person knows").
+    let npc = *children.iter().find(|e| world.get::<Npc>(**e).is_some()).unwrap();
+    let home = world.get::<Home>(npc).expect("a person spawned at a site has a home");
+    assert_eq!(home.root, root);
+    let memory = &world.get::<Memory>(npc).unwrap().0;
+    assert_eq!(memory.known.len(), 1 + members, "the place and one box per building");
+    assert!(memory.knows(root.to_bits()));
+    assert!(memory.good_for(Need::Rest).count() >= 1, "home is good for rest");
+    assert_eq!(memory.good_for(Need::Hunger).count(), members, "every box is good for hunger");
+    assert!(memory.unchecked_nearest(home.position).is_some(), "boxes not yet checked");
 
     let locked: Vec<(Entity, u32)> = world
         .query::<(Entity, &Door, &Locked)>()

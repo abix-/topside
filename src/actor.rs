@@ -51,6 +51,19 @@ pub struct WorldSeed(pub u64);
 #[derive(Component, Default, Debug, Clone, Copy, PartialEq)]
 pub struct Personality(pub modforge::actor::Personality);
 
+/// What this person knows (modforge::memory): the things it has
+/// seen, who hurt it, the last threat. The brain reads only this.
+#[derive(Component, Default, Debug, Clone, PartialEq)]
+pub struct Memory(pub modforge::memory::Memory);
+
+/// Where this person sleeps and returns to: its home site's root and
+/// position. None for a drifter.
+#[derive(Component, Debug, Clone, Copy, PartialEq)]
+pub struct Home {
+    pub root: Entity,
+    pub position: Vec3,
+}
+
 /// An NPC: which def it was spawned from and its faction. The player
 /// has no `Npc`; everything else on an actor is shared (see
 /// `spawn_actor`). Identity is the `Actor` component beside it.
@@ -118,6 +131,8 @@ pub fn spawn_actor(
             hotbar,
             Equipment::default(),
             Survival::default(),
+            crate::survival::ActorCondition::default(),
+            Memory::default(),
             Protection(def.protection.clone()),
             Firing::default(),
             Actions::default(),
@@ -263,9 +278,34 @@ pub fn monuments_to_populate(roots: Query<(), (With<MonumentRoot>, Without<Popul
 pub fn populate_monuments(
     mut spawn: SpawnActor,
     registry: Res<ActorRegistryRes>,
-    roots: Query<(Entity, &MonumentRoot), Without<Populated>>,
+    tick: Res<crate::SimTick>,
+    roots: Query<(Entity, &MonumentRoot, Option<&Children>), Without<Populated>>,
+    boxes: Query<(&Transform, &crate::interact::WorldItem), With<crate::interact::Container>>,
 ) {
-    for (root, monument) in &roots {
+    for (root, monument, children) in &roots {
+        // What a person who lives here knows from the start: the
+        // place itself and the boxes in it (life.md "Home").
+        let mut home_memory = modforge::memory::Memory::default();
+        home_memory.see(
+            root.to_bits(),
+            "home",
+            monument.origin,
+            &monument.good_for,
+            tick.0,
+        );
+        for child in children.into_iter().flat_map(|c| c.iter()) {
+            if let Ok((transform, item)) = boxes.get(child)
+                && let Some(def) = spawn.items.0.def(&item.stack.item)
+            {
+                home_memory.see(
+                    child.to_bits(),
+                    &def.name,
+                    transform.translation,
+                    &def.good_for,
+                    tick.0,
+                );
+            }
+        }
         for spot in &monument.npc_spots {
             let Some(def) = registry.0.def(def_for_danger(spot.danger)) else {
                 continue;
@@ -273,7 +313,14 @@ pub fn populate_monuments(
             // Face away from the building's front, toward where the
             // player walks in from.
             if let Some(npc) = spawn_actor(&mut spawn, def, spot.position, 0.0, None) {
-                spawn.commands.entity(npc).insert(ChildOf(root));
+                spawn.commands.entity(npc).insert((
+                    ChildOf(root),
+                    Home {
+                        root,
+                        position: spot.position,
+                    },
+                    Memory(home_memory.clone()),
+                ));
             }
         }
         spawn.commands.entity(root).insert(Populated);
