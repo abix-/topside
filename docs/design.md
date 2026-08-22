@@ -594,6 +594,18 @@ So a "roadside stop" monument might roll a gas station and a shack one time,
 a convenience store and a guard tower the next. And each of those buildings
 has different room counts, door placements, and colors every time.
 
+A third layer, from Tales of Maj'Eyal (operator, 2026-08-22, references.md):
+random layout, authored pieces. A library of hand-made rooms (a barred
+storeroom, a collapsed stairwell with a body, a radio room, a workshop with
+the tools still out) that the building roll drops into its rolled rooms the
+way ToME drops vaults into a dungeon. Rolled boxes give the shape; authored
+rooms give the moments. This is how the minor sites and the monuments stop
+being "a box and some scatter" (rule 3 and 4 above) without hand-placing
+anything in the world: a person designs the room, the roll decides where
+it stands. The roll also mixes fixed and rolled per building (ToME's
+per-level override): a monument type may name one authored building that
+always stands (the launch site's gantry), the rest roll.
+
 Monument types (from Rust's monuments, adapted):
 - Roadside stop: 1 to 2 small buildings along a road.
 - Airfield: 1 hangar, 1 to 2 small or medium buildings, open tarmac.
