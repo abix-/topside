@@ -54,6 +54,60 @@ simulated NPCs that are PERSISTENT. Not spawned scenery: a thousand people
 who exist, belong to factions or to no one, and carry forward. That is the
 bar; hit it and the operator is happy.
 
+## The first hour (operator-agreed 2026-08-21)
+
+"Finding out is the game", so the game starts with a question, not
+with a door. The opening today (wake, three things in a room, walk
+out, a road, a monument at the end of it) is a road as a marker and a
+monument as a list item. This is what it becomes. Every rule in "The
+unknown" is used once in this hour, so the hour is also the test of
+those rules.
+
+1. The bunker asks the first question. You wake with the room and
+   nothing else, and the room is wrong in one way: a door bolted from
+   the inside with scratches on it, a note with a name you do not
+   know, a radio that clicks twice an hour. One question, planted
+   before daylight. Told knowledge starts here. The three things in
+   the room (bed, bench, food) stay; the question is a fourth.
+2. The door opens on one big triangle. Not a road. One thing on the
+   horizon you cannot explain (a tower, a light, smoke), and a medium
+   triangle between you and it so it vanishes as you walk. The way is
+   readable (a gap, a track, a gate) but not paved.
+3. The first site is behind the ridge, not beside the path. A trace,
+   not a stamp: a body, and the body is someone history made; it
+   carries the name from the note, or the note's handwriting. It
+   answers the bunker's question and asks the next one.
+4. Something happens that the roll did not place. A Fallout 2
+   encounter: a stranger crosses your path and leaves, a band passes
+   in the distance, the radio's clicks become a voice. The first proof
+   that the world can surprise you.
+5. The first teeth. An anomaly with a tell near the second site, and
+   the bolt in your hand. The first time the world answers what you
+   do, and the first time it could have killed you.
+6. By the end of the hour: three questions open, one answered, the
+   big thing closer once and lost once, nothing told by the HUD, no
+   map filled in. The storm has not come but the sky has changed
+   once, so the player knows it will.
+
+What this changes outside the hour:
+
+- Roads cannot go to every monument; a road to everything is the
+  list. Roads go where history put them (between places people used),
+  some broken, and the places that matter are off them. This is a
+  change to the topside generator, not only the Labyrinth.
+- The bunker's starting room carries one rolled question from a
+  registry of questions (the bolted door, the note, the radio, and
+  more), each with its answer placed by history somewhere within the
+  first hour's walk.
+- The first site in any direction is a trace with a link back to the
+  question.
+
+In the Labyrinth the hour is the same shape with the clearing as the
+room: the first question is a mark on the clearing's wall, the big
+triangle is a gate's tower standing over the walls, the first trace
+is in the first dead end, the first teeth are an anomaly in the
+second.
+
 ## The bunker
 
 The bunker is the permanent home base, built up over the whole game.
