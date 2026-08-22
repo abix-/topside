@@ -55,6 +55,7 @@ These rules govern `docs/changelog.md`. Follow them exactly.
 | docs/authority.md | [x] The three structure ownership sentences (the ECS table's Entity row, the boundary paragraph, the Physics section) now say what `bake` does: one static root with the pieces as data and one compound collider, one merged mesh per colour as children, doors as kinematic children with their own collider | grep for a child owning a collider finds only the door sentence, which is true |
 | src/bunker.rs | [x] The house comment naming a `spawn_container` that never existed now says `spawn_item` with a `Container` on it | grep spawn_container finds nothing in src or tests |
 | docs/design.md | [x] The apartment block, hospital, and bunker complex building types and the ruined city monument (50 large buildings on city blocks, from the operator's "a monument with 50 buildings, each with 20+ rooms", 2026-08-20) written into Building types and Monument composition | Every building type and monument type content.rs registers is listed in design.md |
+| docs/authority.md | [x] The ActorMap row's "Lives in topside" replaced: the map, its rules, and its tests are modforge `ActorMap`; topside holds it as `ActorMapRes` and carries the id as the `Actor` component | The sentence names where the struct and the resource each live |
 
 ## 2026-08-21
 
