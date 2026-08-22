@@ -64,6 +64,94 @@ fn diagnostics_op_reports_frame_time_and_render_passes() {
     }
 }
 
+fn people() -> Option<Vec<Json>> {
+    let resp: Json = ureq::post("http://127.0.0.1:15703/topside")
+        .send_json(json!({"op": "people", "args": {}}))
+        .ok()?
+        .into_body()
+        .read_json()
+        .ok()?;
+    assert_eq!(resp["ok"], true, "people op must succeed: {resp}");
+    resp["result"].as_array().cloned()
+}
+
+/// The people of the running world, as they are: who, where, how,
+/// and what they did this tick. Asserts what is built (they exist
+/// with factions, traits, and draining needs) and prints the rest so
+/// the live game, not a feeling, says whether they live. Run with
+/// --nocapture to see them.
+#[test]
+fn people_op_reports_every_npc_with_needs_that_drain() {
+    let Some(first) = people() else {
+        eprintln!("skipping: no topside game listening on 127.0.0.1:15703");
+        return;
+    };
+    assert!(!first.is_empty(), "the world has people");
+    for p in &first {
+        assert!(p["id"].is_u64(), "{p}");
+        assert!(p["def"].is_string(), "{p}");
+        assert!(p["health"].as_f64().unwrap() <= p["max_health"].as_f64().unwrap());
+        for need in ["hunger", "thirst", "rest", "safety"] {
+            let v = p[need].as_f64().unwrap_or(-1.0);
+            assert!((0.0..=100.0).contains(&v), "{need} of {p}");
+        }
+        assert_eq!(p["axes"].as_array().map(|a| a.len()), Some(7), "{p}");
+    }
+    let with_traits = first
+        .iter()
+        .filter(|p| p["axes"].as_array().unwrap().iter().any(|v| v.as_f64() != Some(0.0)))
+        .count();
+    assert!(with_traits > 0, "some people have traits");
+
+    // Two seconds later: needs have fallen on everyone (they drain
+    // every tick, asleep or not).
+    std::thread::sleep(std::time::Duration::from_millis(2200));
+    let second = people().expect("answered once, must answer again");
+    let by_id = |list: &[Json], id: u64| list.iter().find(|p| p["id"] == id).cloned();
+    let mut compared = 0;
+    for p in &first {
+        let id = p["id"].as_u64().unwrap();
+        let Some(later) = by_id(&second, id) else { continue };
+        assert!(later["hunger"].as_f64() <= p["hunger"].as_f64(), "hunger never rises alone");
+        assert!(later["rest"].as_f64() <= p["rest"].as_f64(), "rest falls awake: {p} -> {later}");
+        compared += 1;
+    }
+    assert!(compared > 0);
+
+    // What they are doing, reported honestly: today the only thing
+    // that moves a person is a hostile in sight.
+    let acting: Vec<&Json> = second.iter().filter(|p| p["acting"] == true).collect();
+    let moved = first
+        .iter()
+        .filter(|p| {
+            by_id(&second, p["id"].as_u64().unwrap())
+                .map(|l| l["at"] != p["at"])
+                .unwrap_or(false)
+        })
+        .count();
+    eprintln!(
+        "--- people: {} total, {} with traits, {} acting this tick, {} moved in 2 s ---",
+        second.len(),
+        with_traits,
+        acting.len(),
+        moved
+    );
+    for p in second.iter().take(12) {
+        eprintln!(
+            "{:>4} {:<10} {:<9} hp {:>5.1}/{:<5.1} hunger {:>5.1} rest {:>5.1} safety {:>5.1} {}",
+            p["id"],
+            p["def"].as_str().unwrap_or(""),
+            p["faction"].as_str().unwrap_or("neutral"),
+            p["health"].as_f64().unwrap(),
+            p["max_health"].as_f64().unwrap(),
+            p["hunger"].as_f64().unwrap(),
+            p["rest"].as_f64().unwrap(),
+            p["safety"].as_f64().unwrap(),
+            p["actions"]
+        );
+    }
+}
+
 #[test]
 fn unknown_op_is_rejected_with_an_error() {
     let Some(resp) = ureq::post("http://127.0.0.1:15703/topside")

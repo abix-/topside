@@ -29,12 +29,49 @@ pub fn publish_system(
     actors: Res<crate::actor_map::ActorMapRes>,
     diagnostics: Option<Res<DiagnosticsStore>>,
     players: Query<&crate::survival::Survival, With<crate::player::Player>>,
+    npcs: Query<(
+        &crate::actor_map::Actor,
+        &crate::actor::Npc,
+        &Transform,
+        &crate::combat::Health,
+        &crate::survival::Survival,
+        &crate::actor::Personality,
+        &crate::input::ThisTick,
+    )>,
 ) {
     TICK.store(tick.0, Ordering::Relaxed);
     PEOPLE.store(actors.0.live_count(), Ordering::Relaxed);
     if let Ok(survival) = players.single() {
         HUNGER_BITS.store(survival.0.hunger.to_bits(), Ordering::Relaxed);
         THIRST_BITS.store(survival.0.thirst.to_bits(), Ordering::Relaxed);
+    }
+    // Every person, once a second, for the `people` op: who they are,
+    // where, how they are, and whether they did anything this tick.
+    if tick.0 % 60 == 0 {
+        let list: Vec<Json> = npcs
+            .iter()
+            .map(|(actor, npc, transform, health, needs, personality, this_tick)| {
+                let at = transform.translation;
+                json!({
+                    "id": actor.0.0,
+                    "def": npc.def,
+                    "faction": npc.faction,
+                    "at": [at.x, at.y, at.z],
+                    "health": health.0.current,
+                    "max_health": health.0.max,
+                    "hunger": needs.0.hunger,
+                    "thirst": needs.0.thirst,
+                    "rest": needs.0.rest,
+                    "safety": needs.0.safety,
+                    "axes": personality.0.axes,
+                    "acting": !this_tick.0.is_empty(),
+                    "actions": this_tick.0.iter().map(|s| format!("{:?}", s.action)).collect::<Vec<_>>(),
+                })
+            })
+            .collect();
+        if let Ok(mut slot) = PEOPLE_LIST.lock() {
+            *slot = Json::Array(list);
+        }
     }
     // Frame rate exists only with a window; headless publishes 0.
     let Some(diagnostics) = diagnostics else {
@@ -63,6 +100,7 @@ pub fn publish_system(
 }
 
 static DIAGNOSTICS: Mutex<Json> = Mutex::new(Json::Null);
+static PEOPLE_LIST: Mutex<Json> = Mutex::new(Json::Null);
 
 fn snapshot() -> Json {
     json!({
@@ -86,6 +124,12 @@ pub fn start() {
         "every engine diagnostic: frame time, entity count, render pass times",
         "",
         |_args| Ok(DIAGNOSTICS.lock().map(|d| d.clone()).unwrap_or(Json::Null)),
+    ));
+    OP_REGISTRY.register(OpDef::new(
+        "people",
+        "every NPC: id, def, faction, position, health, needs, traits, what it did this tick",
+        "",
+        |_args| Ok(PEOPLE_LIST.lock().map(|p| p.clone()).unwrap_or(Json::Null)),
     ));
     modforge::server::spawn(
         modforge::server::Config {
