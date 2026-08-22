@@ -672,6 +672,11 @@ a monument is rolled then spawned. What a roll decides:
   world has none; a generator whose history says otherwise may lay
   one.
 - The bunker stays where it is; the world rolls around it.
+- Minor sites by Bethesda's rule (operator, 2026-08-21: "something worth
+  stopping for every 30 seconds"; 30 s of walking is 150 m): wrecks,
+  camps, supply drops, and bodies are small monuments placed at their
+  own spacing, enough that one stands within 150 m of almost any point
+  on land. What each one is (a trace, a question) is in "The unknown".
 
 Rivers, rain and wildlife per biome, and the people who live at the
 sites come after the first world stands. The storm re-rolls the

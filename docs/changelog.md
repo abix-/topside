@@ -57,6 +57,7 @@ These rules govern `docs/changelog.md`. Follow them exactly.
 | docs/design.md | [x] The apartment block, hospital, and bunker complex building types and the ruined city monument (50 large buildings on city blocks, from the operator's "a monument with 50 buildings, each with 20+ rooms", 2026-08-20) written into Building types and Monument composition | Every building type and monument type content.rs registers is listed in design.md |
 | docs/authority.md | [x] The ActorMap row's "Lives in topside" replaced: the map, its rules, and its tests are modforge `ActorMap`; topside holds it as `ActorMapRes` and carries the id as the `Actor` component | The sentence names where the struct and the resource each live |
 | docs/design.md | [x] "The world": roads run between the monuments; no road leads to the bunker, in the operator's words (the bunker was hidden to survive the apocalypse, and hidden means no roads; a reality with another history may lay one) | design.md and the worldgen road test say the same thing about the bunker |
+| docs/design.md | [x] Bethesda's rule written into "The world" in the operator's words: something worth stopping for every 30 seconds, 150 m of walking, minor sites at their own spacing | design.md states the rule and the 150 m figure the worldgen test checks |
 
 ## 2026-08-21
 
