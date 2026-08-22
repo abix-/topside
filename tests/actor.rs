@@ -6,13 +6,14 @@ use std::time::Duration;
 
 use avian3d::prelude::*;
 use bevy::{ecs::system::SystemState, prelude::*, time::TimeUpdateStrategy};
+use modforge::brain::Activity;
 use modforge::hud::HOTBAR_SLOTS;
 use modforge::item::EquipSlot;
 use topside::{
     AppState, SimTick, build_app,
     actor::{
-        EYE_HEIGHT, Equipment, Facing, Hotbar, Inventory, Npc, Personality, SpawnActor, WorldSeed,
-        spawn_actor,
+        EYE_HEIGHT, Equipment, Facing, Hotbar, Inventory, Memory, Npc, Personality, SpawnActor,
+        WorldSeed, spawn_actor,
     },
     cel::CelMaterial,
     combat::{Firing, Health, Protection},
@@ -20,6 +21,7 @@ use topside::{
     hud::HudRes,
     interact::{Container, WorldItem},
     actor_map::{Actor, ActorMapRes},
+    ai::ActorActivity,
     input::{Action, Actions, ThisTick},
     player::Player,
     survival::{ActorCondition, Condition, Need, Survival},
@@ -185,22 +187,94 @@ fn needs_move_with_hits_sleep_and_home() {
     assert!((needs.safety - 60.0).abs() < 0.5, "40 of head hit: safety {}", needs.safety);
     assert_eq!(needs.worst_need().0, Need::Safety);
 
-    // Rest: awake it falls; asleep it climbs.
-    let before = app.world().get::<Survival>(npc).unwrap().0.rest;
+    // Rest: awake it falls; asleep it climbs. On the player, whose
+    // condition nothing else writes (the scavenger's brain would wake
+    // it with a hostile in sight).
+    let _ = npc;
+    let before = app.world().get::<Survival>(player).unwrap().0.rest;
     for _ in 0..60 {
         app.update();
     }
-    let awake = app.world().get::<Survival>(npc).unwrap().0.rest;
+    let awake = app.world().get::<Survival>(player).unwrap().0.rest;
     assert!(awake < before, "rest drains awake");
-    app.world_mut().entity_mut(npc).insert(ActorCondition(Condition {
+    app.world_mut().entity_mut(player).insert(ActorCondition(Condition {
         asleep: true,
         ..Default::default()
     }));
     for _ in 0..60 {
         app.update();
     }
-    let asleep = app.world().get::<Survival>(npc).unwrap().0.rest;
+    let asleep = app.world().get::<Survival>(player).unwrap().0.rest;
     assert!(asleep > awake, "rest refills asleep");
+}
+
+#[test]
+fn a_hungry_person_walks_to_the_box_it_knows_takes_a_can_and_eats_it() {
+    let (mut app, player) = playing_app();
+    // The player far away, so no fight gets in the way.
+    app.world_mut().get_mut::<Transform>(player).unwrap().translation = Vec3::new(800.0, EYE_HEIGHT, 0.0);
+    // A box with two cans, 12 m from a scavenger who knows it.
+    let (box_entity, box_at) = {
+        let items = app.world().resource::<ItemRegistryRes>();
+        let box_def = items.0.def("storage box").unwrap().clone();
+        let can = items.0.def("canned food").unwrap().clone();
+        let at = Vec3::new(0.0, 0.35, -12.0);
+        let mut state: SystemState<(
+            Commands,
+            ResMut<Assets<Mesh>>,
+            ResMut<Assets<CelMaterial>>,
+        )> = SystemState::new(app.world_mut());
+        let (mut commands, mut meshes, mut materials) = state.get_mut(app.world_mut()).unwrap();
+        let entity = topside::interact::spawn_item(
+            &mut commands,
+            &mut meshes,
+            &mut materials,
+            &box_def,
+            modforge::item::create(&box_def, 1, &[], 0.0, 1),
+            at,
+            [0.5, 0.4, 0.2],
+        );
+        let mut loot = modforge::item::Inventory::new(12);
+        loot.add(modforge::item::create(&can, 2, &[], 0.0, 2), can.max_stack);
+        commands.entity(entity).insert(Container(loot));
+        state.apply(app.world_mut());
+        (entity, at)
+    };
+    let npc = spawn_plain(&mut app, "scavenger", Vec3::ZERO, 0.0);
+    {
+        let world = app.world_mut();
+        let box_def = world.resource::<ItemRegistryRes>().0.def("storage box").unwrap().clone();
+        world
+            .get_mut::<Memory>(npc)
+            .unwrap()
+            .0
+            .see(box_entity.to_bits(), &box_def.name, box_at, &box_def.good_for, 0);
+        world.get_mut::<Survival>(npc).unwrap().0.hunger = 20.0;
+    }
+    // Twelve metres at five a second: there in three seconds, eating
+    // after that. Eight seconds covers it.
+    for _ in 0..480 {
+        app.update();
+    }
+    let world = app.world();
+    let needs = world.get::<Survival>(npc).unwrap().0;
+    assert!(needs.hunger > 60.0, "it ate: hunger {}", needs.hunger);
+    let cans = world.get::<Container>(box_entity).unwrap().0.count_of("canned food");
+    assert!(cans < 2, "a can left the box: {cans} remain");
+    assert_eq!(
+        world.get::<Inventory>(npc).unwrap().0.count_of("canned food"),
+        0,
+        "it ate what it took, it did not hoard"
+    );
+    let memory = &world.get::<Memory>(npc).unwrap().0;
+    let known = memory.known.iter().find(|k| k.key == box_entity.to_bits()).unwrap();
+    assert!(known.checked_at.is_some(), "the box is remembered as checked");
+    // Fed, it is idle or strolling, not still eating.
+    let activity = &world.get::<ActorActivity>(npc).unwrap().0;
+    assert!(
+        matches!(activity, Activity::Idle | Activity::Wander { .. }),
+        "done eating: {activity:?}"
+    );
 }
 
 /// Whether `npc` has anything to do this tick (the AI only pushes

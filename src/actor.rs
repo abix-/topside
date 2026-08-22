@@ -130,9 +130,15 @@ pub fn spawn_actor(
             Inventory::default(),
             hotbar,
             Equipment::default(),
-            Survival::default(),
-            crate::survival::ActorCondition::default(),
-            Memory::default(),
+            // The life: needs, what is true now, what it knows, what
+            // it is doing, whether it fights.
+            (
+                Survival::default(),
+                crate::survival::ActorCondition::default(),
+                Memory::default(),
+                crate::ai::ActorActivity::default(),
+                crate::ai::ActorCombat::default(),
+            ),
             Protection(def.protection.clone()),
             Firing::default(),
             Actions::default(),

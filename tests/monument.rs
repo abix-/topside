@@ -5,11 +5,14 @@
 use std::time::Duration;
 
 use bevy::{ecs::system::SystemState, prelude::*, time::TimeUpdateStrategy};
+use modforge::brain::Activity;
 use modforge::hud::InteractKind;
 use modforge::survival::Need;
 use topside::{
     AppState, SimTick,
     actor::{Facing, Home, Memory, Npc},
+    ai::ActorActivity,
+    survival::Survival,
     build_app,
     cel::CelMaterial,
     content::{ItemRegistryRes, MonumentRegistryRes},
@@ -121,6 +124,22 @@ fn a_rolled_monument_spawns_its_members_boxes_and_gate() {
     assert!(memory.good_for(Need::Rest).count() >= 1, "home is good for rest");
     assert_eq!(memory.good_for(Need::Hunger).count(), members, "every box is good for hunger");
     assert!(memory.unchecked_nearest(home.position).is_some(), "boxes not yet checked");
+
+    // Hungry, it heads for a box it knows (the brain): the activity
+    // says so and it walks closer.
+    world.get_mut::<Survival>(npc).unwrap().0.hunger = 20.0;
+    let start = world.get::<Transform>(npc).unwrap().translation;
+    for _ in 0..60 {
+        app.update();
+    }
+    let world = app.world_mut();
+    let activity = &world.get::<ActorActivity>(npc).unwrap().0;
+    let Activity::Going { to, need, .. } = activity else {
+        panic!("hungry and knowing a box, it should be going: {activity:?}");
+    };
+    assert_eq!(*need, Need::Hunger);
+    let now = world.get::<Transform>(npc).unwrap().translation;
+    assert!(now.distance(*to) < start.distance(*to), "walked toward the box");
 
     let locked: Vec<(Entity, u32)> = world
         .query::<(Entity, &Door, &Locked)>()
