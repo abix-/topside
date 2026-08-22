@@ -128,8 +128,7 @@ fn the_labyrinth_walls_stand_as_structures() {
     def.size = 400.0;
     def.water_level = 0.0;
     def.generator = Generator::Labyrinth {
-        corridor: 40.0,
-        wall_height: 6.0,
+        corridor: 10.0,
         wall_thickness: 1.0,
     };
     def.monuments = vec![("wreck".to_string(), 6)];

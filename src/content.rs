@@ -73,14 +73,14 @@ pub fn world_def(name: &str) -> Result<WorldDef, String> {
 }
 
 /// The Labyrinth (design.md): the same size as topside, flat, a maze
-/// of corridors wide enough for the bunker and its house to share a
-/// cell (the house stands 30 m north of the bunker), walls too high
-/// to see over, and only the minor sites, which fit in a corridor.
+/// of 10 m corridors (operator, 2026-08-21: "i want the corridor to
+/// be 10m") with walls as high as they are wide, the bunker and its
+/// house in the clearing the maze grows out of, and only the minor
+/// sites, which fit in a corridor.
 pub fn labyrinth_def() -> WorldDef {
     let mut def = topside_def();
     def.generator = Generator::Labyrinth {
-        corridor: 70.0,
-        wall_height: 8.0,
+        corridor: 10.0,
         wall_thickness: 1.0,
     };
     def.water_level = 0.0;

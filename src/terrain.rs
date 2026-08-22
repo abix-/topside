@@ -170,9 +170,10 @@ pub fn spawn_world(
     // its density, decided by a hash of the cell so the same seed
     // scatters the same. Never on roads, water, or holes.
     let cube = meshes.add(Cuboid::new(1.0, 1.0, 1.0));
+    let walled = world.blocked_cells();
     for r in 0..n {
         for c in 0..n {
-            if road[r * n + c] || world.is_water(c, r) || hole_at(c, r) {
+            if road[r * n + c] || walled[r * n + c] || world.is_water(c, r) || hole_at(c, r) {
                 continue;
             }
             let Some(biome) = biomes.def(world.biome_at_cell(c, r)) else {
@@ -181,7 +182,6 @@ pub fn spawn_world(
             let p = world.cell_center(c, r);
             if p.distance(world.def.bunker) < world.def.bunker_clear
                 || world.sites.iter().any(|s| s.position.distance(p) < s.spacing * 0.3)
-                || !world.in_corridor(p)
             {
                 continue;
             }
