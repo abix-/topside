@@ -28,6 +28,22 @@ so survival is how the explorer half and the killer half meet.
 In one line (operator, 2026-08-22): "think of it like Diablo 2 but with
 survival and exploration and incremental and building."
 
+## The feeling (operator, 2026-08-22)
+
+"Always navigating uncertain terrain with limited supplies. Figuring
+out the next move as you went. This is the feeling that I want to
+capture. It's what I first found in Oregon Trail decades ago. Should I
+press forward? What happens if I don't? Is there danger at night? Will
+I see the next sunrise? IS THERE EVEN A SUN? I want to capture all this
+in the game too. I know it's a lot but I want it to be a dream game."
+
+Every system is measured against those questions. The player should be
+asking them, out loud, in the first hour, and the game must never answer
+them for free: no map that shows the way, no meter that says the night is
+safe, no promise that the sun comes back. The answers come from going and
+finding out (see "The unknown" and "The first hour"), and a different
+reality after the storm may answer them differently.
+
 ## The story
 
 You wake up in a bunker after a post-apocalyptic something. You know nothing.
@@ -1125,7 +1141,23 @@ moves bodies:
    more; creatures and worn gear multiply per type. Half-Life's type
    bits, Valheim's resistances. Traits and affixes hang off this.
 4. Melee is a short ray from the eye; if the line misses, a fat
-   sweep takes its hit. Half-Life's crowbar.
+   sweep takes its hit. Half-Life's crowbar. The moves are Gothic's
+   (operator, 2026-08-22: "read up on the gothic combat system. i
+   LOVED that simple and complex combat"): one attack key plus a
+   direction. Forward is the overhead that steps in and chains into
+   a combo on the beat; left and right are horizontal swings across
+   the body; back is a block that lasts about a second. Four moves,
+   no more. The direction is whatever move key is held when the
+   attack lands, read from the same action queue, so the player and
+   every NPC have the same four. The sweep follows the swing (a left
+   swing sweeps left to right across the front). The beat is the
+   fire timer: the next attack pressed in the last third of the
+   delay continues without a pause, early or late stalls. Gothic
+   shows training in the animation, not a number: a clumsy person
+   (the genome's power and agility) swings slow and cannot chain.
+   Hits roll against skill later (Gothic: skill is the chance of a
+   full hit, otherwise a tenth); today every swing that touches
+   lands.
 5. Guns are Rust's hybrid: the first N metres (per ammo) are an
    instant ray, then the bullet is a projectile with gravity and
    drag. Close range feels like Quake, long range keeps drop. One
