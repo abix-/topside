@@ -130,7 +130,7 @@ depends on what they are doing:
 
 - Combat: every 250 ms (4 times a second).
 - Awake: every 1 second.
-- Asleep: never.
+- Asleep: every 10 seconds.
 
 Being hit does not earn an extra reaction; a person under fire is at the
 combat level like anyone fighting. Being tired slows reaction time, and

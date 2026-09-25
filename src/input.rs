@@ -137,13 +137,16 @@ fn button_of(button: MouseButton) -> Option<Key> {
 
 /// First thing each fixed step: every actor's due actions move from
 /// its queue into `ThisTick` for the systems that follow. A step with
-/// nothing new (two fixed steps in one frame) keeps the held actions,
-/// move and attack, from the step before.
+/// nothing new keeps the held actions from the step before: move,
+/// attack, and the point aimed at (two fixed steps in one frame, and a
+/// person between decisions keeps doing what they decided).
 pub fn drain_actions(tick: Res<SimTick>, mut actors: Query<(&mut Actions, &mut ThisTick)>) {
     for (mut queue, mut this_tick) in &mut actors {
         let due = queue.0.drain_through(tick.0);
         if due.is_empty() {
-            this_tick.0.retain(|s| matches!(s.action, Action::Move { .. } | Action::Attack));
+            this_tick
+                .0
+                .retain(|s| matches!(s.action, Action::Move { .. } | Action::Attack | Action::Aim { .. }));
         } else {
             this_tick.0 = due;
         }

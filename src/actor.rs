@@ -6,7 +6,7 @@
 use avian2d::prelude::*;
 use bevy::prelude::*;
 use modforge::actor::{ActorDef, ActorId, ActorMap};
-use modforge::brain::{Activity, CombatState};
+use modforge::brain::{AWAKE_REACTION, Activity, CombatState};
 use modforge::item;
 use modforge::survival::{Condition, SurvivalStats};
 
@@ -48,6 +48,11 @@ impl Facing {
 /// player has it between the death message and respawning.
 #[derive(Component, Default, Clone, Copy, Debug, PartialEq)]
 pub struct Dead;
+
+/// The tick a person next decides at (life.md "How often a person
+/// thinks"): set from their reaction time after every decision.
+#[derive(Component, Default, Clone, Copy, Debug, PartialEq)]
+pub struct NextThink(pub u64);
 
 /// What a person carries.
 #[derive(Component)]
@@ -210,10 +215,15 @@ pub fn spawn_actor(spawn: &mut SpawnActor, def: &ActorDef, at: Vec2, faction: Op
     let mut health = def.health();
     health.max *= personality.health_mult();
     health.current = health.max;
-    spawn
-        .commands
-        .entity(entity)
-        .insert((Actor(id), Personality(personality), Health(health)));
+    // Thinking spread across the first second by who they are, so people
+    // do not all decide on the same tick.
+    let first_think = id.0 % (AWAKE_REACTION * 60.0) as u64;
+    spawn.commands.entity(entity).insert((
+        Actor(id),
+        Personality(personality),
+        Health(health),
+        NextThink(first_think),
+    ));
     Some(entity)
 }
 

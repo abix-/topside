@@ -33,7 +33,8 @@ fn the_door_scavenger_sees_only_through_open_ground() {
     let ahead = app.world().get::<topside::actor::Facing>(scavenger).unwrap().direction();
     let mut t = app.world_mut().get_mut::<Transform>(player).unwrap();
     t.translation = (at + ahead * 5.0).extend(t.translation.z);
-    for _ in 0..3 {
+    // Up to a second before it reacts (life.md: awake, every 1 s).
+    for _ in 0..70 {
         app.update();
     }
     assert!(

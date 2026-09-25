@@ -8,15 +8,15 @@
 
 use bevy::prelude::*;
 use modforge::actor::ActorId;
-use modforge::brain::{Activity, CombatState, Decision, Do, Perception, REACH, decide};
+use modforge::brain::{Activity, CombatState, Decision, Do, Perception, REACH, decide, reaction_ticks};
 use modforge::memory::{Known, food_worth};
 use modforge::monument::Roll;
 use modforge::survival::Need;
 
 use crate::SimTick;
 use crate::actor::{
-    Actor, ActorActivity, ActorCombat, ActorCondition, Dead, Facing, Home, Inventory, Memory, Npc, PLACE_KEY,
-    Personality, Survival,
+    Actor, ActorActivity, ActorCombat, ActorCondition, Dead, Facing, Home, Inventory, Memory, NextThink, Npc,
+    PLACE_KEY, Personality, Survival,
 };
 use crate::combat::Health;
 use crate::content::{ActorRegistryRes, FactionRegistryRes, ItemRegistryRes, MonumentRegistryRes, PLAYER_FACTION};
@@ -63,8 +63,7 @@ pub struct Thinkers<'w, 's> {
             &'static mut ActorActivity,
             &'static mut ActorCombat,
             &'static mut ActorCondition,
-            &'static mut Actions,
-            &'static mut Inventory,
+            (&'static mut Actions, &'static mut Inventory, &'static mut NextThink),
         ),
     >,
     others: Query<
@@ -78,9 +77,6 @@ pub struct Thinkers<'w, 's> {
 /// Half the width of what a person sees ahead: a 120 degree cone
 /// (life.md "Perception with belief").
 const HALF_CONE: f32 = std::f32::consts::FRAC_PI_3;
-/// How often a person looks round for things worth remembering, in
-/// ticks (spread across people by id).
-const LOOK_EVERY: u64 = 30;
 
 /// Inside the cone ahead of someone facing `facing` at `here`.
 fn in_cone(facing: &Facing, here: Vec2, at: Vec2) -> bool {
@@ -152,10 +148,13 @@ pub fn think(
         mut activity,
         mut combat,
         mut condition,
-        mut actions,
-        mut inventory,
+        (mut actions, mut inventory, mut next_think),
     ) in &mut thinkers.npcs
     {
+        // Not their moment yet: they keep doing what they decided.
+        if tick.0 < next_think.0 {
+            continue;
+        }
         let Some(def) = registry.0.def(&npc.def) else {
             continue;
         };
@@ -187,13 +186,11 @@ pub fn think(
         if let Some((who, at)) = hostile {
             memory.0.threat(who, at, tick.0);
         }
-        // Looking round now and then: every box in the cone with a clear
+        // Looking round as they think: every box in the cone with a clear
         // line goes into memory (seen, not yet looked inside).
-        if (tick.0 + actor.0.0) % LOOK_EVERY == 0 {
-            for (key, at, kind) in &boxes {
-                if at.distance(here) <= def.sight && in_cone(facing, here, *at) && sight.clear(here, *at) {
-                    memory.0.see(key.to_bits(), kind, ground(*at), tick.0);
-                }
+        for (key, at, kind) in &boxes {
+            if at.distance(here) <= def.sight && in_cone(facing, here, *at) && sight.clear(here, *at) {
+                memory.0.see(key.to_bits(), kind, ground(*at), tick.0);
             }
         }
         memory.0.forget_old(tick.0);
@@ -231,6 +228,9 @@ pub fn think(
         }
         activity.0 = next_activity;
         combat.0 = next_combat;
+        // Their next decision comes at their reaction time.
+        next_think.0 = tick.0
+            + reaction_ticks(condition.0.asleep, &combat.0, needs.0.rest, &personality.0, 60.0);
         for action in decided {
             actions.0.push(tick.0, action);
         }

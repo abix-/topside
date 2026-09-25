@@ -126,7 +126,9 @@ fn a_person_struck_from_behind_turns_on_the_striker() {
         },
         Transform::from_translation((at + Vec2::new(-2.0, 0.0)).extend(1.5)),
     ));
-    for _ in 0..5 {
+    // Up to a second before it reacts: being hit earns no extra
+    // reaction (life.md "How often a person thinks").
+    for _ in 0..70 {
         app.update();
     }
     assert!(

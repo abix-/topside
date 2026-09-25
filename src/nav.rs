@@ -10,6 +10,7 @@ use std::collections::VecDeque;
 use avian2d::prelude::*;
 use bevy::ecs::system::SystemParam;
 use bevy::prelude::*;
+use modforge::brain::REACH;
 use modforge::path::{Cell, grid_path};
 
 use crate::SimTick;
@@ -121,6 +122,12 @@ pub fn steer(
         }
         let here = transform.translation.truncate();
         let target = Vec2::new(tx, ty);
+        // Arrived: stop here, not at the next decision.
+        if here.distance(target) <= REACH {
+            path.waypoints.clear();
+            set_move(&mut this_tick, Vec2::ZERO, tick.0);
+            continue;
+        }
         if nav.clear(entity, here, target) {
             path.waypoints.clear();
             continue;
@@ -141,18 +148,18 @@ pub fn steer(
         let Some(&next) = path.waypoints.front() else {
             continue;
         };
-        let way = (next - here).normalize_or_zero();
-        let stamp = this_tick.0.last().map_or(tick.0, |s| s.tick);
-        this_tick
-            .0
-            .retain(|s| !matches!(s.action, Action::Move { .. } | Action::Aim { .. }));
-        this_tick.0.push(modforge::actions::Stamped {
-            tick: stamp,
-            action: Action::Aim { x: next.x, y: next.y },
-        });
-        this_tick.0.push(modforge::actions::Stamped {
-            tick: stamp,
-            action: Action::Move { x: way.x, y: way.y },
-        });
+        // Steer the step to the next point of the way round; the aim stays
+        // on the goal, so it holds between decisions.
+        set_move(&mut this_tick, (next - here).normalize_or_zero(), tick.0);
     }
+}
+
+/// Replace this tick's move with a step along `way`.
+fn set_move(this_tick: &mut ThisTick, way: Vec2, now: u64) {
+    let stamp = this_tick.0.last().map_or(now, |s| s.tick);
+    this_tick.0.retain(|s| !matches!(s.action, Action::Move { .. }));
+    this_tick.0.push(modforge::actions::Stamped {
+        tick: stamp,
+        action: Action::Move { x: way.x, y: way.y },
+    });
 }
