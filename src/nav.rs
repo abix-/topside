@@ -21,6 +21,8 @@ use crate::player::PLAYER_SIZE;
 const PLAN_LIMIT: usize = 3600;
 /// A plan older than this is made again, in ticks.
 const REPLAN_EVERY: u64 = 120;
+/// A moving goal is planned for at most this often, in ticks.
+const REPLAN_MIN: u64 = 30;
 /// A waypoint this near is reached.
 const WAYPOINT_REACH: f32 = 0.6;
 
@@ -29,7 +31,8 @@ const WAYPOINT_REACH: f32 = 0.6;
 pub struct NavPath {
     pub waypoints: VecDeque<Vec2>,
     pub goal: Vec2,
-    pub planned_at: u64,
+    /// The tick of the last plan; None before the first.
+    pub planned_at: Option<u64>,
 }
 
 /// What stands in the way: only static bodies that are not sensors.
@@ -74,11 +77,14 @@ impl Nav<'_, '_> {
     }
 
     /// The way round from `from` to `to` as points to walk through,
-    /// ending at `to`; None when there is none nearby.
+    /// ending at `to`; None when there is none nearby. Each cell asks
+    /// the physics world once per plan.
     pub fn plan(&self, from: Vec2, to: Vec2) -> Option<VecDeque<Vec2>> {
         let (start, goal) = (cell(from), cell(to));
+        let known: std::cell::RefCell<std::collections::HashMap<Cell, bool>> = Default::default();
+        let blocked = |c: Cell| *known.borrow_mut().entry(c).or_insert_with(|| self.blocked(c));
         let step = |a: Cell, b: Cell| {
-            (b == goal || !self.blocked(b)).then(|| if a.0 != b.0 && a.1 != b.1 { 1.414 } else { 1.0 })
+            (b == goal || !blocked(b)).then(|| if a.0 != b.0 && a.1 != b.1 { 1.414 } else { 1.0 })
         };
         let estimate = |c: Cell| centre(c).distance(centre(goal));
         let cells = grid_path(start, goal, step, estimate, PLAN_LIMIT)?;
@@ -119,11 +125,15 @@ pub fn steer(
             path.waypoints.clear();
             continue;
         }
-        let stale = tick.0.saturating_sub(path.planned_at) >= REPLAN_EVERY;
-        if path.waypoints.is_empty() || stale || path.goal.distance(target) > 2.0 {
+        // Plan again only when the plan is old, or the goal moved and the
+        // last plan is not brand new; a plan that failed or ran out is
+        // not retried every tick.
+        let age = path.planned_at.map_or(u64::MAX, |at| tick.0.saturating_sub(at));
+        let moved = path.goal.distance(target) > 2.0 && age >= REPLAN_MIN;
+        if age >= REPLAN_EVERY || moved {
             path.waypoints = nav.plan(here, target).unwrap_or_default();
             path.goal = target;
-            path.planned_at = tick.0;
+            path.planned_at = Some(tick.0);
         }
         while path.waypoints.front().is_some_and(|p| p.distance(here) <= WAYPOINT_REACH) {
             path.waypoints.pop_front();

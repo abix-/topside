@@ -1,0 +1,86 @@
+//! Where the time goes, measured, not assumed: a stopwatch stamped
+//! after every system of the fixed step (and around Avian's physics
+//! step), each cost kept as a running average in milliseconds. The
+//! control plane's `perf` op and the headless perf test read it.
+
+use std::time::Instant;
+
+use bevy::prelude::*;
+
+/// How much of each new measurement moves the average (the rest is
+/// history): about the last 30 samples.
+const SMOOTHING: f64 = 1.0 / 30.0;
+
+/// Every measured part's average cost per fixed step, in ms.
+#[derive(Resource, Default)]
+pub struct Laps {
+    mark: Option<Instant>,
+    physics_start: Option<Instant>,
+    pub mean_ms: Vec<(&'static str, f64)>,
+}
+
+impl Laps {
+    fn record(&mut self, name: &'static str, ms: f64) {
+        match self.mean_ms.iter_mut().find(|(n, _)| *n == name) {
+            Some((_, mean)) => *mean += (ms - *mean) * SMOOTHING,
+            None => self.mean_ms.push((name, ms)),
+        }
+    }
+
+    /// Every part, the costliest first.
+    pub fn sorted(&self) -> Vec<(&'static str, f64)> {
+        let mut all = self.mean_ms.clone();
+        all.sort_by(|a, b| b.1.total_cmp(&a.1));
+        all
+    }
+
+    /// One part's average, if measured.
+    pub fn of(&self, name: &str) -> Option<f64> {
+        self.mean_ms.iter().find(|(n, _)| *n == name).map(|(_, v)| *v)
+    }
+}
+
+fn since(from: Option<Instant>, now: Instant) -> f64 {
+    from.map_or(0.0, |f| now.duration_since(f).as_secs_f64() * 1000.0)
+}
+
+/// The stopwatch starts at the top of the fixed step.
+pub fn start(mut laps: ResMut<Laps>) {
+    laps.mark = Some(Instant::now());
+}
+
+/// A system that records the time since the last stamp under `name`
+/// and stamps again: put one after each system to time it.
+pub fn lap(name: &'static str) -> impl FnMut(ResMut<Laps>) {
+    move |mut laps: ResMut<Laps>| {
+        let now = Instant::now();
+        let ms = since(laps.mark, now);
+        laps.record(name, ms);
+        laps.mark = Some(now);
+    }
+}
+
+/// Around Avian's step: FixedPostUpdate to FixedLast.
+pub fn physics_start(mut laps: ResMut<Laps>) {
+    laps.physics_start = Some(Instant::now());
+}
+
+pub fn physics_end(mut laps: ResMut<Laps>) {
+    let ms = since(laps.physics_start, Instant::now());
+    laps.record("physics", ms);
+}
+
+/// Stamps around the physics step, the one piece outside topside's
+/// chain.
+pub struct ProfilePlugin;
+
+impl Plugin for ProfilePlugin {
+    fn build(&self, app: &mut App) {
+        app.init_resource::<Laps>();
+        app.add_systems(
+            FixedPostUpdate,
+            physics_start.before(avian2d::schedule::PhysicsSystems::First),
+        );
+        app.add_systems(FixedLast, physics_end);
+    }
+}

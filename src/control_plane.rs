@@ -31,9 +31,11 @@ static Y_BITS: AtomicU32 = AtomicU32::new(0);
 static FPS_BITS: AtomicU32 = AtomicU32::new(0);
 static DIAGNOSTICS: Mutex<Json> = Mutex::new(Json::Null);
 static PEOPLE_LIST: Mutex<Json> = Mutex::new(Json::Null);
+static PERF: Mutex<Json> = Mutex::new(Json::Null);
 
 pub fn publish(
     tick: Res<crate::SimTick>,
+    laps: Res<crate::profile::Laps>,
     actors: Res<ActorMapRes>,
     diagnostics: Option<Res<DiagnosticsStore>>,
     players: Query<(&Transform, &Health, &Survival), With<Player>>,
@@ -47,6 +49,13 @@ pub fn publish(
         THIRST_BITS.store(needs.0.thirst.to_bits(), Ordering::Relaxed);
         X_BITS.store(at.translation.x.to_bits(), Ordering::Relaxed);
         Y_BITS.store(at.translation.y.to_bits(), Ordering::Relaxed);
+    }
+    // What each part of the step costs, once a second, costliest first.
+    if tick.0 % 60 == 0 {
+        let map: Vec<Json> = laps.sorted().into_iter().map(|(n, ms)| json!({"part": n, "ms": ms})).collect();
+        if let Ok(mut slot) = PERF.lock() {
+            *slot = Json::Array(map);
+        }
     }
     // Every person, once a second.
     if tick.0 % 60 == 0 {
@@ -112,6 +121,12 @@ pub fn start() {
         "every engine diagnostic: frame time, entity count",
         "",
         |_| Ok(DIAGNOSTICS.lock().map(|d| d.clone()).unwrap_or(Json::Null)),
+    ));
+    OP_REGISTRY.register(OpDef::new(
+        "perf",
+        "each part of the fixed step and the physics step: average ms, costliest first",
+        "",
+        |_| Ok(PERF.lock().map(|p| p.clone()).unwrap_or(Json::Null)),
     ));
     OP_REGISTRY.register(OpDef::new(
         "people",

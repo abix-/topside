@@ -11,6 +11,7 @@ pub mod input;
 pub mod interact;
 pub mod nav;
 pub mod player;
+pub mod profile;
 pub mod sight;
 pub mod storm;
 pub mod structure;
@@ -62,6 +63,7 @@ pub fn build_app(headless: bool, seed: u64) -> App {
     // Avian 2D is the one physics system. Seen from above, nothing
     // falls.
     app.add_plugins(avian2d::prelude::PhysicsPlugins::default());
+    app.add_plugins(profile::ProfilePlugin);
     app.insert_resource(avian2d::prelude::Gravity(Vec2::ZERO));
     if headless {
         // Headless callers drive `update()` themselves and never
@@ -104,33 +106,54 @@ pub fn build_app(headless: bool, seed: u64) -> App {
             .chain(),
     );
     // Every fixed step: count it, drain each actor's due actions, then
-    // every system reads actions, never keys.
+    // every system reads actions, never keys. A lap after each system
+    // times it (profile.rs).
+    use profile::lap;
     app.add_systems(
         FixedUpdate,
         (
-            tick_system,
-            ai::think,
-            input::drain_actions,
-            nav::steer,
-            survival::survival_tick,
-            survival::waste,
-            storm::storm,
-            hud::hud_keys,
-            player::roll,
-            player::aim,
-            interact::interact_on_use,
-            player::movement,
-            combat::melee,
-            combat::fire,
-            combat::fly,
-            combat::die,
-            player::respawn,
-            control_plane::publish,
+            (
+                profile::start,
+                tick_system,
+                ai::think,
+                lap("think"),
+                input::drain_actions,
+                lap("drain_actions"),
+                nav::steer,
+                lap("steer"),
+                survival::survival_tick,
+                survival::waste,
+                lap("survival"),
+                storm::storm,
+                lap("storm"),
+                hud::hud_keys,
+                player::roll,
+                player::aim,
+                lap("keys_roll_aim"),
+            )
+                .chain(),
+            (
+                interact::interact_on_use,
+                lap("interact"),
+                player::movement,
+                lap("movement"),
+                combat::melee,
+                lap("melee"),
+                combat::fire,
+                combat::fly,
+                lap("guns"),
+                combat::die,
+                player::respawn,
+                lap("death"),
+                control_plane::publish,
+                lap("publish"),
+            )
+                .chain(),
         )
             .chain(),
     );
     // What the player's person can see, every frame.
-    app.add_systems(Update, sight::player_sight);
+    app.add_systems(Update, (profile::start, sight::player_sight, lap("player_sight")).chain());
     if !headless {
         app.insert_resource(storm::Windowed);
         app.add_plugins(bevy::diagnostic::FrameTimeDiagnosticsPlugin::default());
