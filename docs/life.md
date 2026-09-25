@@ -185,6 +185,37 @@ from three places:
   camp now knows about the wreck on the ridge, with a delay and only
   within the faction. Neutrals share nothing.
 
+### The map each person carries (operator, 2026-09-25)
+
+Every person, the player included, carries a map of where they have
+walked and what they have seen (design.md "The unknown": the fog-of-war
+map). It is kept in two layers on the tiles and chunks (pathing.md "One
+grid"):
+
+- Per tile, whether they have seen it: one bit per tile, kept per chunk
+  (128 bytes a chunk). Walls block sight, so walking past a building
+  does not show its rooms; its inside stays unknown until someone goes
+  in.
+- Per chunk, when they last saw it: the tick. Knowledge of a place goes
+  stale (STALKER: a place explored is unknown again when you come back).
+
+What goes on it comes from the three sources above: home known from the
+start, what their eyes reach as they walk, and what their bunker tells
+them. A bunker's shared map is the same two layers, owned by the bunker
+(Factorio charts its map per chunk per team).
+
+### Wander: random, reachable, unknown (operator, 2026-09-25)
+
+When nothing presses and a person wanders, the spot is:
+
+- Reachable: a tile they can walk to from where they stand, from the walk
+  grid (their chunk's flood and its doorways into the next chunks).
+  Never a spot nobody can stand on or get to.
+- Unknown: off their map, or on it longest ago.
+- Random among those.
+
+Wandering is how people find out what is around them.
+
 Knowledge goes stale: the box remembered with two cans may be empty
 now because a camp mate ate them. The person walks there, finds
 nothing, updates memory, and moves on. That is a story, not a bug.
