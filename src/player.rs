@@ -11,8 +11,9 @@ use crate::combat::{Equipment, Firing, Health, Protection};
 use crate::input::{ActionQueue, Actions, ThisTick};
 use crate::terrain::WorldRes;
 
-/// Metres per second on foot (the 3D game's walking speed).
-pub const WALK_SPEED: f32 = 5.0;
+/// Metres per second on foot: three times the 3D game's 5 (design.md
+/// "What 2D changes").
+pub const WALK_SPEED: f32 = 15.0;
 /// The player's square, in metres.
 pub const PLAYER_SIZE: f32 = 0.8;
 /// Above the ground.

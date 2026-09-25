@@ -6,7 +6,7 @@ mod common;
 
 use bevy::ecs::system::RunSystemOnce;
 use bevy::prelude::*;
-use common::{act, game};
+use common::{act, alone, game};
 use modforge::hud::{Holder, SlotRef};
 use topside::actor::{Hotbar, Inventory, Npc};
 use topside::combat::{Equipment, Firing, Health, Protection};
@@ -52,6 +52,7 @@ fn t_takes_a_dead_npcs_weapon_out_of_its_box() {
 #[test]
 fn the_pipe_dragged_to_the_hotbar_and_held_with_1_swings() {
     let (mut app, player) = game();
+    alone(&mut app);
     let bunker = app.world().resource::<WorldRes>().0.def.bunker;
     // Pick the pipe up off the bunker floor.
     put(&mut app, player, bunker + Vec2::new(1.0, 3.2));

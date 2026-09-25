@@ -6,7 +6,7 @@ mod common;
 
 use avian2d::prelude::*;
 use bevy::prelude::*;
-use common::{game, hold, out_in_the_open, position};
+use common::{alone, game, hold, out_in_the_open, position};
 use topside::SimTick;
 use topside::actor::Facing;
 use topside::input::Action;
@@ -17,6 +17,7 @@ const W: Action = Action::Move { x: 0.0, y: 1.0 };
 #[test]
 fn a_wall_stops_the_player_at_its_edge() {
     let (mut app, player) = game();
+    alone(&mut app);
     out_in_the_open(&mut app, player);
     let start = position(&app, player);
     // A wall 3 m north, one metre thick, across the way.
@@ -37,6 +38,7 @@ fn a_wall_stops_the_player_at_its_edge() {
 #[test]
 fn the_player_faces_the_point_it_aims_at() {
     let (mut app, player) = game();
+    alone(&mut app);
     let at = position(&app, player);
     let target = at + Vec2::new(-3.0, 4.0);
     hold(&mut app, player, Action::Aim { x: target.x, y: target.y }, 1);
@@ -48,6 +50,7 @@ fn the_player_faces_the_point_it_aims_at() {
 #[test]
 fn pushed_move_actions_walk_the_player() {
     let (mut app, player) = game();
+    alone(&mut app);
     out_in_the_open(&mut app, player);
     let start = position(&app, player);
     let ticks_before = app.world().resource::<SimTick>().0;

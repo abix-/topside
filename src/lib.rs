@@ -90,7 +90,7 @@ pub fn build_app(headless: bool, seed: u64) -> App {
                 structure::spawn_monuments,
                 player::spawn_player,
             ),
-            actor::populate_monuments,
+            (actor::populate_monuments, actor::spawn_door_enemy),
         )
             .chain(),
     );

@@ -1217,6 +1217,9 @@ view.
 - Nobody sees behind walls. The player sees only what their person can
   see, the way Project Zomboid does it.
 - Combat changes the most in 2D; it is rebuilt for 2D in docs/combat.md.
+- People walk three times as fast as in the 3D game: 15 m/s.
+- A scavenger waits outside the bunker door, as in the 3D game, so the
+  first fight is close.
 
 ## Future goals (not v1)
 

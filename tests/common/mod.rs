@@ -7,6 +7,7 @@ use std::time::Duration;
 
 use bevy::prelude::*;
 use bevy::time::TimeUpdateStrategy;
+use topside::actor::Npc;
 use topside::input::{Action, Actions};
 use topside::player::Player;
 use topside::{SimTick, build_app};
@@ -22,6 +23,16 @@ pub fn game() -> (App, Entity) {
         .single(app.world())
         .expect("one player");
     (app, player)
+}
+
+/// Take every NPC out of the world, for a test about something other
+/// than a fight (the scavenger at the door would come in).
+pub fn alone(app: &mut App) {
+    let world = app.world_mut();
+    let npcs: Vec<Entity> = world.query_filtered::<Entity, With<Npc>>().iter(world).collect();
+    for npc in npcs {
+        world.despawn(npc);
+    }
 }
 
 /// Put the player on open ground 20 m east of the bunker, inside the

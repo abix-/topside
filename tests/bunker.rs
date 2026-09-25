@@ -3,7 +3,7 @@
 
 mod common;
 
-use common::{game, hold, position};
+use common::{alone, game, hold, position};
 use topside::input::Action;
 
 const S: Action = Action::Move { x: 0.0, y: -1.0 };
@@ -12,6 +12,7 @@ const D: Action = Action::Move { x: 1.0, y: 0.0 };
 #[test]
 fn the_bunker_walls_hold_the_player_in() {
     let (mut app, player) = game();
+    alone(&mut app);
     // The room is 6 m wide inside, centred on the bunker point.
     hold(&mut app, player, D, 90);
     let x = position(&app, player).x;
@@ -21,6 +22,7 @@ fn the_bunker_walls_hold_the_player_in() {
 #[test]
 fn the_door_holds_until_used_then_lets_the_player_out() {
     let (mut app, player) = game();
+    alone(&mut app);
     // The door is north in the bunker's plan, down the screen.
     hold(&mut app, player, S, 90);
     let at_door = position(&app, player).y;

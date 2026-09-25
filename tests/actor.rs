@@ -29,6 +29,20 @@ fn every_npc_spot_gets_its_person() {
 }
 
 #[test]
+fn a_scavenger_waits_outside_the_bunker_door() {
+    let (mut app, _) = game();
+    let (name, [x, z]) = topside::content::DOOR_ENEMY;
+    let bunker = app.world().resource::<topside::terrain::WorldRes>().0.def.bunker;
+    let spot = bunker + Vec2::new(x, z);
+    let world = app.world_mut();
+    let found = world
+        .query::<(&Npc, &Transform)>()
+        .iter(world)
+        .any(|(npc, t)| npc.def == name && t.translation.truncate().distance(spot) < 1.0);
+    assert!(found, "a {name} stands outside the door");
+}
+
+#[test]
 fn a_hostile_hunter_walks_toward_the_player_it_sees() {
     let (mut app, player) = game();
     // A hunter hostile to the player.

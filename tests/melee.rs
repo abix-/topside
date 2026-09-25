@@ -6,7 +6,7 @@
 mod common;
 
 use bevy::prelude::*;
-use common::{act, game, out_in_the_open, position};
+use common::{act, alone, game, out_in_the_open, position};
 use modforge::combat::Swing;
 use modforge::item::create;
 use topside::actor::Hotbar;
@@ -34,6 +34,7 @@ fn health(app: &App, e: Entity) -> f32 {
 /// The player in the open, the pipe in its hands.
 fn armed() -> (App, Entity, Vec2) {
     let (mut app, player) = game();
+    alone(&mut app);
     out_in_the_open(&mut app, player);
     let pipe = {
         let items = app.world().resource::<ItemRegistryRes>();

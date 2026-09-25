@@ -40,6 +40,10 @@ pub const STARTING_ITEMS: [(&str, u32, u64, [f32; 2], Rgb); 8] = [
 /// bench, the first question (design.md "The first hour").
 pub const STARTING_NOTE_AT: [f32; 2] = [2.2, 3.5];
 
+/// Who waits outside the starting bunker's door and where in its plan
+/// (x, z): a scavenger 6 m past the door (the 3D game's first fight).
+pub const DOOR_ENEMY: (&str, [f32; 2]) = ("scavenger", [0.0, -10.0]);
+
 /// Which actor def stands at a monument's NPC spot of this danger
 /// (todo 11q: modforge should decide this; until then it is content).
 pub fn def_for_danger(danger: u32) -> &'static str {

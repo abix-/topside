@@ -11,7 +11,8 @@ use modforge::item;
 use modforge::survival::{Condition, SurvivalStats};
 
 use crate::combat::{Equipment, Firing, Health, Protection};
-use crate::content::{ActorRegistryRes, FactionRegistryRes, ItemRegistryRes, def_for_danger};
+use crate::content::{ActorRegistryRes, DOOR_ENEMY, FactionRegistryRes, ItemRegistryRes, def_for_danger};
+use crate::terrain::WorldRes;
 use crate::input::{Actions, ThisTick};
 use crate::player::PLAYER_SIZE;
 use crate::structure::MonumentsRes;
@@ -205,6 +206,13 @@ pub fn spawn_actor(spawn: &mut SpawnActor, def: &ActorDef, at: Vec2, faction: Op
         .entity(entity)
         .insert((Actor(id), Personality(personality), Health(health)));
     Some(entity)
+}
+
+/// The one waiting outside the bunker door, through `spawn_actor`.
+pub fn spawn_door_enemy(mut spawn: SpawnActor, registry: Res<ActorRegistryRes>, world: Res<WorldRes>) {
+    let (name, [x, z]) = DOOR_ENEMY;
+    let def = registry.0.def(name).expect("the door enemy is registered");
+    spawn_actor(&mut spawn, def, world.0.def.bunker + Vec2::new(x, z), None);
 }
 
 /// Fill every monument's NPC spots through `spawn_actor`, once. Each

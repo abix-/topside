@@ -71,7 +71,9 @@ fn the_dead_leave_a_box_with_what_they_carried_and_e_opens_it() {
     let (dropped, weapons) = world
         .query::<(Entity, &Transform, &Container)>()
         .iter(world)
-        .find(|(_, t, _)| t.translation.truncate().distance(fell_at) < 0.01)
+        // It may take its last step (15 m/s is 0.25 m a tick) before it
+        // falls.
+        .find(|(_, t, _)| t.translation.truncate().distance(fell_at) < 1.0)
         .map(|(e, _, c)| (e, c.0.count_of("pipe") + c.0.count_of("hatchet")))
         .expect("a box where it fell");
     assert_eq!(weapons, 1, "the box holds its weapon");
