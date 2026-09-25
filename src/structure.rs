@@ -13,8 +13,12 @@ use modforge::structure::{
     MonumentDef, PartKind, Rgb, StructureDef, doors_of, floor_plan, parts_of,
 };
 
-use crate::content::{MonumentRegistryRes, starting_bunker};
-use crate::interact::{Door, Interactable};
+use modforge::item::{create, write};
+
+use crate::content::{
+    ItemRegistryRes, MonumentRegistryRes, STARTING_ITEMS, STARTING_NOTE_AT, starting_bunker, starting_note,
+};
+use crate::interact::{Door, Interactable, spawn_item};
 use crate::terrain::WorldRes;
 
 /// Drawing order: floors under walls and furniture, doors on top.
@@ -83,10 +87,38 @@ pub fn spawn_structure(commands: &mut Commands, def: &StructureDef, at: Vec2) ->
     root
 }
 
-/// The starting bunker at the world's bunker point.
-pub fn spawn_bunker(mut commands: Commands, world: Res<WorldRes>) {
-    spawn_structure(&mut commands, &starting_bunker(), world.0.def.bunker);
+/// The starting bunker at the world's bunker point, with its starting
+/// items and the note on the floor.
+pub fn spawn_bunker(mut commands: Commands, world: Res<WorldRes>, items: Res<ItemRegistryRes>) {
+    let at = world.0.def.bunker;
+    spawn_structure(&mut commands, &starting_bunker(), at);
+    let def = |name: &str| {
+        items
+            .0
+            .def(name)
+            .unwrap_or_else(|| panic!("item '{name}' is not registered"))
+    };
+    for (name, count, salt, [x, z], color) in STARTING_ITEMS {
+        spawn_item(
+            &mut commands,
+            def(name),
+            create(def(name), count, &[], 0.0, salt),
+            at + Vec2::new(x, z),
+            color,
+        );
+    }
+    // The note and the world both come from the world's seed.
+    let [x, z] = STARTING_NOTE_AT;
+    spawn_item(
+        &mut commands,
+        def("note"),
+        write(def("note"), starting_note(world.0.seed), 0.0, 13).expect("the note def is a note"),
+        at + Vec2::new(x, z),
+        NOTE_COLOR,
+    );
 }
+
+const NOTE_COLOR: Rgb = [0.9, 0.88, 0.8];
 
 /// Every site's monument as modforge rolled it, and where it stands:
 /// rolled once, read by whatever needs its NPC spots or loot spots.

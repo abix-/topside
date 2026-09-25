@@ -51,6 +51,11 @@ impl Default for Inventory {
     }
 }
 
+/// The hotbar with the slot in the hands (modforge's: the item stays in
+/// the bar, the held slot is what the person holds).
+#[derive(Component, Default)]
+pub struct Hotbar(pub modforge::hud::Hotbar);
+
 /// The one actor map (authority.md ActorMap): modforge issues every
 /// `ActorId`, never reused.
 #[derive(Resource)]
@@ -151,7 +156,13 @@ pub fn spawn_actor(spawn: &mut SpawnActor, def: &ActorDef, at: Vec2, faction: Op
                 faction,
             },
             Transform::from_translation(at.extend(NPC_Z)),
-            (Facing::default(), Inventory::default(), equipment, Firing::default()),
+            (
+                Facing::default(),
+                Inventory::default(),
+                Hotbar::default(),
+                equipment,
+                Firing::default(),
+            ),
             (
                 Survival::default(),
                 ActorCondition::default(),

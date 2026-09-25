@@ -21,6 +21,25 @@ use modforge::structure::{
     CONCRETE_FLOOR, CONCRETE_WALL, LightDef, Opening, Rgb, RoomDef, Side, SolidDef, StructureDef,
 };
 
+/// What lies on the starting bunker's floor (design.md: three days of
+/// food; a can is half a day of hunger and a bottle half a day of
+/// thirst, so six of each), plus the first weapons and a vest: item,
+/// count, salt, where in the bunker's plan (x, z), colour.
+pub const STARTING_ITEMS: [(&str, u32, u64, [f32; 2], Rgb); 8] = [
+    ("canned food", 6, 1, [-1.0, 2.0], [0.2, 0.6, 0.2]),
+    ("water bottle", 5, 3, [-1.0, 2.6], [0.3, 0.5, 0.8]),
+    ("water bottle", 1, 4, [-1.6, 2.6], [0.3, 0.5, 0.8]),
+    ("scrap", 3, 2, [1.0, 2.0], [0.5, 0.5, 0.5]),
+    ("pipe shotgun", 1, 9, [1.6, 2.0], [0.3, 0.3, 0.3]),
+    ("shotgun shell", 8, 10, [1.6, 2.6], [0.8, 0.3, 0.2]),
+    ("pipe", 1, 11, [1.0, 2.6], [0.4, 0.4, 0.45]),
+    ("road sign vest", 1, 12, [2.2, 2.0], [0.2, 0.5, 0.2]),
+];
+
+/// Where the note lies in the starting bunker's plan (x, z): on the
+/// bench, the first question (design.md "The first hour").
+pub const STARTING_NOTE_AT: [f32; 2] = [2.2, 3.5];
+
 /// Which actor def stands at a monument's NPC spot of this danger
 /// (todo 11q: modforge should decide this; until then it is content).
 pub fn def_for_danger(danger: u32) -> &'static str {

@@ -5,6 +5,7 @@
 pub mod actor;
 pub mod ai;
 pub mod combat;
+pub mod hud;
 pub mod input;
 pub mod interact;
 pub mod player;
@@ -77,6 +78,7 @@ pub fn build_app(headless: bool, seed: u64) -> App {
     app.init_resource::<actor::ActorMapRes>();
     app.init_resource::<input::BindingsRes>();
     app.init_resource::<interact::HudRes>();
+    app.init_resource::<interact::OpenContainer>();
     app.add_systems(
         Startup,
         (
@@ -110,11 +112,14 @@ pub fn build_app(headless: bool, seed: u64) -> App {
     if !headless {
         app.add_systems(
             Startup,
-            (terrain::spawn_ground, spawn_camera).after(terrain::roll),
+            (terrain::spawn_ground, spawn_camera, hud::setup).after(terrain::roll),
         );
         // The ONE place raw input is read; headless tests push actions
         // themselves.
-        app.add_systems(Update, (input::read_input, player::camera_follow));
+        app.add_systems(
+            Update,
+            (input::read_input, player::camera_follow, hud::render_note),
+        );
     }
     app
 }

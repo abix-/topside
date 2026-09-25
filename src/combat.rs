@@ -12,9 +12,10 @@ use modforge::combat::{
 };
 use modforge::item::{self, EquipSlot, ItemRegistry};
 
-use crate::actor::{Actor, ActorMapRes, Facing, Personality};
+use crate::actor::{Actor, ActorMapRes, Facing, Hotbar, Inventory, Personality};
 use crate::content::{DamageRegistryRes, ItemRegistryRes};
 use crate::input::{Action, ActionQueue, ThisTick};
+use crate::interact::{Container, spawn_item};
 
 /// Health every actor starts with (the 3D game's number).
 pub const START_HEALTH: f32 = 100.0;
@@ -165,15 +166,57 @@ pub fn melee(
     }
 }
 
-/// Every actor at zero health dies: it leaves the actor map (its id
-/// never returns) and its body leaves the world.
-pub fn die(mut commands: Commands, mut map: ResMut<ActorMapRes>, actors: Query<(Entity, &Health, Option<&Actor>)>) {
-    for (entity, health, actor) in &actors {
-        if health.0.current <= 0.0 {
-            if let Some(actor) = actor {
-                map.0.remove(actor.0);
-            }
-            commands.entity(entity).despawn();
+/// The colour of the box a dead person leaves.
+const DEATH_BOX_COLOR: [f32; 3] = [0.35, 0.25, 0.2];
+
+/// Every actor at zero health dies: everything it carried (inventory,
+/// hotbar, worn gear) goes into one storage box where it fell
+/// (modforge's `loot_all`, a box through `spawn_item`), it leaves the
+/// actor map (its id never returns), and its body leaves the world.
+pub fn die(
+    mut commands: Commands,
+    items: Res<ItemRegistryRes>,
+    tick: Res<crate::SimTick>,
+    mut map: ResMut<ActorMapRes>,
+    mut dying: Query<(
+        Entity,
+        &Health,
+        &Transform,
+        Option<&Actor>,
+        Option<&mut Inventory>,
+        Option<&mut Hotbar>,
+        Option<&mut Equipment>,
+    )>,
+) {
+    for (entity, health, transform, actor, inventory, hotbar, worn) in &mut dying {
+        if health.0.current > 0.0 {
+            continue;
         }
+        if let (Some(mut inventory), Some(mut hotbar), Some(mut worn)) = (inventory, hotbar, worn) {
+            let loot = item::loot_all(&mut inventory.0, &mut hotbar.0.slots, &mut worn.0);
+            if !loot.is_empty()
+                && let Some(box_def) = items.0.def("storage box")
+            {
+                // A death box holds everything, however much that is.
+                let mut contents = item::Inventory::new(loot.len().max(box_def.storage.unwrap_or(1)));
+                for stack in loot {
+                    let max = items.0.def(&stack.item).map_or(1, |d| d.max_stack);
+                    contents.add(stack, max);
+                }
+                let salt = actor.map_or(0, |a| a.0.0);
+                let dropped = spawn_item(
+                    &mut commands,
+                    box_def,
+                    item::create(box_def, 1, &[], tick.0 as f32, salt),
+                    transform.translation.truncate(),
+                    DEATH_BOX_COLOR,
+                );
+                commands.entity(dropped).insert(Container(contents));
+            }
+        }
+        if let Some(actor) = actor {
+            map.0.remove(actor.0);
+        }
+        commands.entity(entity).despawn();
     }
 }
