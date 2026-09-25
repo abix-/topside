@@ -6,7 +6,7 @@
 use bevy::prelude::*;
 use modforge::hud::{
     Holder, Holders, OpenPanel, SlotRef, end_drag, hotbar_key, slot_label, start_drag, toggle_panel,
-    transfer_slot, HOTBAR_SLOTS,
+    transfer_slot, use_slot, HOTBAR_SLOTS,
 };
 
 use crate::actor::{Dead, Hotbar, Inventory, INVENTORY_SLOTS, Survival};
@@ -63,6 +63,7 @@ fn slot_row(parent: &mut ChildSpawnerCommands, holder: Holder, from: usize, to: 
                 ))
                 .observe(hover_slot)
                 .observe(leave_slot)
+                .observe(click_slot)
                 .observe(drag_from_slot)
                 .observe(drop_on_slot);
             }
@@ -194,6 +195,62 @@ pub fn render(
             _ => *visibility = Visibility::Hidden,
         }
     }
+}
+
+/// The vitals line: health, hunger, thirst, always shown.
+#[derive(Component)]
+pub struct VitalsText;
+
+pub fn setup_vitals(mut commands: Commands) {
+    commands.spawn((
+        VitalsText,
+        Text::new(""),
+        TextFont::from_font_size(18.0),
+        Node {
+            position_type: PositionType::Absolute,
+            top: Val::Px(12.0),
+            left: Val::Px(12.0),
+            ..default()
+        },
+    ));
+}
+
+pub fn render_vitals(
+    players: Query<(&crate::combat::Health, &Survival), With<Player>>,
+    mut texts: Query<&mut Text, With<VitalsText>>,
+) {
+    let (Ok((health, needs)), Ok(mut text)) = (players.single(), texts.single_mut()) else {
+        return;
+    };
+    text.0 = format!(
+        "Health {:.0}   Hunger {:.0}   Thirst {:.0}",
+        health.0.current, needs.0.hunger, needs.0.thirst
+    );
+}
+
+/// A click on a slot uses what is in it (modforge's `use_slot`): food
+/// and drink are eaten, worn gear is put on.
+fn click_slot(click: On<Pointer<Click>>, slots: Query<&SlotUi>, mut commands: Commands) {
+    if let Ok(slot) = slots.get(click.entity) {
+        commands.run_system_cached_with(use_slot_system, slot.0);
+    }
+}
+
+/// Use the player's `slot` (modforge's `use_slot`).
+pub fn use_slot_system(
+    slot: In<SlotRef>,
+    registry: Res<ItemRegistryRes>,
+    mut players: Query<(&mut Survival, &mut Inventory, &mut Hotbar, &mut Equipment), With<Player>>,
+) {
+    let Ok((mut needs, mut inventory, mut hotbar, mut worn)) = players.single_mut() else {
+        return;
+    };
+    let holder = match slot.holder {
+        Holder::Inventory => &mut inventory.0,
+        Holder::Hotbar => &mut hotbar.0.slots,
+        Holder::Container => return,
+    };
+    let _ = use_slot(&mut needs.0, holder, slot.index, &registry.0, &mut worn.0);
 }
 
 /// The death message, shown while the player is dead.

@@ -10,6 +10,7 @@ pub mod input;
 pub mod interact;
 pub mod player;
 pub mod structure;
+pub mod survival;
 pub mod terrain;
 
 pub use topside_content as content;
@@ -80,6 +81,7 @@ pub fn build_app(headless: bool, seed: u64) -> App {
     app.init_resource::<interact::HudRes>();
     app.init_resource::<interact::OpenContainer>();
     app.init_resource::<hud::HoveredSlot>();
+    app.init_resource::<survival::Rates>();
     app.add_systems(
         Startup,
         (
@@ -102,6 +104,7 @@ pub fn build_app(headless: bool, seed: u64) -> App {
             tick_system,
             ai::think,
             input::drain_actions,
+            survival::survival_tick,
             hud::hud_keys,
             player::roll,
             player::aim,
@@ -118,7 +121,14 @@ pub fn build_app(headless: bool, seed: u64) -> App {
     if !headless {
         app.add_systems(
             Startup,
-            (terrain::spawn_ground, spawn_camera, hud::setup, hud::setup_death).after(terrain::roll),
+            (
+                terrain::spawn_ground,
+                spawn_camera,
+                hud::setup,
+                hud::setup_death,
+                hud::setup_vitals,
+            )
+                .after(terrain::roll),
         );
         // The ONE place raw input is read; headless tests push actions
         // themselves.
@@ -129,6 +139,7 @@ pub fn build_app(headless: bool, seed: u64) -> App {
                 player::camera_follow,
                 hud::render,
                 hud::render_death,
+                hud::render_vitals,
             ),
         );
     }

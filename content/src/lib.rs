@@ -40,6 +40,11 @@ pub const STARTING_ITEMS: [(&str, u32, u64, [f32; 2], Rgb); 8] = [
 /// bench, the first question (design.md "The first hour").
 pub const STARTING_NOTE_AT: [f32; 2] = [2.2, 3.5];
 
+/// One game day in real seconds (the 3D game's Valheim-scale pacing;
+/// tune later). A full stomach lasts one, a full canteen half of one,
+/// rest one awake.
+pub const GAME_DAY_SECS: f32 = 1200.0;
+
 /// Who waits outside the starting bunker's door and where in its plan
 /// (x, z): a scavenger 6 m past the door (the 3D game's first fight).
 pub const DOOR_ENEMY: (&str, [f32; 2]) = ("scavenger", [0.0, -10.0]);
