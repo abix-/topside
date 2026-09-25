@@ -34,7 +34,17 @@ fn swing(app: &mut App, target: Entity) -> f32 {
 
 #[test]
 fn armor_takes_its_share_and_zero_health_kills() {
-    let (mut app, player) = game();
+    let (mut app, _) = game();
+    // Someone who is not the player (the player wakes in the bunker).
+    let player = app
+        .world_mut()
+        .spawn((
+            Transform::default(),
+            Protection::default(),
+            Equipment::default(),
+            Health::default(),
+        ))
+        .id();
     let bare = swing(&mut app, player);
     assert!(bare > 0.0);
     let after_one = app.world().get::<Health>(player).unwrap().0.current;

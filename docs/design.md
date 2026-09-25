@@ -1173,11 +1173,14 @@ closer to the sun.
 
 ## Death and difficulty
 
-Topside has a custom difficulty level, and the player controls how death
-works through it.
+The player is no different from any NPC; everyone is equal (2026-09-25).
+The world is persistent and nobody cheats death: when the player dies,
+everything they carried drops in a death box where they fell, exactly
+like any NPC's death box. This replaces the earlier plan of a
+keep-items setting built first.
 
-- Initially two death settings: drop items on death, or keep items on death.
-- We build keep-items-on-death first because it is easier.
+What happens to the player after the box drops is not decided yet;
+until it is, they wake in the bunker with nothing.
 
 ## The v1 session model (operator, 2026-08-22)
 

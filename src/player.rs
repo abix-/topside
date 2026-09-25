@@ -40,6 +40,12 @@ const PLAYER_COLOR: Color = Color::srgb(0.9, 0.75, 0.3);
 )]
 pub struct Player;
 
+/// Where the player wakes: the bunker, at the start and after every
+/// death.
+pub fn wake_point(world: &WorldRes) -> Vec3 {
+    world.0.def.bunker.extend(PLAYER_Z)
+}
+
 /// The one place the player enters the world: at the bunker.
 pub fn spawn_player(mut commands: Commands, world: Res<WorldRes>) {
     commands.spawn((
@@ -49,7 +55,7 @@ pub fn spawn_player(mut commands: Commands, world: Res<WorldRes>) {
             custom_size: Some(Vec2::splat(PLAYER_SIZE)),
             ..default()
         },
-        Transform::from_translation(world.0.def.bunker.extend(PLAYER_Z)),
+        Transform::from_translation(wake_point(&world)),
         // A nose on the side the person faces.
         children![(
             Sprite {

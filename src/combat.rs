@@ -16,6 +16,8 @@ use crate::actor::{Actor, ActorMapRes, Facing, Hotbar, Inventory, Personality};
 use crate::content::{DamageRegistryRes, ItemRegistryRes};
 use crate::input::{Action, ActionQueue, ThisTick};
 use crate::interact::{Container, spawn_item};
+use crate::player::{Player, wake_point};
+use crate::terrain::WorldRes;
 
 /// Health every actor starts with (the 3D game's number).
 pub const START_HEALTH: f32 = 100.0;
@@ -170,26 +172,31 @@ pub fn melee(
 /// The colour of the box a dead person leaves.
 const DEATH_BOX_COLOR: [f32; 3] = [0.35, 0.25, 0.2];
 
-/// Every actor at zero health dies: everything it carried (inventory,
-/// hotbar, worn gear) goes into one storage box where it fell
-/// (modforge's `loot_all`, a box through `spawn_item`), it leaves the
-/// actor map (its id never returns), and its body leaves the world.
+/// Every actor at zero health dies the same way, the player included
+/// (design.md "Death and difficulty": everyone is equal): everything it
+/// carried (inventory, hotbar, worn gear) goes into one storage box
+/// where it fell (modforge's `loot_all`, a box through `spawn_item`).
+/// An NPC then leaves the actor map (its id never returns) and the
+/// world; the player wakes in the bunker with nothing.
 pub fn die(
     mut commands: Commands,
     items: Res<ItemRegistryRes>,
     tick: Res<crate::SimTick>,
+    world: Res<WorldRes>,
     mut map: ResMut<ActorMapRes>,
     mut dying: Query<(
         Entity,
-        &Health,
-        &Transform,
+        &mut Health,
+        &mut Transform,
+        Has<Player>,
         Option<&Actor>,
+        Option<&mut Firing>,
         Option<&mut Inventory>,
         Option<&mut Hotbar>,
         Option<&mut Equipment>,
     )>,
 ) {
-    for (entity, health, transform, actor, inventory, hotbar, worn) in &mut dying {
+    for (entity, mut health, mut transform, is_player, actor, firing, inventory, hotbar, worn) in &mut dying {
         if health.0.current > 0.0 {
             continue;
         }
@@ -214,6 +221,16 @@ pub fn die(
                 );
                 commands.entity(dropped).insert(Container(contents));
             }
+        }
+        if is_player {
+            // Not decided yet what comes after (design.md); for now the
+            // player wakes in the bunker, whole, carrying nothing.
+            health.0.current = health.0.max;
+            if let Some(mut firing) = firing {
+                *firing = Firing::default();
+            }
+            transform.translation = wake_point(&world);
+            continue;
         }
         if let Some(actor) = actor {
             map.0.remove(actor.0);
