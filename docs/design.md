@@ -1174,13 +1174,18 @@ closer to the sun.
 ## Death and difficulty
 
 The player is no different from any NPC; everyone is equal (2026-09-25).
+The player's person is just one more person in the world, and the world
+does not care about them.
 The world is persistent and nobody cheats death: when the player dies,
 everything they carried drops in a death box where they fell, exactly
 like any NPC's death box. This replaces the earlier plan of a
 keep-items setting built first.
 
-What happens to the player after the box drops is not decided yet;
-until it is, they wake in the bunker with nothing.
+This is a game of loops: a roguelike in a persistent living world
+(2026-09-25). When the player dies they get a death message and the
+option to respawn. The world they died in keeps running, their death
+box stays where they fell, and they respawn in the bunker carrying
+nothing.
 
 ## The v1 session model (operator, 2026-08-22)
 

@@ -6,9 +6,10 @@
 mod common;
 
 use bevy::prelude::*;
-use common::{game, out_in_the_open, position};
+use common::{act, game, out_in_the_open, position};
 use modforge::item::create;
-use topside::actor::{Hotbar, Inventory, Npc};
+use topside::actor::{Dead, Hotbar, Inventory, Npc};
+use topside::input::Action;
 use topside::combat::Health;
 use topside::content::ItemRegistryRes;
 use topside::interact::Container;
@@ -48,9 +49,19 @@ fn the_player_drops_a_death_box_like_anyone_and_wakes_with_nothing() {
         .expect("a death box where the player fell");
     assert_eq!((cans_in_box, pipes_in_box), (3, 1));
 
-    // The player wakes in the bunker, whole, carrying nothing.
+    // Dead: the death message shows until the player chooses to go
+    // again; the world keeps running.
+    assert!(app.world().get::<Dead>(player).is_some(), "dead, waiting to respawn");
+    for _ in 0..30 {
+        app.update();
+    }
+    assert!(app.world().get::<Dead>(player).is_some(), "still waiting");
+
+    // Respawn: in the bunker, whole, carrying nothing.
+    act(&mut app, player, &[Action::Respawn]);
+    assert!(app.world().get::<Dead>(player).is_none(), "back in the world");
     let bunker = app.world().resource::<WorldRes>().0.def.bunker;
-    assert!(position(&app, player).distance(bunker) < 1.0, "woke in the bunker");
+    assert!(position(&app, player).distance(bunker) < 1.0, "respawned in the bunker");
     let health = &app.world().get::<Health>(player).unwrap().0;
     assert_eq!(health.current, health.max);
     assert_eq!(app.world().get::<Inventory>(player).unwrap().0.count_of("canned food"), 0);

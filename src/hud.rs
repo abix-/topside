@@ -9,7 +9,7 @@ use modforge::hud::{
     transfer_slot, HOTBAR_SLOTS,
 };
 
-use crate::actor::{Hotbar, Inventory, INVENTORY_SLOTS, Survival};
+use crate::actor::{Dead, Hotbar, Inventory, INVENTORY_SLOTS, Survival};
 use crate::combat::Equipment;
 use crate::content::ItemRegistryRes;
 use crate::input::{Action, ThisTick};
@@ -193,6 +193,44 @@ pub fn render(
             }
             _ => *visibility = Visibility::Hidden,
         }
+    }
+}
+
+/// The death message, shown while the player is dead.
+#[derive(Component)]
+pub struct DeathPanel;
+
+pub fn setup_death(mut commands: Commands) {
+    commands
+        .spawn((
+            DeathPanel,
+            Node {
+                position_type: PositionType::Absolute,
+                width: Val::Percent(100.0),
+                height: Val::Percent(100.0),
+                justify_content: JustifyContent::Center,
+                align_items: AlignItems::Center,
+                ..default()
+            },
+            BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.6)),
+            Visibility::Hidden,
+        ))
+        .with_children(|p| {
+            p.spawn((
+                Text::new("You died.\n\nEverything you carried lies where you fell.\n\nPress Enter to respawn."),
+                TextFont::from_font_size(28.0),
+                TextLayout::justify(Justify::Center),
+            ));
+        });
+}
+
+pub fn render_death(
+    players: Query<Has<Dead>, With<Player>>,
+    mut panels: Query<&mut Visibility, With<DeathPanel>>,
+) {
+    let dead = players.single().unwrap_or(false);
+    if let Ok(mut v) = panels.single_mut() {
+        *v = if dead { Visibility::Visible } else { Visibility::Hidden };
     }
 }
 

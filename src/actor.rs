@@ -42,6 +42,12 @@ impl Facing {
     }
 }
 
+/// A person who has died and not come back yet: not in the world, not
+/// seen, not acting. An NPC never has it (it leaves the world); the
+/// player has it between the death message and respawning.
+#[derive(Component, Default, Clone, Copy, Debug, PartialEq)]
+pub struct Dead;
+
 /// What a person carries.
 #[derive(Component)]
 pub struct Inventory(pub item::Inventory);

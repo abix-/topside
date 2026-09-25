@@ -47,6 +47,7 @@ fn key_of(code: KeyCode) -> Option<Key> {
         KeyCode::KeyT => Key::T,
         KeyCode::Tab => Key::Tab,
         KeyCode::Escape => Key::Escape,
+        KeyCode::Enter => Key::Enter,
         KeyCode::ShiftLeft => Key::ShiftLeft,
         KeyCode::ShiftRight => Key::ShiftRight,
         KeyCode::Digit1 => Key::Digit1,
@@ -109,7 +110,8 @@ pub fn read_input(
             | Action::Inventory
             | Action::Cancel
             | Action::Hotbar { .. }
-            | Action::Transfer { .. } => true,
+            | Action::Transfer { .. }
+            | Action::Respawn => true,
             Action::Look { .. } | Action::Aim { .. } | Action::Drop | Action::Fly => false,
         };
         if allowed {

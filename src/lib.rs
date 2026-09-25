@@ -108,19 +108,25 @@ pub fn build_app(headless: bool, seed: u64) -> App {
             player::movement,
             combat::melee,
             combat::die,
+            player::respawn,
         )
             .chain(),
     );
     if !headless {
         app.add_systems(
             Startup,
-            (terrain::spawn_ground, spawn_camera, hud::setup).after(terrain::roll),
+            (terrain::spawn_ground, spawn_camera, hud::setup, hud::setup_death).after(terrain::roll),
         );
         // The ONE place raw input is read; headless tests push actions
         // themselves.
         app.add_systems(
             Update,
-            (input::read_input, player::camera_follow, hud::render),
+            (
+                input::read_input,
+                player::camera_follow,
+                hud::render,
+                hud::render_death,
+            ),
         );
     }
     app

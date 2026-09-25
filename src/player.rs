@@ -6,9 +6,9 @@
 use avian2d::prelude::*;
 use bevy::prelude::*;
 
-use crate::actor::{Facing, Hotbar, Inventory, Personality, Survival};
+use crate::actor::{Dead, Facing, Hotbar, Inventory, Personality, Survival};
 use crate::combat::{Equipment, Firing, Health, Protection};
-use crate::input::{ActionQueue, Actions, ThisTick};
+use crate::input::{Action, ActionQueue, Actions, ThisTick};
 use crate::terrain::WorldRes;
 
 /// Metres per second on foot: three times the 3D game's 5 (design.md
@@ -72,7 +72,7 @@ const NOSE_COLOR: Color = Color::srgb(0.25, 0.2, 0.1);
 
 /// Every actor faces the point it aims at this tick, and its picture
 /// turns with it.
-pub fn aim(mut actors: Query<(&ThisTick, Option<&Firing>, &mut Facing, &mut Transform)>) {
+pub fn aim(mut actors: Query<(&ThisTick, Option<&Firing>, &mut Facing, &mut Transform), Without<Dead>>) {
     for (this_tick, firing, mut facing, mut transform) in &mut actors {
         // Committed to a swing: it goes where it was aimed.
         if firing.is_some_and(|f| f.0.committed()) {
@@ -96,7 +96,10 @@ pub fn aim(mut actors: Query<(&ThisTick, Option<&Firing>, &mut Facing, &mut Tran
 pub fn movement(
     time: Res<Time<Fixed>>,
     move_and_slide: MoveAndSlide,
-    mut actors: Query<(Entity, &ThisTick, &Collider, Option<&Personality>, Option<&Firing>, &mut Transform)>,
+    mut actors: Query<
+        (Entity, &ThisTick, &Collider, Option<&Personality>, Option<&Firing>, &mut Transform),
+        Without<Dead>,
+    >,
 ) {
     let config = MoveAndSlideConfig::default();
     for (entity, this_tick, shape, personality, firing, mut transform) in &mut actors {
@@ -125,6 +128,25 @@ pub fn movement(
             )
             .position;
         transform.translation = to.extend(transform.translation.z);
+    }
+}
+
+/// A dead player's Respawn this tick: back in the world at the bunker,
+/// carrying nothing (the death box keeps what they had).
+pub fn respawn(
+    mut commands: Commands,
+    world: Res<WorldRes>,
+    mut dead: Query<(Entity, &ThisTick, &mut Transform), (With<Player>, With<Dead>)>,
+) {
+    for (entity, this_tick, mut transform) in &mut dead {
+        if !this_tick.0.iter().any(|s| matches!(s.action, Action::Respawn)) {
+            continue;
+        }
+        transform.translation = wake_point(&world);
+        commands
+            .entity(entity)
+            .remove::<(Dead, ColliderDisabled)>()
+            .insert(Visibility::Inherited);
     }
 }
 

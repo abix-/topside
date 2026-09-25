@@ -15,7 +15,7 @@ use modforge::survival::Need;
 
 use crate::SimTick;
 use crate::actor::{
-    Actor, ActorActivity, ActorCombat, ActorCondition, Facing, Home, Memory, Npc, Personality, Survival,
+    Actor, ActorActivity, ActorCombat, ActorCondition, Dead, Facing, Home, Memory, Npc, Personality, Survival,
 };
 use crate::combat::Health;
 use crate::content::{ActorRegistryRes, FactionRegistryRes, ItemRegistryRes, MonumentRegistryRes, PLAYER_FACTION};
@@ -56,7 +56,7 @@ pub struct Thinkers<'w, 's> {
         'w,
         's,
         (Entity, &'static Transform, Option<&'static Npc>, Option<&'static Actor>),
-        Or<(With<Npc>, With<Player>)>,
+        (Or<(With<Npc>, With<Player>)>, Without<Dead>),
     >,
 }
 

@@ -12,12 +12,11 @@ use modforge::combat::{
 };
 use modforge::item::{self, ItemRegistry};
 
-use crate::actor::{Actor, ActorMapRes, Facing, Hotbar, Inventory, Personality};
+use crate::actor::{Actor, ActorMapRes, Dead, Facing, Hotbar, Inventory, Personality};
 use crate::content::{DamageRegistryRes, ItemRegistryRes};
 use crate::input::{Action, ActionQueue, ThisTick};
 use crate::interact::{Container, spawn_item};
-use crate::player::{Player, wake_point};
-use crate::terrain::WorldRes;
+use crate::player::Player;
 
 /// Health every actor starts with (the 3D game's number).
 pub const START_HEALTH: f32 = 100.0;
@@ -85,8 +84,8 @@ pub fn melee(
             &Collider,
             &mut Firing,
             &mut Transform,
-        )>,
-        Query<(Entity, &Transform, &Firing, &Protection, &Equipment, &mut Health)>,
+        ), Without<Dead>>,
+        Query<(Entity, &Transform, &Firing, &Protection, &Equipment, &mut Health), Without<Dead>>,
     )>,
 ) {
     let dt = time.delta_secs();
@@ -182,12 +181,11 @@ pub fn die(
     mut commands: Commands,
     items: Res<ItemRegistryRes>,
     tick: Res<crate::SimTick>,
-    world: Res<WorldRes>,
     mut map: ResMut<ActorMapRes>,
     mut dying: Query<(
         Entity,
         &mut Health,
-        &mut Transform,
+        &Transform,
         Has<Player>,
         Option<&Actor>,
         Option<&mut Firing>,
@@ -196,7 +194,7 @@ pub fn die(
         Option<&mut Equipment>,
     )>,
 ) {
-    for (entity, mut health, mut transform, is_player, actor, firing, inventory, hotbar, worn) in &mut dying {
+    for (entity, mut health, transform, is_player, actor, firing, inventory, hotbar, worn) in &mut dying {
         if health.0.current > 0.0 {
             continue;
         }
@@ -223,13 +221,15 @@ pub fn die(
             }
         }
         if is_player {
-            // Not decided yet what comes after (design.md); for now the
-            // player wakes in the bunker, whole, carrying nothing.
+            // The death message and the choice to respawn (design.md
+            // "Death and difficulty"); the world keeps running meanwhile.
             health.0.current = health.0.max;
             if let Some(mut firing) = firing {
                 *firing = Firing::default();
             }
-            transform.translation = wake_point(&world);
+            commands
+                .entity(entity)
+                .insert((Dead, Visibility::Hidden, ColliderDisabled));
             continue;
         }
         if let Some(actor) = actor {

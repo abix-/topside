@@ -10,7 +10,7 @@ use modforge::hud::{HudState, InteractKind, InteractResult, OpenPanel, interact}
 use modforge::item::{self, ItemDef, ItemKind, ItemStack};
 use modforge::structure::Rgb;
 
-use crate::actor::Inventory;
+use crate::actor::{Dead, Inventory};
 use crate::content::ItemRegistryRes;
 use crate::input::{Action, ThisTick};
 use crate::player::Player;
@@ -107,7 +107,7 @@ pub fn interact_on_use(
     mut hud: ResMut<HudRes>,
     mut open: ResMut<OpenContainer>,
     registry: Res<ItemRegistryRes>,
-    mut players: Query<(&Transform, &ThisTick, &mut Inventory), With<Player>>,
+    mut players: Query<(&Transform, &ThisTick, &mut Inventory), (With<Player>, Without<Dead>)>,
     mut things: Query<
         (Entity, &mut Interactable, Option<&mut Door>, Option<&WorldItem>, &mut Transform),
         Without<Player>,
