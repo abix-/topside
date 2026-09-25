@@ -1288,6 +1288,16 @@ replacing 3D first person. The low poly cel shaded models are rendered to
 pictures ahead of time, and the game draws only pictures, from Factorio's
 view.
 
+## What 2D changes (2026-09-25)
+
+- The bunker still grows downward. Each level is its own floor, seen from
+  above, one floor at a time.
+- Buildings we explore are seen one floor at a time.
+- Nobody sees behind walls. The player sees only what their person can
+  see, the way Project Zomboid does it.
+- Combat changes the most in 2D and has to be made fun for 2D. Not
+  decided yet.
+
 ## Future goals (not v1)
 
 These are good ideas that are too hard or too expensive for the first
