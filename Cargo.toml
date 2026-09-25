@@ -1,5 +1,5 @@
 [workspace]
-members = ["3d"]
+members = ["3d", "content"]
 resolver = "3"
 
 # Fast iteration: light optimization for our code, full for deps

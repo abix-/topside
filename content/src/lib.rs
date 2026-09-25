@@ -6,7 +6,7 @@ use bevy::math::{Vec2, Vec3};
 use bevy::prelude::Resource;
 use modforge::worldgen::{BiomeRule, Generator, WorldDef};
 use modforge::actor::{ActorDef, ActorRegistry, Behaviour};
-use modforge::biome::{BiomeDef, BiomeRegistry, ScatterSpec};
+use modforge::biome::{BiomeDef, BiomeRegistry, ScatterDef};
 use modforge::combat::{DamageDef, DamageRegistry, DamageType, Falloff};
 use modforge::faction::{FactionDef, FactionKind, FactionRegistry};
 use modforge::memory::GoodFor;
@@ -15,7 +15,7 @@ use modforge::item::{Armor, CombatStats, EquipSlot, FoodStats, ItemDef, ItemKind
 use modforge::monument::Roll;
 use modforge::monument::{
     Arrangement, BuildingRegistry, BuildingSize, BuildingSlot, BuildingTypeDef,
-    MonumentRegistry, MonumentTypeDef, PropSpec,
+    MonumentRegistry, MonumentTypeDef, PropDef,
 };
 use modforge::structure::Rgb;
 
@@ -335,6 +335,7 @@ pub fn register_items(reg: &mut ItemRegistry) {
     let items = [
         ItemDef {
             name: "note".to_string(),
+            unique: false,
             kind: ItemKind::Note,
             max_stack: 1,
             quality_siblings: 1,
@@ -347,6 +348,7 @@ pub fn register_items(reg: &mut ItemRegistry) {
         },
         ItemDef {
             name: "canned food".to_string(),
+            unique: false,
             kind: ItemKind::Food,
             max_stack: 10,
             quality_siblings: 1,
@@ -362,6 +364,7 @@ pub fn register_items(reg: &mut ItemRegistry) {
         },
         ItemDef {
             name: "water bottle".to_string(),
+            unique: false,
             kind: ItemKind::Food,
             max_stack: 5,
             quality_siblings: 1,
@@ -377,6 +380,7 @@ pub fn register_items(reg: &mut ItemRegistry) {
         },
         ItemDef {
             name: "storage box".to_string(),
+            unique: false,
             kind: ItemKind::Deployable,
             max_stack: 1,
             quality_siblings: 1,
@@ -391,6 +395,7 @@ pub fn register_items(reg: &mut ItemRegistry) {
         },
         ItemDef {
             name: "scrap".to_string(),
+            unique: false,
             kind: ItemKind::Material,
             max_stack: 20,
             quality_siblings: 1,
@@ -403,6 +408,7 @@ pub fn register_items(reg: &mut ItemRegistry) {
         },
         ItemDef {
             name: "cloth".to_string(),
+            unique: false,
             kind: ItemKind::Material,
             max_stack: 20,
             quality_siblings: 1,
@@ -415,6 +421,7 @@ pub fn register_items(reg: &mut ItemRegistry) {
         },
         ItemDef {
             name: "pipe".to_string(),
+            unique: false,
             kind: ItemKind::Weapon,
             max_stack: 1,
             quality_siblings: 3,
@@ -435,6 +442,7 @@ pub fn register_items(reg: &mut ItemRegistry) {
         },
         ItemDef {
             name: "hatchet".to_string(),
+            unique: false,
             kind: ItemKind::Tool,
             max_stack: 1,
             quality_siblings: 3,
@@ -456,6 +464,7 @@ pub fn register_items(reg: &mut ItemRegistry) {
         // instant out to 40 m (the hybrid's instant part).
         ItemDef {
             name: "pipe shotgun".to_string(),
+            unique: false,
             kind: ItemKind::Weapon,
             max_stack: 1,
             quality_siblings: 3,
@@ -475,6 +484,7 @@ pub fn register_items(reg: &mut ItemRegistry) {
         },
         ItemDef {
             name: "shotgun shell".to_string(),
+            unique: false,
             kind: ItemKind::Material,
             max_stack: 20,
             quality_siblings: 1,
@@ -488,6 +498,7 @@ pub fn register_items(reg: &mut ItemRegistry) {
         // Worn in the chest slot; guards the chest only.
         ItemDef {
             name: "road sign vest".to_string(),
+            unique: false,
             kind: ItemKind::Tool,
             max_stack: 1,
             quality_siblings: 3,
@@ -646,13 +657,13 @@ pub fn register_monuments(reg: &mut MonumentRegistry, buildings: &BuildingRegist
     };
     // Minor sites (design.md: "something worth stopping for every 30
     // seconds"): props around a loot box, no buildings, close spacing.
-    let prop = |size: [f32; 3], color: Rgb, count: (u32, u32), radius: f32| PropSpec {
+    let prop = |size: [f32; 3], color: Rgb, count: (u32, u32), radius: f32| PropDef {
         size: Vec3::from(size),
         color,
         count,
         radius,
     };
-    let minor = |name: &str, danger, suffix: &str, props: Vec<PropSpec>| MonumentTypeDef {
+    let minor = |name: &str, danger, suffix: &str, props: Vec<PropDef>| MonumentTypeDef {
         name: name.to_string(),
         slots: vec![],
         arrangement: Clustered,
@@ -815,12 +826,12 @@ pub fn register_biomes(reg: &mut BiomeRegistry) {
             name: "forest".to_string(),
             ground: [0.22, 0.38, 0.18],
             scatter: vec![
-                ScatterSpec {
+                ScatterDef {
                     size: Vec3::new(0.6, 5.0, 0.6),
                     color: [0.3, 0.22, 0.12],
                     density: 0.04,
                 },
-                ScatterSpec {
+                ScatterDef {
                     size: Vec3::new(0.8, 0.5, 0.8),
                     color: [0.4, 0.4, 0.35],
                     density: 0.01,
@@ -843,7 +854,7 @@ pub fn register_biomes(reg: &mut BiomeRegistry) {
             name: "wasteland".to_string(),
             ground: [0.55, 0.48, 0.35],
             scatter: vec![
-                ScatterSpec {
+                ScatterDef {
                     size: Vec3::new(1.2, 0.6, 0.8),
                     color: [0.5, 0.42, 0.32],
                     density: 0.005,
@@ -867,7 +878,7 @@ pub fn register_biomes(reg: &mut BiomeRegistry) {
             name: "ruins".to_string(),
             ground: [0.4, 0.4, 0.42],
             scatter: vec![
-                ScatterSpec {
+                ScatterDef {
                     size: Vec3::new(2.0, 1.5, 1.5),
                     color: [0.45, 0.43, 0.4],
                     density: 0.008,

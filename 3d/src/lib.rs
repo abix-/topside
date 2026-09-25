@@ -7,7 +7,7 @@ pub mod ai;
 pub mod bunker;
 pub mod cel;
 pub mod combat;
-pub mod content;
+pub use topside_content as content;
 pub mod control_plane;
 pub mod ground;
 pub mod hud;

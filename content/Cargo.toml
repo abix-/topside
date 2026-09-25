@@ -1,0 +1,14 @@
+[package]
+name = "topside-content"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+# Every registry both games read: items, damage, biomes, monuments,
+# actors, factions, and the world defs.
+[lib]
+name = "topside_content"
+
+[dependencies]
+bevy = "0.19"
+modforge = { path = "../../modforge/modforge" }
