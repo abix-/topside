@@ -123,6 +123,22 @@ nearest known place not yet checked, or walk the road to the next
 site; what is found goes into memory. Wander is the floor when no
 need presses, so nobody ever stands frozen.
 
+## How often a person thinks (2026-09-25)
+
+A person decides at their reaction time, not every tick. Reaction time
+depends on what they are doing:
+
+- Combat: every 250 ms (4 times a second).
+- Awake: every 1 second.
+- Asleep: never.
+
+Being hit does not earn an extra reaction; a person under fire is at the
+combat level like anyone fighting. Being tired slows reaction time, and
+personality makes a person quicker or slower. Between decisions a person
+keeps doing what they decided; walking and steering still run every
+tick. Each person's thinking is spread across ticks by who they are, so
+only a slice of people think in any one tick.
+
 ## What things are good for
 
 The RimWorld way (decided 2026-08-22, operator: "we're building this
