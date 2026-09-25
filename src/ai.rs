@@ -9,19 +9,21 @@
 use bevy::prelude::*;
 use modforge::actor::ActorId;
 use modforge::brain::{Activity, CombatState, Decision, Do, Perception, REACH, decide, reaction_ticks};
+use modforge::hud::{Holder, SlotRef};
+use modforge::item::ItemRegistry;
 use modforge::memory::{Known, food_worth};
 use modforge::monument::Roll;
 use modforge::survival::Need;
 
 use crate::SimTick;
 use crate::actor::{
-    Actor, ActorActivity, ActorCombat, ActorCondition, Dead, Facing, Home, Inventory, Memory, NextThink, Npc,
-    PLACE_KEY, Personality, Survival,
+    Actor, ActorActivity, ActorCombat, ActorCondition, Dead, Facing, Home, Hotbar, Inventory, Memory, NextThink,
+    Npc, PLACE_KEY, Personality, Survival,
 };
 use crate::combat::Health;
 use crate::content::{ActorRegistryRes, FactionRegistryRes, ItemRegistryRes, MonumentRegistryRes, PLAYER_FACTION};
 use crate::input::{Action, Actions};
-use crate::interact::{Container, WorldItem};
+use crate::interact::{Container, OpenContainer, WorldItem};
 use crate::player::Player;
 use crate::sight::Sight;
 
@@ -55,15 +57,22 @@ pub struct Thinkers<'w, 's> {
             &'static Npc,
             &'static Transform,
             &'static Facing,
-            &'static mut Health,
-            &'static mut Survival,
+            &'static Health,
+            &'static Survival,
             &'static Personality,
             Option<&'static Home>,
             &'static mut Memory,
             &'static mut ActorActivity,
             &'static mut ActorCombat,
             &'static mut ActorCondition,
-            (&'static mut Actions, &'static mut Inventory, &'static mut NextThink, Has<Dead>),
+            (
+                &'static mut Actions,
+                &'static Inventory,
+                &'static Hotbar,
+                &'static OpenContainer,
+                &'static mut NextThink,
+                Has<Dead>,
+            ),
         ),
     >,
     others: Query<
@@ -100,7 +109,7 @@ pub fn think(
     sight: Sight,
     mut life: ResMut<LifeStats>,
     mut thinkers: Thinkers,
-    mut containers: Query<(Entity, &mut Container, &Transform, &WorldItem)>,
+    containers: Query<(Entity, &Container, &Transform, &WorldItem)>,
 ) {
     // What a remembered thing is worth for a need, the RimWorld way: for
     // hunger and thirst, the food seen inside it (modforge
@@ -140,15 +149,15 @@ pub fn think(
         npc,
         transform,
         facing,
-        mut health,
-        mut needs,
+        health,
+        needs,
         personality,
         home,
         mut memory,
         mut activity,
         mut combat,
         mut condition,
-        (mut actions, mut inventory, mut next_think, dead),
+        (mut actions, inventory, hotbar, open, mut next_think, dead),
     ) in &mut thinkers.npcs
     {
         // Not their moment yet: they keep doing what they decided.
@@ -200,7 +209,15 @@ pub fn think(
                 memory.0.see(key.to_bits(), kind, ground(*at), tick.0);
             }
         }
+        // A box they have open, they see into, as the player sees the
+        // open box's panel.
+        if let Some((key, container)) = open.0.and_then(|e| containers.get(e).ok().map(|(_, c, _, _)| (e, c))) {
+            memory.0.checked(key.to_bits(), kinds_in(&container.0), tick.0);
+            life.looked += 1;
+        }
         memory.0.forget_old(tick.0);
+        let carried = carried_slot(inventory, hotbar, &items.0, Need::Hunger);
+        let carries_drink = carried_slot(inventory, hotbar, &items.0, Need::Thirst).is_some();
         let perception = Perception {
             now: tick.0,
             position: ground(here),
@@ -214,6 +231,8 @@ pub fn think(
             hostile,
             arrived,
             storm_coming,
+            carries_food: carried.is_some(),
+            carries_drink,
             memory: &memory.0,
             personality: &personality.0,
             worth: &worth,
@@ -241,6 +260,12 @@ pub fn think(
         for action in decided {
             actions.0.push(tick.0, action);
         }
+        // What the brain wants done is done with the player's own actions:
+        // Use opens a box, Transfer takes a stack out of the open box,
+        // UseSlot eats or drinks, Cancel closes the box.
+        let mut act = |action: Action| actions.0.push(tick.0, action);
+        let the_box = |key: u64| Entity::try_from_bits(key).filter(|e| containers.contains(*e));
+        let mut keep_open = None;
         match do_now {
             None => {}
             Some(Do::Sleep) => {
@@ -249,54 +274,90 @@ pub fn think(
             }
             Some(Do::Wake) => condition.0.asleep = false,
             // A key is a place (PLACE_KEY set) or a box (an entity): a
-            // place is visited; looking in a box notes what it holds; a
-            // box that is gone is forgotten.
+            // place is visited; a box is opened to see inside (noted
+            // above at the next think); a box that is gone is forgotten.
             Some(Do::Check { key }) if key & PLACE_KEY != 0 => memory.0.visited(key, tick.0),
-            Some(Do::Check { key }) => match Entity::try_from_bits(key).and_then(|e| containers.get(e).ok()) {
-                Some((_, container, _, _)) => {
-                    memory.0.checked(key, kinds_in(&container.0), tick.0);
-                    life.looked += 1;
+            Some(Do::Check { key }) => match the_box(key) {
+                Some(found) => {
+                    keep_open = Some(found);
+                    open_box(&mut act, open, found);
                 }
                 None => memory.0.gone(key),
             },
-            Some(Do::Eat { key }) => {
-                // Take one food out of the box into the inventory, then eat
-                // it through the one eating path the player uses; what it
-                // heals, it heals. Memory learns what is left.
-                let Some((_, mut container, _, _)) =
-                    Entity::try_from_bits(key).and_then(|e| containers.get_mut(e).ok())
-                else {
-                    memory.0.gone(key);
-                    continue;
-                };
-                let food = container.0.slots.iter().position(|s| {
-                    s.as_ref()
-                        .and_then(|s| items.0.def(&s.item))
-                        .is_some_and(|d| d.food.is_some())
-                });
-                let taken = food.and_then(|slot| container.0.remove(slot, 1));
-                memory.0.checked(key, kinds_in(&container.0), tick.0);
-                let Some(taken) = taken else {
-                    continue;
-                };
-                let name = taken.item.clone();
-                let max = items.0.def(&name).map_or(1, |d| d.max_stack);
-                if let Some(rest) = inventory.0.add(taken, max) {
-                    // No room: put it back.
-                    let _ = container.0.add(rest, max);
-                    continue;
-                }
-                if let Some(mine) = inventory
-                    .0
-                    .slots
-                    .iter()
-                    .position(|s| s.as_ref().is_some_and(|s| s.item == name))
-                    && let Ok(heal) = needs.0.eat_from_slot(&mut inventory.0, mine, &items.0)
-                {
-                    health.0.current = (health.0.current + heal).min(health.0.max);
+            Some(Do::EatCarried { need }) => {
+                if let Some(slot) = carried_slot(inventory, hotbar, &items.0, need) {
+                    act(Action::UseSlot { slot });
                     life.ate += 1;
                 }
             }
+            // At the box: eat what they carry, else take food out of the
+            // open box, else open it.
+            Some(Do::Eat { key }) => {
+                let Some(found) = the_box(key) else {
+                    memory.0.gone(key);
+                    continue;
+                };
+                keep_open = Some(found);
+                let need = if needs.0.hunger <= needs.0.thirst { Need::Hunger } else { Need::Thirst };
+                let other = if need == Need::Hunger { Need::Thirst } else { Need::Hunger };
+                if let Some(slot) = carried_slot(inventory, hotbar, &items.0, need)
+                    .or_else(|| carried_slot(inventory, hotbar, &items.0, other))
+                {
+                    act(Action::UseSlot { slot });
+                    life.ate += 1;
+                } else if open.0 == Some(found) {
+                    let (_, container, _, _) = containers.get(found).expect("checked above");
+                    let food = [need, other].into_iter().find_map(|n| {
+                        container.0.slots.iter().position(|s| s.as_ref().is_some_and(|s| answers(&items.0, &s.item, n)))
+                    });
+                    if let Some(index) = food {
+                        let slot = SlotRef {
+                            holder: Holder::Container,
+                            index,
+                        };
+                        act(Action::Transfer { half: false, slot: Some(slot) });
+                    }
+                } else {
+                    open_box(&mut act, open, found);
+                }
+            }
+        }
+        // Done with a box: close it, as the player closes the panel.
+        if open.0.is_some() && open.0 != keep_open {
+            act(Action::Cancel);
         }
     }
+}
+
+/// Open `found`: close whatever else is open, then use it.
+fn open_box(act: &mut impl FnMut(Action), open: &OpenContainer, found: Entity) {
+    if open.0 == Some(found) {
+        return;
+    }
+    if open.0.is_some() {
+        act(Action::Cancel);
+    }
+    act(Action::Use);
+}
+
+/// Whether `item` answers `need` when eaten or drunk.
+fn answers(items: &ItemRegistry, item: &str, need: Need) -> bool {
+    items.def(item).and_then(|d| d.food.as_ref()).is_some_and(|f| match need {
+        Need::Hunger => f.hunger > 0.0,
+        Need::Thirst => f.thirst > 0.0,
+        Need::Rest | Need::Safety => false,
+    })
+}
+
+/// The first slot in a person's bags (hotbar, then inventory) holding
+/// something that answers `need`.
+fn carried_slot(inventory: &Inventory, hotbar: &Hotbar, items: &ItemRegistry, need: Need) -> Option<SlotRef> {
+    let find = |slots: &modforge::item::Inventory, holder| {
+        slots
+            .slots
+            .iter()
+            .position(|s| s.as_ref().is_some_and(|s| answers(items, &s.item, need)))
+            .map(|index| SlotRef { holder, index })
+    };
+    find(&hotbar.0.slots, Holder::Hotbar).or_else(|| find(&inventory.0, Holder::Inventory))
 }

@@ -9,10 +9,10 @@ use bevy::prelude::*;
 use common::{alone, game};
 use modforge::brain::CombatState;
 use modforge::item::{Inventory as Items, create};
-use topside::actor::{ActorCombat, Memory, SpawnActor, Survival, spawn_actor};
+use topside::actor::{ActorCombat, Home, Inventory, Memory, SpawnActor, Survival, spawn_actor};
 use topside::combat::Bullet;
-use topside::content::{ActorRegistryRes, ItemRegistryRes};
-use topside::interact::{Container, spawn_item};
+use topside::content::{ActorRegistryRes, ItemRegistryRes, OTHER_BUNKERS};
+use topside::interact::{Container, Door, spawn_item};
 use topside::terrain::WorldRes;
 
 /// A wanderer (no faction) standing on open ground east of the bunker,
@@ -101,13 +101,45 @@ fn a_hungry_person_walks_to_the_box_it_saw_food_in_and_eats() {
         memory.0.checked(found.to_bits(), vec!["canned food".to_string()], 1);
     }
     app.world_mut().get_mut::<Survival>(npc).unwrap().0.hunger = 20.0;
-    for _ in 0..180 {
+    // It opens the box (Use), takes the cans (Transfer), and eats one
+    // from its own bags (UseSlot): the player's own actions, one a
+    // reaction apart.
+    for _ in 0..600 {
         app.update();
     }
-    // The brain keeps eating until fed (hunger past 90): from 20 that is
-    // two cans.
-    assert_eq!(app.world().get::<Container>(found).unwrap().0.count_of("canned food"), 1, "two cans eaten");
-    assert!(app.world().get::<Survival>(npc).unwrap().0.hunger >= 90.0, "fed");
+    assert_eq!(app.world().get::<Container>(found).unwrap().0.count_of("canned food"), 0, "the cans taken");
+    let carried = app.world().get::<Inventory>(npc).unwrap().0.count_of("canned food");
+    assert!((1..3).contains(&carried), "it carries the rest: {carried}");
+    assert!(app.world().get::<Survival>(npc).unwrap().0.hunger > 50.0, "it ate");
+}
+
+/// A bunker person opens its bunker's door with the player's own Use
+/// and goes out to food it knows of outside.
+#[test]
+fn a_bunker_person_opens_its_door_and_goes_out_for_food() {
+    let (mut app, _) = game();
+    let world = app.world_mut();
+    let (npc, home) = world
+        .query::<(Entity, &Home)>()
+        .iter(world)
+        .map(|(e, h)| (e, h.0))
+        .min_by_key(|(e, _)| *e)
+        .expect("a bunker person");
+    let bunker = *OTHER_BUNKERS.iter().min_by(|a, b| a.distance(home).total_cmp(&b.distance(home))).unwrap();
+    // It knows only a box of cans 15 m out past the door (the door is on
+    // the bunker's -y side, as the player's).
+    app.world_mut().get_mut::<Memory>(npc).unwrap().0 = Default::default();
+    let found = hungry_for(&mut app, npc, bunker + Vec2::new(0.0, -15.0));
+    for _ in 0..900 {
+        app.update();
+    }
+    assert!(
+        app.world().get::<Container>(found).unwrap().0.count_of("canned food") < 3,
+        "it got out and took the cans"
+    );
+    let world = app.world_mut();
+    let opened = world.query::<&Door>().iter(world).any(|d| d.open && d.closed_center.distance(bunker) < 6.0);
+    assert!(opened, "through its door, opened");
 }
 
 #[test]

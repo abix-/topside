@@ -16,6 +16,7 @@ use modforge::path::{Cell, grid_path};
 use crate::SimTick;
 use crate::actor::{Dead, Npc};
 use crate::input::{Action, ActionQueue, ThisTick};
+use crate::interact::Door;
 use crate::player::PLAYER_SIZE;
 
 /// Cells expanded before a plan gives up (a 60 m by 60 m search).
@@ -37,16 +38,27 @@ pub struct NavPath {
 }
 
 /// What stands in the way: only static bodies that are not sensors.
+/// A door never does: a person opens it on the way.
 #[derive(SystemParam)]
 pub struct Nav<'w, 's> {
     spatial: SpatialQuery<'w, 's>,
     bodies: Query<'w, 's, &'static RigidBody>,
     sensors: Query<'w, 's, (), With<Sensor>>,
+    doors: Query<'w, 's, &'static Door>,
 }
 
 impl Nav<'_, '_> {
     fn solid(&self, e: Entity) -> bool {
-        !self.sensors.contains(e) && self.bodies.get(e).is_ok_and(|b| *b == RigidBody::Static)
+        !self.sensors.contains(e) && !self.doors.contains(e) && self.bodies.get(e).is_ok_and(|b| *b == RigidBody::Static)
+    }
+
+    /// A closed door within reach ahead of someone at `here` stepping
+    /// along `way`.
+    fn closed_door_ahead(&self, here: Vec2, way: Vec2) -> bool {
+        self.doors.iter().any(|d| {
+            let to = d.closed_center - here;
+            !d.open && to.length() <= crate::interact::REACH && to.dot(way) > 0.0
+        })
     }
 
     /// A body can walk straight from `from` to `to`.
@@ -127,6 +139,14 @@ pub fn steer(
             path.waypoints.clear();
             set_move(&mut this_tick, Vec2::ZERO, tick.0);
             continue;
+        }
+        // A closed door in the way: open it, with the player's own Use.
+        let way = path.waypoints.front().copied().unwrap_or(target) - here;
+        if nav.closed_door_ahead(here, way) && !ActionQueue::has(&this_tick.0, Action::Use) {
+            this_tick.0.push(modforge::actions::Stamped {
+                tick: tick.0,
+                action: Action::Use,
+            });
         }
         if nav.clear(entity, here, target) {
             path.waypoints.clear();
