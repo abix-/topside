@@ -8,7 +8,7 @@ use avian2d::prelude::*;
 use bevy::prelude::*;
 use modforge::combat::{
     BULLET_SPEED, FireTimer, Health as HealthStats, Hit, HitResult, MultiDamage, Protection as ProtectionStats,
-    Swing, Trigger, pellet_directions_2d, resolve_hit,
+    RollTimer, Swing, Trigger, pellet_directions_2d, resolve_hit,
 };
 use modforge::item::{self, ItemRegistry};
 
@@ -59,6 +59,22 @@ pub fn hit_actor(
 #[derive(Component, Default, Debug, PartialEq)]
 pub struct Firing(pub FireTimer);
 
+/// A person's dodge roll (modforge's `RollTimer`, combat.md "The roll").
+#[derive(Component, Default, Debug, PartialEq)]
+pub struct Rolling(pub RollTimer);
+
+impl Rolling {
+    /// Mid roll: committed to it, nothing else until it ends.
+    pub fn busy(rolling: Option<&Rolling>) -> bool {
+        rolling.is_some_and(|r| r.0.rolling())
+    }
+
+    /// In the safe first half: nothing can hurt them.
+    pub fn safe(rolling: Option<&Rolling>) -> bool {
+        rolling.is_some_and(|r| r.0.safe())
+    }
+}
+
 /// How far the overhead steps in, in metres.
 pub const OVERHEAD_STEP: f32 = 0.5;
 
@@ -82,18 +98,28 @@ pub fn melee(
             &Health,
             Option<&Personality>,
             &Collider,
+            Option<&Rolling>,
             &mut Firing,
             &mut Transform,
         ), Without<Dead>>,
-        Query<(Entity, &Transform, &Firing, &Protection, &Equipment, &mut Health), Without<Dead>>,
+        Query<
+            (Entity, &Transform, &Firing, Option<&Rolling>, &Protection, &Equipment, &mut Health),
+            Without<Dead>,
+        >,
     )>,
 ) {
     let dt = time.delta_secs();
     // Every swing that goes this tick: who, from where, which way,
     // which move, how far, how hard, with what.
     let mut swings: Vec<(Entity, Vec2, Vec2, Swing, f32, f32, String)> = Vec::new();
-    for (entity, this_tick, facing, hotbar, health, personality, shape, mut firing, mut transform) in &mut actors.p0() {
+    for (entity, this_tick, facing, hotbar, health, personality, shape, rolling, mut firing, mut transform) in
+        &mut actors.p0()
+    {
         firing.0.tick(dt);
+        // Mid roll: committed to it, no swinging.
+        if Rolling::busy(rolling) {
+            continue;
+        }
         if !ActionQueue::has(&this_tick.0, Action::Attack) {
             // Let go: the next press may chain on the beat.
             firing.0.release();
@@ -152,9 +178,13 @@ pub fn melee(
         let Some(def) = damage.0.def(&damage_name) else {
             continue;
         };
-        for (target, at, guard, own, target_worn, mut target_health) in &mut actors.p1() {
+        for (target, at, guard, rolling, own, target_worn, mut target_health) in &mut actors.p1() {
             let offset = at.translation.truncate() - here;
-            if target == attacker || !swing.covers(offset, facing, reach) || guard.0.blocking() {
+            if target == attacker
+                || !swing.covers(offset, facing, reach)
+                || guard.0.blocking()
+                || Rolling::safe(rolling)
+            {
                 continue;
             }
             let hit = Hit {
@@ -195,11 +225,24 @@ pub fn fire(
     tick: Res<crate::SimTick>,
     items: Res<ItemRegistryRes>,
     mut shooters: Query<
-        (Entity, &ThisTick, &Facing, &Hotbar, &Transform, &mut Firing, Option<&mut Inventory>),
+        (
+            Entity,
+            &ThisTick,
+            &Facing,
+            &Hotbar,
+            &Transform,
+            Option<&Rolling>,
+            &mut Firing,
+            Option<&mut Inventory>,
+        ),
         Without<Dead>,
     >,
 ) {
-    for (entity, this_tick, facing, hotbar, transform, mut firing, inventory) in &mut shooters {
+    for (entity, this_tick, facing, hotbar, transform, rolling, mut firing, inventory) in &mut shooters {
+        // Mid roll: committed to it, no shooting.
+        if Rolling::busy(rolling) {
+            continue;
+        }
         let Some(gun) = hotbar
             .0
             .held_stack()
@@ -262,6 +305,7 @@ pub fn fly(
     damage: Res<DamageRegistryRes>,
     spatial: SpatialQuery,
     sensors: Query<(), With<Sensor>>,
+    rollers: Query<&Rolling>,
     mut bullets: Query<(Entity, &mut Bullet, &mut Transform)>,
     mut targets: Query<(&Protection, &Equipment, &mut Health), Without<Dead>>,
 ) {
@@ -272,9 +316,12 @@ pub fn fly(
         let from = transform.translation.truncate();
         let reach = step.min(bullet.range - bullet.travelled);
         let filter = SpatialQueryFilter::from_excluded_entities([bullet.shooter]);
-        let hit = Dir2::new(bullet.direction).ok().and_then(|dir| {
-            spatial.cast_ray_predicate(from, dir, reach, true, &filter, &|e| !sensors.contains(e))
-        });
+        // Items lying about and anyone in the safe half of a roll let a
+        // bullet through.
+        let passes = |e: Entity| sensors.contains(e) || Rolling::safe(rollers.get(e).ok());
+        let hit = Dir2::new(bullet.direction)
+            .ok()
+            .and_then(|dir| spatial.cast_ray_predicate(from, dir, reach, true, &filter, &|e| !passes(e)));
         if let Some(hit) = hit {
             if targets.contains(hit.entity) {
                 let at = bullet.travelled + hit.distance;

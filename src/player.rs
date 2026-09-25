@@ -7,7 +7,8 @@ use avian2d::prelude::*;
 use bevy::prelude::*;
 
 use crate::actor::{Dead, Facing, Hotbar, Inventory, Personality, Survival};
-use crate::combat::{Equipment, Firing, Health, Protection};
+use crate::combat::{Equipment, Firing, Health, Protection, Rolling};
+use modforge::combat::ROLL_SPEED_MULT;
 use crate::input::{Action, ActionQueue, Actions, ThisTick};
 use crate::terrain::WorldRes;
 
@@ -34,6 +35,7 @@ const PLAYER_COLOR: Color = Color::srgb(0.9, 0.75, 0.3);
     Protection,
     Equipment,
     Firing,
+    Rolling,
     Transform,
     RigidBody = RigidBody::Kinematic,
     Collider = Collider::circle(PLAYER_SIZE / 2.0)
@@ -70,12 +72,32 @@ pub fn spawn_player(mut commands: Commands, world: Res<WorldRes>) {
 
 const NOSE_COLOR: Color = Color::srgb(0.25, 0.2, 0.1);
 
+/// Every actor's roll this tick (combat.md "The roll"): Roll starts one
+/// along the move held, or where the person faces with no move held,
+/// unless mid swing; the direction is then locked until it ends.
+pub fn roll(
+    time: Res<Time<Fixed>>,
+    mut actors: Query<(&ThisTick, &Facing, Option<&Firing>, &mut Rolling), Without<Dead>>,
+) {
+    for (this_tick, facing, firing, mut rolling) in &mut actors {
+        rolling.0.tick(time.delta_secs());
+        if firing.is_some_and(|f| f.0.committed()) || !ActionQueue::has(&this_tick.0, Action::Roll) {
+            continue;
+        }
+        let (x, y) = ActionQueue::movement(&this_tick.0);
+        let way = Vec2::new(x, y);
+        rolling.0.start(if way == Vec2::ZERO { facing.direction() } else { way });
+    }
+}
+
 /// Every actor faces the point it aims at this tick, and its picture
 /// turns with it.
-pub fn aim(mut actors: Query<(&ThisTick, Option<&Firing>, &mut Facing, &mut Transform), Without<Dead>>) {
-    for (this_tick, firing, mut facing, mut transform) in &mut actors {
-        // Committed to a swing: it goes where it was aimed.
-        if firing.is_some_and(|f| f.0.committed()) {
+pub fn aim(
+    mut actors: Query<(&ThisTick, Option<&Firing>, Option<&Rolling>, &mut Facing, &mut Transform), Without<Dead>>,
+) {
+    for (this_tick, firing, rolling, mut facing, mut transform) in &mut actors {
+        // Committed to a swing or a roll: it goes where it was aimed.
+        if firing.is_some_and(|f| f.0.committed()) || Rolling::busy(rolling) {
             continue;
         }
         let Some((x, y)) = ActionQueue::aim(&this_tick.0) else {
@@ -97,20 +119,34 @@ pub fn movement(
     time: Res<Time<Fixed>>,
     move_and_slide: MoveAndSlide,
     mut actors: Query<
-        (Entity, &ThisTick, &Collider, Option<&Personality>, Option<&Firing>, &mut Transform),
+        (
+            Entity,
+            &ThisTick,
+            &Collider,
+            Option<&Personality>,
+            Option<&Firing>,
+            Option<&Rolling>,
+            &mut Transform,
+        ),
         Without<Dead>,
     >,
 ) {
     let config = MoveAndSlideConfig::default();
-    for (entity, this_tick, shape, personality, firing, mut transform) in &mut actors {
+    for (entity, this_tick, shape, personality, firing, rolling, mut transform) in &mut actors {
         // Committed to a swing: no walking until it ends.
         if firing.is_some_and(|f| f.0.committed()) {
             continue;
         }
-        let (x, y) = ActionQueue::movement(&this_tick.0);
         // Swift people walk faster, slow ones slower.
         let speed = WALK_SPEED * personality.map_or(1.0, |p| p.0.speed_mult());
-        let velocity = Vec2::new(x, y).normalize_or_zero() * speed;
+        // Mid roll: faster, along the direction it started with.
+        let velocity = match rolling.filter(|r| r.0.rolling()) {
+            Some(r) => r.0.direction * speed * ROLL_SPEED_MULT,
+            None => {
+                let (x, y) = ActionQueue::movement(&this_tick.0);
+                Vec2::new(x, y).normalize_or_zero() * speed
+            }
+        };
         if velocity == Vec2::ZERO {
             continue;
         }

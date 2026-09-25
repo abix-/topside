@@ -10,7 +10,7 @@ use modforge::brain::{Activity, CombatState};
 use modforge::item;
 use modforge::survival::{Condition, SurvivalStats};
 
-use crate::combat::{Equipment, Firing, Health, Protection};
+use crate::combat::{Equipment, Firing, Health, Protection, Rolling};
 use crate::content::{ActorRegistryRes, DOOR_ENEMY, FactionRegistryRes, ItemRegistryRes, def_for_danger};
 use crate::terrain::WorldRes;
 use crate::input::{Actions, ThisTick};
@@ -171,6 +171,7 @@ pub fn spawn_actor(spawn: &mut SpawnActor, def: &ActorDef, at: Vec2, faction: Op
                 hotbar,
                 Equipment::default(),
                 Firing::default(),
+                Rolling::default(),
             ),
             (
                 Survival::default(),

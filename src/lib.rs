@@ -103,6 +103,7 @@ pub fn build_app(headless: bool, seed: u64) -> App {
             ai::think,
             input::drain_actions,
             hud::hud_keys,
+            player::roll,
             player::aim,
             interact::interact_on_use,
             player::movement,
