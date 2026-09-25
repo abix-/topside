@@ -39,6 +39,7 @@ fn key_of(code: KeyCode) -> Option<Key> {
         KeyCode::KeyA => Key::A,
         KeyCode::KeyS => Key::S,
         KeyCode::KeyD => Key::D,
+        KeyCode::KeyE => Key::E,
         _ => return None,
     })
 }
@@ -60,9 +61,13 @@ pub fn read_input(
     let next = tick.0 + 1;
     let mut moved = false;
     for action in bindings.0.resolve(&pressed, &just_pressed) {
-        if let Action::Move { .. } = action {
-            moved = true;
-            actions.0.push(next, action);
+        match action {
+            Action::Move { .. } => {
+                moved = true;
+                actions.0.push(next, action);
+            }
+            Action::Use => actions.0.push(next, action),
+            _ => {}
         }
     }
     // Every frame states its movement, zero included, so a released

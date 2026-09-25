@@ -6,6 +6,7 @@
 use avian2d::prelude::*;
 use bevy::prelude::*;
 
+use crate::actor::Inventory;
 use crate::input::{ActionQueue, Actions, ThisTick};
 use crate::terrain::WorldRes;
 
@@ -23,6 +24,7 @@ const PLAYER_COLOR: Color = Color::srgb(0.9, 0.75, 0.3);
 #[require(
     Actions,
     ThisTick,
+    Inventory,
     Transform,
     RigidBody = RigidBody::Kinematic,
     Collider = Collider::circle(PLAYER_SIZE / 2.0)

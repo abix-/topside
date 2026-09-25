@@ -17,7 +17,61 @@ use modforge::monument::{
     Arrangement, BuildingRegistry, BuildingSize, BuildingSlot, BuildingTypeDef,
     MonumentRegistry, MonumentTypeDef, PropDef,
 };
-use modforge::structure::Rgb;
+use modforge::structure::{
+    CONCRETE_FLOOR, CONCRETE_WALL, LightDef, Opening, Rgb, RoomDef, Side, SolidDef, StructureDef,
+};
+
+/// The starting bunker (design.md "The bunker"): one room with exactly
+/// a bed, a crafting bench, and the food crate, door north toward
+/// topside.
+pub fn starting_bunker() -> StructureDef {
+    StructureDef {
+        name: "the starting bunker".to_string(),
+        wall_color: CONCRETE_WALL,
+        floor_color: CONCRETE_FLOOR,
+        rooms: vec![RoomDef {
+            origin: Vec3::ZERO,
+            interior: Vec3::new(6.0, 3.0, 8.0),
+            wall_thickness: 0.2,
+            openings: vec![Opening {
+                side: Side::North,
+                offset: 0.0,
+                width: 1.2,
+                sill: 0.0,
+                door: true,
+            }],
+            floor: true,
+            ceiling: true,
+        }],
+        stairs: vec![],
+        furniture: vec![
+            // The bed.
+            SolidDef {
+                center: Vec3::new(-2.4, 0.25, 3.0),
+                size: Vec3::new(1.0, 0.5, 2.0),
+                color: [0.30, 0.35, 0.55],
+            },
+            // The crafting bench.
+            SolidDef {
+                center: Vec3::new(2.2, 0.45, 3.5),
+                size: Vec3::new(1.6, 0.9, 0.7),
+                color: [0.45, 0.32, 0.18],
+            },
+            // The food crate.
+            SolidDef {
+                center: Vec3::new(2.5, 0.35, -3.3),
+                size: Vec3::new(0.7, 0.7, 0.7),
+                color: [0.55, 0.45, 0.20],
+            },
+        ],
+        lights: vec![LightDef {
+            position: Vec3::new(0.0, 2.7, 0.0),
+            color: [1.0, 0.9, 0.7],
+            intensity: 400_000.0,
+        }],
+        parts: vec![],
+    }
+}
 
 /// The item registry as an app resource. Every production stack is
 /// created from a def looked up here.

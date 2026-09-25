@@ -2,8 +2,11 @@
 //! consuming the modforge crate and the content both games share.
 //! Ownership map: docs/authority.md.
 
+pub mod actor;
 pub mod input;
+pub mod interact;
 pub mod player;
+pub mod structure;
 pub mod terrain;
 
 pub use topside_content as content;
@@ -66,15 +69,26 @@ pub fn build_app(headless: bool, seed: u64) -> App {
     app.init_resource::<content::BiomeRegistryRes>();
     app.init_resource::<content::MonumentRegistryRes>();
     app.init_resource::<input::BindingsRes>();
+    app.init_resource::<interact::HudRes>();
     app.add_systems(
         Startup,
-        (terrain::roll, (terrain::spawn_solids, player::spawn_player)).chain(),
+        (
+            terrain::roll,
+            (terrain::spawn_solids, structure::spawn_bunker, player::spawn_player),
+        )
+            .chain(),
     );
     // Every fixed step: count it, drain each actor's due actions, then
     // every system reads actions, never keys.
     app.add_systems(
         FixedUpdate,
-        (tick_system, input::drain_actions, player::movement).chain(),
+        (
+            tick_system,
+            input::drain_actions,
+            interact::interact_on_use,
+            player::movement,
+        )
+            .chain(),
     );
     if !headless {
         app.add_systems(
