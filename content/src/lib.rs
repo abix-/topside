@@ -21,6 +21,12 @@ use modforge::structure::{
     CONCRETE_FLOOR, CONCRETE_WALL, LightDef, Opening, Rgb, RoomDef, Side, SolidDef, StructureDef,
 };
 
+/// Which actor def stands at a monument's NPC spot of this danger
+/// (todo 11q: modforge should decide this; until then it is content).
+pub fn def_for_danger(danger: u32) -> &'static str {
+    if danger < 3 { "scavenger" } else { "raider" }
+}
+
 /// The starting bunker (design.md "The bunker"): one room with exactly
 /// a bed, a crafting bench, and the food crate, door north toward
 /// topside.

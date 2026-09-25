@@ -3,6 +3,7 @@
 //! Ownership map: docs/authority.md.
 
 pub mod actor;
+pub mod ai;
 pub mod combat;
 pub mod input;
 pub mod interact;
@@ -71,6 +72,9 @@ pub fn build_app(headless: bool, seed: u64) -> App {
     app.init_resource::<content::MonumentRegistryRes>();
     app.init_resource::<content::ItemRegistryRes>();
     app.init_resource::<content::DamageRegistryRes>();
+    app.init_resource::<content::ActorRegistryRes>();
+    app.init_resource::<content::FactionRegistryRes>();
+    app.init_resource::<actor::ActorMapRes>();
     app.init_resource::<input::BindingsRes>();
     app.init_resource::<interact::HudRes>();
     app.add_systems(
@@ -83,6 +87,7 @@ pub fn build_app(headless: bool, seed: u64) -> App {
                 structure::spawn_monuments,
                 player::spawn_player,
             ),
+            actor::populate_monuments,
         )
             .chain(),
     );
@@ -92,6 +97,7 @@ pub fn build_app(headless: bool, seed: u64) -> App {
         FixedUpdate,
         (
             tick_system,
+            ai::think,
             input::drain_actions,
             player::aim,
             interact::interact_on_use,

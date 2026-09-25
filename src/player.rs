@@ -6,7 +6,7 @@
 use avian2d::prelude::*;
 use bevy::prelude::*;
 
-use crate::actor::{Facing, Inventory};
+use crate::actor::{Facing, Inventory, Personality};
 use crate::combat::{Equipment, Health, Protection};
 use crate::input::{ActionQueue, Actions, ThisTick};
 use crate::terrain::WorldRes;
@@ -82,12 +82,14 @@ pub fn aim(mut actors: Query<(&ThisTick, &mut Facing, &mut Transform)>) {
 pub fn movement(
     time: Res<Time<Fixed>>,
     move_and_slide: MoveAndSlide,
-    mut actors: Query<(Entity, &ThisTick, &Collider, &mut Transform)>,
+    mut actors: Query<(Entity, &ThisTick, &Collider, Option<&Personality>, &mut Transform)>,
 ) {
     let config = MoveAndSlideConfig::default();
-    for (entity, this_tick, shape, mut transform) in &mut actors {
+    for (entity, this_tick, shape, personality, mut transform) in &mut actors {
         let (x, y) = ActionQueue::movement(&this_tick.0);
-        let velocity = Vec2::new(x, y).normalize_or_zero() * WALK_SPEED;
+        // Swift people walk faster, slow ones slower.
+        let speed = WALK_SPEED * personality.map_or(1.0, |p| p.0.speed_mult());
+        let velocity = Vec2::new(x, y).normalize_or_zero() * speed;
         if velocity == Vec2::ZERO {
             continue;
         }
