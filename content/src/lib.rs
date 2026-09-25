@@ -1121,7 +1121,8 @@ mod tests {
     fn all_items_register() {
         let mut reg = ItemRegistry::default();
         register_items(&mut reg);
-        assert_eq!(reg.len(), 11);
+        assert_eq!(reg.len(), 12);
+        assert!(reg.def("bandage").is_some());
         assert!(reg.def("canned food").is_some());
         assert!(reg.def("hatchet").is_some());
         assert_eq!(reg.def("note").map(|d| d.kind), Some(ItemKind::Note));
@@ -1222,6 +1223,18 @@ mod tests {
                 }
             }
             assert!(covered * 10 >= land * 9, "seed {seed}: {covered} of {land} within 150 m");
+        }
+    }
+
+    /// The game rolls a new seed every launch: any seed must give a
+    /// world (a site cut off by water once crashed a launch).
+    #[test]
+    fn forty_seeds_all_roll() {
+        let biomes = BiomeRegistryRes::default();
+        let monuments = MonumentRegistryRes::default();
+        for seed in 100..140u64 {
+            modforge::worldgen::roll_world(&topside_def(), seed, &biomes.0, &monuments.monuments)
+                .unwrap_or_else(|e| panic!("seed {seed}: {e}"));
         }
     }
 

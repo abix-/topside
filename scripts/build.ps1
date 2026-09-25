@@ -121,14 +121,16 @@ switch ($Action) {
         # run, so one failure never hides another (k3sc cargo-lock also
         # builds with the same arguments, so --no-fail-fast cannot go
         # through it).
+        # The content crate's tests too: its world defs must roll.
         $targets = if ($Name) {
-            @("--test $Name")
+            @("-p topside --test $Name")
         } else {
-            @('--lib') + (Get-ChildItem (Join-Path $repo 'tests') -Filter *.rs | ForEach-Object { "--test $($_.BaseName)" })
+            @('-p topside-content', '-p topside --lib') +
+                (Get-ChildItem (Join-Path $repo 'tests') -Filter *.rs | ForEach-Object { "-p topside --test $($_.BaseName)" })
         }
         $code = 0
         foreach ($target in $targets) {
-            $one = Invoke-Cargo "test -p topside $target" $log -Append
+            $one = Invoke-Cargo "test $target" $log -Append
             if ($one -ne 0) { $code = $one }
         }
         Show-Problems $log

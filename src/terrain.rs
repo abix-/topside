@@ -51,6 +51,8 @@ pub fn roll(
     monuments: Res<MonumentRegistryRes>,
 ) {
     let def = world_def(&name.0).expect("the world name is one of content::WORLDS");
+    // The seed in the log, so any world can be rolled again.
+    info!("rolling the world '{}' from seed {}", name.0, seed.0);
     let world = roll_world(&def, seed.0, &biomes.0, &monuments.monuments)
         .expect("the world def rolls with the registered content");
     commands.insert_resource(WorldRes(world));
