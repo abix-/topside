@@ -14,6 +14,7 @@ use crate::combat::{Equipment, Firing, Health, Protection, Rolling};
 use crate::content::{ActorRegistryRes, DOOR_ENEMY, FactionRegistryRes, ItemRegistryRes, def_for_danger};
 use crate::terrain::WorldRes;
 use crate::input::{Actions, ThisTick};
+use crate::interact::{Container, WorldItem};
 use crate::player::PLAYER_SIZE;
 use crate::structure::MonumentsRes;
 use crate::{SimTick, WorldSeed};
@@ -222,6 +223,9 @@ pub fn spawn_door_enemy(mut spawn: SpawnActor, registry: Res<ActorRegistryRes>, 
     spawn_actor(&mut spawn, def, world.0.def.bunker + Vec2::new(x, z), None);
 }
 
+/// How far from a monument's centre its boxes count as home, in metres.
+const HOME_BOXES_WITHIN: f32 = 60.0;
+
 /// Fill every monument's NPC spots through `spawn_actor`, once. Each
 /// person lives there and knows the place from the start (life.md
 /// "Home").
@@ -230,10 +234,18 @@ pub fn populate_monuments(
     registry: Res<ActorRegistryRes>,
     monuments: Res<MonumentsRes>,
     tick: Res<SimTick>,
+    boxes: Query<(Entity, &Transform, &WorldItem), With<Container>>,
 ) {
     for (i, (at, monument)) in monuments.0.iter().enumerate() {
         let mut known = modforge::memory::Memory::default();
         known.see(i as u64, &monument.kind, Vec3::new(at.x, 0.0, at.y), tick.0);
+        // The boxes at home, seen but not looked inside.
+        for (entity, t, item) in &boxes {
+            let p = t.translation.truncate();
+            if p.distance(*at) <= HOME_BOXES_WITHIN {
+                known.see(entity.to_bits(), &item.stack.item, Vec3::new(p.x, 0.0, p.y), tick.0);
+            }
+        }
         for spot in &monument.npc_spots {
             let Some(def) = registry.0.def(def_for_danger(spot.danger)) else {
                 continue;

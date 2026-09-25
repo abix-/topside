@@ -593,9 +593,9 @@ pub fn register_items(reg: &mut ItemRegistry) {
             food: None,
             storage: Some(12),
             armor: None,
-            // A box is where food is: whoever remembers one may come
-            // to eat from it.
-            good_for: GoodFor::new(&[(Need::Hunger, 50.0), (Need::Thirst, 50.0)]),
+            // A box feeds nobody; the food seen inside it does
+            // (modforge `food_worth`, life.md "What things are good for").
+            good_for: Default::default(),
             model: None,
         },
         ItemDef {

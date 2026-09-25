@@ -12,7 +12,9 @@ use modforge::combat::{
 };
 use modforge::item::{self, ItemRegistry};
 
-use crate::actor::{Actor, ActorMapRes, Dead, Facing, Hotbar, Inventory, Personality};
+use modforge::actor::ActorId;
+
+use crate::actor::{Actor, ActorMapRes, Dead, Facing, Hotbar, Inventory, Memory, Personality};
 use crate::content::{DamageRegistryRes, ItemRegistryRes};
 use crate::input::{Action, ActionQueue, ThisTick};
 use crate::interact::{Container, spawn_item};
@@ -99,20 +101,31 @@ pub fn melee(
             Option<&Personality>,
             &Collider,
             Option<&Rolling>,
+            Option<&Actor>,
             &mut Firing,
             &mut Transform,
         ), Without<Dead>>,
         Query<
-            (Entity, &Transform, &Firing, Option<&Rolling>, &Protection, &Equipment, &mut Health),
+            (
+                Entity,
+                &Transform,
+                &Firing,
+                Option<&Rolling>,
+                &Protection,
+                &Equipment,
+                &mut Health,
+                Option<&mut Memory>,
+            ),
             Without<Dead>,
         >,
     )>,
+    tick: Res<crate::SimTick>,
 ) {
     let dt = time.delta_secs();
     // Every swing that goes this tick: who, from where, which way,
     // which move, how far, how hard, with what.
-    let mut swings: Vec<(Entity, Vec2, Vec2, Swing, f32, f32, String)> = Vec::new();
-    for (entity, this_tick, facing, hotbar, health, personality, shape, rolling, mut firing, mut transform) in
+    let mut swings: Vec<(Entity, ActorId, Vec2, Vec2, Swing, f32, f32, String)> = Vec::new();
+    for (entity, this_tick, facing, hotbar, health, personality, shape, rolling, actor, mut firing, mut transform) in
         &mut actors.p0()
     {
         firing.0.tick(dt);
@@ -165,6 +178,7 @@ pub fn melee(
         }
         swings.push((
             entity,
+            actor.map_or(ActorId(0), |a| a.0),
             transform.translation.truncate(),
             facing.direction(),
             swing,
@@ -174,11 +188,11 @@ pub fn melee(
         ));
     }
     // Land them: one hit on everyone inside each swing's shape.
-    for (attacker, here, facing, swing, reach, scale, damage_name) in swings {
+    for (attacker, attacker_id, here, facing, swing, reach, scale, damage_name) in swings {
         let Some(def) = damage.0.def(&damage_name) else {
             continue;
         };
-        for (target, at, guard, rolling, own, target_worn, mut target_health) in &mut actors.p1() {
+        for (target, at, guard, rolling, own, target_worn, mut target_health, memory) in &mut actors.p1() {
             let offset = at.translation.truncate() - here;
             if target == attacker
                 || !swing.covers(offset, facing, reach)
@@ -193,8 +207,19 @@ pub fn melee(
                 distance: offset.length(),
                 location_scale: scale,
             };
-            hit_actor(&hit, own, target_worn, &items.0, &mut target_health);
+            let result = hit_actor(&hit, own, target_worn, &items.0, &mut target_health);
+            struck(memory, attacker_id, here, result.damage_dealt, tick.0);
         }
+    }
+}
+
+/// Someone who takes a hit knows who gave it and where they stood
+/// (life.md "Perception with belief": an NPC hears a hit on itself and
+/// turns on a striker it never saw).
+fn struck(memory: Option<Mut<Memory>>, by: ActorId, from: Vec2, amount: f32, now: u64) {
+    if let Some(mut memory) = memory {
+        memory.0.hurt(by, amount);
+        memory.0.threat(by, Vec3::new(from.x, 0.0, from.y), now);
     }
 }
 
@@ -306,12 +331,14 @@ pub fn fly(
     spatial: SpatialQuery,
     sensors: Query<(), With<Sensor>>,
     rollers: Query<&Rolling>,
+    tick: Res<crate::SimTick>,
+    shooters: Query<(&Transform, Option<&Actor>), Without<Bullet>>,
     mut bullets: Query<(Entity, &mut Bullet, &mut Transform)>,
-    mut targets: Query<(&Protection, &Equipment, &mut Health), Without<Dead>>,
+    mut targets: Query<(&Protection, &Equipment, &mut Health, Option<&mut Memory>), Without<Dead>>,
 ) {
     let step = BULLET_SPEED * time.delta_secs();
-    // (damage def, pellets summed per target) this step.
-    let mut landed: Vec<(String, MultiDamage<Entity>)> = Vec::new();
+    // (shooter, damage def, pellets summed per target) this step.
+    let mut landed: Vec<(Entity, String, MultiDamage<Entity>)> = Vec::new();
     for (entity, mut bullet, mut transform) in &mut bullets {
         let from = transform.translation.truncate();
         let reach = step.min(bullet.range - bullet.travelled);
@@ -325,12 +352,15 @@ pub fn fly(
         if let Some(hit) = hit {
             if targets.contains(hit.entity) {
                 let at = bullet.travelled + hit.distance;
-                match landed.iter_mut().find(|(d, _)| *d == bullet.damage) {
-                    Some((_, multi)) => multi.add(hit.entity, at),
+                match landed
+                    .iter_mut()
+                    .find(|(s, d, _)| *s == bullet.shooter && *d == bullet.damage)
+                {
+                    Some((_, _, multi)) => multi.add(hit.entity, at),
                     None => {
                         let mut multi = MultiDamage::default();
                         multi.add(hit.entity, at);
-                        landed.push((bullet.damage.clone(), multi));
+                        landed.push((bullet.shooter, bullet.damage.clone(), multi));
                     }
                 }
             }
@@ -343,12 +373,15 @@ pub fn fly(
             commands.entity(entity).despawn();
         }
     }
-    for (name, mut multi) in landed {
+    for (shooter, name, mut multi) in landed {
         let Some(def) = damage.0.def(&name) else {
             continue;
         };
+        let (from, by) = shooters
+            .get(shooter)
+            .map_or((Vec2::ZERO, ActorId(0)), |(t, a)| (t.translation.truncate(), a.map_or(ActorId(0), |a| a.0)));
         for (target, pellets, distance) in multi.drain() {
-            let Ok((own, worn, mut health)) = targets.get_mut(target) else {
+            let Ok((own, worn, mut health, memory)) = targets.get_mut(target) else {
                 continue;
             };
             let hit = Hit {
@@ -357,7 +390,8 @@ pub fn fly(
                 distance,
                 location_scale: pellets as f32,
             };
-            hit_actor(&hit, own, worn, &items.0, &mut health);
+            let result = hit_actor(&hit, own, worn, &items.0, &mut health);
+            struck(memory, by, from, result.damage_dealt, tick.0);
         }
     }
 }

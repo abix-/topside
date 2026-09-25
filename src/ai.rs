@@ -9,17 +9,19 @@
 use bevy::prelude::*;
 use modforge::actor::ActorId;
 use modforge::brain::{Activity, Decision, Do, Perception, REACH, decide};
-use modforge::memory::Known;
+use modforge::memory::{Known, food_worth};
 use modforge::monument::Roll;
 use modforge::survival::Need;
 
 use crate::SimTick;
 use crate::actor::{
-    Actor, ActorActivity, ActorCombat, ActorCondition, Dead, Facing, Home, Memory, Npc, Personality, Survival,
+    Actor, ActorActivity, ActorCombat, ActorCondition, Dead, Facing, Home, Inventory, Memory, Npc, Personality,
+    Survival,
 };
 use crate::combat::Health;
 use crate::content::{ActorRegistryRes, FactionRegistryRes, ItemRegistryRes, MonumentRegistryRes, PLAYER_FACTION};
 use crate::input::Actions;
+use crate::interact::{Container, WorldItem};
 use crate::player::Player;
 use crate::sight::Sight;
 
@@ -42,8 +44,8 @@ pub struct Thinkers<'w, 's> {
             &'static Npc,
             &'static Transform,
             &'static Facing,
-            &'static Health,
-            &'static Survival,
+            &'static mut Health,
+            &'static mut Survival,
             &'static Personality,
             Option<&'static Home>,
             &'static mut Memory,
@@ -51,6 +53,7 @@ pub struct Thinkers<'w, 's> {
             &'static mut ActorCombat,
             &'static mut ActorCondition,
             &'static mut Actions,
+            &'static mut Inventory,
         ),
     >,
     others: Query<
@@ -59,6 +62,25 @@ pub struct Thinkers<'w, 's> {
         (Entity, &'static Transform, Option<&'static Npc>, Option<&'static Actor>),
         (Or<(With<Npc>, With<Player>)>, Without<Dead>),
     >,
+}
+
+/// Half the width of what a person sees ahead: a 120 degree cone
+/// (life.md "Perception with belief").
+const HALF_CONE: f32 = std::f32::consts::FRAC_PI_3;
+/// How often a person looks round for things worth remembering, in
+/// ticks (spread across people by id).
+const LOOK_EVERY: u64 = 30;
+
+/// Inside the cone ahead of someone facing `facing` at `here`.
+fn in_cone(facing: &Facing, here: Vec2, at: Vec2) -> bool {
+    let to = at - here;
+    to.length() < 1e-3 || facing.direction().angle_to(to).abs() <= HALF_CONE
+}
+
+/// The kinds of stacks in a box: what a person remembers after looking
+/// inside (life.md: memory stores what it saw).
+fn kinds_in(inventory: &modforge::item::Inventory) -> Vec<String> {
+    inventory.slots.iter().flatten().map(|s| s.item.clone()).collect()
 }
 
 /// Every fixed step: sense, decide, act, for every NPC.
@@ -70,19 +92,25 @@ pub fn think(
     monuments: Res<MonumentRegistryRes>,
     sight: Sight,
     mut thinkers: Thinkers,
+    mut containers: Query<(Entity, &mut Container, &Transform, &WorldItem)>,
 ) {
-    // What a remembered kind of thing is worth for a need: the
-    // registries' answer. An item's kind is an item def; a place's kind
-    // is a monument type.
+    // What a remembered thing is worth for a need, the RimWorld way: for
+    // hunger and thirst, the food seen inside it (modforge
+    // `food_worth`); for rest and safety, what its place's type offers.
     let worth = |known: &Known, need: Need| -> f32 {
-        if let Some(def) = items.0.def(&known.kind) {
-            return def.good_for.satisfies(need);
+        match need {
+            Need::Hunger | Need::Thirst => food_worth(known, need, &items.0),
+            Need::Rest | Need::Safety => monuments
+                .monuments
+                .def(&known.kind)
+                .map_or(0.0, |d| d.good_for.satisfies(need)),
         }
-        monuments
-            .monuments
-            .def(&known.kind)
-            .map_or(0.0, |d| d.good_for.satisfies(need))
     };
+    // Every box once: where, what kind, for looking round.
+    let boxes: Vec<(Entity, Vec2, String)> = containers
+        .iter()
+        .map(|(e, _, t, w)| (e, t.translation.truncate(), w.stack.item.clone()))
+        .collect();
     // The storm is the same for everyone: coming or here, hide.
     let storm_coming = crate::storm::phase(&tick) != modforge::storm::StormPhase::Calm;
     // Everyone's position and faction first, so the pass below holds
@@ -104,8 +132,8 @@ pub fn think(
         npc,
         transform,
         facing,
-        health,
-        needs,
+        mut health,
+        mut needs,
         personality,
         home,
         mut memory,
@@ -113,6 +141,7 @@ pub fn think(
         mut combat,
         mut condition,
         mut actions,
+        mut inventory,
     ) in &mut thinkers.npcs
     {
         let Some(def) = registry.0.def(&npc.def) else {
@@ -120,13 +149,15 @@ pub fn think(
         };
         let here = transform.translation.truncate();
         // Sense: the nearest hostile by the faction table within the
-        // def's sight, with nothing blocking the view (sight.rs).
+        // def's sight, inside the cone ahead, with nothing blocking the
+        // view (sight.rs).
         let hostile = everyone
             .iter()
             .filter(|(e, _, at, faction)| {
                 *e != entity
                     && at.distance(here) <= def.sight
                     && factions.0.hostile(npc.faction.as_deref(), faction.as_deref())
+                    && in_cone(facing, here, *at)
                     && sight.clear(here, *at)
             })
             .min_by(|a, b| a.2.distance(here).total_cmp(&b.2.distance(here)))
@@ -143,6 +174,15 @@ pub fn think(
         condition.0.at_home = at_home;
         if let Some((who, at)) = hostile {
             memory.0.threat(who, at, tick.0);
+        }
+        // Looking round now and then: every box in the cone with a clear
+        // line goes into memory (seen, not yet looked inside).
+        if (tick.0 + actor.0.0) % LOOK_EVERY == 0 {
+            for (key, at, kind) in &boxes {
+                if at.distance(here) <= def.sight && in_cone(facing, here, *at) && sight.clear(here, *at) {
+                    memory.0.see(key.to_bits(), kind, ground(*at), tick.0);
+                }
+            }
         }
         memory.0.forget_old(tick.0);
         let perception = Perception {
@@ -183,9 +223,45 @@ pub fn think(
             None => {}
             Some(Do::Sleep) => condition.0.asleep = true,
             Some(Do::Wake) => condition.0.asleep = false,
-            // Boxes to look in or eat from arrive with loot (todo row
-            // 11); until then the thing is gone from what it knows.
-            Some(Do::Check { key } | Do::Eat { key }) => memory.0.gone(key),
+            Some(Do::Check { key }) => match containers.get(Entity::from_bits(key)) {
+                Ok((_, container, _, _)) => memory.0.checked(key, kinds_in(&container.0), tick.0),
+                Err(_) => memory.0.gone(key),
+            },
+            Some(Do::Eat { key }) => {
+                // Take one food out of the box into the inventory, then eat
+                // it through the one eating path the player uses; what it
+                // heals, it heals. Memory learns what is left.
+                let Ok((_, mut container, _, _)) = containers.get_mut(Entity::from_bits(key)) else {
+                    memory.0.gone(key);
+                    continue;
+                };
+                let food = container.0.slots.iter().position(|s| {
+                    s.as_ref()
+                        .and_then(|s| items.0.def(&s.item))
+                        .is_some_and(|d| d.food.is_some())
+                });
+                let taken = food.and_then(|slot| container.0.remove(slot, 1));
+                memory.0.checked(key, kinds_in(&container.0), tick.0);
+                let Some(taken) = taken else {
+                    continue;
+                };
+                let name = taken.item.clone();
+                let max = items.0.def(&name).map_or(1, |d| d.max_stack);
+                if let Some(rest) = inventory.0.add(taken, max) {
+                    // No room: put it back.
+                    let _ = container.0.add(rest, max);
+                    continue;
+                }
+                if let Some(mine) = inventory
+                    .0
+                    .slots
+                    .iter()
+                    .position(|s| s.as_ref().is_some_and(|s| s.item == name))
+                    && let Ok(heal) = needs.0.eat_from_slot(&mut inventory.0, mine, &items.0)
+                {
+                    health.0.current = (health.0.current + heal).min(health.0.max);
+                }
+            }
         }
     }
 }

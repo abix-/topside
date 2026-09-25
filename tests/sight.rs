@@ -27,10 +27,12 @@ fn the_door_scavenger_sees_only_through_open_ground() {
     assert_eq!(app.world().get::<ActorCombat>(scavenger).unwrap().0, CombatState::None, "it cannot see in");
     assert_eq!(*app.world().get::<Visibility>(scavenger).unwrap(), Visibility::Hidden, "nor the player it");
 
-    // Out in the open, in front of it.
+    // Out in the open, 5 m in front of where it faces (it sees a cone
+    // ahead, not all round).
     let at = app.world().get::<Transform>(scavenger).unwrap().translation.truncate();
+    let ahead = app.world().get::<topside::actor::Facing>(scavenger).unwrap().direction();
     let mut t = app.world_mut().get_mut::<Transform>(player).unwrap();
-    t.translation = (at + Vec2::new(0.0, -5.0)).extend(t.translation.z);
+    t.translation = (at + ahead * 5.0).extend(t.translation.z);
     for _ in 0..3 {
         app.update();
     }
