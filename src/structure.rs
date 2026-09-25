@@ -9,9 +9,11 @@
 use avian2d::prelude::*;
 use bevy::prelude::*;
 use modforge::hud::InteractKind;
-use modforge::structure::{PartKind, Rgb, StructureDef, doors_of, floor_plan, parts_of};
+use modforge::structure::{
+    MonumentDef, PartKind, Rgb, StructureDef, doors_of, floor_plan, parts_of,
+};
 
-use crate::content::starting_bunker;
+use crate::content::{MonumentRegistryRes, starting_bunker};
 use crate::interact::{Door, Interactable};
 use crate::terrain::WorldRes;
 
@@ -84,4 +86,58 @@ pub fn spawn_structure(commands: &mut Commands, def: &StructureDef, at: Vec2) ->
 /// The starting bunker at the world's bunker point.
 pub fn spawn_bunker(mut commands: Commands, world: Res<WorldRes>) {
     spawn_structure(&mut commands, &starting_bunker(), world.0.def.bunker);
+}
+
+/// Every site's monument as modforge rolled it, and where it stands:
+/// rolled once, read by whatever needs its NPC spots or loot spots.
+#[derive(Resource, Default)]
+pub struct MonumentsRes(pub Vec<(Vec2, MonumentDef)>);
+
+/// Roll the monument at every site (from the world's `site_seed`) and
+/// spawn it: each member building's ground floor through
+/// `spawn_structure`, and its props as one static collider.
+pub fn spawn_monuments(
+    mut commands: Commands,
+    world: Res<WorldRes>,
+    registries: Res<MonumentRegistryRes>,
+) {
+    let world = &world.0;
+    let mut rolled = Vec::with_capacity(world.sites.len());
+    for (i, site) in world.sites.iter().enumerate() {
+        let monument = registries
+            .monuments
+            .roll(&site.monument, &registries.buildings, world.site_seed(i))
+            .expect("every site's monument type is registered");
+        for member in &monument.members {
+            let at = site.position + Vec2::new(member.offset.x, member.offset.z);
+            spawn_structure(&mut commands, &member.structure, at);
+        }
+        if !monument.props.is_empty() {
+            let shapes: Vec<(Vec2, Rotation, Collider)> = monument
+                .props
+                .iter()
+                .map(|p| {
+                    (
+                        Vec2::new(p.position.x, p.position.z),
+                        Rotation::IDENTITY,
+                        Collider::rectangle(p.size.x, p.size.z),
+                    )
+                })
+                .collect();
+            commands.spawn((
+                RigidBody::Static,
+                Collider::compound(shapes),
+                Transform::from_translation(site.position.extend(0.0)),
+            ));
+            for p in &monument.props {
+                let centre = site.position + Vec2::new(p.position.x, p.position.z);
+                commands.spawn((
+                    sprite(p.color, Vec2::new(p.size.x, p.size.z)),
+                    Transform::from_translation(centre.extend(SOLID_Z)),
+                ));
+            }
+        }
+        rolled.push((site.position, monument));
+    }
+    commands.insert_resource(MonumentsRes(rolled));
 }

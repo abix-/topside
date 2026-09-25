@@ -74,7 +74,12 @@ pub fn build_app(headless: bool, seed: u64) -> App {
         Startup,
         (
             terrain::roll,
-            (terrain::spawn_solids, structure::spawn_bunker, player::spawn_player),
+            (
+                terrain::spawn_solids,
+                structure::spawn_bunker,
+                structure::spawn_monuments,
+                player::spawn_player,
+            ),
         )
             .chain(),
     );
