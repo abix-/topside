@@ -1,5 +1,4 @@
-# the running game's output (scripts/restart.ps1)
-topside.log
-topside.err.log
+# every build, test, and game log (scripts/build.ps1)
+logs/
 # k3sc cargo-lock's lock file
 .cargo-build.lock

@@ -57,9 +57,9 @@ leash), a `people` control plane op with a live test.
 
 ## How to run
 
-- `scripts/restart.ps1` rebuilds and relaunches the game.
-- `k3sc cargo-lock test --tests` runs every topside test; the
-  control_plane tests drive the RUNNING game, including
-  `people` (`-- --nocapture people` prints the people).
+- `scripts/build.ps1` is the one way to build, test, and run:
+  `pwsh -NoProfile -File scripts/build.ps1 run | test [name] | build`.
+  It stops the game first, logs everything to logs/, prints the
+  summary, and stops a cargo run that stalls.
 - modforge: `k3sc cargo-lock test -p modforge --lib` from
   C:\code\modforge.
