@@ -29,6 +29,9 @@ These rules govern `docs/changelog.md`. Follow them exactly.
 | topside terrain | [x] The 2D game opens a window with a top-down camera like Factorio's and draws the rolled world flat: every cell coloured by biome, road, or water, one image per chunk, the camera starting at the bunker | `scripts/restart.ps1` launches topside.exe showing the ground around the bunker (operator saw it); `terrain::tests::the_rolled_world_is_one_chunk_per_32_by_32_cells` passes |
 | topside player | [x] The player is one picture (a coloured square until pictures exist) moved by WASD through the one input path (keys to `Actions`, drained each fixed tick), and the camera follows | tests/player.rs `pushed_move_actions_walk_the_player` passes; the operator walked in-game |
 | scripts/restart.ps1 | [x] `restart.ps1` builds and launches the 2D game (topside.exe) instead of topside-3d.exe | Running it shows the 2D window (operator ran it) |
+| topside player | [x] Avian 2D is the one physics system for the 2D game: blocked cells, water, and scatter are static colliders and the player slides along them | tests/player.rs `a_wall_stops_the_player_at_its_edge` and terrain `every_water_cell_is_solid_once` pass; the operator said go after the in-game check |
+| topside bunker | [x] The bunker drawn from above at the world's bunker point: its room's floor and walls as colliders, the door, the bed, the bench, and the food crate | tests/bunker.rs `the_bunker_walls_hold_the_player_in` and `the_door_holds_until_used_then_lets_the_player_out` pass; the operator said go after the in-game check |
+| topside structure | [x] Every rolled monument's buildings drawn from above one floor at a time: the ground floor's floors, walls as colliders, and furniture, roofs never drawn | tests/monument.rs `every_building_stands_and_its_walls_are_solid` passes; the operator said go after the in-game check |
 
 ## 2026-08-22
 
