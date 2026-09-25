@@ -108,6 +108,7 @@ pub fn think(
     items: Res<ItemRegistryRes>,
     monuments: Res<MonumentRegistryRes>,
     day: Res<crate::survival::Day>,
+    mut walk: ResMut<crate::nav::Walk>,
     sight: Sight,
     mut life: ResMut<LifeStats>,
     mut thinkers: Thinkers,
@@ -130,6 +131,10 @@ pub fn think(
         .iter()
         .map(|(e, _, t, w)| (e, t.translation.truncate(), w.stack.item.clone()))
         .collect();
+    // Where someone can stand, from the tiles (pathing.md: never head for
+    // a place nobody can stand on).
+    let walk = std::cell::RefCell::new(&mut walk.0);
+    let standable = |at: Vec3| walk.borrow_mut().standable(Vec2::new(at.x, at.z));
     // The storm is the same for everyone: coming or here, hide.
     let storm_coming = crate::storm::phase(&tick, *day) != modforge::storm::StormPhase::Calm;
     // Everyone's position and faction first, so the pass below holds
@@ -267,6 +272,7 @@ pub fn think(
             memory: &memory.0,
             personality: &personality.0,
             worth: &worth,
+            standable: &standable,
         };
 
         // Decide: seeded by the tick and the person, so a replay

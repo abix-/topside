@@ -59,7 +59,7 @@ fn run_with(total: usize) -> (usize, f64, String, LifeStats) {
     let world = app.world_mut();
     let alive = world.query_filtered::<(), With<Npc>>().iter(world).count();
     let laps = app.world().resource::<Laps>();
-    let step: f64 = laps.mean_ms.iter().filter(|(n, _)| *n != "player_sight").map(|(_, ms)| ms).sum();
+    let step = laps.step_ms;
     let top: Vec<String> = laps.sorted().iter().take(3).map(|(n, ms)| format!("{n} {ms:.1}")).collect();
     (alive, step, top.join(", "), *app.world().resource::<LifeStats>())
 }

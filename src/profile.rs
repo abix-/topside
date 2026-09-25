@@ -11,20 +11,38 @@ use bevy::prelude::*;
 /// history): about the last 30 samples.
 const SMOOTHING: f64 = 1.0 / 30.0;
 
-/// Every measured part's average cost per fixed step, in ms.
+/// Every measured part's average cost per fixed step, in ms, what the
+/// parts counted (people walking, ways searched), and the whole step.
 #[derive(Resource, Default)]
 pub struct Laps {
     mark: Option<Instant>,
+    step_start: Option<Instant>,
     physics_start: Option<Instant>,
     pub mean_ms: Vec<(&'static str, f64)>,
+    /// Average counts per fixed step, by name.
+    pub counts: Vec<(&'static str, f64)>,
+    /// The whole fixed step, physics included, in ms.
+    pub step_ms: f64,
+}
+
+fn smooth(list: &mut Vec<(&'static str, f64)>, name: &'static str, value: f64) {
+    match list.iter_mut().find(|(n, _)| *n == name) {
+        Some((_, mean)) => *mean += (value - *mean) * SMOOTHING,
+        None => list.push((name, value)),
+    }
 }
 
 impl Laps {
-    fn record(&mut self, name: &'static str, ms: f64) {
-        match self.mean_ms.iter_mut().find(|(n, _)| *n == name) {
-            Some((_, mean)) => *mean += (ms - *mean) * SMOOTHING,
-            None => self.mean_ms.push((name, ms)),
-        }
+    /// A part's time this step, in ms: a whole system (`lap`) or a part
+    /// inside one, timed where it runs.
+    pub fn record(&mut self, name: &'static str, ms: f64) {
+        smooth(&mut self.mean_ms, name, ms);
+    }
+
+    /// How many of something happened this step (ways searched, people
+    /// walking), averaged like the times.
+    pub fn count(&mut self, name: &'static str, n: usize) {
+        smooth(&mut self.counts, name, n as f64);
     }
 
     /// Every part, the costliest first.
@@ -44,9 +62,22 @@ fn since(from: Option<Instant>, now: Instant) -> f64 {
     from.map_or(0.0, |f| now.duration_since(f).as_secs_f64() * 1000.0)
 }
 
-/// The stopwatch starts at the top of the fixed step.
+/// The stopwatch starts (the frame's own parts, outside the fixed step).
 pub fn start(mut laps: ResMut<Laps>) {
     laps.mark = Some(Instant::now());
+}
+
+/// The top of the fixed step: the stopwatch and the whole step start.
+pub fn start_step(mut laps: ResMut<Laps>) {
+    let now = Instant::now();
+    laps.mark = Some(now);
+    laps.step_start = Some(now);
+}
+
+/// The end of the fixed step, after physics: the whole step's time.
+pub fn finish_step(mut laps: ResMut<Laps>) {
+    let ms = since(laps.step_start, Instant::now());
+    laps.step_ms += (ms - laps.step_ms) * SMOOTHING;
 }
 
 /// A system that records the time since the last stamp under `name`
@@ -81,6 +112,6 @@ impl Plugin for ProfilePlugin {
             FixedPostUpdate,
             physics_start.before(avian2d::schedule::PhysicsSystems::First),
         );
-        app.add_systems(FixedLast, physics_end);
+        app.add_systems(FixedLast, (physics_end, finish_step).chain());
     }
 }

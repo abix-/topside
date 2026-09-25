@@ -88,6 +88,7 @@ pub fn build_app(headless: bool, seed: u64) -> App {
     app.init_resource::<nav::Walk>();
     app.init_resource::<nav::PlanQueue>();
     app.init_resource::<nav::DoorIndex>();
+    app.init_resource::<nav::FailedWays>();
     app.init_resource::<survival::Day>();
     app.init_resource::<content::RecipeRegistryRes>();
     app.init_resource::<storm::StormRes>();
@@ -115,7 +116,7 @@ pub fn build_app(headless: bool, seed: u64) -> App {
         FixedUpdate,
         (
             (
-                profile::start,
+                profile::start_step,
                 tick_system,
                 ai::think,
                 lap("think"),
@@ -150,6 +151,7 @@ pub fn build_app(headless: bool, seed: u64) -> App {
                 lap("death"),
                 control_plane::publish,
                 control_plane::publish_world,
+                control_plane::publish_ways,
                 lap("publish"),
             )
                 .chain(),

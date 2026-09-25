@@ -56,8 +56,8 @@ fn the_game_keeps_up_with_real_time_and_its_people_live() {
     }
 
     let mut rows = vec![format!(
-        "{:>6} {:>5} {:>5}  {:<40} {:>5} {:>5} {:>7} {:>5}  bunkers (food/water, alive, starving)",
-        "real s", "fps", "speed", "costliest parts of a step (ms)", "ate", "taken", "stocked", "died"
+        "{:>6} {:>6} {:>5} {:>5} {:>7}  {:<40} {:>5} {:>5} {:>7} {:>5}  bunkers (food/water, alive, starving)",
+        "real s", "people", "fps", "speed", "step ms", "costliest parts of a step (ms)", "ate", "taken", "stocked", "died"
     )];
     let watch = Instant::now();
     let (mut last_tick, mut last_at) = (0, Instant::now());
@@ -74,7 +74,7 @@ fn the_game_keeps_up_with_real_time_and_its_people_live() {
             slowest = slowest.min(speed);
         }
         (last_tick, last_at) = (tick, Instant::now());
-        let parts: Vec<String> = perf["result"]
+        let parts: Vec<String> = perf["result"]["parts"]
             .as_array()
             .map(|p| {
                 p.iter()
@@ -93,10 +93,12 @@ fn the_game_keeps_up_with_real_time_and_its_people_live() {
             })
             .unwrap_or_default();
         rows.push(format!(
-            "{:>6.0} {:>5.0} {:>5.2}  {:<40} {:>5} {:>5} {:>7} {:>5}  {}",
+            "{:>6.0} {:>6} {:>5.0} {:>5.2} {:>7.2}  {:<40} {:>5} {:>5} {:>7} {:>5}  {}",
             watch.elapsed().as_secs_f64(),
+            status["state"]["people"],
             status["state"]["fps"].as_f64().unwrap_or(0.0),
             speed,
+            perf["result"]["step_ms"].as_f64().unwrap_or(0.0),
             parts.join(", "),
             w["ate"],
             w["taken"],
@@ -104,6 +106,38 @@ fn the_game_keeps_up_with_real_time_and_its_people_live() {
             w["died"],
             bunkers.join(" | ")
         ));
+        let _ = std::fs::write("logs/game.txt", format!("{}\n", rows.join("\n")));
+    }
+    // At the end, every part and count the game reports.
+    if let Some(perf) = op("perf") {
+        let p = &perf["result"];
+        rows.push(String::new());
+        rows.push(format!("whole step {:.2} ms of {:.2}, {} people", p["step_ms"].as_f64().unwrap_or(0.0), p["budget_ms"].as_f64().unwrap_or(0.0), p["people"]));
+        for part in p["parts"].as_array().into_iter().flatten() {
+            rows.push(format!("  {:<32} {:>6.3} ms", part["part"].as_str().unwrap_or("?"), part["ms"].as_f64().unwrap_or(0.0)));
+        }
+        for count in p["counts"].as_array().into_iter().flatten() {
+            rows.push(format!("  {:<32} {:>8.2} a step", count["what"].as_str().unwrap_or("?"), count["per_step"].as_f64().unwrap_or(0.0)));
+        }
+        let _ = std::fs::write("logs/game.txt", format!("{}\n", rows.join("\n")));
+    }
+    // And the last searches that found no way.
+    if let Some(ways) = op("ways") {
+        rows.push(String::new());
+        rows.push("searches that found no way (newest last):".to_string());
+        for w in ways["result"].as_array().into_iter().flatten() {
+            rows.push(format!(
+                "  {} doing {} from {} to {} ({:.0} m): start blocked {}, goal blocked {}, {} tiles searched",
+                w["who"].as_str().unwrap_or("?"),
+                w["doing"].as_str().unwrap_or("?"),
+                w["from"],
+                w["to"],
+                w["distance"].as_f64().unwrap_or(0.0),
+                w["from_blocked"],
+                w["to_blocked"],
+                w["tiles_searched"]
+            ));
+        }
         let _ = std::fs::write("logs/game.txt", format!("{}\n", rows.join("\n")));
     }
     eprintln!("{}", rows.join("\n"));

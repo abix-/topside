@@ -1,5 +1,5 @@
 //! Every site's monument stands: each member building's ground floor
-//! walls are solid where modforge's floor plan puts them.
+//! walls are solid where modforge's tile plan puts them.
 
 mod common;
 
@@ -7,7 +7,7 @@ use avian2d::prelude::*;
 use bevy::ecs::system::RunSystemOnce;
 use bevy::prelude::*;
 use common::game;
-use modforge::structure::{floor_plan, parts_of};
+use modforge::structure::tile_plan;
 use topside::structure::{MonumentsRes, StructureRoot};
 
 #[test]
@@ -37,24 +37,26 @@ fn every_building_stands_and_its_walls_are_solid() {
     // One more step so the physics world has every collider.
     app.update();
     let world = app.world_mut();
-    let monuments: Vec<(Vec2, Vec<(Vec2, Vec2)>)> = world
+    // Each solid run of every building's tile plan, where the building
+    // snapped to the tiles.
+    let monuments: Vec<Vec<(Vec2, Vec2)>> = world
         .resource::<MonumentsRes>()
         .0
         .iter()
         .map(|(at, m)| {
-            let walls = m
-                .members
+            m.members
                 .iter()
                 .flat_map(|member| {
-                    let offset = Vec2::new(member.offset.x, member.offset.z);
-                    floor_plan(&parts_of(&member.structure), 0.0)
+                    let placed = (*at + Vec2::new(member.offset.x, member.offset.z)).round();
+                    tile_plan(&member.structure)
                         .into_iter()
-                        .filter(|p| p.solid)
-                        .map(move |p| (offset + p.min, offset + p.max))
+                        .filter(|r| r.kind.solid())
+                        .map(move |r| {
+                            (placed + Vec2::new(r.from as f32, r.row as f32), placed + Vec2::new(r.to as f32, r.row as f32 + 1.0))
+                        })
                         .collect::<Vec<_>>()
                 })
-                .collect();
-            (*at, walls)
+                .collect()
         })
         .collect();
     let members: usize = world
@@ -70,11 +72,8 @@ fn every_building_stands_and_its_walls_are_solid() {
         "every member building, the bunker, and the other bunkers"
     );
 
-    let (at, walls) = monuments
-        .iter()
-        .find(|(_, walls)| !walls.is_empty())
-        .expect("some monument has buildings");
-    let points: Vec<Vec2> = walls.iter().map(|(min, max)| *at + (*min + *max) / 2.0).collect();
+    let walls = monuments.iter().find(|walls| !walls.is_empty()).expect("some monument has buildings");
+    let points: Vec<Vec2> = walls.iter().map(|(min, max)| (*min + *max) / 2.0).collect();
     let hits = world
         .run_system_once(move |query: SpatialQuery| {
             points

@@ -33,6 +33,35 @@ static DIAGNOSTICS: Mutex<Json> = Mutex::new(Json::Null);
 static PEOPLE_LIST: Mutex<Json> = Mutex::new(Json::Null);
 static PERF: Mutex<Json> = Mutex::new(Json::Null);
 static WORLD: Mutex<Json> = Mutex::new(Json::Null);
+static WAYS: Mutex<Json> = Mutex::new(Json::Null);
+
+/// Once a second: the last searches that found no way, for the `ways`
+/// op.
+pub fn publish_ways(tick: Res<crate::SimTick>, failed: Res<crate::nav::FailedWays>) {
+    if tick.0 % 60 != 0 {
+        return;
+    }
+    let list: Vec<Json> = failed
+        .0
+        .iter()
+        .map(|f| {
+            json!({
+                "tick": f.tick,
+                "who": f.who,
+                "doing": f.doing,
+                "from": [f.from.x, f.from.y],
+                "to": [f.to.x, f.to.y],
+                "distance": f.from.distance(f.to),
+                "from_blocked": f.from_blocked,
+                "to_blocked": f.to_blocked,
+                "tiles_searched": f.searched,
+            })
+        })
+        .collect();
+    if let Ok(mut slot) = WAYS.lock() {
+        *slot = Json::Array(list);
+    }
+}
 /// How many times real time the game runs, set by the `speed` op
 /// (Factorio's game speed); 1 is normal.
 static SPEED_BITS: AtomicU32 = AtomicU32::new(0x3f80_0000);
@@ -124,11 +153,20 @@ pub fn publish(
         X_BITS.store(at.translation.x.to_bits(), Ordering::Relaxed);
         Y_BITS.store(at.translation.y.to_bits(), Ordering::Relaxed);
     }
-    // What each part of the step costs, once a second, costliest first.
+    // Where the step's time goes, once a second: the whole step, every
+    // part costliest first (a part named "steer: ..." is a piece inside
+    // steer), and what was counted.
     if tick.0 % 60 == 0 {
-        let map: Vec<Json> = laps.sorted().into_iter().map(|(n, ms)| json!({"part": n, "ms": ms})).collect();
+        let parts: Vec<Json> = laps.sorted().into_iter().map(|(n, ms)| json!({"part": n, "ms": ms})).collect();
+        let counts: Vec<Json> = laps.counts.iter().map(|(n, v)| json!({"what": n, "per_step": v})).collect();
         if let Ok(mut slot) = PERF.lock() {
-            *slot = Json::Array(map);
+            *slot = json!({
+                "step_ms": laps.step_ms,
+                "budget_ms": 1000.0 / 60.0,
+                "people": actors.0.live_count(),
+                "parts": parts,
+                "counts": counts,
+            });
         }
     }
     // Every person, once a second.
@@ -198,7 +236,7 @@ pub fn start() {
     ));
     OP_REGISTRY.register(OpDef::new(
         "perf",
-        "each part of the fixed step and the physics step: average ms, costliest first",
+        "the whole fixed step's ms against its budget, every part's ms costliest first (pieces inside a system named 'system: piece'), and counts per step",
         "",
         |_| Ok(PERF.lock().map(|p| p.clone()).unwrap_or(Json::Null)),
     ));
@@ -220,6 +258,12 @@ pub fn start() {
             SPEED_BITS.store(times.to_bits(), Ordering::Relaxed);
             Ok(json!({"times": times}))
         },
+    ));
+    OP_REGISTRY.register(OpDef::new(
+        "ways",
+        "the last searches that found no way: who, what they were doing, from, to, whether the tiles at each end are blocked, tiles searched",
+        "",
+        |_| Ok(WAYS.lock().map(|w| w.clone()).unwrap_or(Json::Null)),
     ));
     OP_REGISTRY.register(OpDef::new(
         "world",

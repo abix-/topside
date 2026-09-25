@@ -23,10 +23,10 @@ use crate::actor::{Dead, Npc};
 use crate::input::{Action, ActionQueue, ThisTick};
 use crate::interact::Door;
 
-/// Cells searched before a way counts as not found (Endless's
-/// `max_nodes` is 5000 on a coarser grid; a 150 m trip is 300 cells
-/// straight).
-const PLAN_LIMIT: usize = 20_000;
+/// Chunk doorways searched before a way counts as not found
+/// (pathing.md "Search by chunk, then across chunks"): a 150 m trip
+/// crosses about five chunks with a few doorways each.
+const PLAN_LIMIT: usize = 2_000;
 /// Searches worked through each step at most (Endless: 200 a frame).
 const PLANS_PER_STEP: usize = 50;
 /// Time spent searching each step at most (Endless: 2 ms a frame).
@@ -48,6 +48,28 @@ pub struct Walk(pub WalkMap);
 /// The people waiting for a way to be found, first come first served.
 #[derive(Resource, Default)]
 pub struct PlanQueue(pub VecDeque<Entity>);
+
+/// One search that found no way, for the control plane: who, what the
+/// brain had them doing, from where to where, whether the tiles at
+/// each end are blocked, and how many tiles the search looked at.
+#[derive(Clone, Debug)]
+pub struct FailedWay {
+    pub tick: u64,
+    pub who: String,
+    pub doing: String,
+    pub from: Vec2,
+    pub to: Vec2,
+    pub from_blocked: bool,
+    pub to_blocked: bool,
+    pub searched: usize,
+}
+
+/// The last failed searches, newest last.
+#[derive(Resource, Default)]
+pub struct FailedWays(pub VecDeque<FailedWay>);
+
+/// How many failed searches are kept for the control plane.
+const FAILED_KEPT: usize = 30;
 
 /// The way a person is following.
 #[derive(Component, Default)]
@@ -160,13 +182,20 @@ pub fn steer(
     mut queue: ResMut<PlanQueue>,
     door_index: Res<DoorIndex>,
     doors: Query<&Door>,
+    mut laps: ResMut<crate::profile::Laps>,
+    mut failed: ResMut<FailedWays>,
+    people: Query<(&Npc, &crate::actor::ActorActivity)>,
     mut walkers: Query<(Entity, &Transform, &mut ThisTick, &mut NavPath), (With<Npc>, Without<Dead>)>,
 ) {
+    let ms = |since: Instant| since.elapsed().as_secs_f64() * 1000.0;
     // Who needs a way.
+    let started = Instant::now();
+    let mut walking = 0;
     for (entity, transform, this_tick, mut path) in &mut walkers {
         let Some(target) = walking_to(&this_tick) else {
             continue;
         };
+        walking += 1;
         if path.queued || tick.0 < path.retry_at || transform.translation.truncate().distance(target) <= REACH {
             continue;
         }
@@ -177,9 +206,11 @@ pub fn steer(
             queue.0.push_back(entity);
         }
     }
+    laps.record("steer: who needs a way", ms(started));
+    laps.count("people walking", walking);
     // Work through the queue within the budget; the rest wait.
     let started = Instant::now();
-    let mut done = 0;
+    let (mut done, mut straight, mut found, mut not_found) = (0, 0, 0, 0);
     while done < PLANS_PER_STEP && started.elapsed() < Duration::from_millis(PLAN_BUDGET_MS) {
         let Some(entity) = queue.0.pop_front() else {
             break;
@@ -197,17 +228,47 @@ pub fn steer(
         path.planned_at = Some(tick.0);
         if walk.0.line_clear(here, target) {
             path.waypoints.clear();
+            straight += 1;
             continue;
         }
         match walk.0.find_way(here, target, PLAN_LIMIT) {
-            Some(points) => path.waypoints = points.into(),
+            Some(points) => {
+                path.waypoints = points.into();
+                found += 1;
+            }
             None => {
                 path.waypoints.clear();
                 path.retry_at = tick.0 + RETRY_AFTER;
+                not_found += 1;
+                let searched = walk.0.last_searched;
+                let (who, doing) = people
+                    .get(entity)
+                    .map(|(npc, activity)| (format!("{} ({:?})", npc.def, npc.faction), format!("{:?}", activity.0)))
+                    .unwrap_or_default();
+                failed.0.push_back(FailedWay {
+                    tick: tick.0,
+                    who,
+                    doing,
+                    from: here,
+                    to: target,
+                    from_blocked: walk.0.blocked(modforge::walk::cell_of(here)),
+                    to_blocked: walk.0.blocked(modforge::walk::cell_of(target)),
+                    searched,
+                });
+                if failed.0.len() > FAILED_KEPT {
+                    failed.0.pop_front();
+                }
             }
         }
     }
+    laps.record("steer: finding ways", ms(started));
+    laps.count("ways: straight line", straight);
+    laps.count("ways: searched and found", found);
+    laps.count("ways: searched, not found", not_found);
+    laps.count("ways: waiting in the queue", queue.0.len());
+    laps.count("walk grid: chunks painted", walk.0.painted_chunks());
     // Step along the way.
+    let started = Instant::now();
     for (_, transform, mut this_tick, mut path) in &mut walkers {
         let Some(target) = walking_to(&this_tick) else {
             continue;
@@ -238,6 +299,7 @@ pub fn steer(
             set_move(&mut this_tick, (next - here).normalize_or_zero(), tick.0);
         }
     }
+    laps.record("steer: stepping along", ms(started));
 }
 
 /// Where the brain has this person walking this tick, if anywhere.

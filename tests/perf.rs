@@ -23,7 +23,7 @@ fn the_fixed_step_fits_its_budget() {
     let npcs = world.query_filtered::<(), With<Npc>>().iter(world).count();
     let laps = app.world().resource::<Laps>();
     let table: Vec<String> = laps.sorted().iter().map(|(n, ms)| format!("{ms:>9.3} ms  {n}")).collect();
-    let total: f64 = laps.mean_ms.iter().filter(|(n, _)| *n != "player_sight").map(|(_, ms)| ms).sum();
+    let total = laps.step_ms;
     let report = format!("{npcs} NPCs, fixed step {total:.3} ms of {BUDGET_MS:.3}\n{}", table.join("\n"));
     eprintln!("{report}");
     // Readable after a passing run too (build.ps1 shows only results).

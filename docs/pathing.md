@@ -50,11 +50,41 @@ topside's part is only to paint the grid from its colliders and to ask
 the queue for ways; the grid, the search, the queue, and the budget live
 in modforge and are tested without the game.
 
-## Open: the grid's size against the world's (2026-09-25)
+## One grid: tiles and chunks (operator, 2026-09-25)
 
-Endless's grid was 250 by 250 cells. Topside's world is 3500 m across,
-walls are 0.2 m thick, and doors 1.2 m wide, so a grid fine enough to
-keep doorways open (0.5 m) is 7000 by 7000 cells for the whole world.
-Built all at once that is too big. How the grid and the world's size fit
-together is the next decision; until it is made, nothing in this doc is
-built.
+There is one grid, the Factorio way: a tile is 1 by 1 m, a chunk is 32
+by 32 tiles, and it is the same grid for everything: the ground, the
+buildings, and pathing. All 1:1.
+
+- Buildings sit on the tiles: every wall fills whole tiles, every door
+  is a whole number of tiles wide, every building snaps to the tile
+  grid. A wall is to us what a belt is to Factorio: 1 by 1 tile.
+- The walk grid is the tiles: a tile is blocked or open, and chunks are
+  painted as they are needed.
+- No finer grid for pathing. The 0.5 m walk grid built first was a
+  workaround for walls and doors that were not on the tiles; it goes.
+
+## Never head for a place nobody can stand on (operator, 2026-09-25)
+
+The tiles say what is standable. Whoever picks a place to go (a stroll,
+heading out to look, a box to open) picks a tile a person can stand on,
+or a thing standing on one. A stroll into a tree, a lake, or a wall is a
+bug, never something the search finds out the hard way. (The real game
+showed it: every failed search in two minutes was a stroll, half of
+them to a blocked tile.)
+
+## Search by chunk, then across chunks (operator, 2026-09-25)
+
+A search is never bigger than one chunk at a time (Factorio: "the first
+stage is chunk-based"; Endless's HPA*):
+
+- Start and goal in one chunk: search that chunk only, at most 32 by 32
+  tiles.
+- Otherwise search across chunks first. Each chunk knows its doorways:
+  the open tiles along each edge that meet open tiles in the neighbour,
+  and the ways between its own doorways inside it, worked out once when
+  the chunk is painted and again when it changes. The search runs over
+  those doorways, a small search; the ways inside each chunk are already
+  known and are joined into the whole way.
+- No way across the chunks means the place cannot be reached, known at
+  once, with no search of every tile around.

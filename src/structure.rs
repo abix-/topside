@@ -1,17 +1,15 @@
 //! Buildings seen from above, one floor at a time (design.md "What 2D
-//! changes"). modforge turns a `StructureDef` into parts
-//! (`parts_of`), the parts into the plan of one floor (`floor_plan`),
-//! and places its doors (`doors_of`); topside only draws the plan and
-//! gives its solid parts one static collider per building (the 3D
-//! game's rule, one collider per building). Structure-local x and z
-//! are the screen's x and y, the same as the world's.
+//! changes"), on the tile grid (pathing.md "One grid"): modforge turns
+//! a `StructureDef` into runs of tiles (`tile_plan`: floor, wall, door,
+//! furniture); topside only draws the runs and gives the solid ones one
+//! static collider per building (the 3D game's rule, one collider per
+//! building). Structure-local x and z are the screen's x and y, the
+//! same as the world's.
 
 use avian2d::prelude::*;
 use bevy::prelude::*;
 use modforge::hud::InteractKind;
-use modforge::structure::{
-    MonumentDef, PartKind, Rgb, StructureDef, doors_of, floor_plan, parts_of,
-};
+use modforge::structure::{MonumentDef, Rgb, StructureDef, TileKind, TileRun, tile_plan};
 
 use modforge::crafting::StationKind;
 use modforge::item::{self, create, write};
@@ -63,26 +61,38 @@ pub fn sheltered(shelters: &Query<&Shelter>, point: Vec2) -> bool {
     shelters.iter().any(|s| s.covers(point))
 }
 
-/// Spawn one building's ground floor at `at`: every part of its plan
-/// drawn, its solid parts as one compound collider on a static root,
-/// its floors as its `Shelter`, and a closed door in every doorway.
-/// A building of this reality (`of_world`) is a `WorldPiece`, gone
-/// when the storm shifts the world; the bunker is not. Returns the
-/// root.
+/// Spawn one building's ground floor at `at`, on the tile grid
+/// (docs/pathing.md "One grid"): the building snaps to whole tiles and
+/// comes from modforge's `tile_plan`, every run of tiles drawn, its wall
+/// and furniture runs as one compound collider on a static root, its
+/// floor as its `Shelter`, and a closed door on every door tile run. A
+/// building of this reality (`of_world`) is a `WorldPiece`, gone when
+/// the storm shifts the world; the bunker is not. Returns the root.
 pub fn spawn_structure(commands: &mut Commands, def: &StructureDef, at: Vec2, of_world: bool) -> Entity {
-    let plan = floor_plan(&parts_of(def), 0.0);
+    let at = at.round();
+    let runs = tile_plan(def);
+    let rect = |r: &TileRun| {
+        (
+            Vec2::new(r.from as f32, r.row as f32),
+            Vec2::new(r.to as f32, r.row as f32 + 1.0),
+        )
+    };
     let shelter = Shelter(
-        plan.iter()
-            .filter(|p| p.kind == PartKind::Floor)
-            .map(|p| (at + p.min, at + p.max))
+        runs.iter()
+            .filter(|r| matches!(r.kind, TileKind::Floor | TileKind::Furniture))
+            .map(|r| {
+                let (min, max) = rect(r);
+                (at + min, at + max)
+            })
             .collect(),
     );
-    let shapes: Vec<(Vec2, Rotation, Collider)> = plan
+    let shapes: Vec<(Vec2, Rotation, Collider)> = runs
         .iter()
-        .filter(|p| p.solid)
-        .map(|p| {
-            let size = p.max - p.min;
-            ((p.min + p.max) / 2.0, Rotation::IDENTITY, Collider::rectangle(size.x, size.y))
+        .filter(|r| r.kind.solid())
+        .map(|r| {
+            let (min, max) = rect(r);
+            let size = max - min;
+            ((min + max) / 2.0, Rotation::IDENTITY, Collider::rectangle(size.x, size.y))
         })
         .collect();
     let mut root = commands.spawn((
@@ -98,21 +108,23 @@ pub fn spawn_structure(commands: &mut Commands, def: &StructureDef, at: Vec2, of
         root.insert(WorldPiece);
     }
     let root = root.id();
-    for p in &plan {
-        let z = if p.kind == PartKind::Floor { FLOOR_Z } else { SOLID_Z };
+    for r in runs.iter().filter(|r| r.kind != TileKind::Door) {
+        let z = if r.kind == TileKind::Floor { FLOOR_Z } else { SOLID_Z };
+        let (min, max) = rect(r);
         let mut piece = commands.spawn((
-            sprite(p.color, p.max - p.min),
-            Transform::from_translation((at + (p.min + p.max) / 2.0).extend(z)),
+            sprite(r.color, max - min),
+            Transform::from_translation((at + (min + max) / 2.0).extend(z)),
         ));
         if of_world {
             piece.insert(WorldPiece);
         }
     }
-    for door in doors_of(def) {
-        let size = Vec2::new(door.size.x, door.size.z);
-        let centre = at + Vec2::new(door.center.x, door.center.z);
-        // The hinge is at one end of the door, along the wall.
-        let along = if size.x >= size.y { Vec2::X * size.x } else { Vec2::Y * size.y };
+    for r in runs.iter().filter(|r| r.kind == TileKind::Door) {
+        let (min, max) = rect(r);
+        let size = max - min;
+        let centre = at + (min + max) / 2.0;
+        // The hinge is at one end of the door, along the run.
+        let along = Vec2::X * size.x;
         let mut door = commands.spawn((
             Door {
                 open: false,
