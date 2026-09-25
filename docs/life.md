@@ -88,8 +88,9 @@ life these matter:
   diligence, vitality, power, agility, precision, ferocity), seeded
   from the modforge genome by ActorId, multiplying scores and stats
   (todo 11d; design.md's Diablo 2 enemy traits).
-- Home: where it sleeps and returns to: its monument, its faction's
-  bunker, or nowhere for a drifter.
+- Home: where it sleeps and returns to. A bunker person's home is its
+  bunker, where it respawns. Topside people have no home and die in
+  every storm (design.md "Bunker people and topside people").
 - Faction or none (built, 11b).
 - Memory: what I have seen (a thing, where, when, what it held), who
   hurt me, who fed me, the last seen position of a threat. Small,

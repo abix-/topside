@@ -94,6 +94,22 @@ simulated NPCs that are PERSISTENT. Not spawned scenery: a thousand people
 who exist, belong to factions or to no one, and carry forward. That is the
 bar; hit it and the operator is happy.
 
+### Bunker people and topside people (operator, 2026-09-25)
+
+Every bunker is its own faction. This replaces a fixed list of named
+factions: the world has as many factions as it has bunkers.
+
+- Bunker people: a set number of persistent living NPCs with full lives,
+  each living in a bunker. A storm that catches one outside a bunker or
+  safe place kills it, and it respawns at its bunker, again and again. The
+  player is one of them, with our own bunker.
+- Another bunker may be neutral or hostile to the player's bunker. That is
+  not fixed: it depends on what happens between them.
+- Topside people: part of the topside world, and every storm kills them
+  all along with it. Neutrals are living NPCs too, such as animals and
+  other things. Hostiles attack: wild animals, and raiders that try to kill
+  you.
+
 ## The first hour (operator-agreed 2026-08-21)
 
 "Finding out is the game", so the game starts with a question, not
