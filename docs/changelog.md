@@ -22,6 +22,14 @@ These rules govern `docs/changelog.md`. Follow them exactly.
 - Use plain terms. Do not use vague descriptions, invented language, or design
   essays.
 
+## 2026-09-25
+
+| System | Item | Done when |
+|---|---|---|
+| topside terrain | [x] The 2D game opens a window with a top-down camera like Factorio's and draws the rolled world flat: every cell coloured by biome, road, or water, one image per chunk, the camera starting at the bunker | `scripts/restart.ps1` launches topside.exe showing the ground around the bunker (operator saw it); `terrain::tests::the_rolled_world_is_one_chunk_per_32_by_32_cells` passes |
+| topside player | [x] The player is one picture (a coloured square until pictures exist) moved by WASD through the one input path (keys to `Actions`, drained each fixed tick), and the camera follows | tests/player.rs `pushed_move_actions_walk_the_player` passes; the operator walked in-game |
+| scripts/restart.ps1 | [x] `restart.ps1` builds and launches the 2D game (topside.exe) instead of topside-3d.exe | Running it shows the 2D window (operator ran it) |
+
 ## 2026-08-22
 
 | System | Item | Done when |
