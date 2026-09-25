@@ -19,7 +19,11 @@ const WATCH: Duration = Duration::from_secs(120);
 const KEEPS_UP: f64 = 0.95;
 
 fn op(name: &str) -> Option<Json> {
-    let resp = ureq::post(URL).send_json(json!({"op": name, "args": {}})).ok()?;
+    op_with(name, json!({}))
+}
+
+fn op_with(name: &str, args: Json) -> Option<Json> {
+    let resp = ureq::post(URL).send_json(json!({"op": name, "args": args})).ok()?;
     resp.into_body().read_json().ok()
 }
 
@@ -137,6 +141,47 @@ fn the_game_keeps_up_with_real_time_and_its_people_live() {
                 w["to_blocked"],
                 w["tiles_searched"]
             ));
+        }
+        // The last three of them in full, their chunk drawn from the walk
+        // grid (the `npc` op).
+        let ids: Vec<u64> = ways["result"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .rev()
+            .filter_map(|w| w["id"].as_u64())
+            .take(3)
+            .collect();
+        for id in ids {
+            let Some(npc) = op_with("npc", json!({"id": id})) else {
+                continue;
+            };
+            let n = &npc["result"];
+            rows.push(String::new());
+            rows.push(format!(
+                "npc {id}: {} ({}) at {} doing {}; chunk {} tile {}: {} doorways, {} reachable from here",
+                n["def"].as_str().unwrap_or("?"),
+                n["faction"],
+                n["at"],
+                n["doing"].as_str().unwrap_or("?"),
+                n["chunk"]["chunk"],
+                n["chunk"]["tile"],
+                n["chunk"]["doorways"],
+                n["chunk"]["doorways_reachable"]
+            ));
+            for line in n["chunk"]["tiles"].as_array().into_iter().flatten() {
+                rows.push(format!("    {}", line.as_str().unwrap_or("")));
+            }
+            let g = &n["goal_chunk"];
+            if !g.is_null() {
+                rows.push(format!(
+                    "  the goal's chunk {} tile {}: {} doorways, {} reachable from the goal",
+                    g["chunk"], g["tile"], g["doorways"], g["doorways_reachable"]
+                ));
+                for line in g["tiles"].as_array().into_iter().flatten() {
+                    rows.push(format!("    {}", line.as_str().unwrap_or("")));
+                }
+            }
         }
         let _ = std::fs::write("logs/game.txt", format!("{}\n", rows.join("\n")));
     }

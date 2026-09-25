@@ -55,6 +55,8 @@ pub struct PlanQueue(pub VecDeque<Entity>);
 #[derive(Clone, Debug)]
 pub struct FailedWay {
     pub tick: u64,
+    /// The person's ActorId, for the `npc` op.
+    pub id: u64,
     pub who: String,
     pub doing: String,
     pub from: Vec2,
@@ -184,7 +186,7 @@ pub fn steer(
     doors: Query<&Door>,
     mut laps: ResMut<crate::profile::Laps>,
     mut failed: ResMut<FailedWays>,
-    people: Query<(&Npc, &crate::actor::ActorActivity)>,
+    people: Query<(&Npc, &crate::actor::ActorActivity, &crate::actor::Actor)>,
     mut walkers: Query<(Entity, &Transform, &mut ThisTick, &mut NavPath), (With<Npc>, Without<Dead>)>,
 ) {
     let ms = |since: Instant| since.elapsed().as_secs_f64() * 1000.0;
@@ -241,12 +243,15 @@ pub fn steer(
                 path.retry_at = tick.0 + RETRY_AFTER;
                 not_found += 1;
                 let searched = walk.0.last_searched;
-                let (who, doing) = people
+                let (who, doing, id) = people
                     .get(entity)
-                    .map(|(npc, activity)| (format!("{} ({:?})", npc.def, npc.faction), format!("{:?}", activity.0)))
+                    .map(|(npc, activity, actor)| {
+                        (format!("{} ({:?})", npc.def, npc.faction), format!("{:?}", activity.0), actor.0.0)
+                    })
                     .unwrap_or_default();
                 failed.0.push_back(FailedWay {
                     tick: tick.0,
+                    id,
                     who,
                     doing,
                     from: here,

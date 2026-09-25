@@ -34,6 +34,99 @@ static PEOPLE_LIST: Mutex<Json> = Mutex::new(Json::Null);
 static PERF: Mutex<Json> = Mutex::new(Json::Null);
 static WORLD: Mutex<Json> = Mutex::new(Json::Null);
 static WAYS: Mutex<Json> = Mutex::new(Json::Null);
+/// The `npc` op's question (an ActorId) and the game's answer.
+static NPC_ASK: Mutex<Option<u64>> = Mutex::new(None);
+static NPC_ANSWER: Mutex<Option<(u64, Json)>> = Mutex::new(None);
+
+/// Everything about one person, for the `npc` op.
+#[derive(bevy::ecs::system::SystemParam)]
+pub struct PersonView<'w, 's> {
+    people: Query<
+        'w,
+        's,
+        (
+            (&'static Actor, &'static Npc, &'static Transform, &'static Health, &'static Survival),
+            (
+                &'static crate::actor::ActorActivity,
+                &'static crate::actor::ActorCombat,
+                &'static crate::actor::Memory,
+                &'static crate::actor::Inventory,
+                &'static crate::actor::Hotbar,
+            ),
+            (
+                &'static crate::nav::NavPath,
+                Option<&'static crate::actor::Home>,
+                Option<&'static crate::actor::Store>,
+                Has<crate::actor::Dead>,
+            ),
+        ),
+    >,
+}
+
+/// Answer the `npc` op's question, if one is waiting: everything the game
+/// knows about that person, and their chunk as the walk grid sees it.
+pub fn answer_npc(view: PersonView, mut walk: ResMut<crate::nav::Walk>, tick: Res<crate::SimTick>) {
+    let Some(id) = NPC_ASK.lock().ok().and_then(|mut ask| ask.take()) else {
+        return;
+    };
+    let found = view.people.iter().find(|((actor, ..), _, _)| actor.0.0 == id);
+    let answer = match found {
+        None => json!({"id": id, "error": "no NPC with that id"}),
+        Some(((_, npc, at, health, needs), (doing, fight, memory, inventory, hotbar), (way, home, store, dead))) => {
+            let here = at.translation.truncate();
+            let stacks = |held: &modforge::item::Inventory| -> Vec<Json> {
+                held.slots.iter().flatten().map(|s| json!({"item": s.item, "count": s.count})).collect()
+            };
+            let chunk = |p: modforge::walk::ChunkPicture| {
+                json!({
+                    "chunk": [p.chunk.0, p.chunk.1],
+                    "tile": [p.tile.0, p.tile.1],
+                    "doorways": p.doorways,
+                    "doorways_reachable": p.reached,
+                    "tiles": p.rows,
+                })
+            };
+            let picture = chunk(walk.0.picture(here, '@'));
+            let goal_picture = way.planned_at.map(|_| chunk(walk.0.picture(way.goal, 'G')));
+            json!({
+                "id": id,
+                "tick": tick.0,
+                "def": npc.def,
+                "faction": npc.faction,
+                "dead": dead,
+                "at": [here.x, here.y],
+                "health": health.0.current,
+                "needs": {"hunger": needs.0.hunger, "thirst": needs.0.thirst, "rest": needs.0.rest, "safety": needs.0.safety},
+                "doing": format!("{:?}", doing.0),
+                "fight": format!("{:?}", fight.0),
+                "home": home.map(|h| [h.0.x, h.0.y]),
+                "store": store.map(|s| s.0.to_bits()),
+                "carrying": stacks(&inventory.0),
+                "hotbar": stacks(&hotbar.0.slots),
+                "knows": memory.0.known.iter().map(|k| json!({
+                    "key": k.key,
+                    "kind": k.kind,
+                    "at": [k.position.x, k.position.z],
+                    "seen_at": k.seen_at,
+                    "checked_at": k.checked_at,
+                    "held": k.held,
+                })).collect::<Vec<_>>(),
+                "way": {
+                    "goal": [way.goal.x, way.goal.y],
+                    "waypoints": way.waypoints.iter().map(|p| [p.x, p.y]).collect::<Vec<_>>(),
+                    "planned_at": way.planned_at,
+                    "queued": way.queued,
+                    "retry_at": way.retry_at,
+                },
+                "chunk": picture,
+                "goal_chunk": goal_picture,
+            })
+        }
+    };
+    if let Ok(mut slot) = NPC_ANSWER.lock() {
+        *slot = Some((id, answer));
+    }
+}
 
 /// Once a second: the last searches that found no way, for the `ways`
 /// op.
@@ -47,6 +140,7 @@ pub fn publish_ways(tick: Res<crate::SimTick>, failed: Res<crate::nav::FailedWay
         .map(|f| {
             json!({
                 "tick": f.tick,
+                "id": f.id,
                 "who": f.who,
                 "doing": f.doing,
                 "from": [f.from.x, f.from.y],
@@ -257,6 +351,27 @@ pub fn start() {
             }
             SPEED_BITS.store(times.to_bits(), Ordering::Relaxed);
             Ok(json!({"times": times}))
+        },
+    ));
+    OP_REGISTRY.register(OpDef::new(
+        "npc",
+        "everything about one NPC by id (see `people`): who, where, health, needs, what the brain has them doing, what they know and carry, their way, and their chunk drawn from the walk grid with how many doorways they can reach",
+        "{\"id\": 42}",
+        |args| {
+            let id = args.get("id").and_then(Json::as_u64).ok_or_else(|| "id: a number".to_string())?;
+            if let Ok(mut ask) = NPC_ASK.lock() {
+                *ask = Some(id);
+            }
+            // The game answers on its next step.
+            for _ in 0..100 {
+                std::thread::sleep(std::time::Duration::from_millis(10));
+                if let Ok(mut slot) = NPC_ANSWER.lock()
+                    && slot.as_ref().is_some_and(|(asked, _)| *asked == id)
+                {
+                    return Ok(slot.take().map(|(_, a)| a).unwrap_or(Json::Null));
+                }
+            }
+            Err("the game did not answer within a second".to_string())
         },
     ));
     OP_REGISTRY.register(OpDef::new(
