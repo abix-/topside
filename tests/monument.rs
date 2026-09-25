@@ -64,7 +64,11 @@ fn every_building_stands_and_its_walls_are_solid() {
         .map(|(_, m)| m.members.len())
         .sum();
     let roots = world.query_filtered::<(), With<StructureRoot>>().iter(world).count();
-    assert_eq!(roots, members + 1, "every member building and the bunker");
+    assert_eq!(
+        roots,
+        members + 1 + topside::content::OTHER_BUNKERS.len(),
+        "every member building, the bunker, and the other bunkers"
+    );
 
     let (at, walls) = monuments
         .iter()

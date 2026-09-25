@@ -253,6 +253,9 @@ pub fn labyrinth_def() -> WorldDef {
     // Nothing in the maze stands over its walls yet (the gate tower
     // is row 11v), so no landmark can be in sight from the door.
     def.landmarks = 0;
+    // The maze grows out of one clearing; a second clearing would be a
+    // maze of its own, cut off from the first. No other bunkers here yet.
+    def.bunkers = Vec::new();
     def
 }
 
@@ -322,6 +325,7 @@ pub fn topside_def() -> WorldDef {
         landmarks: 1,
         bunker: Vec2::ZERO,
         bunker_clear: 50.0,
+        bunkers: OTHER_BUNKERS.to_vec(),
     }
 }
 
@@ -355,23 +359,57 @@ impl Default for FactionRegistryRes {
 /// the AI names it by this.
 pub const PLAYER_FACTION: &str = "player";
 
+/// The topside hostiles (design.md "Bunker people and topside people"):
+/// wild animals and raiders, part of the topside world, hostile to
+/// everyone. Not a bunker; the faction table is how hostility is read.
+pub const TOPSIDE_HOSTILES: &str = "topside hostiles";
+
+/// Where the other bunkers stand (design.md: every bunker is its own
+/// faction), the same in every world the storm rolls. Tuning.
+pub const OTHER_BUNKERS: [Vec2; 4] = [
+    Vec2::new(300.0, 300.0),
+    Vec2::new(-300.0, 300.0),
+    Vec2::new(-300.0, -300.0),
+    Vec2::new(300.0, -300.0),
+];
+
+/// How many bunker people live in each other bunker. Tuning.
+pub const BUNKER_PEOPLE: usize = 5;
+
+/// Where the bunker people stand in the bunker's plan (x, z), one each.
+pub const BUNKER_PEOPLE_AT: [[f32; 2]; BUNKER_PEOPLE] =
+    [[-1.5, 0.0], [0.0, 0.0], [1.5, 0.0], [-1.0, 1.5], [1.0, 1.5]];
+
+/// A bunker's store (design.md: factions have real stores): one box in
+/// the bunker's plan (x, z) and what is in it. Tuning.
+pub const BUNKER_STORE_AT: [f32; 2] = [-2.0, -3.0];
+pub const BUNKER_STORE: [(&str, u32); 2] = [("canned food", 10), ("water bottle", 10)];
+
+/// The faction of the other bunker at `OTHER_BUNKERS[i]`.
+pub fn bunker_faction(i: usize) -> String {
+    format!("bunker {}", i + 1)
+}
+
+/// Every bunker is its own faction: the player's, and one per other
+/// bunker, neutral to each other at the start (what happens between
+/// them changes that, todo 11t). The topside hostiles are hostile to
+/// everyone.
 pub fn register_factions(reg: &mut FactionRegistry) {
+    let bunkers = (0..OTHER_BUNKERS.len()).map(|i| (bunker_faction(i), FactionKind::Builder));
     for (name, kind) in [
-        (PLAYER_FACTION, FactionKind::Player),
-        ("raiders", FactionKind::Hostile),
-        ("warlords", FactionKind::Hostile),
-        ("settlers", FactionKind::Builder),
-    ] {
-        reg.register(FactionDef {
-            name: name.to_string(),
-            kind,
-        })
-        .expect("faction registered once");
+        (PLAYER_FACTION.to_string(), FactionKind::Player),
+        (TOPSIDE_HOSTILES.to_string(), FactionKind::Hostile),
+    ]
+    .into_iter()
+    .chain(bunkers)
+    {
+        reg.register(FactionDef { name, kind }).expect("faction registered once");
     }
 }
 
-/// The people found at monuments: raiders, and a neutral wanderer
-/// who belongs to no side.
+/// The people: the bunker people (their bunker's faction is given at
+/// spawn), the topside hostiles found at monuments, and the wanderer,
+/// a topside neutral who belongs to no side.
 pub fn register_actors(reg: &mut ActorRegistry) {
     let person = |name: &str, faction: Option<&str>, behaviour, max_health, weapon: &str| {
         ActorDef {
@@ -386,9 +424,10 @@ pub fn register_actors(reg: &mut ActorRegistry) {
         }
     };
     for def in [
-        person("scavenger", Some("raiders"), Behaviour::Hunter, 60.0, "pipe"),
-        person("raider", Some("raiders"), Behaviour::Hunter, 100.0, "hatchet"),
-        person("lookout", Some("raiders"), Behaviour::Guard, 80.0, "pipe"),
+        person("bunker person", None, Behaviour::Guard, 100.0, "pipe"),
+        person("scavenger", Some(TOPSIDE_HOSTILES), Behaviour::Hunter, 60.0, "pipe"),
+        person("raider", Some(TOPSIDE_HOSTILES), Behaviour::Hunter, 100.0, "hatchet"),
+        person("lookout", Some(TOPSIDE_HOSTILES), Behaviour::Guard, 80.0, "pipe"),
         person("wanderer", None, Behaviour::Guard, 70.0, "pipe"),
     ] {
         reg.register(def).expect("actor registered once");
@@ -1141,7 +1180,7 @@ mod tests {
         let mut reg = ActorRegistry::default();
         register_actors(&mut reg);
         let names: Vec<&str> = reg.names().collect();
-        assert_eq!(names, ["scavenger", "raider", "lookout", "wanderer"]);
+        assert_eq!(names, ["bunker person", "scavenger", "raider", "lookout", "wanderer"]);
         let factions = FactionRegistryRes::default();
         for name in names {
             let def = reg.def(name).unwrap();

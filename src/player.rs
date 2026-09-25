@@ -6,7 +6,7 @@
 use avian2d::prelude::*;
 use bevy::prelude::*;
 
-use crate::actor::{Dead, Facing, Hotbar, Inventory, Personality, Survival};
+use crate::actor::{Dead, Facing, Home, Hotbar, Inventory, Personality, Survival};
 use crate::combat::{Equipment, Firing, Health, Protection, Rolling};
 use modforge::combat::ROLL_SPEED_MULT;
 use crate::input::{Action, ActionQueue, Actions, ThisTick};
@@ -167,18 +167,22 @@ pub fn movement(
     }
 }
 
-/// A dead player's Respawn this tick: back in the world at the bunker,
-/// carrying nothing (the death box keeps what they had).
+/// A dead person's Respawn this tick (the player's Enter, a bunker
+/// person's brain): back in the world at home (the player wakes in
+/// their bunker), carrying nothing (the death box keeps what they had).
 pub fn respawn(
     mut commands: Commands,
     world: Res<WorldRes>,
-    mut dead: Query<(Entity, &ThisTick, &mut Transform), (With<Player>, With<Dead>)>,
+    mut dead: Query<(Entity, &ThisTick, &mut Transform, Option<&Home>), With<Dead>>,
 ) {
-    for (entity, this_tick, mut transform) in &mut dead {
+    for (entity, this_tick, mut transform, home) in &mut dead {
         if !this_tick.0.iter().any(|s| matches!(s.action, Action::Respawn)) {
             continue;
         }
-        transform.translation = wake_point(&world);
+        transform.translation = match home {
+            Some(home) => home.0.extend(transform.translation.z),
+            None => wake_point(&world),
+        };
         commands
             .entity(entity)
             .remove::<(Dead, ColliderDisabled)>()

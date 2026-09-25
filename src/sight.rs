@@ -44,7 +44,7 @@ pub fn player_sight(
     players: Query<&Transform, (With<Player>, Without<Dead>)>,
     mut seen: Query<
         (&Transform, &mut Visibility),
-        (Or<(With<Npc>, With<WorldItem>, With<crate::combat::Bullet>)>, Without<Player>),
+        (Or<(With<Npc>, With<WorldItem>, With<crate::combat::Bullet>)>, Without<Player>, Without<Dead>),
     >,
 ) {
     let Ok(player) = players.single() else {

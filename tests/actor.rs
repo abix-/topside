@@ -9,7 +9,10 @@ use bevy::prelude::*;
 use common::game;
 use modforge::actor::Behaviour;
 use topside::actor::{Home, Npc};
-use topside::content::{ActorRegistryRes, FactionRegistryRes, PLAYER_FACTION, def_for_danger};
+use topside::content::{
+    ActorRegistryRes, BUNKER_PEOPLE, FactionRegistryRes, OTHER_BUNKERS, PLAYER_FACTION, bunker_faction,
+    def_for_danger,
+};
 use topside::structure::MonumentsRes;
 
 #[test]
@@ -23,9 +26,34 @@ fn every_npc_spot_gets_its_person() {
         .map(|(_, m)| m.npc_spots.len())
         .sum();
     assert!(spots > 0, "the world has NPC spots");
+    // Topside people have no home: one per spot, and the scavenger at
+    // the door.
     let world = app.world_mut();
-    let npcs = world.query_filtered::<(), (With<Npc>, With<Home>)>().iter(world).count();
-    assert_eq!(npcs, spots);
+    let topside = world.query_filtered::<(), (With<Npc>, Without<Home>)>().iter(world).count();
+    assert_eq!(topside, spots + 1);
+}
+
+/// Every other bunker is its own faction with its bunker people living
+/// in it (design.md "Bunker people and topside people").
+#[test]
+fn every_other_bunker_has_its_people() {
+    let (mut app, _) = game();
+    let world = app.world_mut();
+    let people: Vec<(Npc, Vec2, Vec2)> = world
+        .query::<(&Npc, &Home, &Transform)>()
+        .iter(world)
+        .map(|(n, h, t)| (n.clone(), h.0, t.translation.truncate()))
+        .collect();
+    assert_eq!(people.len(), OTHER_BUNKERS.len() * BUNKER_PEOPLE);
+    for (i, bunker) in OTHER_BUNKERS.iter().enumerate() {
+        let faction = bunker_faction(i);
+        let theirs: Vec<_> = people.iter().filter(|(n, _, _)| n.faction.as_deref() == Some(&faction)).collect();
+        assert_eq!(theirs.len(), BUNKER_PEOPLE, "{faction} has its people");
+        for (_, home, at) in theirs {
+            assert!(home.distance(*bunker) < 5.0, "{faction}'s home is its bunker");
+            assert!(at.distance(*home) < 0.1, "{faction}'s people start at home");
+        }
+    }
 }
 
 #[test]

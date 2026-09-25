@@ -14,7 +14,7 @@ use modforge::item::{self, ItemRegistry};
 
 use modforge::actor::ActorId;
 
-use crate::actor::{Actor, ActorMapRes, Dead, Facing, Hotbar, Inventory, Memory, Personality};
+use crate::actor::{Actor, ActorMapRes, Dead, Facing, Home, Hotbar, Inventory, Memory, Personality};
 use crate::content::{DamageRegistryRes, ItemRegistryRes};
 use crate::input::{Action, ActionQueue, ThisTick};
 use crate::interact::{Container, spawn_item};
@@ -403,8 +403,9 @@ const DEATH_BOX_COLOR: [f32; 3] = [0.35, 0.25, 0.2];
 /// (design.md "Death and difficulty": everyone is equal): everything it
 /// carried (inventory, hotbar, worn gear) goes into one storage box
 /// where it fell (modforge's `loot_all`, a box through `spawn_item`).
-/// An NPC then leaves the actor map (its id never returns) and the
-/// world; the player wakes in the bunker with nothing.
+/// Someone with a home to wake in (the player, the bunker people) is
+/// then dead until they respawn there with nothing; a topside person
+/// leaves the actor map (its id never returns) and the world.
 pub fn die(
     mut commands: Commands,
     items: Res<ItemRegistryRes>,
@@ -415,7 +416,7 @@ pub fn die(
         Entity,
         &mut Health,
         &Transform,
-        Has<Player>,
+        (Has<Player>, Has<Home>),
         Option<&Actor>,
         Option<&mut Firing>,
         Option<&mut Inventory>,
@@ -423,7 +424,7 @@ pub fn die(
         Option<&mut Equipment>,
     )>,
 ) {
-    for (entity, mut health, transform, is_player, actor, firing, inventory, hotbar, worn) in &mut dying {
+    for (entity, mut health, transform, wakes, actor, firing, inventory, hotbar, worn) in &mut dying {
         if health.0.current > 0.0 {
             continue;
         }
@@ -449,7 +450,11 @@ pub fn die(
                 commands.entity(dropped).insert(Container(contents));
             }
         }
-        if is_player {
+        let (is_player, has_home) = wakes;
+        if !is_player {
+            life.died += 1;
+        }
+        if is_player || has_home {
             // The death message and the choice to respawn (design.md
             // "Death and difficulty"); the world keeps running meanwhile.
             health.0.current = health.0.max;
@@ -461,10 +466,15 @@ pub fn die(
                 .insert((Dead, Visibility::Hidden, ColliderDisabled));
             continue;
         }
-        if let Some(actor) = actor {
-            map.0.remove(actor.0);
-        }
-        life.died += 1;
-        commands.entity(entity).despawn();
+        leave(&mut commands, &mut map, entity, actor);
     }
+}
+
+/// A topside person leaves the world for good: out of the actor map
+/// (its id never returns) and gone. Dying and the storm both end here.
+pub fn leave(commands: &mut Commands, map: &mut ActorMapRes, entity: Entity, actor: Option<&Actor>) {
+    if let Some(actor) = actor {
+        map.0.remove(actor.0);
+    }
+    commands.entity(entity).despawn();
 }

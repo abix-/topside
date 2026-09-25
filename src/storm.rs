@@ -3,13 +3,17 @@
 //! storm's damage through the one hit path, player and NPC alike; when
 //! it passes, the world shifts to another reality. The ground, what
 //! stands on it, and the things lying about are rolled anew from a new
-//! seed through the same spawn paths; the bunker and every person stay.
+//! seed through the same spawn paths. The bunkers and the bunker people
+//! stay; the topside people die with their world and the next world's
+//! are found at its monuments.
 
 use bevy::prelude::*;
 use modforge::combat::Hit;
 use modforge::storm::StormPhase;
 
-use crate::actor::Dead;
+use crate::actor::{Actor, ActorMapRes, Dead, Home, Npc};
+use crate::ai::LifeStats;
+use crate::combat::leave;
 use crate::combat::{Equipment, Health, Protection, hit_actor};
 use crate::content::{DamageRegistryRes, ItemRegistryRes, STORM};
 use crate::interact::WorldItem;
@@ -80,9 +84,18 @@ pub fn shift_world(
     pieces: Query<Entity, With<WorldPiece>>,
     lying: Query<(Entity, &Transform), With<WorldItem>>,
     bunker: Query<&Shelter, Without<WorldPiece>>,
+    topside_people: Query<(Entity, Option<&Actor>), (With<Npc>, Without<Home>)>,
+    mut map: ResMut<ActorMapRes>,
+    mut life: ResMut<LifeStats>,
 ) {
     for entity in &pieces {
         commands.entity(entity).despawn();
+    }
+    // The topside people are part of this world and die with it
+    // (design.md "Bunker people and topside people").
+    for (entity, actor) in &topside_people {
+        life.died += 1;
+        leave(&mut commands, &mut map, entity, actor);
     }
     for (entity, at) in &lying {
         let point = at.translation.truncate();
@@ -94,6 +107,7 @@ pub fn shift_world(
     commands.run_system_cached(crate::terrain::roll);
     commands.run_system_cached(crate::terrain::spawn_solids);
     commands.run_system_cached(crate::structure::spawn_monuments);
+    commands.run_system_cached(crate::actor::populate_monuments);
     if windowed.is_some() {
         commands.run_system_cached(crate::terrain::spawn_ground);
     }

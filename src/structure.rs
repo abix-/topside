@@ -19,7 +19,8 @@ use modforge::loot::roll_loot;
 use modforge::monument::Roll;
 
 use crate::content::{
-    BENCH_AT, ItemRegistryRes, MonumentRegistryRes, STARTING_ITEMS, STARTING_NOTE_AT, loot_table,
+    BENCH_AT, BUNKER_STORE, BUNKER_STORE_AT, ItemRegistryRes, MonumentRegistryRes, STARTING_ITEMS,
+    STARTING_NOTE_AT, loot_table,
     starting_bunker, starting_note,
 };
 use crate::interact::{Container, Door, Interactable, spawn_item, spawn_station};
@@ -168,6 +169,31 @@ pub fn spawn_bunker(mut commands: Commands, world: Res<WorldRes>, items: Res<Ite
 }
 
 const NOTE_COLOR: Rgb = [0.9, 0.88, 0.8];
+
+/// The other bunkers (design.md: every bunker is its own faction), each
+/// the same building as the player's through `spawn_structure`, not of
+/// any one world, with its store: a box of food and water.
+pub fn spawn_other_bunkers(mut commands: Commands, world: Res<WorldRes>, items: Res<ItemRegistryRes>) {
+    let box_def = items.0.def("storage box").expect("the storage box is registered");
+    for (i, &at) in world.0.def.bunkers.iter().enumerate() {
+        spawn_structure(&mut commands, &starting_bunker(), at, false);
+        let mut contents = item::Inventory::new(box_def.storage.unwrap_or(12));
+        for (name, count) in BUNKER_STORE {
+            if let Some(def) = items.0.def(name) {
+                let _ = contents.add(create(def, count, &[], 0.0, i as u64), def.max_stack);
+            }
+        }
+        let [x, z] = BUNKER_STORE_AT;
+        let store = spawn_item(
+            &mut commands,
+            box_def,
+            create(box_def, 1, &[], 0.0, i as u64),
+            at + Vec2::new(x, z),
+            LOOT_BOX_COLOR,
+        );
+        commands.entity(store).insert(Container(contents));
+    }
+}
 
 /// Every site's monument as modforge rolled it, and where it stands:
 /// rolled once, read by whatever needs its NPC spots or loot spots.

@@ -11,7 +11,10 @@ use modforge::item;
 use modforge::survival::{Condition, SurvivalStats};
 
 use crate::combat::{Equipment, Firing, Health, Protection, Rolling};
-use crate::content::{ActorRegistryRes, DOOR_ENEMY, FactionRegistryRes, ItemRegistryRes, def_for_danger};
+use crate::content::{
+    ActorRegistryRes, BUNKER_PEOPLE_AT, BUNKER_STORE_AT, DOOR_ENEMY, FactionRegistryRes, ItemRegistryRes,
+    bunker_faction, def_for_danger,
+};
 use crate::terrain::WorldRes;
 use crate::input::{Actions, ThisTick};
 use crate::interact::{Container, WorldItem};
@@ -242,9 +245,10 @@ pub const PLACE_KEY: u64 = 1 << 63;
 /// How far from a monument's centre its boxes count as home, in metres.
 const HOME_BOXES_WITHIN: f32 = 60.0;
 
-/// Fill every monument's NPC spots through `spawn_actor`, once. Each
-/// person lives there and knows the place from the start (life.md
-/// "Home").
+/// Fill every monument's NPC spots through `spawn_actor`. These are
+/// topside people: found there and knowing the place, but with no home;
+/// the storm kills them with their world (design.md "Bunker people and
+/// topside people"). Runs for every world the storm rolls.
 pub fn populate_monuments(
     mut spawn: SpawnActor,
     registry: Res<ActorRegistryRes>,
@@ -264,9 +268,9 @@ pub fn populate_monuments(
     }
 }
 
-/// What someone living at monument `i` (at `at`, of type `kind`) knows
+/// What someone found at monument `i` (at `at`, of type `kind`) knows
 /// from the start: the place, and every box there, seen but not looked
-/// inside (life.md "Home: known from the start").
+/// inside.
 pub fn home_knowledge(
     i: usize,
     at: Vec2,
@@ -285,10 +289,44 @@ pub fn home_knowledge(
     Memory(known)
 }
 
-/// Someone comes to live at `stand` knowing `known`: through the one
-/// spawn path, with that home and that memory.
+/// A topside person at `stand` knowing `known`: through the one spawn
+/// path, with that memory and no home.
 pub fn settle(spawn: &mut SpawnActor, def: &ActorDef, stand: Vec2, known: &Memory) -> Option<Entity> {
     let npc = spawn_actor(spawn, def, stand, None)?;
-    spawn.commands.entity(npc).insert((Home(stand), known.clone()));
+    spawn.commands.entity(npc).insert(known.clone());
     Some(npc)
+}
+
+/// The bunker people (design.md "Bunker people and topside people"):
+/// `BUNKER_PEOPLE` in every other bunker, through the one spawn path,
+/// of that bunker's faction, home at their spot in it, knowing its
+/// store and what is in it. Once: they persist, and respawn at home.
+pub fn populate_bunkers(
+    mut spawn: SpawnActor,
+    registry: Res<ActorRegistryRes>,
+    world: Res<WorldRes>,
+    tick: Res<SimTick>,
+    stores: Query<(Entity, &Transform, &WorldItem, &Container)>,
+) {
+    let def = registry.0.def("bunker person").expect("the bunker person is registered");
+    for (i, &at) in world.0.def.bunkers.iter().enumerate() {
+        let mut known = modforge::memory::Memory::default();
+        let [x, z] = BUNKER_STORE_AT;
+        let store_at = at + Vec2::new(x, z);
+        for (entity, t, item, contents) in &stores {
+            let p = t.translation.truncate();
+            if p.distance(store_at) < 0.5 {
+                known.see(entity.to_bits(), &item.stack.item, Vec3::new(p.x, 0.0, p.y), tick.0);
+                let kinds = contents.0.slots.iter().flatten().map(|s| s.item.clone()).collect();
+                known.checked(entity.to_bits(), kinds, tick.0);
+            }
+        }
+        let faction = bunker_faction(i);
+        for [x, z] in BUNKER_PEOPLE_AT {
+            let stand = at + Vec2::new(x, z);
+            if let Some(npc) = spawn_actor(&mut spawn, def, stand, Some(&faction)) {
+                spawn.commands.entity(npc).insert((Home(stand), Memory(known.clone())));
+            }
+        }
+    }
 }

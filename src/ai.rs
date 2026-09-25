@@ -20,7 +20,7 @@ use crate::actor::{
 };
 use crate::combat::Health;
 use crate::content::{ActorRegistryRes, FactionRegistryRes, ItemRegistryRes, MonumentRegistryRes, PLAYER_FACTION};
-use crate::input::Actions;
+use crate::input::{Action, Actions};
 use crate::interact::{Container, WorldItem};
 use crate::player::Player;
 use crate::sight::Sight;
@@ -63,7 +63,7 @@ pub struct Thinkers<'w, 's> {
             &'static mut ActorActivity,
             &'static mut ActorCombat,
             &'static mut ActorCondition,
-            (&'static mut Actions, &'static mut Inventory, &'static mut NextThink),
+            (&'static mut Actions, &'static mut Inventory, &'static mut NextThink, Has<Dead>),
         ),
     >,
     others: Query<
@@ -148,11 +148,18 @@ pub fn think(
         mut activity,
         mut combat,
         mut condition,
-        (mut actions, mut inventory, mut next_think),
+        (mut actions, mut inventory, mut next_think, dead),
     ) in &mut thinkers.npcs
     {
         // Not their moment yet: they keep doing what they decided.
         if tick.0 < next_think.0 {
+            continue;
+        }
+        // Dead with a home to wake in: at their moment they respawn, the
+        // same Respawn the player's Enter pushes.
+        if dead {
+            actions.0.push(tick.0, Action::Respawn);
+            next_think.0 = tick.0 + (modforge::brain::AWAKE_REACTION * 60.0) as u64;
             continue;
         }
         let Some(def) = registry.0.def(&npc.def) else {
