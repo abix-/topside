@@ -7,11 +7,11 @@ use avian2d::prelude::*;
 use bevy::prelude::*;
 use modforge::actor::{ActorDef, ActorId, ActorMap};
 use modforge::brain::{Activity, CombatState};
-use modforge::item;
+use modforge::item::{self, EquipSlot};
 use modforge::survival::{Condition, SurvivalStats};
 
-use crate::combat::{Equipment, Health, Protection};
-use crate::content::{ActorRegistryRes, FactionRegistryRes, def_for_danger};
+use crate::combat::{Equipment, Firing, Health, Protection};
+use crate::content::{ActorRegistryRes, FactionRegistryRes, ItemRegistryRes, def_for_danger};
 use crate::input::{Actions, ThisTick};
 use crate::player::PLAYER_SIZE;
 use crate::structure::MonumentsRes;
@@ -120,6 +120,7 @@ impl Default for ActorCombat {
 #[derive(bevy::ecs::system::SystemParam)]
 pub struct SpawnActor<'w, 's> {
     pub commands: Commands<'w, 's>,
+    pub items: Res<'w, ItemRegistryRes>,
     pub factions: Res<'w, FactionRegistryRes>,
     pub actors: ResMut<'w, ActorMapRes>,
     pub seed: Res<'w, WorldSeed>,
@@ -137,6 +138,11 @@ pub fn spawn_actor(spawn: &mut SpawnActor, def: &ActorDef, at: Vec2, faction: Op
     {
         return None;
     }
+    // The def's weapon in the hands.
+    let mut equipment = Equipment::default();
+    if let Some(weapon) = def.weapon.as_deref().and_then(|w| spawn.items.0.def(w)) {
+        equipment.0.set(EquipSlot::Weapon, Some(item::create(weapon, 1, &[], 0.0, 0)));
+    }
     let entity = spawn
         .commands
         .spawn((
@@ -145,7 +151,7 @@ pub fn spawn_actor(spawn: &mut SpawnActor, def: &ActorDef, at: Vec2, faction: Op
                 faction,
             },
             Transform::from_translation(at.extend(NPC_Z)),
-            (Facing::default(), Inventory::default(), Equipment::default()),
+            (Facing::default(), Inventory::default(), equipment, Firing::default()),
             (
                 Survival::default(),
                 ActorCondition::default(),

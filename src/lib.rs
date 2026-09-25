@@ -102,6 +102,7 @@ pub fn build_app(headless: bool, seed: u64) -> App {
             player::aim,
             interact::interact_on_use,
             player::movement,
+            combat::melee,
             combat::die,
         )
             .chain(),

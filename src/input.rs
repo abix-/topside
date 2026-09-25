@@ -50,6 +50,7 @@ fn key_of(code: KeyCode) -> Option<Key> {
 /// the cursor to face.
 pub fn read_input(
     keys: Res<ButtonInput<KeyCode>>,
+    buttons: Res<ButtonInput<MouseButton>>,
     bindings: Res<BindingsRes>,
     tick: Res<SimTick>,
     windows: Query<&Window, With<PrimaryWindow>>,
@@ -65,8 +66,16 @@ pub fn read_input(
     {
         actions.0.push(tick.0 + 1, Action::Aim { x: point.x, y: point.y });
     }
-    let pressed: Vec<Key> = keys.get_pressed().filter_map(|k| key_of(*k)).collect();
-    let just_pressed: Vec<Key> = keys.get_just_pressed().filter_map(|k| key_of(*k)).collect();
+    let pressed: Vec<Key> = keys
+        .get_pressed()
+        .filter_map(|k| key_of(*k))
+        .chain(buttons.get_pressed().filter_map(|b| button_of(*b)))
+        .collect();
+    let just_pressed: Vec<Key> = keys
+        .get_just_pressed()
+        .filter_map(|k| key_of(*k))
+        .chain(buttons.get_just_pressed().filter_map(|b| button_of(*b)))
+        .collect();
     // The next fixed step consumes what this frame produced.
     let next = tick.0 + 1;
     let mut moved = false;
@@ -76,7 +85,7 @@ pub fn read_input(
                 moved = true;
                 actions.0.push(next, action);
             }
-            Action::Use => actions.0.push(next, action),
+            Action::Use | Action::Attack => actions.0.push(next, action),
             _ => {}
         }
     }
@@ -87,15 +96,23 @@ pub fn read_input(
     }
 }
 
+fn button_of(button: MouseButton) -> Option<Key> {
+    Some(match button {
+        MouseButton::Left => Key::MouseLeft,
+        MouseButton::Right => Key::MouseRight,
+        _ => return None,
+    })
+}
+
 /// First thing each fixed step: every actor's due actions move from
 /// its queue into `ThisTick` for the systems that follow. A step with
-/// nothing new (two fixed steps in one frame) keeps the held move from
-/// the step before.
+/// nothing new (two fixed steps in one frame) keeps the held actions,
+/// move and attack, from the step before.
 pub fn drain_actions(tick: Res<SimTick>, mut actors: Query<(&mut Actions, &mut ThisTick)>) {
     for (mut queue, mut this_tick) in &mut actors {
         let due = queue.0.drain_through(tick.0);
         if due.is_empty() {
-            this_tick.0.retain(|s| matches!(s.action, Action::Move { .. }));
+            this_tick.0.retain(|s| matches!(s.action, Action::Move { .. } | Action::Attack));
         } else {
             this_tick.0 = due;
         }

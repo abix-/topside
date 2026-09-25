@@ -40,6 +40,17 @@ pub fn hold(app: &mut App, player: Entity, action: Action, steps: usize) {
     }
 }
 
+/// Push every action in `actions` for the next fixed tick, then step
+/// once.
+pub fn act(app: &mut App, player: Entity, actions: &[Action]) {
+    let next = app.world().resource::<SimTick>().0 + 1;
+    let mut queue = app.world_mut().get_mut::<Actions>(player).unwrap();
+    for action in actions {
+        queue.0.push(next, *action);
+    }
+    app.update();
+}
+
 pub fn position(app: &App, player: Entity) -> Vec2 {
     app.world().get::<Transform>(player).unwrap().translation.truncate()
 }

@@ -7,7 +7,7 @@ use avian2d::prelude::*;
 use bevy::prelude::*;
 
 use crate::actor::{Facing, Inventory, Personality};
-use crate::combat::{Equipment, Health, Protection};
+use crate::combat::{Equipment, Firing, Health, Protection};
 use crate::input::{ActionQueue, Actions, ThisTick};
 use crate::terrain::WorldRes;
 
@@ -30,6 +30,7 @@ const PLAYER_COLOR: Color = Color::srgb(0.9, 0.75, 0.3);
     Health,
     Protection,
     Equipment,
+    Firing,
     Transform,
     RigidBody = RigidBody::Kinematic,
     Collider = Collider::circle(PLAYER_SIZE / 2.0)
@@ -62,8 +63,12 @@ const NOSE_COLOR: Color = Color::srgb(0.25, 0.2, 0.1);
 
 /// Every actor faces the point it aims at this tick, and its picture
 /// turns with it.
-pub fn aim(mut actors: Query<(&ThisTick, &mut Facing, &mut Transform)>) {
-    for (this_tick, mut facing, mut transform) in &mut actors {
+pub fn aim(mut actors: Query<(&ThisTick, Option<&Firing>, &mut Facing, &mut Transform)>) {
+    for (this_tick, firing, mut facing, mut transform) in &mut actors {
+        // Committed to a swing: it goes where it was aimed.
+        if firing.is_some_and(|f| f.0.committed()) {
+            continue;
+        }
         let Some((x, y)) = ActionQueue::aim(&this_tick.0) else {
             continue;
         };
@@ -82,10 +87,14 @@ pub fn aim(mut actors: Query<(&ThisTick, &mut Facing, &mut Transform)>) {
 pub fn movement(
     time: Res<Time<Fixed>>,
     move_and_slide: MoveAndSlide,
-    mut actors: Query<(Entity, &ThisTick, &Collider, Option<&Personality>, &mut Transform)>,
+    mut actors: Query<(Entity, &ThisTick, &Collider, Option<&Personality>, Option<&Firing>, &mut Transform)>,
 ) {
     let config = MoveAndSlideConfig::default();
-    for (entity, this_tick, shape, personality, mut transform) in &mut actors {
+    for (entity, this_tick, shape, personality, firing, mut transform) in &mut actors {
+        // Committed to a swing: no walking until it ends.
+        if firing.is_some_and(|f| f.0.committed()) {
+            continue;
+        }
         let (x, y) = ActionQueue::movement(&this_tick.0);
         // Swift people walk faster, slow ones slower.
         let speed = WALK_SPEED * personality.map_or(1.0, |p| p.0.speed_mult());
