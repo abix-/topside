@@ -48,6 +48,17 @@ pub fn build_app(headless: bool, seed: u64) -> App {
             ..default()
         }));
     }
+    // Avian 2D is the one physics system. Seen from above, nothing
+    // falls.
+    app.add_plugins(avian2d::prelude::PhysicsPlugins::default());
+    app.insert_resource(avian2d::prelude::Gravity(Vec2::ZERO));
+    if headless {
+        // Headless callers drive `update()` themselves and never
+        // `run()`, so finish plugin setup here (Avian creates its
+        // resources in `Plugin::finish`).
+        app.finish();
+        app.cleanup();
+    }
     app.insert_resource(Time::<Fixed>::from_hz(60.0));
     app.insert_resource(WorldSeed(seed));
     app.init_resource::<SimTick>();
@@ -55,7 +66,10 @@ pub fn build_app(headless: bool, seed: u64) -> App {
     app.init_resource::<content::BiomeRegistryRes>();
     app.init_resource::<content::MonumentRegistryRes>();
     app.init_resource::<input::BindingsRes>();
-    app.add_systems(Startup, (terrain::roll, player::spawn_player).chain());
+    app.add_systems(
+        Startup,
+        (terrain::roll, (terrain::spawn_solids, player::spawn_player)).chain(),
+    );
     // Every fixed step: count it, drain each actor's due actions, then
     // every system reads actions, never keys.
     app.add_systems(

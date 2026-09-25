@@ -2,22 +2,25 @@
 //! changes"): every cell coloured by road, water, or its biome's
 //! ground, one `TilemapChunk` per `CHUNK` by `CHUNK` cells. One world
 //! unit is one metre, and modforge's (x, y) is the screen's (x, y).
+//! What stops a body (water, scattered nature, the Labyrinth's walls)
+//! is one static Avian body per chunk with one compound collider, the
+//! 3D game's rule (performance.md: one collider per chunk, never a
+//! body per piece).
 
+use avian2d::prelude::*;
 use bevy::asset::RenderAssetUsages;
 use bevy::prelude::*;
 use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
 use bevy::sprite_render::{TileData, TilemapChunk, TilemapChunkTileData};
 use modforge::biome::BiomeRegistry;
 use modforge::structure::Rgb;
-use modforge::worldgen::{World, roll_world};
+use modforge::worldgen::{Scattered, World, roll_world};
 
 use crate::content::{BiomeRegistryRes, MonumentRegistryRes, world_def};
 use crate::{WorldName, WorldSeed};
 
 /// Cells per chunk side.
 pub const CHUNK: usize = 32;
-/// Cells on either side of a road's centre line that are road.
-const ROAD_HALF_WIDTH: usize = 1;
 const ROAD_COLOR: Rgb = [0.22, 0.21, 0.2];
 const WATER_COLOR: Rgb = [0.2, 0.3, 0.45];
 
@@ -51,20 +54,7 @@ pub fn roll(
 /// ground colour.
 pub fn chunks(world: &World, biomes: &BiomeRegistry) -> Vec<Chunk> {
     let n = world.cells;
-    let mut road = vec![false; n * n];
-    for r in &world.roads {
-        for p in &r.points {
-            let (c, row) = world.cell_of(*p);
-            for dr in -(ROAD_HALF_WIDTH as isize)..=(ROAD_HALF_WIDTH as isize) {
-                for dc in -(ROAD_HALF_WIDTH as isize)..=(ROAD_HALF_WIDTH as isize) {
-                    let (cc, rr) = (c as isize + dc, row as isize + dr);
-                    if cc >= 0 && rr >= 0 && (cc as usize) < n && (rr as usize) < n {
-                        road[rr as usize * n + cc as usize] = true;
-                    }
-                }
-            }
-        }
-    }
+    let road = world.road_cells();
     let count = n.div_ceil(CHUNK);
     let mut out = Vec::with_capacity(count * count);
     for cr in 0..count {
@@ -91,6 +81,107 @@ pub fn chunks(world: &World, biomes: &BiomeRegistry) -> Vec<Chunk> {
         }
     }
     out
+}
+
+/// One solid rectangle on the ground: centre and size in metres.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Solid {
+    pub centre: Vec2,
+    pub size: Vec2,
+}
+
+/// The chunk (as an index into `chunks`) a point falls in.
+fn chunk_of(world: &World, p: Vec2) -> usize {
+    let (c, r) = world.cell_of(p);
+    let count = world.cells.div_ceil(CHUNK);
+    (r / CHUNK) * count + c / CHUNK
+}
+
+/// What stops a body, per chunk in the order of `chunks`: every run of
+/// water cells along a row, every piece of scatter by its footprint
+/// (size x across, z deep), and every wall of the generator by its
+/// footprint, each in the chunk its centre falls in.
+pub fn solids(world: &World, scatter: &[Scattered]) -> Vec<Vec<Solid>> {
+    let n = world.cells;
+    let count = n.div_ceil(CHUNK);
+    let cell = world.def.cell;
+    let mut out = vec![Vec::new(); count * count];
+    for r in 0..n {
+        let mut c = 0;
+        while c < n {
+            if !world.is_water(c, r) {
+                c += 1;
+                continue;
+            }
+            // A run stays inside one chunk so each chunk owns its own.
+            let start = c;
+            let end = ((start / CHUNK + 1) * CHUNK).min(n);
+            while c < end && world.is_water(c, r) {
+                c += 1;
+            }
+            let from = world.cell_center(start, r);
+            let to = world.cell_center(c - 1, r);
+            out[(r / CHUNK) * count + start / CHUNK].push(Solid {
+                centre: (from + to) / 2.0,
+                size: Vec2::new((c - start) as f32 * cell, cell),
+            });
+        }
+    }
+    for s in scatter {
+        out[chunk_of(world, s.position)].push(Solid {
+            centre: s.position,
+            size: Vec2::new(s.size.x, s.size.z),
+        });
+    }
+    for w in &world.walls {
+        let (min, max) = w.footprint();
+        let centre = (min + max) / 2.0;
+        out[chunk_of(world, centre)].push(Solid {
+            centre,
+            size: max - min,
+        });
+    }
+    out
+}
+
+/// Above the ground, under people.
+const SCATTER_Z: f32 = 0.5;
+const WALL_COLOR: Rgb = [0.38, 0.36, 0.33];
+
+/// Spawn what stops a body: one static body per chunk with one
+/// compound collider, and every piece of scatter and every wall drawn
+/// as its footprint in its colour.
+pub fn spawn_solids(mut commands: Commands, world: Res<WorldRes>, biomes: Res<BiomeRegistryRes>) {
+    let world = &world.0;
+    let scatter = world.scatter(&biomes.0);
+    for chunk in solids(world, &scatter) {
+        if chunk.is_empty() {
+            continue;
+        }
+        let shapes: Vec<(Vec2, Rotation, Collider)> = chunk
+            .iter()
+            .map(|s| (s.centre, Rotation::IDENTITY, Collider::rectangle(s.size.x, s.size.y)))
+            .collect();
+        commands.spawn((RigidBody::Static, Collider::compound(shapes), Transform::default()));
+    }
+    let sprite = |rgb: Rgb, size: Vec2| Sprite {
+        color: Color::srgb(rgb[0], rgb[1], rgb[2]),
+        custom_size: Some(size),
+        ..default()
+    };
+    for s in &scatter {
+        commands.spawn((
+            sprite(s.color, Vec2::new(s.size.x, s.size.z)),
+            Transform::from_translation(s.position.extend(SCATTER_Z)),
+        ));
+    }
+    for w in &world.walls {
+        let (min, max) = w.footprint();
+        commands.spawn((
+            sprite(WALL_COLOR, max - min),
+            Transform::from_translation(((min + max) / 2.0).extend(SCATTER_Z)),
+        ));
+    }
 }
 
 /// Spawn the ground: one tilemap chunk per chunk, each tile one white
@@ -164,5 +255,27 @@ mod tests {
         // Every cell of the world is drawn exactly once.
         let drawn: usize = chunks.iter().map(|c| c.tiles.iter().flatten().count()).sum();
         assert_eq!(drawn, world.cells * world.cells);
+    }
+
+    #[test]
+    fn every_water_cell_is_solid_once() {
+        let biomes = BiomeRegistryRes::default();
+        let monuments = MonumentRegistryRes::default();
+        let def = world_def("topside").unwrap();
+        let world = roll_world(&def, 1, &biomes.0, &monuments.monuments).unwrap();
+        let solids = solids(&world, &[]);
+        let water = (0..world.cells)
+            .flat_map(|r| (0..world.cells).map(move |c| (c, r)))
+            .filter(|&(c, r)| world.is_water(c, r))
+            .count();
+        let cell_area = world.def.cell * world.def.cell;
+        let solid_area: f32 = solids.iter().flatten().map(|s| s.size.x * s.size.y).sum();
+        assert!(water > 0, "the test world has water");
+        assert!(
+            (solid_area / cell_area - water as f32).abs() < 0.5,
+            "{} cells of water, {} cells of solid",
+            water,
+            solid_area / cell_area
+        );
     }
 }

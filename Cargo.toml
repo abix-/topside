@@ -10,6 +10,7 @@ edition = "2024"
 publish = false
 
 [dependencies]
+avian2d = { version = "0.7", default-features = false, features = ["2d", "f32", "parry-f32", "parallel"] }
 bevy = "0.19"
 modforge = { path = "../modforge/modforge" }
 topside-content = { path = "content" }
