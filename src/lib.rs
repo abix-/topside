@@ -91,6 +91,7 @@ pub fn build_app(headless: bool, seed: u64) -> App {
     app.init_resource::<content::RecipeRegistryRes>();
     app.init_resource::<interact::OpenStation>();
     app.init_resource::<storm::StormRes>();
+    app.init_resource::<ai::LifeStats>();
     app.add_systems(
         Startup,
         (

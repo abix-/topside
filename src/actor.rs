@@ -224,6 +224,11 @@ pub fn spawn_door_enemy(mut spawn: SpawnActor, registry: Res<ActorRegistryRes>, 
     spawn_actor(&mut spawn, def, world.0.def.bunker + Vec2::new(x, z), None);
 }
 
+/// The top bit of a remembered key marks a place (a monument, by its
+/// index); without it the key is an entity (a box). Keeps the two from
+/// ever being mistaken for each other.
+pub const PLACE_KEY: u64 = 1 << 63;
+
 /// How far from a monument's centre its boxes count as home, in metres.
 const HOME_BOXES_WITHIN: f32 = 60.0;
 
@@ -238,23 +243,42 @@ pub fn populate_monuments(
     boxes: Query<(Entity, &Transform, &WorldItem), With<Container>>,
 ) {
     for (i, (at, monument)) in monuments.0.iter().enumerate() {
-        let mut known = modforge::memory::Memory::default();
-        known.see(i as u64, &monument.kind, Vec3::new(at.x, 0.0, at.y), tick.0);
-        // The boxes at home, seen but not looked inside.
-        for (entity, t, item) in &boxes {
-            let p = t.translation.truncate();
-            if p.distance(*at) <= HOME_BOXES_WITHIN {
-                known.see(entity.to_bits(), &item.stack.item, Vec3::new(p.x, 0.0, p.y), tick.0);
-            }
-        }
+        let known = home_knowledge(i, *at, &monument.kind, &boxes, tick.0);
         for spot in &monument.npc_spots {
             let Some(def) = registry.0.def(def_for_danger(spot.danger)) else {
                 continue;
             };
             let stand = *at + Vec2::new(spot.position.x, spot.position.z);
-            if let Some(npc) = spawn_actor(&mut spawn, def, stand, None) {
-                spawn.commands.entity(npc).insert((Home(stand), Memory(known.clone())));
-            }
+            settle(&mut spawn, def, stand, &known);
         }
     }
+}
+
+/// What someone living at monument `i` (at `at`, of type `kind`) knows
+/// from the start: the place, and every box there, seen but not looked
+/// inside (life.md "Home: known from the start").
+pub fn home_knowledge(
+    i: usize,
+    at: Vec2,
+    kind: &str,
+    boxes: &Query<(Entity, &Transform, &WorldItem), With<Container>>,
+    now: u64,
+) -> Memory {
+    let mut known = modforge::memory::Memory::default();
+    known.see(PLACE_KEY | i as u64, kind, Vec3::new(at.x, 0.0, at.y), now);
+    for (entity, t, item) in boxes {
+        let p = t.translation.truncate();
+        if p.distance(at) <= HOME_BOXES_WITHIN {
+            known.see(entity.to_bits(), &item.stack.item, Vec3::new(p.x, 0.0, p.y), now);
+        }
+    }
+    Memory(known)
+}
+
+/// Someone comes to live at `stand` knowing `known`: through the one
+/// spawn path, with that home and that memory.
+pub fn settle(spawn: &mut SpawnActor, def: &ActorDef, stand: Vec2, known: &Memory) -> Option<Entity> {
+    let npc = spawn_actor(spawn, def, stand, None)?;
+    spawn.commands.entity(npc).insert((Home(stand), known.clone()));
+    Some(npc)
 }

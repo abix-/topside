@@ -8,15 +8,15 @@
 
 use bevy::prelude::*;
 use modforge::actor::ActorId;
-use modforge::brain::{Activity, Decision, Do, Perception, REACH, decide};
+use modforge::brain::{Activity, CombatState, Decision, Do, Perception, REACH, decide};
 use modforge::memory::{Known, food_worth};
 use modforge::monument::Roll;
 use modforge::survival::Need;
 
 use crate::SimTick;
 use crate::actor::{
-    Actor, ActorActivity, ActorCombat, ActorCondition, Dead, Facing, Home, Inventory, Memory, Npc, Personality,
-    Survival,
+    Actor, ActorActivity, ActorCombat, ActorCondition, Dead, Facing, Home, Inventory, Memory, Npc, PLACE_KEY,
+    Personality, Survival,
 };
 use crate::combat::Health;
 use crate::content::{ActorRegistryRes, FactionRegistryRes, ItemRegistryRes, MonumentRegistryRes, PLAYER_FACTION};
@@ -24,6 +24,17 @@ use crate::input::Actions;
 use crate::interact::{Container, WorldItem};
 use crate::player::Player;
 use crate::sight::Sight;
+
+/// What the people have done since the world began: proof they live,
+/// read by the control plane and the scale test.
+#[derive(Resource, Default, Debug, Clone, Copy)]
+pub struct LifeStats {
+    pub ate: u32,
+    pub looked: u32,
+    pub slept: u32,
+    pub fights: u32,
+    pub died: u32,
+}
 
 /// Within this of home counts as home.
 const HOME_REACH: f32 = 6.0;
@@ -91,6 +102,7 @@ pub fn think(
     items: Res<ItemRegistryRes>,
     monuments: Res<MonumentRegistryRes>,
     sight: Sight,
+    mut life: ResMut<LifeStats>,
     mut thinkers: Thinkers,
     mut containers: Query<(Entity, &mut Container, &Transform, &WorldItem)>,
 ) {
@@ -214,6 +226,9 @@ pub fn think(
         } = decide(&perception, &activity.0, &combat.0, &mut roll);
 
         // Act.
+        if matches!(next_combat, CombatState::Fighting { .. }) && !matches!(combat.0, CombatState::Fighting { .. }) {
+            life.fights += 1;
+        }
         activity.0 = next_activity;
         combat.0 = next_combat;
         for action in decided {
@@ -221,17 +236,29 @@ pub fn think(
         }
         match do_now {
             None => {}
-            Some(Do::Sleep) => condition.0.asleep = true,
+            Some(Do::Sleep) => {
+                condition.0.asleep = true;
+                life.slept += 1;
+            }
             Some(Do::Wake) => condition.0.asleep = false,
-            Some(Do::Check { key }) => match containers.get(Entity::from_bits(key)) {
-                Ok((_, container, _, _)) => memory.0.checked(key, kinds_in(&container.0), tick.0),
-                Err(_) => memory.0.gone(key),
+            // A key is a place (PLACE_KEY set) or a box (an entity): a
+            // place is visited; looking in a box notes what it holds; a
+            // box that is gone is forgotten.
+            Some(Do::Check { key }) if key & PLACE_KEY != 0 => memory.0.visited(key, tick.0),
+            Some(Do::Check { key }) => match Entity::try_from_bits(key).and_then(|e| containers.get(e).ok()) {
+                Some((_, container, _, _)) => {
+                    memory.0.checked(key, kinds_in(&container.0), tick.0);
+                    life.looked += 1;
+                }
+                None => memory.0.gone(key),
             },
             Some(Do::Eat { key }) => {
                 // Take one food out of the box into the inventory, then eat
                 // it through the one eating path the player uses; what it
                 // heals, it heals. Memory learns what is left.
-                let Ok((_, mut container, _, _)) = containers.get_mut(Entity::from_bits(key)) else {
+                let Some((_, mut container, _, _)) =
+                    Entity::try_from_bits(key).and_then(|e| containers.get_mut(e).ok())
+                else {
                     memory.0.gone(key);
                     continue;
                 };
@@ -260,6 +287,7 @@ pub fn think(
                     && let Ok(heal) = needs.0.eat_from_slot(&mut inventory.0, mine, &items.0)
                 {
                     health.0.current = (health.0.current + heal).min(health.0.max);
+                    life.ate += 1;
                 }
             }
         }

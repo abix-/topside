@@ -410,6 +410,7 @@ pub fn die(
     items: Res<ItemRegistryRes>,
     tick: Res<crate::SimTick>,
     mut map: ResMut<ActorMapRes>,
+    mut life: ResMut<crate::ai::LifeStats>,
     mut dying: Query<(
         Entity,
         &mut Health,
@@ -463,6 +464,7 @@ pub fn die(
         if let Some(actor) = actor {
             map.0.remove(actor.0);
         }
+        life.died += 1;
         commands.entity(entity).despawn();
     }
 }
