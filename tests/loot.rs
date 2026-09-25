@@ -8,10 +8,10 @@ mod common;
 use bevy::prelude::*;
 use common::{act, game};
 use modforge::hud::OpenPanel;
-use topside::actor::{Inventory, Npc};
+use topside::actor::{Home, Inventory, Npc};
 use topside::combat::Health;
 use topside::input::Action;
-use topside::interact::{Container, HudRes, OpenContainer, WorldItem};
+use topside::interact::{Container, Hud, OpenContainer, WorldItem};
 use topside::terrain::WorldRes;
 
 fn put(app: &mut App, who: Entity, at: Vec2) {
@@ -49,7 +49,7 @@ fn e_reads_the_note_where_it_lies() {
     // bench's own spot.
     put(&mut app, player, bunker + Vec2::new(2.2, 2.95));
     act(&mut app, player, &[Action::Use]);
-    let hud = &app.world().resource::<HudRes>().0;
+    let hud = &app.world().get::<Hud>(player).unwrap().0;
     assert_eq!(hud.open_panel, OpenPanel::Note);
     assert!(hud.reading.as_ref().is_some_and(|n| !n.text.is_empty()), "the words show");
     assert_eq!(items_named(&mut app, "note").len(), 1, "a note is read, not taken");
@@ -59,8 +59,9 @@ fn e_reads_the_note_where_it_lies() {
 fn the_dead_leave_a_box_with_what_they_carried_and_e_opens_it() {
     let (mut app, player) = game();
     let world = app.world_mut();
+    // A topside person: with no home to wake in, it leaves the world.
     let npc = world
-        .query_filtered::<Entity, With<Npc>>()
+        .query_filtered::<Entity, (With<Npc>, Without<Home>)>()
         .iter(world)
         .next()
         .expect("an NPC stands somewhere");
@@ -81,5 +82,5 @@ fn the_dead_leave_a_box_with_what_they_carried_and_e_opens_it() {
     // Right at the box, so nothing else is nearer.
     put(&mut app, player, fell_at + Vec2::new(0.1, 0.0));
     act(&mut app, player, &[Action::Use]);
-    assert_eq!(app.world().resource::<OpenContainer>().0, Some(dropped), "E opens it");
+    assert_eq!(app.world().get::<OpenContainer>(player).unwrap().0, Some(dropped), "E opens it");
 }

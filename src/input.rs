@@ -11,7 +11,8 @@ use modforge::hud::OpenPanel;
 pub use modforge::actions::{Action, ActionQueue, Bindings, Key, Stamped};
 
 use crate::SimTick;
-use crate::interact::HudRes;
+use crate::hud::HoveredSlot;
+use crate::interact::Hud;
 use crate::player::Player;
 
 /// What this actor has been told to do. The keyboard fills the
@@ -75,12 +76,12 @@ pub fn read_input(
     buttons: Res<ButtonInput<MouseButton>>,
     bindings: Res<BindingsRes>,
     tick: Res<SimTick>,
-    hud: Res<HudRes>,
+    hovered: Res<HoveredSlot>,
     windows: Query<&Window, With<PrimaryWindow>>,
     cameras: Query<(&Camera, &GlobalTransform)>,
-    mut players: Query<&mut Actions, With<Player>>,
+    mut players: Query<(&mut Actions, &Hud), With<Player>>,
 ) {
-    let Ok(mut actions) = players.single_mut() else {
+    let Ok((mut actions, hud)) = players.single_mut() else {
         return;
     };
     let in_world = hud.0.open_panel == OpenPanel::None;
@@ -105,6 +106,14 @@ pub fn read_input(
     let next = tick.0 + 1;
     let mut moved = false;
     for action in bindings.0.resolve(&pressed, &just_pressed) {
+        // T moves the stack under the cursor.
+        let action = match action {
+            Action::Transfer { half, slot: None } => match hovered.0 {
+                Some(slot) => Action::Transfer { half, slot: Some(slot) },
+                None => continue,
+            },
+            other => other,
+        };
         let allowed = match action {
             Action::Move { .. } | Action::Attack | Action::Roll => in_world,
             Action::Use
@@ -112,6 +121,8 @@ pub fn read_input(
             | Action::Cancel
             | Action::Hotbar { .. }
             | Action::Transfer { .. }
+            | Action::UseSlot { .. }
+            | Action::Craft { .. }
             | Action::Respawn => true,
             Action::Look { .. } | Action::Aim { .. } | Action::Drop | Action::Fly => false,
         };

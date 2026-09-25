@@ -3,14 +3,13 @@
 
 mod common;
 
-use bevy::ecs::system::RunSystemOnce;
-use common::{alone, game};
+use common::{act, alone, game};
 use modforge::hud::{Holder, SlotRef};
 use modforge::item::create;
 use topside::actor::{Inventory, Survival};
 use topside::combat::Health;
 use topside::content::{GAME_DAY_SECS, ItemRegistryRes};
-use topside::hud::use_slot_system;
+use topside::input::Action;
 
 #[test]
 fn an_empty_stomach_costs_health_every_second() {
@@ -52,7 +51,7 @@ fn a_game_hour_drains_hunger_and_thirst_and_a_can_brings_hunger_back() {
         holder: Holder::Inventory,
         index: 0,
     };
-    app.world_mut().run_system_once_with(use_slot_system, slot).unwrap();
+    act(&mut app, player, &[Action::UseSlot { slot }]);
     let fed = app.world().get::<Survival>(player).unwrap().0;
     assert!(fed.hunger > after.hunger, "the can was eaten");
     assert_eq!(app.world().get::<Inventory>(player).unwrap().0.count_of("canned food"), 0);

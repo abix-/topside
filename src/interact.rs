@@ -14,7 +14,6 @@ use modforge::structure::Rgb;
 use crate::actor::{Dead, Inventory};
 use crate::content::ItemRegistryRes;
 use crate::input::{Action, ThisTick};
-use crate::player::Player;
 
 /// How far a person reaches to use something, in metres.
 pub const REACH: f32 = 1.5;
@@ -46,12 +45,12 @@ pub struct WorldItem {
 #[derive(Component)]
 pub struct Container(pub item::Inventory);
 
-/// The box the player has open, if any.
-#[derive(Resource, Default)]
+/// The box this person has open, if any.
+#[derive(Component, Default)]
 pub struct OpenContainer(pub Option<Entity>);
 
-/// The crafting station the player has open, if any.
-#[derive(Resource, Default)]
+/// The crafting station this person has open, if any.
+#[derive(Component, Default)]
 pub struct OpenStation(pub Option<StationKind>);
 
 /// Where a station stands for E: nothing to draw (the furniture is
@@ -108,47 +107,72 @@ pub fn spawn_item(commands: &mut Commands, def: &ItemDef, stack: ItemStack, at: 
     entity.id()
 }
 
-/// The HUD's state, modforge's.
-#[derive(Resource)]
-pub struct HudRes(pub HudState);
+/// A person's panels, modforge's HUD state: what they have open (the
+/// inventory, a box, a station, a note). Everyone has one; the screen
+/// draws the player's.
+#[derive(Component)]
+pub struct Hud(pub HudState);
 
-impl Default for HudRes {
+impl Default for Hud {
     fn default() -> Self {
         Self(HudState::new())
     }
 }
 
-/// The player's Use this tick reaches the nearest interactable within
-/// `REACH`; modforge says what happens and topside does it.
+/// Where a thing is used from: a door from where it stands closed.
+fn use_point(door: Option<&Door>, transform: &Transform) -> Vec2 {
+    door.map_or(transform.translation.truncate(), |d| d.closed_center)
+}
+
+/// Every person's Use this tick, the player's E and the brain's alike,
+/// reaches the nearest interactable within `REACH`; modforge says what
+/// happens and topside does it.
 pub fn interact_on_use(
     mut commands: Commands,
-    mut hud: ResMut<HudRes>,
-    mut open: ResMut<OpenContainer>,
-    mut station: ResMut<OpenStation>,
     registry: Res<ItemRegistryRes>,
-    mut players: Query<(&Transform, &ThisTick, &mut Inventory), (With<Player>, Without<Dead>)>,
+    mut people: Query<
+        (&Transform, &ThisTick, &mut Inventory, &mut Hud, &mut OpenContainer, &mut OpenStation),
+        Without<Dead>,
+    >,
     mut things: Query<
         (Entity, &mut Interactable, Option<&mut Door>, Option<&WorldItem>, &mut Transform),
-        Without<Player>,
+        Without<ThisTick>,
     >,
 ) {
-    let Ok((player, this_tick, mut inventory)) = players.single_mut() else {
-        return;
-    };
-    if !this_tick.0.iter().any(|s| matches!(s.action, Action::Use)) {
-        return;
+    for (person, this_tick, mut inventory, mut hud, mut open, mut station) in &mut people {
+        if !this_tick.0.iter().any(|s| matches!(s.action, Action::Use)) {
+            continue;
+        }
+        let at = person.translation.truncate();
+        let nearest = things
+            .iter()
+            .map(|(e, _, door, _, t)| (e, use_point(door, t).distance(at)))
+            .filter(|(_, d)| *d <= REACH)
+            .min_by(|a, b| a.1.total_cmp(&b.1))
+            .map(|(e, _)| e);
+        let Some(Ok(thing)) = nearest.map(|e| things.get_mut(e)) else {
+            continue;
+        };
+        use_thing(&mut commands, &registry, thing, &mut inventory, &mut hud, &mut open, &mut station);
     }
-    let at = player.translation.truncate();
-    let distance = |door: Option<&Door>, transform: &Transform| {
-        door.map_or(transform.translation.truncate(), |d| d.closed_center).distance(at)
-    };
-    let Some((entity, mut thing, door, item, mut transform)) = things
-        .iter_mut()
-        .filter(|(_, _, door, _, transform)| distance(door.as_deref(), transform) <= REACH)
-        .min_by(|a, b| distance(a.2.as_deref(), &a.4).total_cmp(&distance(b.2.as_deref(), &b.4)))
-    else {
-        return;
-    };
+}
+
+/// One person uses one thing.
+fn use_thing(
+    commands: &mut Commands,
+    registry: &ItemRegistryRes,
+    (entity, mut thing, door, item, mut transform): (
+        Entity,
+        Mut<Interactable>,
+        Option<Mut<Door>>,
+        Option<&WorldItem>,
+        Mut<Transform>,
+    ),
+    inventory: &mut Inventory,
+    hud: &mut Hud,
+    open: &mut OpenContainer,
+    station: &mut OpenStation,
+) {
     let stack = item.map(|w| w.stack.clone());
     let max_stack = match &stack {
         Some(stack) => match registry.0.def(&stack.item) {

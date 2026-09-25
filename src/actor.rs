@@ -17,7 +17,7 @@ use crate::content::{
 };
 use crate::terrain::WorldRes;
 use crate::input::{Actions, ThisTick};
-use crate::interact::{Container, WorldItem};
+use crate::interact::{Container, Hud, OpenContainer, OpenStation, WorldItem};
 use crate::player::PLAYER_SIZE;
 use crate::structure::MonumentsRes;
 use crate::{SimTick, WorldSeed};
@@ -148,13 +148,36 @@ pub struct SpawnActor<'w, 's> {
 }
 
 /// The ONE path through which an NPC enters the world (authority.md:
-/// Endless's materialize_npc). The NPC gets what the player has, a
-/// body the world can hit, its `ActorId` from the one map, and who it
-/// is from the genome. `faction` overrides the def's. None when the
-/// map is full or the faction is not registered.
+/// Endless's materialize_npc): the person (`spawn_person`, the same as
+/// the player's) and the brain that controls it. `faction` overrides the
+/// def's. None when the map is full or the faction is not registered.
 pub fn spawn_actor(spawn: &mut SpawnActor, def: &ActorDef, at: Vec2, faction: Option<&str>) -> Option<Entity> {
     let faction = faction.map(String::from).or_else(|| def.faction.clone());
-    if let Some(name) = faction.as_deref()
+    let entity = spawn_person(spawn, def, at, faction.as_deref(), NPC_COLOR, NOSE_COLOR)?;
+    spawn.commands.entity(entity).insert((
+        Npc {
+            def: def.name.clone(),
+            faction,
+        },
+        crate::nav::NavPath::default(),
+    ));
+    Some(entity)
+}
+
+/// The person under the controller (design.md: no difference between a
+/// bunker person and the player but AI against human control): what
+/// every person has, a body, an `ActorId` from the one map, who they are
+/// from the genome. `spawn_actor` adds the brain, `spawn_player` the
+/// human. None when the map is full or the faction is not registered.
+pub fn spawn_person(
+    spawn: &mut SpawnActor,
+    def: &ActorDef,
+    at: Vec2,
+    faction: Option<&str>,
+    color: Color,
+    nose: Color,
+) -> Option<Entity> {
+    if let Some(name) = faction
         && spawn.factions.0.def(name).is_none()
     {
         return None;
@@ -169,10 +192,6 @@ pub fn spawn_actor(spawn: &mut SpawnActor, def: &ActorDef, at: Vec2, faction: Op
     let entity = spawn
         .commands
         .spawn((
-            Npc {
-                def: def.name.clone(),
-                faction,
-            },
             Transform::from_translation(at.extend(NPC_Z)),
             (
                 Facing::default(),
@@ -181,7 +200,6 @@ pub fn spawn_actor(spawn: &mut SpawnActor, def: &ActorDef, at: Vec2, faction: Op
                 Equipment::default(),
                 Firing::default(),
                 Rolling::default(),
-                crate::nav::NavPath::default(),
             ),
             (
                 Survival::default(),
@@ -190,19 +208,20 @@ pub fn spawn_actor(spawn: &mut SpawnActor, def: &ActorDef, at: Vec2, faction: Op
                 ActorActivity::default(),
                 ActorCombat::default(),
             ),
+            (Hud::default(), OpenContainer::default(), OpenStation::default()),
             Protection(def.protection.clone()),
             Actions::default(),
             ThisTick::default(),
             RigidBody::Kinematic,
             Collider::circle(PLAYER_SIZE / 2.0),
             Sprite {
-                color: NPC_COLOR,
+                color,
                 custom_size: Some(Vec2::splat(PLAYER_SIZE)),
                 ..default()
             },
             children![(
                 Sprite {
-                    color: NOSE_COLOR,
+                    color: nose,
                     custom_size: Some(Vec2::splat(PLAYER_SIZE / 3.0)),
                     ..default()
                 },

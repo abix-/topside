@@ -10,7 +10,7 @@ use common::{act, alone, game};
 use modforge::hud::{Holder, SlotRef};
 use topside::actor::{Hotbar, Inventory, Npc};
 use topside::combat::{Equipment, Firing, Health, Protection};
-use topside::hud::{HoveredSlot, drag_drop, drag_start};
+use topside::hud::{drag_drop, drag_start};
 use topside::input::Action;
 use topside::interact::{Container, OpenContainer};
 use topside::terrain::WorldRes;
@@ -30,7 +30,7 @@ fn t_takes_a_dead_npcs_weapon_out_of_its_box() {
     app.update();
     put(&mut app, player, fell_at + Vec2::new(0.1, 0.0));
     act(&mut app, player, &[Action::Use]);
-    let open = app.world().resource::<OpenContainer>().0.expect("the box is open");
+    let open = app.world().get::<OpenContainer>(player).unwrap().0.expect("the box is open");
     let (slot, weapon) = app
         .world()
         .get::<Container>(open)
@@ -41,11 +41,12 @@ fn t_takes_a_dead_npcs_weapon_out_of_its_box() {
         .enumerate()
         .find_map(|(i, s)| s.as_ref().map(|s| (i, s.item.clone())))
         .expect("the box holds something");
-    app.world_mut().resource_mut::<HoveredSlot>().0 = Some(SlotRef {
+    // T on the hovered slot names it (read_input fills it in).
+    let slot = SlotRef {
         holder: Holder::Container,
         index: slot,
-    });
-    act(&mut app, player, &[Action::Transfer { half: false }]);
+    };
+    act(&mut app, player, &[Action::Transfer { half: false, slot: Some(slot) }]);
     assert_eq!(app.world().get::<Inventory>(player).unwrap().0.count_of(&weapon), 1, "{weapon} taken");
 }
 

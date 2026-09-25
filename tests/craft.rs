@@ -3,7 +3,6 @@
 
 mod common;
 
-use bevy::ecs::system::RunSystemOnce;
 use bevy::prelude::*;
 use common::{act, alone, game};
 use modforge::crafting::StationKind;
@@ -12,8 +11,7 @@ use modforge::item::create;
 use topside::SimTick;
 use topside::actor::{Inventory, Survival};
 use topside::combat::Health;
-use topside::content::{BENCH_AT, GAME_DAY_SECS, ItemRegistryRes};
-use topside::hud::{craft_system, use_slot_system};
+use topside::content::{BENCH_AT, GAME_DAY_SECS, ItemRegistryRes, RecipeRegistryRes};
 use topside::input::Action;
 use topside::interact::OpenStation;
 use topside::terrain::WorldRes;
@@ -51,10 +49,19 @@ fn e_at_the_bench_opens_it_and_cloth_becomes_a_bandage() {
     let mut t = app.world_mut().get_mut::<Transform>(player).unwrap();
     t.translation = (bunker + Vec2::new(x, z - 0.6)).extend(t.translation.z);
     act(&mut app, player, &[Action::Use]);
-    assert_eq!(app.world().resource::<OpenStation>().0, Some(StationKind::CraftingBench));
+    assert_eq!(app.world().get::<OpenStation>(player).unwrap().0, Some(StationKind::CraftingBench));
 
     give(&mut app, player, "cloth", 2);
-    app.world_mut().run_system_once_with(craft_system, "bandage".to_string()).unwrap();
+    // A click on the bandage row crafts it.
+    let index = app
+        .world()
+        .resource::<RecipeRegistryRes>()
+        .0
+        .for_station(StationKind::CraftingBench)
+        .iter()
+        .position(|r| r.name == "bandage")
+        .expect("the bench makes bandages");
+    act(&mut app, player, &[Action::Craft { index }]);
     let inventory = &app.world().get::<Inventory>(player).unwrap().0;
     assert_eq!(inventory.count_of("bandage"), 1);
     assert_eq!(inventory.count_of("cloth"), 0, "the cloth went into it");
@@ -68,7 +75,7 @@ fn a_bandage_heals_more_than_a_can() {
         app.world_mut().get_mut::<Health>(player).unwrap().0.current = 40.0;
         give(&mut app, player, item, 1);
         let slot = slot_of(&app, player, item);
-        app.world_mut().run_system_once_with(use_slot_system, slot).unwrap();
+        act(&mut app, player, &[Action::UseSlot { slot }]);
         app.world().get::<Health>(player).unwrap().0.current - 40.0
     };
     let can = heal("canned food");

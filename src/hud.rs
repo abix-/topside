@@ -5,7 +5,7 @@
 
 use bevy::prelude::*;
 use modforge::hud::{
-    Holder, Holders, OpenPanel, SlotRef, end_drag, hotbar_key, slot_label, start_drag, toggle_panel,
+    Holder, Holders, HudState, OpenPanel, SlotRef, end_drag, hotbar_key, slot_label, start_drag, toggle_panel,
     transfer_slot, use_slot, HOTBAR_SLOTS,
 };
 
@@ -15,8 +15,8 @@ use modforge::crafting::{can_craft, craft};
 use modforge::storm::StormPhase;
 
 use crate::content::{ItemRegistryRes, RecipeRegistryRes};
-use crate::input::{Action, ThisTick};
-use crate::interact::{Container, HudRes, OpenContainer, OpenStation};
+use crate::input::{Action, Actions, ThisTick};
+use crate::interact::{Container, Hud, OpenContainer, OpenStation};
 use crate::player::Player;
 
 /// Slots drawn for an open box; a bigger box shows its first ones.
@@ -138,10 +138,8 @@ pub fn setup(mut commands: Commands) {
 /// Paint every slot from its holder, the held and hovered slots
 /// marked, and show the panels modforge says are open.
 pub fn render(
-    hud: Res<HudRes>,
     hovered: Res<HoveredSlot>,
-    open: Res<OpenContainer>,
-    players: Query<(&Inventory, &Hotbar), With<Player>>,
+    players: Query<(&Inventory, &Hotbar, &Hud, &OpenContainer), With<Player>>,
     containers: Query<&Container>,
     mut slots: Query<(&SlotUi, &Children, &mut BackgroundColor, &mut Visibility)>,
     mut texts: Query<&mut Text, Without<NotePanel>>,
@@ -149,7 +147,7 @@ pub fn render(
     mut container_panel: Query<&mut Visibility, (With<ContainerPanel>, Without<SlotUi>, Without<InventoryPanel>)>,
     mut note: Query<(&mut Text, &mut Visibility), (With<NotePanel>, Without<SlotUi>, Without<InventoryPanel>, Without<ContainerPanel>)>,
 ) {
-    let Ok((inventory, hotbar)) = players.single() else {
+    let Ok((inventory, hotbar, hud, open)) = players.single() else {
         return;
     };
     let container = open.0.and_then(|e| containers.get(e).ok());
@@ -275,31 +273,14 @@ pub fn render_sky(tick: Res<crate::SimTick>, mut layers: Query<&mut BackgroundCo
 
 /// A click on a slot uses what is in it (modforge's `use_slot`): food
 /// and drink are eaten, worn gear is put on.
-fn click_slot(click: On<Pointer<Click>>, slots: Query<&SlotUi>, mut commands: Commands) {
-    if let Ok(slot) = slots.get(click.entity) {
-        commands.run_system_cached_with(use_slot_system, slot.0);
-    }
-}
-
-/// Use the player's `slot` (modforge's `use_slot`).
-pub fn use_slot_system(
-    slot: In<SlotRef>,
-    registry: Res<ItemRegistryRes>,
-    mut players: Query<
-        (&mut Survival, &mut Inventory, &mut Hotbar, &mut Equipment, &mut crate::combat::Health),
-        With<Player>,
-    >,
+fn click_slot(
+    click: On<Pointer<Click>>,
+    slots: Query<&SlotUi>,
+    tick: Res<crate::SimTick>,
+    mut players: Query<&mut Actions, With<Player>>,
 ) {
-    let Ok((mut needs, mut inventory, mut hotbar, mut worn, mut health)) = players.single_mut() else {
-        return;
-    };
-    let holder = match slot.holder {
-        Holder::Inventory => &mut inventory.0,
-        Holder::Hotbar => &mut hotbar.0.slots,
-        Holder::Container => return,
-    };
-    if let Ok(heal) = use_slot(&mut needs.0, holder, slot.index, &registry.0, &mut worn.0) {
-        heal_by(&mut health, heal);
+    if let (Ok(slot), Ok(mut actions)) = (slots.get(click.entity), players.single_mut()) {
+        actions.0.push(tick.0 + 1, Action::UseSlot { slot: slot.0 });
     }
 }
 
@@ -370,94 +351,126 @@ fn drop_on_slot(dropped: On<Pointer<DragDrop>>, slots: Query<&SlotUi>, mut comma
     }
 }
 
-/// The player's holders and the open box, borrowed together.
+/// The player's holders, panels, and open box, borrowed together.
 #[derive(bevy::ecs::system::SystemParam)]
 pub struct PlayerHolders<'w, 's> {
-    players: Query<'w, 's, (&'static mut Inventory, &'static mut Hotbar), With<Player>>,
+    players: Query<
+        'w,
+        's,
+        (&'static mut Inventory, &'static mut Hotbar, &'static mut Hud, &'static OpenContainer),
+        With<Player>,
+    >,
     containers: Query<'w, 's, &'static mut Container>,
-    open: Res<'w, OpenContainer>,
 }
 
 impl PlayerHolders<'_, '_> {
-    fn with<R>(&mut self, f: impl FnOnce(&mut Holders<'_>) -> R) -> Option<R> {
-        let open = self.open.0;
-        let (mut inventory, mut hotbar) = self.players.single_mut().ok()?;
-        let mut container = open.and_then(|e| self.containers.get_mut(e).ok());
+    fn with<R>(&mut self, f: impl FnOnce(&mut HudState, &mut Holders<'_>) -> R) -> Option<R> {
+        let (mut inventory, mut hotbar, mut hud, open) = self.players.single_mut().ok()?;
+        let mut container = open.0.and_then(|e| self.containers.get_mut(e).ok());
         let mut holders = Holders {
             inventory: &mut inventory.0,
             hotbar: &mut hotbar.0.slots,
             container: container.as_mut().map(|c| &mut c.0),
         };
-        Some(f(&mut holders))
+        Some(f(&mut hud.0, &mut holders))
     }
 }
 
-/// A drag starts on `slot` (modforge's `start_drag`).
-pub fn drag_start(slot: In<SlotRef>, mut hud: ResMut<HudRes>, mut holders: PlayerHolders) {
-    holders.with(|h| start_drag(&mut hud.0, h, *slot));
+/// A drag starts on `slot` (modforge's `start_drag`). Dragging is the
+/// mouse's way to move a stack; the brain moves stacks with Transfer.
+pub fn drag_start(slot: In<SlotRef>, mut holders: PlayerHolders) {
+    holders.with(|hud, h| start_drag(hud, h, *slot));
 }
 
 /// A drag ends on `slot` (modforge's `end_drag`).
-pub fn drag_drop(slot: In<SlotRef>, mut hud: ResMut<HudRes>, registry: Res<ItemRegistryRes>, mut holders: PlayerHolders) {
-    holders.with(|h| end_drag(&mut hud.0, h, *slot, &registry.0));
+pub fn drag_drop(slot: In<SlotRef>, registry: Res<ItemRegistryRes>, mut holders: PlayerHolders) {
+    holders.with(|hud, h| end_drag(hud, h, *slot, &registry.0));
 }
 
-/// The player's panel and hotbar keys this tick, each through modforge:
-/// Tab or I toggles the inventory, Esc closes whatever is open, T moves
-/// the hovered stack across, a number key holds that hotbar slot.
+/// Every person's panel, hotbar, and slot actions this tick, the
+/// player's keys and clicks and the brain's alike, each through
+/// modforge: Inventory toggles the inventory, Cancel closes whatever is
+/// open, Hotbar holds that slot, Transfer moves a stack across between
+/// the person and the box they have open, UseSlot eats, drinks, or puts
+/// on, Craft makes a recipe of the station they have open.
 pub fn hud_keys(
-    mut hud: ResMut<HudRes>,
-    mut open: ResMut<OpenContainer>,
-    hovered: Res<HoveredSlot>,
+    mut commands: Commands,
+    tick: Res<crate::SimTick>,
     registry: Res<ItemRegistryRes>,
-    mut station: ResMut<OpenStation>,
-    mut players: Query<
+    recipes: Res<RecipeRegistryRes>,
+    mut people: Query<
         (
-            &ThisTick,
+            (&ThisTick, &Transform),
+            (&mut Hud, &mut OpenContainer, &mut OpenStation),
             &mut Survival,
             &mut Hotbar,
             &mut Equipment,
             &mut Inventory,
             &mut crate::combat::Health,
         ),
-        With<Player>,
+        Without<Dead>,
     >,
     mut containers: Query<&mut Container>,
 ) {
-    let Ok((this_tick, mut needs, mut hotbar, mut worn, mut inventory, mut health)) = players.single_mut() else {
-        return;
-    };
-    for stamped in &this_tick.0 {
-        match stamped.action {
-            Action::Inventory => toggle_panel(&mut hud.0, OpenPanel::Inventory),
-            Action::Cancel => hud.0.open_panel = OpenPanel::None,
-            Action::Hotbar { index } => {
-                if let Ok(heal) = hotbar_key(&mut needs.0, &mut hotbar.0, index, &registry.0, &mut worn.0) {
-                    heal_by(&mut health, heal);
+    for ((this_tick, at), (mut hud, mut open, mut station), mut needs, mut hotbar, mut worn, mut inventory, mut health) in
+        &mut people
+    {
+        for stamped in &this_tick.0 {
+            match stamped.action {
+                Action::Inventory => toggle_panel(&mut hud.0, OpenPanel::Inventory),
+                Action::Cancel => hud.0.open_panel = OpenPanel::None,
+                Action::Hotbar { index } => {
+                    if let Ok(heal) = hotbar_key(&mut needs.0, &mut hotbar.0, index, &registry.0, &mut worn.0) {
+                        heal_by(&mut health, heal);
+                    }
                 }
+                Action::Transfer { half, slot: Some(slot) } => {
+                    let mut container = open.0.and_then(|e| containers.get_mut(e).ok());
+                    let mut holders = Holders {
+                        inventory: &mut inventory.0,
+                        hotbar: &mut hotbar.0.slots,
+                        container: container.as_mut().map(|c| &mut c.0),
+                    };
+                    transfer_slot(&mut holders, slot, half, &registry.0);
+                }
+                Action::UseSlot { slot } => {
+                    let holder = match slot.holder {
+                        Holder::Inventory => &mut inventory.0,
+                        Holder::Hotbar => &mut hotbar.0.slots,
+                        Holder::Container => continue,
+                    };
+                    if let Ok(heal) = use_slot(&mut needs.0, holder, slot.index, &registry.0, &mut worn.0) {
+                        heal_by(&mut health, heal);
+                    }
+                }
+                Action::Craft { index } => {
+                    let Some(recipe) = station.0.and_then(|kind| recipes.0.for_station(kind).get(index).copied()) else {
+                        continue;
+                    };
+                    // modforge's `craft`, the one way anything is made; what
+                    // is made goes into the inventory, or at the feet when it
+                    // is full.
+                    let Some(made) = craft(recipe, &mut inventory.0, &registry.0, &[], tick.0 as f32, tick.0) else {
+                        continue;
+                    };
+                    let Some(def) = registry.0.def(&made.item) else {
+                        continue;
+                    };
+                    if let Some(left) = inventory.0.add(made, def.max_stack) {
+                        crate::interact::spawn_item(&mut commands, def, left, at.translation.truncate(), [0.8, 0.8, 0.8]);
+                    }
+                }
+                _ => {}
             }
-            Action::Transfer { half } => {
-                let Some(slot) = hovered.0 else {
-                    continue;
-                };
-                let mut container = open.0.and_then(|e| containers.get_mut(e).ok());
-                let mut holders = Holders {
-                    inventory: &mut inventory.0,
-                    hotbar: &mut hotbar.0.slots,
-                    container: container.as_mut().map(|c| &mut c.0),
-                };
-                transfer_slot(&mut holders, slot, half, &registry.0);
-            }
-            _ => {}
         }
-    }
-    // A closed inventory closes the box with it; a closed station
-    // panel, the station.
-    if hud.0.open_panel != OpenPanel::Inventory {
-        open.0 = None;
-    }
-    if hud.0.open_panel != OpenPanel::Station {
-        station.0 = None;
+        // A closed inventory closes the box with it; a closed station
+        // panel, the station.
+        if hud.0.open_panel != OpenPanel::Inventory {
+            open.0 = None;
+        }
+        if hud.0.open_panel != OpenPanel::Station {
+            station.0 = None;
+        }
     }
 }
 
@@ -466,9 +479,9 @@ pub fn hud_keys(
 #[derive(Component)]
 pub struct StationPanel;
 
-/// One recipe row and which recipe it is.
+/// One recipe row and which recipe of the open station's list it is.
 #[derive(Component)]
-pub struct RecipeRow(pub String);
+pub struct RecipeRow(pub usize);
 
 /// The most recipe rows a station panel shows.
 const RECIPE_ROWS: usize = 12;
@@ -492,7 +505,7 @@ pub fn setup_station(mut commands: Commands) {
         .with_children(|p| {
             for _ in 0..RECIPE_ROWS {
                 p.spawn((
-                    RecipeRow(String::new()),
+                    RecipeRow(0),
                     Node {
                         padding: UiRect::all(Val::Px(6.0)),
                         ..default()
@@ -508,14 +521,13 @@ pub fn setup_station(mut commands: Commands) {
 /// Fill the station panel from the open station's recipes: a recipe the
 /// inventory can pay for is lit.
 pub fn render_station(
-    station: Res<OpenStation>,
     recipes: Res<RecipeRegistryRes>,
-    players: Query<&Inventory, With<Player>>,
+    players: Query<(&Inventory, &OpenStation), With<Player>>,
     mut panels: Query<&mut Visibility, (With<StationPanel>, Without<RecipeRow>)>,
     mut rows: Query<(&mut RecipeRow, &Children, &mut BackgroundColor, &mut Visibility)>,
     mut texts: Query<&mut Text>,
 ) {
-    let (Ok(mut panel), Ok(inventory)) = (panels.single_mut(), players.single()) else {
+    let (Ok(mut panel), Ok((inventory, station))) = (panels.single_mut(), players.single()) else {
         return;
     };
     let Some(kind) = station.0 else {
@@ -530,7 +542,7 @@ pub fn render_station(
             continue;
         };
         *visibility = Visibility::Inherited;
-        row.0 = recipe.name.clone();
+        row.0 = i;
         let takes: Vec<String> = recipe.inputs.iter().map(|(item, n)| format!("{item} x{n}")).collect();
         if let Some(mut text) = children.first().and_then(|c| texts.get_mut(*c).ok()) {
             text.0 = format!("{} x{}  <-  {}", recipe.output.0, recipe.output.1, takes.join(", "));
@@ -539,33 +551,13 @@ pub fn render_station(
     }
 }
 
-fn click_recipe(click: On<Pointer<Click>>, rows: Query<&RecipeRow>, mut commands: Commands) {
-    if let Ok(row) = rows.get(click.entity) {
-        commands.run_system_cached_with(craft_system, row.0.clone());
-    }
-}
-
-/// Craft the recipe `name` from the player's inventory (modforge's
-/// `craft`, the one way anything is made); what is made goes into the
-/// inventory, or at the player's feet when it is full.
-pub fn craft_system(
-    name: In<String>,
-    mut commands: Commands,
+fn click_recipe(
+    click: On<Pointer<Click>>,
+    rows: Query<&RecipeRow>,
     tick: Res<crate::SimTick>,
-    recipes: Res<RecipeRegistryRes>,
-    items: Res<ItemRegistryRes>,
-    mut players: Query<(&Transform, &mut Inventory), With<Player>>,
+    mut players: Query<&mut Actions, With<Player>>,
 ) {
-    let (Some(recipe), Ok((at, mut inventory))) = (recipes.0.def(&name), players.single_mut()) else {
-        return;
-    };
-    let Some(made) = craft(recipe, &mut inventory.0, &items.0, &[], tick.0 as f32, tick.0) else {
-        return;
-    };
-    let Some(def) = items.0.def(&made.item) else {
-        return;
-    };
-    if let Some(left) = inventory.0.add(made, def.max_stack) {
-        crate::interact::spawn_item(&mut commands, def, left, at.translation.truncate(), [0.8, 0.8, 0.8]);
+    if let (Ok(row), Ok(mut actions)) = (rows.get(click.entity), players.single_mut()) {
+        actions.0.push(tick.0 + 1, Action::Craft { index: row.0 });
     }
 }

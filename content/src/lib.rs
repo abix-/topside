@@ -423,6 +423,13 @@ pub fn register_actors(reg: &mut ActorRegistry) {
             reach: 1.8,
         }
     };
+    // The player: a bunker person of the player's bunker, under human
+    // control, starting with nothing in hand.
+    reg.register(ActorDef {
+        weapon: None,
+        ..person("player", Some(PLAYER_FACTION), Behaviour::Guard, 100.0, "")
+    })
+    .expect("actor registered once");
     for def in [
         person("bunker person", None, Behaviour::Guard, 100.0, "pipe"),
         person("scavenger", Some(TOPSIDE_HOSTILES), Behaviour::Hunter, 60.0, "pipe"),
@@ -1180,12 +1187,15 @@ mod tests {
         let mut reg = ActorRegistry::default();
         register_actors(&mut reg);
         let names: Vec<&str> = reg.names().collect();
-        assert_eq!(names, ["bunker person", "scavenger", "raider", "lookout", "wanderer"]);
+        assert_eq!(names, ["player", "bunker person", "scavenger", "raider", "lookout", "wanderer"]);
         let factions = FactionRegistryRes::default();
         for name in names {
             let def = reg.def(name).unwrap();
-            let weapon = def.weapon.as_deref().expect("everyone is armed");
-            assert!(items.def(weapon).is_some(), "{name} holds unregistered {weapon}");
+            if let Some(weapon) = def.weapon.as_deref() {
+                assert!(items.def(weapon).is_some(), "{name} holds unregistered {weapon}");
+            } else {
+                assert_eq!(name, "player", "everyone but the player starts armed");
+            }
             if let Some(faction) = def.faction.as_deref() {
                 assert!(factions.0.def(faction).is_some(), "{name} is in unregistered {faction}");
             }

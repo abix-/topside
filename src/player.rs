@@ -6,7 +6,8 @@
 use avian2d::prelude::*;
 use bevy::prelude::*;
 
-use crate::actor::{Dead, Facing, Home, Hotbar, Inventory, Personality, Survival};
+use crate::actor::{Dead, Facing, Home, Hotbar, Inventory, Personality, SpawnActor, Survival, spawn_person};
+use crate::content::ActorRegistryRes;
 use crate::combat::{Equipment, Firing, Health, Protection, Rolling};
 use modforge::combat::ROLL_SPEED_MULT;
 use crate::input::{Action, ActionQueue, Actions, ThisTick};
@@ -48,26 +49,17 @@ pub fn wake_point(world: &WorldRes) -> Vec3 {
     world.0.def.bunker.extend(PLAYER_Z)
 }
 
-/// The one place the player enters the world: at the bunker.
-pub fn spawn_player(mut commands: Commands, world: Res<WorldRes>) {
-    commands.spawn((
-        Player,
-        Sprite {
-            color: PLAYER_COLOR,
-            custom_size: Some(Vec2::splat(PLAYER_SIZE)),
-            ..default()
-        },
-        Transform::from_translation(wake_point(&world)),
-        // A nose on the side the person faces.
-        children![(
-            Sprite {
-                color: NOSE_COLOR,
-                custom_size: Some(Vec2::splat(PLAYER_SIZE / 3.0)),
-                ..default()
-            },
-            Transform::from_xyz(PLAYER_SIZE / 2.0, 0.0, 0.1),
-        )],
-    ));
+/// The one place the player enters the world: at the bunker, a person
+/// through the same `spawn_person` as every NPC, under human control.
+pub fn spawn_player(mut spawn: SpawnActor, registry: Res<ActorRegistryRes>, world: Res<WorldRes>) {
+    let def = registry.0.def("player").expect("the player is registered");
+    let at = wake_point(&world);
+    let person = spawn_person(&mut spawn, def, at.truncate(), def.faction.as_deref(), PLAYER_COLOR, NOSE_COLOR)
+        .expect("the actor map has room for the player");
+    spawn
+        .commands
+        .entity(person)
+        .insert((Player, Transform::from_translation(at)));
 }
 
 const NOSE_COLOR: Color = Color::srgb(0.25, 0.2, 0.1);

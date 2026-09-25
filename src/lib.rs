@@ -84,12 +84,9 @@ pub fn build_app(headless: bool, seed: u64) -> App {
     app.init_resource::<content::FactionRegistryRes>();
     app.init_resource::<actor::ActorMapRes>();
     app.init_resource::<input::BindingsRes>();
-    app.init_resource::<interact::HudRes>();
-    app.init_resource::<interact::OpenContainer>();
     app.init_resource::<hud::HoveredSlot>();
     app.init_resource::<survival::Rates>();
     app.init_resource::<content::RecipeRegistryRes>();
-    app.init_resource::<interact::OpenStation>();
     app.init_resource::<storm::StormRes>();
     app.init_resource::<ai::LifeStats>();
     app.add_systems(
