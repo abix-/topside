@@ -9,6 +9,7 @@ pub mod control_plane;
 pub mod hud;
 pub mod input;
 pub mod interact;
+pub mod nav;
 pub mod player;
 pub mod sight;
 pub mod storm;
@@ -110,6 +111,7 @@ pub fn build_app(headless: bool, seed: u64) -> App {
             tick_system,
             ai::think,
             input::drain_actions,
+            nav::steer,
             survival::survival_tick,
             survival::waste,
             storm::storm,

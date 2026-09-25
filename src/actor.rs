@@ -173,6 +173,7 @@ pub fn spawn_actor(spawn: &mut SpawnActor, def: &ActorDef, at: Vec2, faction: Op
                 Equipment::default(),
                 Firing::default(),
                 Rolling::default(),
+                crate::nav::NavPath::default(),
             ),
             (
                 Survival::default(),
