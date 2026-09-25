@@ -2,6 +2,8 @@
 //! consuming the modforge crate and the content both games share.
 //! Ownership map: docs/authority.md.
 
+pub mod input;
+pub mod player;
 pub mod terrain;
 
 pub use topside_content as content;
@@ -11,6 +13,11 @@ use bevy::prelude::*;
 
 /// Metres across the screen's height, close to Factorio's default zoom.
 pub const VIEW_METRES: f32 = 34.0;
+
+/// Simulation tick counter. FixedUpdate runs at a locked 60 UPS; this
+/// counts those ticks, independent of the frame rate.
+#[derive(Resource, Default)]
+pub struct SimTick(pub u64);
 
 /// The seed the world rolls from.
 #[derive(Resource)]
@@ -41,18 +48,34 @@ pub fn build_app(headless: bool, seed: u64) -> App {
             ..default()
         }));
     }
+    app.insert_resource(Time::<Fixed>::from_hz(60.0));
     app.insert_resource(WorldSeed(seed));
+    app.init_resource::<SimTick>();
     app.init_resource::<WorldName>();
     app.init_resource::<content::BiomeRegistryRes>();
     app.init_resource::<content::MonumentRegistryRes>();
-    app.add_systems(Startup, terrain::roll);
+    app.init_resource::<input::BindingsRes>();
+    app.add_systems(Startup, (terrain::roll, player::spawn_player).chain());
+    // Every fixed step: count it, drain each actor's due actions, then
+    // every system reads actions, never keys.
+    app.add_systems(
+        FixedUpdate,
+        (tick_system, input::drain_actions, player::movement).chain(),
+    );
     if !headless {
         app.add_systems(
             Startup,
             (terrain::spawn_ground, spawn_camera).after(terrain::roll),
         );
+        // The ONE place raw input is read; headless tests push actions
+        // themselves.
+        app.add_systems(Update, (input::read_input, player::camera_follow));
     }
     app
+}
+
+fn tick_system(mut tick: ResMut<SimTick>) {
+    tick.0 += 1;
 }
 
 /// The camera looks straight down, like Factorio's, starting at the
