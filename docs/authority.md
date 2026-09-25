@@ -341,13 +341,12 @@ not writing it from scratch.
 
 ## Presentation (decided 2026-09-25: 2D)
 
-Topside is 2D (operator, 2026-09-25: "so the problem is that 3d is harder
-than 2d. im one person. let's look at factorio and other games with big
-scope. they DIDNT go 3d. it was a careful coicee because 3d requires so
-much more effort"; "ive played and love 2d games"; "yeah,, lets do it 2d").
-The view (top-down or isometric) is not decided yet. Only 3D first person
-changes (operator, 2026-09-25: "ONLY 2d is what i want changed"); low poly,
-cel shading, AI-generated assets, and Bevy stay.
+Topside is 2D, because 3D takes far more work and this is a one person
+project; Factorio and the other big scope games stayed 2D for the same
+reason. Everything is done the Factorio way: the low poly cel shaded models
+are rendered to pictures ahead of time, and the game draws only pictures,
+from Factorio's view. Only 3D first person changes; low poly, cel shading,
+AI-generated assets, and Bevy stay.
 
 The 2026-08-19 decision, with only its 3D first person part replaced:
 

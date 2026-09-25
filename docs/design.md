@@ -1283,9 +1283,10 @@ The material lives in topside (it is Bevy-specific presentation).
 
 ## Decided elsewhere
 
-Presentation is decided in authority.md: 2D (operator, 2026-09-25: "yeah,,
-lets do it 2d"), replacing 3D first person. The view (top-down or
-isometric) is not decided yet.
+Presentation is decided in authority.md: 2D the Factorio way (2026-09-25),
+replacing 3D first person. The low poly cel shaded models are rendered to
+pictures ahead of time, and the game draws only pictures, from Factorio's
+view.
 
 ## Future goals (not v1)
 
