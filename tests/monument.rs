@@ -11,6 +11,27 @@ use modforge::structure::{floor_plan, parts_of};
 use topside::structure::{MonumentsRes, StructureRoot};
 
 #[test]
+fn every_loot_spot_has_a_box_with_something_in_it() {
+    let (mut app, _) = game();
+    let spots: usize = app
+        .world()
+        .resource::<MonumentsRes>()
+        .0
+        .iter()
+        .map(|(_, m)| m.loot_spots.len())
+        .sum();
+    assert!(spots > 0, "the world has loot spots");
+    let world = app.world_mut();
+    let boxes: Vec<usize> = world
+        .query_filtered::<&topside::interact::Container, With<topside::terrain::WorldPiece>>()
+        .iter(world)
+        .map(|c| c.0.slots.iter().flatten().count())
+        .collect();
+    assert_eq!(boxes.len(), spots, "one box per spot");
+    assert!(boxes.iter().all(|&stacks| stacks > 0), "every box holds something");
+}
+
+#[test]
 fn every_building_stands_and_its_walls_are_solid() {
     let (mut app, _) = game();
     // One more step so the physics world has every collider.

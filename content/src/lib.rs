@@ -18,6 +18,7 @@ use modforge::monument::{
     MonumentRegistry, MonumentTypeDef, PropDef,
 };
 use modforge::crafting::{RecipeDef, RecipeRegistry, StationKind};
+use modforge::loot::{LootEntry, LootTable};
 use modforge::storm::StormDef;
 use modforge::structure::{
     CONCRETE_FLOOR, CONCRETE_WALL, LightDef, Opening, Rgb, RoomDef, Side, SolidDef, StructureDef,
@@ -71,6 +72,34 @@ impl Default for RecipeRegistryRes {
             reg.register(def).expect("recipe registered once");
         }
         Self(reg)
+    }
+}
+
+/// What a monument's box can hold (design.md "Loot tables scale with
+/// danger"): common junk anywhere, weapons and the vest only where it
+/// is dangerous. Tuning.
+pub fn loot_table() -> LootTable {
+    let e = |item: &str, count: (u32, u32), weight, min_danger| LootEntry {
+        item: item.to_string(),
+        count,
+        weight,
+        min_danger,
+    };
+    LootTable {
+        entries: vec![
+            e("scrap", (1, 4), 10, 0),
+            e("cloth", (1, 3), 8, 0),
+            e("canned food", (1, 2), 6, 0),
+            e("water bottle", (1, 2), 6, 0),
+            e("shotgun shell", (2, 5), 4, 1),
+            e("bandage", (1, 1), 3, 1),
+            e("pipe", (1, 1), 2, 1),
+            e("hatchet", (1, 1), 2, 2),
+            e("road sign vest", (1, 1), 1, 3),
+            e("pipe shotgun", (1, 1), 1, 3),
+        ],
+        picks: (1, 2),
+        picks_per_danger: 1,
     }
 }
 

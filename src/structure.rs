@@ -14,13 +14,15 @@ use modforge::structure::{
 };
 
 use modforge::crafting::StationKind;
-use modforge::item::{create, write};
+use modforge::item::{self, create, write};
+use modforge::loot::roll_loot;
+use modforge::monument::Roll;
 
 use crate::content::{
-    BENCH_AT, ItemRegistryRes, MonumentRegistryRes, STARTING_ITEMS, STARTING_NOTE_AT, starting_bunker,
-    starting_note,
+    BENCH_AT, ItemRegistryRes, MonumentRegistryRes, STARTING_ITEMS, STARTING_NOTE_AT, loot_table,
+    starting_bunker, starting_note,
 };
-use crate::interact::{Door, Interactable, spawn_item, spawn_station};
+use crate::interact::{Container, Door, Interactable, spawn_item, spawn_station};
 use crate::terrain::{WorldPiece, WorldRes};
 
 /// Drawing order: floors under walls and furniture, doors on top.
@@ -179,8 +181,10 @@ pub fn spawn_monuments(
     mut commands: Commands,
     world: Res<WorldRes>,
     registries: Res<MonumentRegistryRes>,
+    items: Res<ItemRegistryRes>,
 ) {
     let world = &world.0;
+    let table = loot_table();
     let mut rolled = Vec::with_capacity(world.sites.len());
     for (i, site) in world.sites.iter().enumerate() {
         let monument = registries
@@ -218,7 +222,25 @@ pub fn spawn_monuments(
                 ));
             }
         }
+        // A box at every loot spot, filled by the spot's danger from the
+        // one loot table (modforge's roll, seeded by the site).
+        if let Some(box_def) = items.0.def("storage box") {
+            for (k, spot) in monument.loot_spots.iter().enumerate() {
+                let mut roll = Roll::new(world.site_seed(i) ^ (k as u64 + 1).wrapping_mul(0xA24B_AED4_963E_E407));
+                let mut contents = item::Inventory::new(box_def.storage.unwrap_or(12));
+                for (name, count) in roll_loot(&table, spot.danger, &mut roll) {
+                    if let Some(def) = items.0.def(&name) {
+                        let _ = contents.add(item::create(def, count, &[], 0.0, k as u64), def.max_stack);
+                    }
+                }
+                let at = site.position + Vec2::new(spot.position.x, spot.position.z);
+                let found = spawn_item(&mut commands, box_def, item::create(box_def, 1, &[], 0.0, k as u64), at, LOOT_BOX_COLOR);
+                commands.entity(found).insert((Container(contents), WorldPiece));
+            }
+        }
         rolled.push((site.position, monument));
     }
     commands.insert_resource(MonumentsRes(rolled));
 }
+
+const LOOT_BOX_COLOR: Rgb = [0.5, 0.4, 0.22];
