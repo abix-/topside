@@ -345,9 +345,11 @@ Topside is 2D (operator, 2026-09-25: "so the problem is that 3d is harder
 than 2d. im one person. let's look at factorio and other games with big
 scope. they DIDNT go 3d. it was a careful coicee because 3d requires so
 much more effort"; "ive played and love 2d games"; "yeah,, lets do it 2d").
-The view (top-down or isometric) is not decided yet.
+The view (top-down or isometric) is not decided yet. Only 3D first person
+changes (operator, 2026-09-25: "ONLY 2d is what i want changed"); low poly,
+cel shading, AI-generated assets, and Bevy stay.
 
-The 2026-08-19 decision below is superseded and kept only as history.
+The 2026-08-19 decision, with only its 3D first person part replaced:
 
 Topside is 3D, first person, low poly with cel shading, with AI-generated
 assets, built on Bevy.
