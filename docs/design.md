@@ -109,6 +109,9 @@ factions: the world has as many factions as it has bunkers.
   all along with it. Neutrals are living NPCs too, such as animals and
   other things. Hostiles attack: wild animals, and raiders that try to kill
   you.
+- Later: the player's bunker and other bunkers can recruit neutral and
+  hostile topside people, like RimWorld. Capture someone, jail them, subdue
+  them, force them to work. We want that kind of depth.
 
 ## The first hour (operator-agreed 2026-08-21)
 
