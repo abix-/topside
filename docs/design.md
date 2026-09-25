@@ -1295,7 +1295,8 @@ view.
 - Buildings we explore are seen one floor at a time.
 - Nobody sees behind walls. The player sees only what their person can
   see, the way Project Zomboid does it.
-- Combat changes the most in 2D and has to be made fun for 2D. What is
+- Combat changes the most in 2D and has to be made fun for 2D. It is
+  simple to use but takes understanding and timing to master. What is
   decided, replacing the 3D parts of "How a hit works" (rule 4's ray
   from the eye, rule 5's bullet drop):
   - Aim: WASD moves, the mouse aims, and the person faces the mouse.
