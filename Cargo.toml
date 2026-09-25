@@ -1,17 +1,6 @@
-[package]
-name = "topside"
-version = "0.1.0"
-edition = "2024"
-publish = false
-
-[dependencies]
-avian3d = { version = "0.7", default-features = false, features = ["3d", "f32", "parry-f32", "parallel"] }
-bevy = "0.19"
-modforge = { path = "../modforge/modforge" }
-serde_json = "1"
-
-[dev-dependencies]
-ureq = { version = "3", features = ["json"] }
+[workspace]
+members = ["3d"]
+resolver = "3"
 
 # Fast iteration: light optimization for our code, full for deps
 # (Bevy is unusably slow fully unoptimized).

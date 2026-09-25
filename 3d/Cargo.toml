@@ -1,0 +1,19 @@
+[package]
+name = "topside-3d"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+# The 3D first person game, kept building while topside moves to 2D.
+# The library keeps its name so the code and tests still say `topside::`.
+[lib]
+name = "topside"
+
+[dependencies]
+avian3d = { version = "0.7", default-features = false, features = ["3d", "f32", "parry-f32", "parallel"] }
+bevy = "0.19"
+modforge = { path = "../../modforge/modforge" }
+serde_json = "1"
+
+[dev-dependencies]
+ureq = { version = "3", features = ["json"] }

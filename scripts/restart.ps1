@@ -2,10 +2,11 @@
 # Never hand-copy or hand-launch the exe; use this.
 $repo = Split-Path -Parent $PSScriptRoot
 # k3sc cargo-lock routes artifacts to the shared target directory.
-$exe = "C:\code\endless\rust\target\debug\topside.exe"
+# The 3D game in 3d/ builds as topside-3d.exe.
+$exe = "C:\code\endless\rust\target\debug\topside-3d.exe"
 
 # taskkill errors when no game is running; that is fine.
-taskkill /F /IM topside.exe 2>&1 | Out-Null
+taskkill /F /IM topside-3d.exe 2>&1 | Out-Null
 $ErrorActionPreference = "Stop"
 
 Set-Location $repo

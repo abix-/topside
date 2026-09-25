@@ -35,6 +35,6 @@ impl CelMaterial {
 pub fn load_shader(mut shaders: ResMut<Assets<Shader>>) {
     let _ = shaders.insert(
         &CEL_SHADER_HANDLE,
-        Shader::from_wgsl(include_str!("../assets/shaders/cel.wgsl"), "cel.wgsl"),
+        Shader::from_wgsl(include_str!("../../assets/shaders/cel.wgsl"), "cel.wgsl"),
     );
 }

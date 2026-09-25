@@ -64,7 +64,7 @@ pub fn build_app(headless: bool) -> App {
                 // The exe lives in the shared target directory, not
                 // beside assets/: point Bevy at the repo's folder.
                 .set(AssetPlugin {
-                    file_path: concat!(env!("CARGO_MANIFEST_DIR"), "/assets").to_string(),
+                    file_path: concat!(env!("CARGO_MANIFEST_DIR"), "/../assets").to_string(),
                     ..default()
                 }),
         );
