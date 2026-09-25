@@ -6,6 +6,7 @@
 //! actions.
 
 use bevy::prelude::*;
+use bevy::window::PrimaryWindow;
 pub use modforge::actions::{Action, ActionQueue, Bindings, Key, Stamped};
 
 use crate::SimTick;
@@ -44,17 +45,26 @@ fn key_of(code: KeyCode) -> Option<Key> {
     })
 }
 
-/// Read the keys once per frame and push the player's movement for the
-/// next fixed tick.
+/// Read the keys and the mouse once per frame and push the player's
+/// actions for the next fixed tick: movement, use, and the point under
+/// the cursor to face.
 pub fn read_input(
     keys: Res<ButtonInput<KeyCode>>,
     bindings: Res<BindingsRes>,
     tick: Res<SimTick>,
+    windows: Query<&Window, With<PrimaryWindow>>,
+    cameras: Query<(&Camera, &GlobalTransform)>,
     mut players: Query<&mut Actions, With<Player>>,
 ) {
     let Ok(mut actions) = players.single_mut() else {
         return;
     };
+    if let (Ok(window), Ok((camera, camera_at))) = (windows.single(), cameras.single())
+        && let Some(cursor) = window.cursor_position()
+        && let Ok(point) = camera.viewport_to_world_2d(camera_at, cursor)
+    {
+        actions.0.push(tick.0 + 1, Action::Aim { x: point.x, y: point.y });
+    }
     let pressed: Vec<Key> = keys.get_pressed().filter_map(|k| key_of(*k)).collect();
     let just_pressed: Vec<Key> = keys.get_just_pressed().filter_map(|k| key_of(*k)).collect();
     // The next fixed step consumes what this frame produced.

@@ -90,6 +90,7 @@ pub fn build_app(headless: bool, seed: u64) -> App {
         (
             tick_system,
             input::drain_actions,
+            player::aim,
             interact::interact_on_use,
             player::movement,
         )

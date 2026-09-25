@@ -6,7 +6,7 @@
 use avian2d::prelude::*;
 use bevy::prelude::*;
 
-use crate::actor::Inventory;
+use crate::actor::{Facing, Inventory};
 use crate::input::{ActionQueue, Actions, ThisTick};
 use crate::terrain::WorldRes;
 
@@ -25,6 +25,7 @@ const PLAYER_COLOR: Color = Color::srgb(0.9, 0.75, 0.3);
     Actions,
     ThisTick,
     Inventory,
+    Facing,
     Transform,
     RigidBody = RigidBody::Kinematic,
     Collider = Collider::circle(PLAYER_SIZE / 2.0)
@@ -41,7 +42,33 @@ pub fn spawn_player(mut commands: Commands, world: Res<WorldRes>) {
             ..default()
         },
         Transform::from_translation(world.0.def.bunker.extend(PLAYER_Z)),
+        // A nose on the side the person faces.
+        children![(
+            Sprite {
+                color: NOSE_COLOR,
+                custom_size: Some(Vec2::splat(PLAYER_SIZE / 3.0)),
+                ..default()
+            },
+            Transform::from_xyz(PLAYER_SIZE / 2.0, 0.0, 0.1),
+        )],
     ));
+}
+
+const NOSE_COLOR: Color = Color::srgb(0.25, 0.2, 0.1);
+
+/// Every actor faces the point it aims at this tick, and its picture
+/// turns with it.
+pub fn aim(mut actors: Query<(&ThisTick, &mut Facing, &mut Transform)>) {
+    for (this_tick, mut facing, mut transform) in &mut actors {
+        let Some((x, y)) = ActionQueue::aim(&this_tick.0) else {
+            continue;
+        };
+        let to = Vec2::new(x, y) - transform.translation.truncate();
+        if to != Vec2::ZERO {
+            facing.0 = to.to_angle();
+            transform.rotation = Quat::from_rotation_z(facing.0);
+        }
+    }
 }
 
 /// Every actor walks the way its move this tick says, at walking

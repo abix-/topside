@@ -8,6 +8,7 @@ use avian2d::prelude::*;
 use bevy::prelude::*;
 use common::{game, hold, out_in_the_open, position};
 use topside::SimTick;
+use topside::actor::Facing;
 use topside::input::Action;
 use topside::player::{PLAYER_SIZE, WALK_SPEED};
 
@@ -31,6 +32,17 @@ fn a_wall_stops_the_player_at_its_edge() {
     let edge = wall_bottom - PLAYER_SIZE / 2.0;
     assert!(end.y <= edge + 0.01, "walked through the wall: {} past {}", end.y, edge);
     assert!(end.y > edge - 0.2, "stopped short of the wall: {} before {}", end.y, edge);
+}
+
+#[test]
+fn the_player_faces_the_point_it_aims_at() {
+    let (mut app, player) = game();
+    let at = position(&app, player);
+    let target = at + Vec2::new(-3.0, 4.0);
+    hold(&mut app, player, Action::Aim { x: target.x, y: target.y }, 1);
+    let facing = app.world().get::<Facing>(player).unwrap().direction();
+    let want = (target - at).normalize();
+    assert!(facing.distance(want) < 1e-4, "faces {facing}, wants {want}");
 }
 
 #[test]
