@@ -62,11 +62,13 @@ function Invoke-Cargo {
     #>
     param (
         [Parameter(Mandatory = $true)][string]$Arguments,
-        [Parameter(Mandatory = $true)][string]$Log
+        [Parameter(Mandatory = $true)][string]$Log,
+        # Add to the log instead of starting it fresh.
+        [switch]$Append
     )
-    Remove-Item $Log -ErrorAction SilentlyContinue
+    if (-not $Append) { Remove-Item $Log -ErrorAction SilentlyContinue }
     Write-Host "[build] k3sc cargo-lock $Arguments (log: $Log)"
-    $p = Start-Process cmd -ArgumentList "/c k3sc cargo-lock $Arguments > `"$Log`" 2>&1" -NoNewWindow -PassThru
+    $p = Start-Process cmd -ArgumentList "/c k3sc cargo-lock $Arguments >> `"$Log`" 2>&1" -NoNewWindow -PassThru
     # Cache the handle so ExitCode is readable after the exit.
     $null = $p.Handle
     $lastSize = -1
@@ -114,8 +116,21 @@ switch ($Action) {
     }
     'test' {
         $log = Join-Path $logs 'test.log'
-        $which = if ($Name) { "--test $Name" } else { '' }
-        $code = Invoke-Cargo "test -p topside $which" $log
+        Remove-Item $log -ErrorAction SilentlyContinue
+        # The library's tests and every tests/*.rs file, each its own
+        # run, so one failure never hides another (k3sc cargo-lock also
+        # builds with the same arguments, so --no-fail-fast cannot go
+        # through it).
+        $targets = if ($Name) {
+            @("--test $Name")
+        } else {
+            @('--lib') + (Get-ChildItem (Join-Path $repo 'tests') -Filter *.rs | ForEach-Object { "--test $($_.BaseName)" })
+        }
+        $code = 0
+        foreach ($target in $targets) {
+            $one = Invoke-Cargo "test -p topside $target" $log -Append
+            if ($one -ne 0) { $code = $one }
+        }
         Show-Problems $log
         Select-String -Path $log -Pattern '^test |^test result|panicked|^failures' |
             ForEach-Object {
