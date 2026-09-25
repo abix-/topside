@@ -1313,7 +1313,9 @@ view.
     it is only a roll; upgrades come later.
   - Cover: walls and furniture stop bullets, and a table can be flipped
     into cover, as in Enter the Gungeon.
-  - How deadly: similar to Enter the Gungeon.
+  - How deadly: similar to Enter the Gungeon, kept on topside's damage
+    numbers: an ordinary hit takes about a sixth of a person's health,
+    and armor still reduces damage by type and body area.
 
 ## Future goals (not v1)
 
