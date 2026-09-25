@@ -5,7 +5,7 @@ ownership boundary between modforge and topside, the naming contract, and the
 anti-bypass rules for those paths.
 
 **Not authoritative for:** product vision and story (design.md, not yet
-written), capability progress (status.md, not yet written), or the task
+written), how fighting works (combat.md), capability progress (status.md, not yet written), or the task
 backlog (todo.md, not yet written).
 
 Evidence date: 2026-08-19. Nothing is built. Every score below reflects that

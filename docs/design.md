@@ -1104,87 +1104,8 @@ The crafting loop connects to everything:
 
 ## Combat
 
-Post-apocalyptic means everything is a weapon (operator-locked 2026-08-20:
-"melee. guns. clubs. random crafted things. its all possible"). A pipe, a
-sharpened piece of scrap, a makeshift club, a found pistol with three
-rounds, a crafted rifle. The scarcity of the world shows in the combat:
-early game you swing junk, late game you carry crafted firearms with
-ammunition you manufactured.
-
-The Bloodline is the reference for first-person melee feel: weighty,
-directional, satisfying even with crude weapons. Rust is the reference
-for gunplay: simple, lethal, ammo matters.
-
-Weapon categories:
-- Melee: clubs, pipes, blades, axes, spears. Crafted from scrap and
-  materials. Always available, no ammo cost, higher risk.
-- Ranged: pistols, shotguns, rifles, bows. Found or crafted. Ammunition
-  is a real cost that limits use. Higher tier weapons need higher tier
-  ammo.
-- Improvised: anything the crafting system can make. A spiked bat, a
-  nail bomb, a sharpened road sign. The crafting system's creativity
-  shows here.
-
-### How a hit works (operator-agreed 2026-08-20, from reading Quake 3,
-### Half-Life 1, Doom 3, and Rust's devblogs; references.md)
-
-The rules, engine-agnostic in modforge; topside only casts rays and
-moves bodies:
-
-1. One damage function for every hit: fists, bullets, arrows,
-   explosions, a wall. It takes the target, what hit it, who fired,
-   the direction, the point, and the damage def. Armor first, then
-   health, then die or pain. Quake 3's `G_Damage`.
-2. Damage is data. A weapon names a damage def in the registry:
-   amount, type, knockback, armor rules, falloff by distance. Doom 3.
-3. Damage types with resistances: slash, pierce, blunt, fire, and
-   more; creatures and worn gear multiply per type. Half-Life's type
-   bits, Valheim's resistances. Traits and affixes hang off this.
-4. Melee is a short ray from the eye; if the line misses, a fat
-   sweep takes its hit. Half-Life's crowbar. The moves are Gothic's
-   (operator, 2026-08-22: "read up on the gothic combat system. i
-   LOVED that simple and complex combat"): one attack key plus a
-   direction. Forward is the overhead that steps in and chains into
-   a combo on the beat; left and right are horizontal swings across
-   the body; back is a block that lasts about a second. Four moves,
-   no more. The direction is whatever move key is held when the
-   attack lands, read from the same action queue, so the player and
-   every NPC have the same four. The sweep follows the swing (a left
-   swing sweeps left to right across the front). The beat is the
-   fire timer: the next attack pressed in the last third of the
-   delay continues without a pause, early or late stalls. Gothic
-   shows training in the animation, not a number: a clumsy person
-   (the genome's power and agility) swings slow and cannot chain.
-   Hits roll against skill later (Gothic: skill is the chance of a
-   full hit, otherwise a tenth); today every swing that touches
-   lands.
-5. Guns are Rust's hybrid: the first N metres (per ammo) are an
-   instant ray, then the bullet is a projectile with gravity and
-   drag. Close range feels like Quake, long range keeps drop. One
-   code path, because a projectile step is a ray from last position
-   to new (Quake 3's missiles).
-6. Pellets add up per target: N rays with a seeded spread, damage
-   summed per target, one damage call per target. Half-Life's
-   multi-damage, Quake's seeded spread.
-7. Fire rate is a timer on the shooter, ticked in the simulation:
-   fire only when ready and the trigger is held; no ammo costs a
-   delay. Quake 3's `PM_Weapon`. NPCs use it unchanged.
-8. Protection per body area from worn gear (the equipment slots:
-   head, chest, hands, legs, feet), not one armor number. Rust after
-   it dropped hitboxes.
-9. Hit location multipliers come when actors have parts; today an
-   actor is one capsule. Half-Life's hitgroups.
-10. The simulation decides hits, never the renderer: casts run in
-    the fixed step against the physics world. Source's rule; single
-    player needs no rewind.
-11. Buildings are targets: a piece has health and no armor, and the
-    same function routes to it.
-
-Build order: the function and the defs, the timer, melee against the
-pipe, the NPC spawn path so there is something to hit back, then guns
-and pellets, then types and body-area protection as content grows.
-Left out for now: lag compensation, Rust's penetration and ricochet,
-Valheim's swept arcs.
+How fighting works lives in docs/combat.md, the one authority for it.
+Enemy and loot randomization stay here.
 
 ### Enemy randomization
 
@@ -1295,33 +1216,7 @@ view.
 - Buildings we explore are seen one floor at a time.
 - Nobody sees behind walls. The player sees only what their person can
   see, the way Project Zomboid does it.
-- Combat changes the most in 2D and has to be made fun for 2D. It is
-  simple to use but takes understanding and timing to master. What is
-  decided, replacing the 3D parts of "How a hit works" (rule 4's ray
-  from the eye, rule 5's bullet drop):
-  - Aim: WASD moves, the mouse aims, and the person faces the mouse.
-  - Melee: Gothic's four moves, read relative to where the person
-    faces. Attack plus forward is the overhead: it steps in, hits a
-    narrow strip in front, and chains on the beat. Attack plus left or
-    right sweeps an arc across the front. Attack plus back blocks for
-    about a second. The hit is the swing's shape in front of the
-    person.
-  - Guns: every shot is a visible bullet moved in the fixed step, a ray
-    from its last position to its new one, with no drop. Range is
-    damage falloff plus a maximum range per weapon.
-  - The roll: a dodge roll like Enter the Gungeon's (0.7 s, safe from
-    damage for the first half, direction locked once started). At first
-    it is only a roll; upgrades come later.
-  - Cover: walls and furniture stop bullets, and a table can be flipped
-    into cover, as in Enter the Gungeon.
-  - How deadly: similar to Enter the Gungeon, kept on topside's damage
-    numbers: an ordinary hit takes about a sixth of a person's health,
-    and armor still reduces damage by type.
-  - No body parts for damage, as in Enter the Gungeon and Factorio: a
-    hit lands on the person, not on a part of them. The body still has
-    parts and armor pieces worn on them, but their protection is added
-    together into one total that every hit goes through. This replaces
-    rules 8 and 9 of "How a hit works".
+- Combat changes the most in 2D; it is rebuilt for 2D in docs/combat.md.
 
 ## Future goals (not v1)
 
