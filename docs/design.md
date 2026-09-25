@@ -1283,8 +1283,9 @@ The material lives in topside (it is Bevy-specific presentation).
 
 ## Decided elsewhere
 
-Presentation is decided in authority.md: 3D, first person, low poly with cel
-shading, AI-generated assets, on Bevy.
+Presentation is decided in authority.md: 2D (operator, 2026-09-25: "yeah,,
+lets do it 2d"), replacing 3D first person. The view (top-down or
+isometric) is not decided yet.
 
 ## Future goals (not v1)
 

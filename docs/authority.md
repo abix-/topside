@@ -318,7 +318,7 @@ not writing it from scratch.
 
 | Priority | System | Lives in | Score | Authoritative for | Status |
 |---|---|---|---:|---|---|
-| 1 | World | topside | - | The one simulation state. Every fact about what exists now. Scale target: 1000 persistent simulated NPCs (design.md). | UNBUILT. Decided 2026-08-19: 3D first person on Bevy (see Presentation below). |
+| 1 | World | topside | - | The one simulation state. Every fact about what exists now. Scale target: 1000 persistent simulated NPCs (design.md). | UNBUILT. Decided 2026-09-25: 2D, replacing the 2026-08-19 3D first person decision (see Presentation below). |
 | 2 | Binder traits | modforge | - | The contract between each system and any world. One trait per system; observe and act only. | UNBUILT. The shape exists as ueforge doctrine (ViewportBinder, DamageBinder). |
 | 3 | Storyteller | modforge | - | All dramatic pacing. Randy Random and Mario Kart, the dread loop, incursion scheduling. | IN SURVIVALIST-MOD (incursion.rs, stranger.rs; dread loop and signal payoff live-verified there 2026-07-07). |
 | 4 | The edge | modforge | - | The one faucet. What enters the world, carrying what, sent by whom. | IN SURVIVALIST-MOD (edge spawn + march, all arrival kinds). |
@@ -339,7 +339,15 @@ not writing it from scratch.
 | 19 | Test framework | topside | - | In-app integration tests selectable from a debug menu, CLI-runnable headless (--test), phased assertions. Every system row's proof runs here. | UNBUILT. Endless tests/ is the model; the piece factoriobot lacked early and paid for. |
 | 20 | MonumentDef | topside | - | Monuments as data: a list of possible BuildingTypes to pick from, loot spots, NPC spots, gates, arrangement rules, names. Two layers of randomization: the monument picks buildings from its list, each building generates with varied parameters. spawn_monument is the one path; members spawn only through spawn_structure; loot value, NPC identity, and world placement belong to Quality, Genome/the edge, and Worldgen respectively. | UNBUILT. Building types and monument composition rules documented in design.md. Rust's monuments are the reference. |
 
-## Presentation (decided 2026-08-19)
+## Presentation (decided 2026-09-25: 2D)
+
+Topside is 2D (operator, 2026-09-25: "so the problem is that 3d is harder
+than 2d. im one person. let's look at factorio and other games with big
+scope. they DIDNT go 3d. it was a careful coicee because 3d requires so
+much more effort"; "ive played and love 2d games"; "yeah,, lets do it 2d").
+The view (top-down or isometric) is not decided yet.
+
+The 2026-08-19 decision below is superseded and kept only as history.
 
 Topside is 3D, first person, low poly with cel shading, with AI-generated
 assets, built on Bevy.
