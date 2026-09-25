@@ -112,6 +112,8 @@ factions: the world has as many factions as it has bunkers.
 - Later: the player's bunker and other bunkers can recruit neutral and
   hostile topside people, like RimWorld. Capture someone, jail them, subdue
   them, force them to work. We want that kind of depth.
+- Bunker people can do everything the player does. There is no difference
+  between us except AI controlled against human controlled.
 
 ## The first hour (operator-agreed 2026-08-21)
 
