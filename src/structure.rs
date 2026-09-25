@@ -21,7 +21,7 @@ use crate::content::{
     starting_note,
 };
 use crate::interact::{Door, Interactable, spawn_item, spawn_station};
-use crate::terrain::WorldRes;
+use crate::terrain::{WorldPiece, WorldRes};
 
 /// Drawing order: floors under walls and furniture, doors on top.
 const FLOOR_Z: f32 = 0.2;
@@ -41,11 +41,39 @@ fn sprite(rgb: Rgb, size: Vec2) -> Sprite {
     }
 }
 
+/// Where a building has a roof, in world metres: its floors. Anyone
+/// standing inside one is sheltered from the storm.
+#[derive(Component, Default)]
+pub struct Shelter(pub Vec<(Vec2, Vec2)>);
+
+impl Shelter {
+    /// Whether `point` is under this building's roof.
+    pub fn covers(&self, point: Vec2) -> bool {
+        self.0
+            .iter()
+            .any(|(min, max)| point.x >= min.x && point.x <= max.x && point.y >= min.y && point.y <= max.y)
+    }
+}
+
+/// Whether `point` is under any roof.
+pub fn sheltered(shelters: &Query<&Shelter>, point: Vec2) -> bool {
+    shelters.iter().any(|s| s.covers(point))
+}
+
 /// Spawn one building's ground floor at `at`: every part of its plan
 /// drawn, its solid parts as one compound collider on a static root,
-/// and a closed door in every doorway. Returns the root.
-pub fn spawn_structure(commands: &mut Commands, def: &StructureDef, at: Vec2) -> Entity {
+/// its floors as its `Shelter`, and a closed door in every doorway.
+/// A building of this reality (`of_world`) is a `WorldPiece`, gone
+/// when the storm shifts the world; the bunker is not. Returns the
+/// root.
+pub fn spawn_structure(commands: &mut Commands, def: &StructureDef, at: Vec2, of_world: bool) -> Entity {
     let plan = floor_plan(&parts_of(def), 0.0);
+    let shelter = Shelter(
+        plan.iter()
+            .filter(|p| p.kind == PartKind::Floor)
+            .map(|p| (at + p.min, at + p.max))
+            .collect(),
+    );
     let shapes: Vec<(Vec2, Rotation, Collider)> = plan
         .iter()
         .filter(|p| p.solid)
@@ -54,24 +82,35 @@ pub fn spawn_structure(commands: &mut Commands, def: &StructureDef, at: Vec2) ->
             ((p.min + p.max) / 2.0, Rotation::IDENTITY, Collider::rectangle(size.x, size.y))
         })
         .collect();
-    let mut root = commands.spawn((StructureRoot, RigidBody::Static, Transform::from_translation(at.extend(0.0))));
+    let mut root = commands.spawn((
+        StructureRoot,
+        shelter,
+        RigidBody::Static,
+        Transform::from_translation(at.extend(0.0)),
+    ));
     if !shapes.is_empty() {
         root.insert(Collider::compound(shapes));
+    }
+    if of_world {
+        root.insert(WorldPiece);
     }
     let root = root.id();
     for p in &plan {
         let z = if p.kind == PartKind::Floor { FLOOR_Z } else { SOLID_Z };
-        commands.spawn((
+        let mut piece = commands.spawn((
             sprite(p.color, p.max - p.min),
             Transform::from_translation((at + (p.min + p.max) / 2.0).extend(z)),
         ));
+        if of_world {
+            piece.insert(WorldPiece);
+        }
     }
     for door in doors_of(def) {
         let size = Vec2::new(door.size.x, door.size.z);
         let centre = at + Vec2::new(door.center.x, door.center.z);
         // The hinge is at one end of the door, along the wall.
         let along = if size.x >= size.y { Vec2::X * size.x } else { Vec2::Y * size.y };
-        commands.spawn((
+        let mut door = commands.spawn((
             Door {
                 open: false,
                 closed_center: centre,
@@ -85,6 +124,9 @@ pub fn spawn_structure(commands: &mut Commands, def: &StructureDef, at: Vec2) ->
             sprite(DOOR_COLOR, size),
             Transform::from_translation(centre.extend(DOOR_Z)),
         ));
+        if of_world {
+            door.insert(WorldPiece);
+        }
     }
     root
 }
@@ -93,7 +135,7 @@ pub fn spawn_structure(commands: &mut Commands, def: &StructureDef, at: Vec2) ->
 /// items and the note on the floor.
 pub fn spawn_bunker(mut commands: Commands, world: Res<WorldRes>, items: Res<ItemRegistryRes>) {
     let at = world.0.def.bunker;
-    spawn_structure(&mut commands, &starting_bunker(), at);
+    spawn_structure(&mut commands, &starting_bunker(), at, false);
     let def = |name: &str| {
         items
             .0
@@ -147,7 +189,7 @@ pub fn spawn_monuments(
             .expect("every site's monument type is registered");
         for member in &monument.members {
             let at = site.position + Vec2::new(member.offset.x, member.offset.z);
-            spawn_structure(&mut commands, &member.structure, at);
+            spawn_structure(&mut commands, &member.structure, at, true);
         }
         if !monument.props.is_empty() {
             let shapes: Vec<(Vec2, Rotation, Collider)> = monument
@@ -162,6 +204,7 @@ pub fn spawn_monuments(
                 })
                 .collect();
             commands.spawn((
+                WorldPiece,
                 RigidBody::Static,
                 Collider::compound(shapes),
                 Transform::from_translation(site.position.extend(0.0)),
@@ -169,6 +212,7 @@ pub fn spawn_monuments(
             for p in &monument.props {
                 let centre = site.position + Vec2::new(p.position.x, p.position.z);
                 commands.spawn((
+                    WorldPiece,
                     sprite(p.color, Vec2::new(p.size.x, p.size.z)),
                     Transform::from_translation(centre.extend(SOLID_Z)),
                 ));

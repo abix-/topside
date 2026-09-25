@@ -18,6 +18,7 @@ use modforge::monument::{
     MonumentRegistry, MonumentTypeDef, PropDef,
 };
 use modforge::crafting::{RecipeDef, RecipeRegistry, StationKind};
+use modforge::storm::StormDef;
 use modforge::structure::{
     CONCRETE_FLOOR, CONCRETE_WALL, LightDef, Opening, Rgb, RoomDef, Side, SolidDef, StructureDef,
 };
@@ -77,6 +78,14 @@ impl Default for RecipeRegistryRes {
 /// tune later). A full stomach lasts one, a full canteen half of one,
 /// rest one awake.
 pub const GAME_DAY_SECS: f32 = 1200.0;
+
+/// When storms come (design.md "The storm", MISERY's emission): one a
+/// game day, a minute of warning, twenty seconds of storm. Tuning.
+pub const STORM: StormDef = StormDef {
+    every_secs: GAME_DAY_SECS,
+    warning_secs: 60.0,
+    storm_secs: 20.0,
+};
 
 /// Who waits outside the starting bunker's door and where in its plan
 /// (x, z): a scavenger 6 m past the door (the 3D game's first fight).
@@ -413,6 +422,17 @@ pub fn register_damage(reg: &mut DamageRegistry) {
         fall,
         wasting("starvation"),
         wasting("dehydration"),
+        // Caught in the open when the storm hits: `amount` a second, no
+        // armor helps. Tuning.
+        DamageDef {
+            name: "storm".to_string(),
+            amount: 25.0,
+            kind: DamageType::Blunt,
+            knockback: 0.0,
+            ignores_armor: true,
+            self_scale: 1.0,
+            falloff: Falloff::NONE,
+        },
     ] {
         reg.register(def).expect("damage defs must not collide");
     }

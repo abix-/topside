@@ -12,6 +12,7 @@ use modforge::hud::{
 use crate::actor::{Dead, Hotbar, Inventory, INVENTORY_SLOTS, Survival};
 use crate::combat::Equipment;
 use modforge::crafting::{can_craft, craft};
+use modforge::storm::StormPhase;
 
 use crate::content::{ItemRegistryRes, RecipeRegistryRes};
 use crate::input::{Action, ThisTick};
@@ -225,23 +226,29 @@ pub fn render_vitals(
     let (Ok((health, needs)), Ok(mut text)) = (players.single(), texts.single_mut()) else {
         return;
     };
-    let time = if crate::survival::night(&tick) { "Night" } else { "Day" };
+    let time = match crate::storm::phase(&tick) {
+        StormPhase::Storm => "THE STORM",
+        StormPhase::Warning => "The sky has changed",
+        StormPhase::Calm if crate::survival::night(&tick) => "Night",
+        StormPhase::Calm => "Day",
+    };
     text.0 = format!(
         "Health {:.0}   Hunger {:.0}   Thirst {:.0}   {time}",
         health.0.current, needs.0.hunger, needs.0.thirst
     );
 }
 
-/// The dark laid over the world at night (under the HUD).
+/// The sky laid over the world (under the HUD): dark at night, a
+/// warning tint when the storm is coming, near white while it rages.
 #[derive(Component)]
-pub struct NightLayer;
+pub struct SkyLayer;
 
 /// How dark the night is. Tuning.
 const NIGHT_DARK: f32 = 0.55;
 
-pub fn setup_night(mut commands: Commands) {
+pub fn setup_sky(mut commands: Commands) {
     commands.spawn((
-        NightLayer,
+        SkyLayer,
         Node {
             position_type: PositionType::Absolute,
             width: Val::Percent(100.0),
@@ -254,10 +261,15 @@ pub fn setup_night(mut commands: Commands) {
     ));
 }
 
-pub fn render_night(tick: Res<crate::SimTick>, mut layers: Query<&mut BackgroundColor, With<NightLayer>>) {
-    let dark = if crate::survival::night(&tick) { NIGHT_DARK } else { 0.0 };
+pub fn render_sky(tick: Res<crate::SimTick>, mut layers: Query<&mut BackgroundColor, With<SkyLayer>>) {
+    let sky = match crate::storm::phase(&tick) {
+        StormPhase::Storm => Color::srgba(0.95, 0.93, 0.88, 0.85),
+        StormPhase::Warning => Color::srgba(0.7, 0.3, 0.05, 0.3),
+        StormPhase::Calm if crate::survival::night(&tick) => Color::srgba(0.0, 0.02, 0.08, NIGHT_DARK),
+        StormPhase::Calm => Color::NONE,
+    };
     for mut color in &mut layers {
-        color.0 = Color::srgba(0.0, 0.02, 0.08, dark);
+        color.0 = sky;
     }
 }
 

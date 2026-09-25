@@ -28,6 +28,12 @@ const WATER_COLOR: Rgb = [0.2, 0.3, 0.45];
 #[derive(Resource)]
 pub struct WorldRes(pub World);
 
+/// Anything that belongs to this reality and goes when the storm
+/// shifts the world (design.md "The storm"): the ground, what stops a
+/// body, the monuments. Never the bunker, never a person.
+#[derive(Component, Default)]
+pub struct WorldPiece;
+
 /// One chunk of ground: the cell at its bottom left and the colour of
 /// every cell in it, row by row from the bottom. `None` is past the
 /// world's edge.
@@ -162,7 +168,7 @@ pub fn spawn_solids(mut commands: Commands, world: Res<WorldRes>, biomes: Res<Bi
             .iter()
             .map(|s| (s.centre, Rotation::IDENTITY, Collider::rectangle(s.size.x, s.size.y)))
             .collect();
-        commands.spawn((RigidBody::Static, Collider::compound(shapes), Transform::default()));
+        commands.spawn((WorldPiece, RigidBody::Static, Collider::compound(shapes), Transform::default()));
     }
     let sprite = |rgb: Rgb, size: Vec2| Sprite {
         color: Color::srgb(rgb[0], rgb[1], rgb[2]),
@@ -171,6 +177,7 @@ pub fn spawn_solids(mut commands: Commands, world: Res<WorldRes>, biomes: Res<Bi
     };
     for s in &scatter {
         commands.spawn((
+            WorldPiece,
             sprite(s.color, Vec2::new(s.size.x, s.size.z)),
             Transform::from_translation(s.position.extend(SCATTER_Z)),
         ));
@@ -178,6 +185,7 @@ pub fn spawn_solids(mut commands: Commands, world: Res<WorldRes>, biomes: Res<Bi
     for w in &world.walls {
         let (min, max) = w.footprint();
         commands.spawn((
+            WorldPiece,
             sprite(WALL_COLOR, max - min),
             Transform::from_translation(((min + max) / 2.0).extend(SCATTER_Z)),
         ));
@@ -215,6 +223,7 @@ pub fn spawn_ground(
     for chunk in chunks(world, &biomes.0) {
         let centre = chunk.first.as_vec2() * cell - Vec2::splat(half) + Vec2::splat(side / 2.0);
         commands.spawn((
+            WorldPiece,
             TilemapChunk {
                 chunk_size: UVec2::splat(CHUNK as u32),
                 tile_display_size: UVec2::ONE,

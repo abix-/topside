@@ -11,6 +11,7 @@ pub mod input;
 pub mod interact;
 pub mod player;
 pub mod sight;
+pub mod storm;
 pub mod structure;
 pub mod survival;
 pub mod terrain;
@@ -86,6 +87,7 @@ pub fn build_app(headless: bool, seed: u64) -> App {
     app.init_resource::<survival::Rates>();
     app.init_resource::<content::RecipeRegistryRes>();
     app.init_resource::<interact::OpenStation>();
+    app.init_resource::<storm::StormRes>();
     app.add_systems(
         Startup,
         (
@@ -110,6 +112,7 @@ pub fn build_app(headless: bool, seed: u64) -> App {
             input::drain_actions,
             survival::survival_tick,
             survival::waste,
+            storm::storm,
             hud::hud_keys,
             player::roll,
             player::aim,
@@ -127,6 +130,7 @@ pub fn build_app(headless: bool, seed: u64) -> App {
     // What the player's person can see, every frame.
     app.add_systems(Update, sight::player_sight);
     if !headless {
+        app.insert_resource(storm::Windowed);
         app.add_plugins(bevy::diagnostic::FrameTimeDiagnosticsPlugin::default());
         control_plane::start();
         app.add_systems(
@@ -138,7 +142,7 @@ pub fn build_app(headless: bool, seed: u64) -> App {
                 hud::setup_death,
                 hud::setup_vitals,
                 hud::setup_station,
-                hud::setup_night,
+                hud::setup_sky,
             )
                 .after(terrain::roll),
         );
@@ -153,7 +157,7 @@ pub fn build_app(headless: bool, seed: u64) -> App {
                 hud::render_death,
                 hud::render_vitals,
                 hud::render_station,
-                hud::render_night,
+                hud::render_sky,
             ),
         );
     }

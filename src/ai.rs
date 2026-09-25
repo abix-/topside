@@ -83,6 +83,8 @@ pub fn think(
             .def(&known.kind)
             .map_or(0.0, |d| d.good_for.satisfies(need))
     };
+    // The storm is the same for everyone: coming or here, hide.
+    let storm_coming = crate::storm::phase(&tick) != modforge::storm::StormPhase::Calm;
     // Everyone's position and faction first, so the pass below holds
     // no second borrow. The player carries no id yet: zero names it.
     let everyone: Vec<(Entity, ActorId, Vec2, Option<String>)> = thinkers
@@ -155,6 +157,7 @@ pub fn think(
             asleep: condition.0.asleep,
             hostile,
             arrived,
+            storm_coming,
             memory: &memory.0,
             personality: &personality.0,
             worth: &worth,
