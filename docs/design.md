@@ -1316,9 +1316,11 @@ view.
   - How deadly: similar to Enter the Gungeon, kept on topside's damage
     numbers: an ordinary hit takes about a sixth of a person's health,
     and armor still reduces damage by type.
-  - No body parts, as in Enter the Gungeon: a hit lands on the person,
-    not on a part of them. This replaces rules 8 and 9 of "How a hit
-    works".
+  - No body parts for damage, as in Enter the Gungeon and Factorio: a
+    hit lands on the person, not on a part of them. The body still has
+    parts and armor pieces worn on them, but their protection is added
+    together into one total that every hit goes through. This replaces
+    rules 8 and 9 of "How a hit works".
 
 ## Future goals (not v1)
 
