@@ -114,6 +114,10 @@ factions: the world has as many factions as it has bunkers.
   them, force them to work. We want that kind of depth.
 - Bunker people can do everything the player does. There is no difference
   between us except AI controlled against human controlled.
+- Taking loot (2026-09-25): they are humans on a strange world, never sure
+  they will eat again. What they take is decided by their own needs and the
+  needs of their bunker: if they or their bunker need a thing, they take as
+  much of it as they can carry and bring it back. You eat what you need.
 
 ## The first hour (operator-agreed 2026-08-21)
 
