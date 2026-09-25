@@ -1295,8 +1295,25 @@ view.
 - Buildings we explore are seen one floor at a time.
 - Nobody sees behind walls. The player sees only what their person can
   see, the way Project Zomboid does it.
-- Combat changes the most in 2D and has to be made fun for 2D. Not
-  decided yet.
+- Combat changes the most in 2D and has to be made fun for 2D. What is
+  decided, replacing the 3D parts of "How a hit works" (rule 4's ray
+  from the eye, rule 5's bullet drop):
+  - Aim: WASD moves, the mouse aims, and the person faces the mouse.
+  - Melee: Gothic's four moves, read relative to where the person
+    faces. Attack plus forward is the overhead: it steps in, hits a
+    narrow strip in front, and chains on the beat. Attack plus left or
+    right sweeps an arc across the front. Attack plus back blocks for
+    about a second. The hit is the swing's shape in front of the
+    person.
+  - Guns: every shot is a visible bullet moved in the fixed step, a ray
+    from its last position to its new one, with no drop. Range is
+    damage falloff plus a maximum range per weapon.
+  - The roll: a dodge roll like Enter the Gungeon's (0.7 s, safe from
+    damage for the first half, direction locked once started). At first
+    it is only a roll; upgrades come later.
+  - Cover: walls and furniture stop bullets, and a table can be flipped
+    into cover, as in Enter the Gungeon.
+  - How deadly: similar to Enter the Gungeon.
 
 ## Future goals (not v1)
 
