@@ -7,7 +7,7 @@ use avian2d::prelude::*;
 use bevy::prelude::*;
 use modforge::actor::{ActorDef, ActorId, ActorMap};
 use modforge::brain::{Activity, CombatState};
-use modforge::item::{self, EquipSlot};
+use modforge::item;
 use modforge::survival::{Condition, SurvivalStats};
 
 use crate::combat::{Equipment, Firing, Health, Protection};
@@ -143,10 +143,12 @@ pub fn spawn_actor(spawn: &mut SpawnActor, def: &ActorDef, at: Vec2, faction: Op
     {
         return None;
     }
-    // The def's weapon in the hands.
-    let mut equipment = Equipment::default();
+    // The def's weapon in the first bar slot and in the hands, the same
+    // way the player holds one.
+    let mut hotbar = Hotbar::default();
     if let Some(weapon) = def.weapon.as_deref().and_then(|w| spawn.items.0.def(w)) {
-        equipment.0.set(EquipSlot::Weapon, Some(item::create(weapon, 1, &[], 0.0, 0)));
+        hotbar.0.slots.slots[0] = Some(item::create(weapon, 1, &[], 0.0, 0));
+        hotbar.0.held = Some(0);
     }
     let entity = spawn
         .commands
@@ -159,8 +161,8 @@ pub fn spawn_actor(spawn: &mut SpawnActor, def: &ActorDef, at: Vec2, faction: Op
             (
                 Facing::default(),
                 Inventory::default(),
-                Hotbar::default(),
-                equipment,
+                hotbar,
+                Equipment::default(),
                 Firing::default(),
             ),
             (

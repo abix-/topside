@@ -7,9 +7,11 @@
 
 use bevy::prelude::*;
 use bevy::window::PrimaryWindow;
+use modforge::hud::OpenPanel;
 pub use modforge::actions::{Action, ActionQueue, Bindings, Key, Stamped};
 
 use crate::SimTick;
+use crate::interact::HudRes;
 use crate::player::Player;
 
 /// What this actor has been told to do. The keyboard fills the
@@ -41,18 +43,37 @@ fn key_of(code: KeyCode) -> Option<Key> {
         KeyCode::KeyS => Key::S,
         KeyCode::KeyD => Key::D,
         KeyCode::KeyE => Key::E,
+        KeyCode::KeyI => Key::I,
+        KeyCode::KeyT => Key::T,
+        KeyCode::Tab => Key::Tab,
+        KeyCode::Escape => Key::Escape,
+        KeyCode::ShiftLeft => Key::ShiftLeft,
+        KeyCode::ShiftRight => Key::ShiftRight,
+        KeyCode::Digit1 => Key::Digit1,
+        KeyCode::Digit2 => Key::Digit2,
+        KeyCode::Digit3 => Key::Digit3,
+        KeyCode::Digit4 => Key::Digit4,
+        KeyCode::Digit5 => Key::Digit5,
+        KeyCode::Digit6 => Key::Digit6,
+        KeyCode::Digit7 => Key::Digit7,
+        KeyCode::Digit8 => Key::Digit8,
+        KeyCode::Digit9 => Key::Digit9,
+        KeyCode::Digit0 => Key::Digit0,
         _ => return None,
     })
 }
 
 /// Read the keys and the mouse once per frame and push the player's
-/// actions for the next fixed tick: movement, use, and the point under
-/// the cursor to face.
+/// actions for the next fixed tick: movement, use, attack, the point
+/// under the cursor to face, and the panel and hotbar keys. While a
+/// panel is open only the panel keys, the hotbar, and use get through
+/// (the 3D game's rule): no walking, aiming, or swinging.
 pub fn read_input(
     keys: Res<ButtonInput<KeyCode>>,
     buttons: Res<ButtonInput<MouseButton>>,
     bindings: Res<BindingsRes>,
     tick: Res<SimTick>,
+    hud: Res<HudRes>,
     windows: Query<&Window, With<PrimaryWindow>>,
     cameras: Query<(&Camera, &GlobalTransform)>,
     mut players: Query<&mut Actions, With<Player>>,
@@ -60,7 +81,9 @@ pub fn read_input(
     let Ok(mut actions) = players.single_mut() else {
         return;
     };
-    if let (Ok(window), Ok((camera, camera_at))) = (windows.single(), cameras.single())
+    let in_world = hud.0.open_panel == OpenPanel::None;
+    if in_world
+        && let (Ok(window), Ok((camera, camera_at))) = (windows.single(), cameras.single())
         && let Some(cursor) = window.cursor_position()
         && let Ok(point) = camera.viewport_to_world_2d(camera_at, cursor)
     {
@@ -80,13 +103,18 @@ pub fn read_input(
     let next = tick.0 + 1;
     let mut moved = false;
     for action in bindings.0.resolve(&pressed, &just_pressed) {
-        match action {
-            Action::Move { .. } => {
-                moved = true;
-                actions.0.push(next, action);
-            }
-            Action::Use | Action::Attack => actions.0.push(next, action),
-            _ => {}
+        let allowed = match action {
+            Action::Move { .. } | Action::Attack => in_world,
+            Action::Use
+            | Action::Inventory
+            | Action::Cancel
+            | Action::Hotbar { .. }
+            | Action::Transfer { .. } => true,
+            Action::Look { .. } | Action::Aim { .. } | Action::Drop | Action::Fly => false,
+        };
+        if allowed {
+            moved |= matches!(action, Action::Move { .. });
+            actions.0.push(next, action);
         }
     }
     // Every frame states its movement, zero included, so a released

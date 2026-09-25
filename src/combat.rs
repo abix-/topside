@@ -10,7 +10,7 @@ use modforge::combat::{
     FireTimer, Health as HealthStats, Hit, HitResult, Protection as ProtectionStats, Swing, Trigger,
     resolve_hit,
 };
-use modforge::item::{self, EquipSlot, ItemRegistry};
+use modforge::item::{self, ItemRegistry};
 
 use crate::actor::{Actor, ActorMapRes, Facing, Hotbar, Inventory, Personality};
 use crate::content::{DamageRegistryRes, ItemRegistryRes};
@@ -77,7 +77,7 @@ pub fn melee(
             Entity,
             &ThisTick,
             &Facing,
-            &Equipment,
+            &Hotbar,
             &Health,
             Option<&Personality>,
             &Collider,
@@ -91,16 +91,17 @@ pub fn melee(
     // Every swing that goes this tick: who, from where, which way,
     // which move, how far, how hard, with what.
     let mut swings: Vec<(Entity, Vec2, Vec2, Swing, f32, f32, String)> = Vec::new();
-    for (entity, this_tick, facing, worn, health, personality, shape, mut firing, mut transform) in &mut actors.p0() {
+    for (entity, this_tick, facing, hotbar, health, personality, shape, mut firing, mut transform) in &mut actors.p0() {
         firing.0.tick(dt);
         if !ActionQueue::has(&this_tick.0, Action::Attack) {
             // Let go: the next press may chain on the beat.
             firing.0.release();
             continue;
         }
-        let Some(weapon) = worn
+        // What is in the hands: the held hotbar slot (Rust).
+        let Some(weapon) = hotbar
             .0
-            .get(EquipSlot::Weapon)
+            .held_stack()
             .and_then(|s| items.0.def(&s.item))
             .and_then(|d| d.combat.as_ref())
         else {

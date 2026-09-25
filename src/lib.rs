@@ -79,6 +79,7 @@ pub fn build_app(headless: bool, seed: u64) -> App {
     app.init_resource::<input::BindingsRes>();
     app.init_resource::<interact::HudRes>();
     app.init_resource::<interact::OpenContainer>();
+    app.init_resource::<hud::HoveredSlot>();
     app.add_systems(
         Startup,
         (
@@ -101,6 +102,7 @@ pub fn build_app(headless: bool, seed: u64) -> App {
             tick_system,
             ai::think,
             input::drain_actions,
+            hud::hud_keys,
             player::aim,
             interact::interact_on_use,
             player::movement,
@@ -118,7 +120,7 @@ pub fn build_app(headless: bool, seed: u64) -> App {
         // themselves.
         app.add_systems(
             Update,
-            (input::read_input, player::camera_follow, hud::render_note),
+            (input::read_input, player::camera_follow, hud::render),
         );
     }
     app

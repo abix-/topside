@@ -8,7 +8,8 @@ mod common;
 use bevy::prelude::*;
 use common::{act, game, out_in_the_open, position};
 use modforge::combat::Swing;
-use modforge::item::{EquipSlot, create};
+use modforge::item::create;
+use topside::actor::Hotbar;
 use topside::combat::{Equipment, Firing, Health, Protection};
 use topside::content::ItemRegistryRes;
 use topside::input::Action;
@@ -38,11 +39,9 @@ fn armed() -> (App, Entity, Vec2) {
         let items = app.world().resource::<ItemRegistryRes>();
         create(items.0.def("pipe").unwrap(), 1, &[], 0.0, 0)
     };
-    app.world_mut()
-        .get_mut::<Equipment>(player)
-        .unwrap()
-        .0
-        .set(EquipSlot::Weapon, Some(pipe));
+    let mut hotbar = app.world_mut().get_mut::<Hotbar>(player).unwrap();
+    hotbar.0.slots.slots[0] = Some(pipe);
+    hotbar.0.held = Some(0);
     let at = position(&app, player);
     (app, player, at)
 }
