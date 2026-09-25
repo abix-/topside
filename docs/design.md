@@ -719,6 +719,30 @@ a monument is rolled then spawned. What a roll decides:
   own spacing, enough that one stands within 150 m of almost any point
   on land. What each one is (a trace, a question) is in "The unknown".
 
+### A valid world (operator, 2026-09-25)
+
+World generation only makes valid worlds; nothing later has to repair
+them (Endless did the same: terrain first, every spot rejected on water,
+the ground under a town cleared, nothing placed that cuts a town off).
+A world is valid when, on the tiles (pathing.md "One grid"):
+
+- Everything stands on land. No building, prop, person, or box stands
+  in water. Harbors and docks stand beside water, never in it.
+- Every spot is standable: every person and every box is placed on a
+  tile someone can stand on (a box beside one).
+- Every building can be entered, and every room of its floor reached
+  from its door; nothing blocks a doorway.
+- Everything is reachable from the bunker door: every site, every other
+  bunker, every box, every person's spot ("there must always be a way
+  out"). A secret is hidden, never cut off.
+- Every bunker stands on land with its door opening onto ground that
+  reaches the rest of the world.
+- Roads are walkable along their length.
+
+One check proves it: the walk grid built from the rolled world, flooded
+from the bunker door; whatever it does not reach is a broken world,
+reported by name. Every seed must report nothing.
+
 Rivers, rain and wildlife per biome, and the people who live at the
 sites come after the first world stands. The storm re-rolls the
 world by rolling a new seed through the same path and rebuilding
