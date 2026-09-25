@@ -85,6 +85,9 @@ pub fn build_app(headless: bool, seed: u64) -> App {
     app.init_resource::<actor::ActorMapRes>();
     app.init_resource::<input::BindingsRes>();
     app.init_resource::<hud::HoveredSlot>();
+    app.init_resource::<nav::Walk>();
+    app.init_resource::<nav::PlanQueue>();
+    app.init_resource::<nav::DoorIndex>();
     app.init_resource::<survival::Day>();
     app.init_resource::<content::RecipeRegistryRes>();
     app.init_resource::<storm::StormRes>();
@@ -118,6 +121,7 @@ pub fn build_app(headless: bool, seed: u64) -> App {
                 lap("think"),
                 input::drain_actions,
                 lap("drain_actions"),
+                (nav::record_solids, nav::record_doors),
                 nav::steer,
                 lap("steer"),
                 survival::survival_tick,

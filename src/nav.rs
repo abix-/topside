@@ -1,200 +1,250 @@
-//! Walking around things (life.md "Movement": the brain says "go
-//! there"). The brain's walk arrives as an aim at the target and a move;
-//! when the straight way there is blocked by something solid, the way
-//! round is planned with modforge's one grid path search on a one metre
-//! grid, and the person steers to the next point of it. People and open
-//! doors never block a way; walls, closed doors, water, and trees do.
+//! Walking around things (docs/pathing.md, the one authority). The
+//! brain's walk arrives as an aim at the target and a move; this finds
+//! the way there on modforge's walk grid (`walk::WalkMap`), painted
+//! from every static collider in the world as plain data, and steers
+//! each person to the next point of it. Endless's design: a straight
+//! line on the grid needs no search; searches wait in one queue and
+//! each step works through at most `PLANS_PER_STEP` of them and
+//! `PLAN_BUDGET_MS` of time; a way that cannot be found waits
+//! `RETRY_AFTER` before it is asked again. People and doors never block
+//! a way (a person opens a closed door with the player's own Use);
+//! walls, water, trees, and boxes do.
 
 use std::collections::VecDeque;
+use std::time::{Duration, Instant};
 
 use avian2d::prelude::*;
-use bevy::ecs::system::SystemParam;
 use bevy::prelude::*;
 use modforge::brain::REACH;
-use modforge::path::{Cell, grid_path};
+use modforge::walk::{CHUNK, ChunkKey, Rect, WalkMap, cell_of};
 
 use crate::SimTick;
 use crate::actor::{Dead, Npc};
 use crate::input::{Action, ActionQueue, ThisTick};
 use crate::interact::Door;
-use crate::player::PLAYER_SIZE;
 
-/// Cells expanded before a plan gives up (a 60 m by 60 m search).
-const PLAN_LIMIT: usize = 3600;
-/// A plan older than this is made again, in ticks.
-const REPLAN_EVERY: u64 = 120;
+/// Cells searched before a way counts as not found (Endless's
+/// `max_nodes` is 5000 on a coarser grid; a 150 m trip is 300 cells
+/// straight).
+const PLAN_LIMIT: usize = 20_000;
+/// Searches worked through each step at most (Endless: 200 a frame).
+const PLANS_PER_STEP: usize = 50;
+/// Time spent searching each step at most (Endless: 2 ms a frame).
+const PLAN_BUDGET_MS: u64 = 2;
+/// A way older than this is found again, in ticks: the world between
+/// changes (doors, boxes, the storm).
+const REPLAN_EVERY: u64 = 300;
 /// A moving goal is planned for at most this often, in ticks.
 const REPLAN_MIN: u64 = 30;
+/// A way not found is asked for again after this, in ticks (Endless: 2 s).
+const RETRY_AFTER: u64 = 120;
 /// A waypoint this near is reached.
 const WAYPOINT_REACH: f32 = 0.6;
 
-/// The way round a person is following.
+/// The one walk grid of the world.
+#[derive(Resource, Default)]
+pub struct Walk(pub WalkMap);
+
+/// The people waiting for a way to be found, first come first served.
+#[derive(Resource, Default)]
+pub struct PlanQueue(pub VecDeque<Entity>);
+
+/// The way a person is following.
 #[derive(Component, Default)]
 pub struct NavPath {
     pub waypoints: VecDeque<Vec2>,
+    /// The goal the way leads to.
     pub goal: Vec2,
-    /// The tick of the last plan; None before the first.
+    /// The tick the way was found; None before the first.
     pub planned_at: Option<u64>,
+    /// Waiting in the queue.
+    pub queued: bool,
+    /// No way was found: not asked again before this tick.
+    pub retry_at: u64,
 }
 
-/// What stands in the way: only static bodies that are not sensors.
-/// A door never does: a person opens it on the way.
-#[derive(SystemParam)]
-pub struct Nav<'w, 's> {
-    spatial: SpatialQuery<'w, 's>,
-    bodies: Query<'w, 's, &'static RigidBody>,
-    sensors: Query<'w, 's, (), With<Sensor>>,
-    doors: Query<'w, 's, &'static Door>,
+/// The rectangles a collider stands on, in world metres: a box, or a
+/// compound of boxes (a building, a chunk of water and trees).
+fn rects_of(collider: &Collider, at: Vec2) -> Vec<Rect> {
+    let shape = collider.shape_scaled();
+    if let Some(cuboid) = shape.as_cuboid() {
+        return vec![Rect::around(at, cuboid.half_extents * 2.0)];
+    }
+    shape
+        .as_compound()
+        .map(|compound| {
+            compound
+                .shapes()
+                .iter()
+                .filter_map(|(pose, part)| {
+                    part.as_cuboid()
+                        .map(|c| Rect::around(at + pose.translation, c.half_extents * 2.0))
+                })
+                .collect()
+        })
+        .unwrap_or_default()
 }
 
-impl Nav<'_, '_> {
-    fn solid(&self, e: Entity) -> bool {
-        !self.sensors.contains(e) && !self.doors.contains(e) && self.bodies.get(e).is_ok_and(|b| *b == RigidBody::Static)
+/// Every static collider that appears goes onto the walk grid; every one
+/// that goes comes off it. Doors and sensors never block a way.
+pub fn record_solids(
+    mut walk: ResMut<Walk>,
+    added: Query<(Entity, &Collider, &RigidBody, &Transform), (Added<Collider>, Without<Sensor>, Without<Door>)>,
+    mut gone: RemovedComponents<Collider>,
+) {
+    for entity in gone.read() {
+        walk.0.remove(entity.to_bits());
     }
-
-    /// Where a closed door stands within reach ahead of someone at
-    /// `here` stepping along `way`, if one does.
-    fn closed_door_ahead(&self, here: Vec2, way: Vec2) -> Option<Vec2> {
-        self.doors
-            .iter()
-            .find(|d| {
-                let to = d.closed_center - here;
-                !d.open && to.length() <= crate::interact::REACH && to.dot(way) > 0.0
-            })
-            .map(|d| d.closed_center)
-    }
-
-    /// A body can walk straight from `from` to `to`.
-    pub fn clear(&self, who: Entity, from: Vec2, to: Vec2) -> bool {
-        let Ok((dir, distance)) = Dir2::new_and_length(to - from) else {
-            return true;
-        };
-        let shape = Collider::circle(PLAYER_SIZE / 2.0);
-        let filter = SpatialQueryFilter::from_excluded_entities([who]);
-        self.spatial
-            .cast_shape_predicate(
-                &shape,
-                from,
-                0.0,
-                dir,
-                &ShapeCastConfig::from_max_distance(distance),
-                &filter,
-                &|e| self.solid(e),
-            )
-            .is_none()
-    }
-
-    fn blocked(&self, cell: Cell) -> bool {
-        let centre = centre(cell);
-        self.spatial
-            .point_intersections(centre, &SpatialQueryFilter::default())
-            .into_iter()
-            .any(|e| self.solid(e))
-    }
-
-    /// Nothing solid between two cell centres: a wall thinner than a
-    /// cell stands between centres, not on one. `ignore` is what stands
-    /// at the goal (the box being walked to).
-    fn crossable(&self, a: Cell, b: Cell, ignore: &SpatialQueryFilter) -> bool {
-        let (from, to) = (centre(a), centre(b));
-        let Ok((dir, distance)) = Dir2::new_and_length(to - from) else {
-            return true;
-        };
-        self.spatial
-            .cast_ray_predicate(from, dir, distance, true, ignore, &|e| self.solid(e))
-            .is_none()
-    }
-
-    /// The way round from `from` to `to` as points to walk through,
-    /// ending at `to`; None when there is none nearby. Each cell asks
-    /// the physics world once per plan, and each step between cells
-    /// once.
-    pub fn plan(&self, from: Vec2, to: Vec2) -> Option<VecDeque<Vec2>> {
-        let (start, goal) = (cell(from), cell(to));
-        let known: std::cell::RefCell<std::collections::HashMap<Cell, bool>> = Default::default();
-        let blocked = |c: Cell| *known.borrow_mut().entry(c).or_insert_with(|| self.blocked(c));
-        let at_goal = SpatialQueryFilter::from_excluded_entities(
-            self.spatial.point_intersections(to, &SpatialQueryFilter::default()),
-        );
-        let step = |a: Cell, b: Cell| {
-            ((b == goal || !blocked(b)) && self.crossable(a, b, &at_goal))
-                .then(|| if a.0 != b.0 && a.1 != b.1 { 1.414 } else { 1.0 })
-        };
-        let estimate = |c: Cell| centre(c).distance(centre(goal));
-        let cells = grid_path(start, goal, step, estimate, PLAN_LIMIT)?;
-        let mut points: VecDeque<Vec2> = cells.into_iter().skip(1).map(centre).collect();
-        points.pop_back();
-        points.push_back(to);
-        Some(points)
+    for (entity, collider, body, transform) in &added {
+        if *body == RigidBody::Static {
+            walk.0.add(entity.to_bits(), rects_of(collider, transform.translation.truncate()));
+        }
     }
 }
 
-fn cell(p: Vec2) -> Cell {
-    (p.x.floor() as i32, p.y.floor() as i32)
+/// Every door, filed by the walk grid chunk it stands in (doors do not
+/// move), so a walker looks only at the doors around it, never at every
+/// door in the world.
+#[derive(Resource, Default)]
+pub struct DoorIndex {
+    by_chunk: std::collections::HashMap<ChunkKey, Vec<Entity>>,
+    chunk_of: std::collections::HashMap<Entity, ChunkKey>,
 }
 
-fn centre(c: Cell) -> Vec2 {
-    Vec2::new(c.0 as f32 + 0.5, c.1 as f32 + 0.5)
+fn chunk_at(p: Vec2) -> ChunkKey {
+    let c = cell_of(p);
+    (c.0.div_euclid(CHUNK), c.1.div_euclid(CHUNK))
 }
 
-/// Every NPC the brain sent walking this tick: straight when the way is
-/// clear, else along the way round, re-planned when it is old or the
-/// goal moved.
+/// Doors that appear are filed; doors that go are dropped.
+pub fn record_doors(
+    mut index: ResMut<DoorIndex>,
+    added: Query<(Entity, &Door), Added<Door>>,
+    mut gone: RemovedComponents<Door>,
+) {
+    for entity in gone.read() {
+        if let Some(key) = index.chunk_of.remove(&entity)
+            && let Some(doors) = index.by_chunk.get_mut(&key)
+        {
+            doors.retain(|e| *e != entity);
+        }
+    }
+    for (entity, door) in &added {
+        let key = chunk_at(door.closed_center);
+        index.by_chunk.entry(key).or_default().push(entity);
+        index.chunk_of.insert(entity, key);
+    }
+}
+
+/// A closed door within reach ahead of someone at `here` stepping along
+/// `way`: only the doors in the chunks around them are looked at.
+fn closed_door_ahead(index: &DoorIndex, doors: &Query<&Door>, here: Vec2, way: Vec2) -> bool {
+    let (cx, cy) = chunk_at(here);
+    (cy - 1..=cy + 1)
+        .flat_map(|y| (cx - 1..=cx + 1).map(move |x| (x, y)))
+        .filter_map(|key| index.by_chunk.get(&key))
+        .flatten()
+        .filter_map(|e| doors.get(*e).ok())
+        .any(|d| {
+            let to = d.closed_center - here;
+            !d.open && to.length() <= crate::interact::REACH && to.dot(way) > 0.0
+        })
+}
+
+/// Every NPC the brain sent walking this tick: a way asked for when
+/// there is none, it is old, or the goal moved; the queue worked through
+/// within the budget; then each steps to the next point of its way.
 pub fn steer(
     tick: Res<SimTick>,
-    nav: Nav,
+    mut walk: ResMut<Walk>,
+    mut queue: ResMut<PlanQueue>,
+    door_index: Res<DoorIndex>,
+    doors: Query<&Door>,
     mut walkers: Query<(Entity, &Transform, &mut ThisTick, &mut NavPath), (With<Npc>, Without<Dead>)>,
 ) {
-    for (entity, transform, mut this_tick, mut path) in &mut walkers {
-        let (x, y) = ActionQueue::movement(&this_tick.0);
-        let Some((tx, ty)) = ActionQueue::aim(&this_tick.0) else {
+    // Who needs a way.
+    for (entity, transform, this_tick, mut path) in &mut walkers {
+        let Some(target) = walking_to(&this_tick) else {
             continue;
         };
-        if x == 0.0 && y == 0.0 {
+        if path.queued || tick.0 < path.retry_at || transform.translation.truncate().distance(target) <= REACH {
             continue;
         }
+        let age = path.planned_at.map_or(u64::MAX, |at| tick.0.saturating_sub(at));
+        let moved = path.goal.distance(target) > 2.0 && age >= REPLAN_MIN;
+        if age >= REPLAN_EVERY || moved {
+            path.queued = true;
+            queue.0.push_back(entity);
+        }
+    }
+    // Work through the queue within the budget; the rest wait.
+    let started = Instant::now();
+    let mut done = 0;
+    while done < PLANS_PER_STEP && started.elapsed() < Duration::from_millis(PLAN_BUDGET_MS) {
+        let Some(entity) = queue.0.pop_front() else {
+            break;
+        };
+        let Ok((_, transform, this_tick, mut path)) = walkers.get_mut(entity) else {
+            continue;
+        };
+        path.queued = false;
+        let Some(target) = walking_to(&this_tick) else {
+            continue;
+        };
+        done += 1;
         let here = transform.translation.truncate();
-        let target = Vec2::new(tx, ty);
+        path.goal = target;
+        path.planned_at = Some(tick.0);
+        if walk.0.line_clear(here, target) {
+            path.waypoints.clear();
+            continue;
+        }
+        match walk.0.find_way(here, target, PLAN_LIMIT) {
+            Some(points) => path.waypoints = points.into(),
+            None => {
+                path.waypoints.clear();
+                path.retry_at = tick.0 + RETRY_AFTER;
+            }
+        }
+    }
+    // Step along the way.
+    for (_, transform, mut this_tick, mut path) in &mut walkers {
+        let Some(target) = walking_to(&this_tick) else {
+            continue;
+        };
+        let here = transform.translation.truncate();
         // Arrived: stop here, not at the next decision.
         if here.distance(target) <= REACH {
             path.waypoints.clear();
             set_move(&mut this_tick, Vec2::ZERO, tick.0);
             continue;
         }
+        while path.waypoints.front().is_some_and(|p| p.distance(here) <= WAYPOINT_REACH) {
+            path.waypoints.pop_front();
+        }
+        let next = path.waypoints.front().copied().unwrap_or(target);
         // A closed door in the way: open it, with the player's own Use.
         // The aim stays on where they are going, and the door ahead is
         // the thing nearest it.
-        let way = path.waypoints.front().copied().unwrap_or(target) - here;
-        if nav.closed_door_ahead(here, way).is_some() && !ActionQueue::has(&this_tick.0, Action::Use) {
+        if closed_door_ahead(&door_index, &doors, here, next - here) && !ActionQueue::has(&this_tick.0, Action::Use) {
             this_tick.0.push(modforge::actions::Stamped {
                 tick: tick.0,
                 action: Action::Use,
             });
         }
-        if nav.clear(entity, here, target) {
-            path.waypoints.clear();
-            continue;
+        // Steer the step to the next point of the way; the aim stays on
+        // the goal, so it holds between decisions.
+        if !path.waypoints.is_empty() {
+            set_move(&mut this_tick, (next - here).normalize_or_zero(), tick.0);
         }
-        // Plan again only when the plan is old, or the goal moved and the
-        // last plan is not brand new; a plan that failed or ran out is
-        // not retried every tick.
-        let age = path.planned_at.map_or(u64::MAX, |at| tick.0.saturating_sub(at));
-        let moved = path.goal.distance(target) > 2.0 && age >= REPLAN_MIN;
-        if age >= REPLAN_EVERY || moved {
-            path.waypoints = nav.plan(here, target).unwrap_or_default();
-            path.goal = target;
-            path.planned_at = Some(tick.0);
-        }
-        while path.waypoints.front().is_some_and(|p| p.distance(here) <= WAYPOINT_REACH) {
-            path.waypoints.pop_front();
-        }
-        let Some(&next) = path.waypoints.front() else {
-            continue;
-        };
-        // Steer the step to the next point of the way round; the aim stays
-        // on the goal, so it holds between decisions.
-        set_move(&mut this_tick, (next - here).normalize_or_zero(), tick.0);
     }
+}
+
+/// Where the brain has this person walking this tick, if anywhere.
+fn walking_to(this_tick: &ThisTick) -> Option<Vec2> {
+    let (x, y) = ActionQueue::movement(&this_tick.0);
+    let (tx, ty) = ActionQueue::aim(&this_tick.0)?;
+    (x != 0.0 || y != 0.0).then_some(Vec2::new(tx, ty))
 }
 
 /// Replace this tick's move with a step along `way`.
