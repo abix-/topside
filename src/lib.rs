@@ -1,0 +1,71 @@
+//! topside: the 2D game (docs/design.md "What 2D changes") on Bevy,
+//! consuming the modforge crate and the content both games share.
+//! Ownership map: docs/authority.md.
+
+pub mod terrain;
+
+pub use topside_content as content;
+
+use bevy::camera::ScalingMode;
+use bevy::prelude::*;
+
+/// Metres across the screen's height, close to Factorio's default zoom.
+pub const VIEW_METRES: f32 = 34.0;
+
+/// The seed the world rolls from.
+#[derive(Resource)]
+pub struct WorldSeed(pub u64);
+
+/// Which reality the world rolls from (`content::WORLDS`).
+#[derive(Resource)]
+pub struct WorldName(pub String);
+
+impl Default for WorldName {
+    fn default() -> Self {
+        Self(content::WORLDS[0].to_string())
+    }
+}
+
+/// Build the app. `headless` skips the window and the drawing so
+/// tests can run the simulation bare.
+pub fn build_app(headless: bool, seed: u64) -> App {
+    let mut app = App::new();
+    if headless {
+        app.add_plugins(MinimalPlugins);
+    } else {
+        app.add_plugins(DefaultPlugins.set(WindowPlugin {
+            primary_window: Some(Window {
+                title: "topside".to_string(),
+                ..default()
+            }),
+            ..default()
+        }));
+    }
+    app.insert_resource(WorldSeed(seed));
+    app.init_resource::<WorldName>();
+    app.init_resource::<content::BiomeRegistryRes>();
+    app.init_resource::<content::MonumentRegistryRes>();
+    app.add_systems(Startup, terrain::roll);
+    if !headless {
+        app.add_systems(
+            Startup,
+            (terrain::spawn_ground, spawn_camera).after(terrain::roll),
+        );
+    }
+    app
+}
+
+/// The camera looks straight down, like Factorio's, starting at the
+/// bunker.
+fn spawn_camera(mut commands: Commands, world: Res<terrain::WorldRes>) {
+    commands.spawn((
+        Camera2d,
+        Projection::Orthographic(OrthographicProjection {
+            scaling_mode: ScalingMode::FixedVertical {
+                viewport_height: VIEW_METRES,
+            },
+            ..OrthographicProjection::default_2d()
+        }),
+        Transform::from_translation(world.0.def.bunker.extend(0.0)),
+    ));
+}
