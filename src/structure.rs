@@ -13,12 +13,14 @@ use modforge::structure::{
     MonumentDef, PartKind, Rgb, StructureDef, doors_of, floor_plan, parts_of,
 };
 
+use modforge::crafting::StationKind;
 use modforge::item::{create, write};
 
 use crate::content::{
-    ItemRegistryRes, MonumentRegistryRes, STARTING_ITEMS, STARTING_NOTE_AT, starting_bunker, starting_note,
+    BENCH_AT, ItemRegistryRes, MonumentRegistryRes, STARTING_ITEMS, STARTING_NOTE_AT, starting_bunker,
+    starting_note,
 };
-use crate::interact::{Door, Interactable, spawn_item};
+use crate::interact::{Door, Interactable, spawn_item, spawn_station};
 use crate::terrain::WorldRes;
 
 /// Drawing order: floors under walls and furniture, doors on top.
@@ -107,6 +109,9 @@ pub fn spawn_bunker(mut commands: Commands, world: Res<WorldRes>, items: Res<Ite
             color,
         );
     }
+    // The crafting bench, where E opens its recipes.
+    let [x, z] = BENCH_AT;
+    spawn_station(&mut commands, StationKind::CraftingBench, at + Vec2::new(x, z));
     // The note and the world both come from the world's seed.
     let [x, z] = STARTING_NOTE_AT;
     spawn_item(

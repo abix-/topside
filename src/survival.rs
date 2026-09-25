@@ -2,7 +2,7 @@
 //! actor's needs (the player and every NPC, one path).
 
 use bevy::prelude::*;
-use modforge::survival::{Condition, SurvivalRates};
+use modforge::survival::{Condition, SurvivalRates, day_fraction, is_night};
 
 use modforge::combat::Hit;
 
@@ -53,14 +53,24 @@ pub fn waste(
     }
 }
 
-/// Every living actor's needs move one fixed step.
+/// Whether it is night now, from the one day clock: the simulation's
+/// ticks through a `GAME_DAY_SECS` day (todo 11e4).
+pub fn night(tick: &SimTick) -> bool {
+    is_night(day_fraction(tick.0 as f32 / 60.0, GAME_DAY_SECS))
+}
+
+/// Every living actor's needs move one fixed step; at night the awake
+/// tire faster, so people go home and sleep.
 pub fn survival_tick(
     time: Res<Time<Fixed>>,
+    tick: Res<SimTick>,
     rates: Res<Rates>,
     mut actors: Query<(&mut Survival, Option<&ActorCondition>), Without<Dead>>,
 ) {
+    let night = night(&tick);
     for (mut survival, condition) in &mut actors {
-        let condition = condition.map_or_else(Condition::default, |c| c.0);
+        let mut condition = condition.map_or_else(Condition::default, |c| c.0);
+        condition.night = night;
         survival.0.tick(rates.0, condition, time.delta_secs());
     }
 }

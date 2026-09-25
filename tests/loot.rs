@@ -45,8 +45,9 @@ fn e_picks_the_pipe_up_off_the_bunker_floor() {
 fn e_reads_the_note_where_it_lies() {
     let (mut app, player) = game();
     let bunker = app.world().resource::<WorldRes>().0.def.bunker;
-    // Beside the bench the note lies on, nearer it than the vest.
-    put(&mut app, player, bunker + Vec2::new(2.6, 2.9));
+    // In front of the note on the bench, nearer it than the vest or the
+    // bench's own spot.
+    put(&mut app, player, bunker + Vec2::new(2.2, 2.95));
     act(&mut app, player, &[Action::Use]);
     let hud = &app.world().resource::<HudRes>().0;
     assert_eq!(hud.open_panel, OpenPanel::Note);

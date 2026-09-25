@@ -6,6 +6,7 @@ use std::f32::consts::FRAC_PI_2;
 
 use avian2d::prelude::*;
 use bevy::prelude::*;
+use modforge::crafting::StationKind;
 use modforge::hud::{HudState, InteractKind, InteractResult, OpenPanel, interact};
 use modforge::item::{self, ItemDef, ItemKind, ItemStack};
 use modforge::structure::Rgb;
@@ -48,6 +49,23 @@ pub struct Container(pub item::Inventory);
 /// The box the player has open, if any.
 #[derive(Resource, Default)]
 pub struct OpenContainer(pub Option<Entity>);
+
+/// The crafting station the player has open, if any.
+#[derive(Resource, Default)]
+pub struct OpenStation(pub Option<StationKind>);
+
+/// Where a station stands for E: nothing to draw (the furniture is
+/// drawn), only the spot.
+pub fn spawn_station(commands: &mut Commands, kind: StationKind, at: Vec2) -> Entity {
+    commands
+        .spawn((
+            Interactable {
+                kind: InteractKind::Station(kind),
+            },
+            Transform::from_translation(at.extend(0.0)),
+        ))
+        .id()
+}
 
 /// A small item's square and a deployable's, in metres.
 const ITEM_SIZE: f32 = 0.35;
@@ -106,6 +124,7 @@ pub fn interact_on_use(
     mut commands: Commands,
     mut hud: ResMut<HudRes>,
     mut open: ResMut<OpenContainer>,
+    mut station: ResMut<OpenStation>,
     registry: Res<ItemRegistryRes>,
     mut players: Query<(&Transform, &ThisTick, &mut Inventory), (With<Player>, Without<Dead>)>,
     mut things: Query<
@@ -163,6 +182,13 @@ pub fn interact_on_use(
         // modforge toggled the panel: E opens the box, E again closes it.
         InteractResult::OpenContainer => {
             open.0 = (hud.0.open_panel == OpenPanel::Inventory).then_some(entity);
+        }
+        // modforge toggled the station panel: remember which station.
+        InteractResult::OpenStation => {
+            station.0 = match thing.kind {
+                InteractKind::Station(kind) if hud.0.open_panel == OpenPanel::Station => Some(kind),
+                _ => None,
+            };
         }
         // The note's words are in the HUD state now; nothing moves. A
         // gate stays shut. A full inventory leaves the item lying.

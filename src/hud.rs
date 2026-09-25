@@ -11,9 +11,11 @@ use modforge::hud::{
 
 use crate::actor::{Dead, Hotbar, Inventory, INVENTORY_SLOTS, Survival};
 use crate::combat::Equipment;
-use crate::content::ItemRegistryRes;
+use modforge::crafting::{can_craft, craft};
+
+use crate::content::{ItemRegistryRes, RecipeRegistryRes};
 use crate::input::{Action, ThisTick};
-use crate::interact::{Container, HudRes, OpenContainer};
+use crate::interact::{Container, HudRes, OpenContainer, OpenStation};
 use crate::player::Player;
 
 /// Slots drawn for an open box; a bigger box shows its first ones.
@@ -216,16 +218,47 @@ pub fn setup_vitals(mut commands: Commands) {
 }
 
 pub fn render_vitals(
+    tick: Res<crate::SimTick>,
     players: Query<(&crate::combat::Health, &Survival), With<Player>>,
     mut texts: Query<&mut Text, With<VitalsText>>,
 ) {
     let (Ok((health, needs)), Ok(mut text)) = (players.single(), texts.single_mut()) else {
         return;
     };
+    let time = if crate::survival::night(&tick) { "Night" } else { "Day" };
     text.0 = format!(
-        "Health {:.0}   Hunger {:.0}   Thirst {:.0}",
+        "Health {:.0}   Hunger {:.0}   Thirst {:.0}   {time}",
         health.0.current, needs.0.hunger, needs.0.thirst
     );
+}
+
+/// The dark laid over the world at night (under the HUD).
+#[derive(Component)]
+pub struct NightLayer;
+
+/// How dark the night is. Tuning.
+const NIGHT_DARK: f32 = 0.55;
+
+pub fn setup_night(mut commands: Commands) {
+    commands.spawn((
+        NightLayer,
+        Node {
+            position_type: PositionType::Absolute,
+            width: Val::Percent(100.0),
+            height: Val::Percent(100.0),
+            ..default()
+        },
+        BackgroundColor(Color::NONE),
+        Pickable::IGNORE,
+        GlobalZIndex(-1),
+    ));
+}
+
+pub fn render_night(tick: Res<crate::SimTick>, mut layers: Query<&mut BackgroundColor, With<NightLayer>>) {
+    let dark = if crate::survival::night(&tick) { NIGHT_DARK } else { 0.0 };
+    for mut color in &mut layers {
+        color.0 = Color::srgba(0.0, 0.02, 0.08, dark);
+    }
 }
 
 /// A click on a slot uses what is in it (modforge's `use_slot`): food
@@ -240,9 +273,12 @@ fn click_slot(click: On<Pointer<Click>>, slots: Query<&SlotUi>, mut commands: Co
 pub fn use_slot_system(
     slot: In<SlotRef>,
     registry: Res<ItemRegistryRes>,
-    mut players: Query<(&mut Survival, &mut Inventory, &mut Hotbar, &mut Equipment), With<Player>>,
+    mut players: Query<
+        (&mut Survival, &mut Inventory, &mut Hotbar, &mut Equipment, &mut crate::combat::Health),
+        With<Player>,
+    >,
 ) {
-    let Ok((mut needs, mut inventory, mut hotbar, mut worn)) = players.single_mut() else {
+    let Ok((mut needs, mut inventory, mut hotbar, mut worn, mut health)) = players.single_mut() else {
         return;
     };
     let holder = match slot.holder {
@@ -250,7 +286,14 @@ pub fn use_slot_system(
         Holder::Hotbar => &mut hotbar.0.slots,
         Holder::Container => return,
     };
-    let _ = use_slot(&mut needs.0, holder, slot.index, &registry.0, &mut worn.0);
+    if let Ok(heal) = use_slot(&mut needs.0, holder, slot.index, &registry.0, &mut worn.0) {
+        heal_by(&mut health, heal);
+    }
+}
+
+/// Heal by what food or medicine gives, never past full.
+fn heal_by(health: &mut crate::combat::Health, heal: f32) {
+    health.0.current = (health.0.current + heal).min(health.0.max);
 }
 
 /// The death message, shown while the player is dead.
@@ -355,10 +398,21 @@ pub fn hud_keys(
     mut open: ResMut<OpenContainer>,
     hovered: Res<HoveredSlot>,
     registry: Res<ItemRegistryRes>,
-    mut players: Query<(&ThisTick, &mut Survival, &mut Hotbar, &mut Equipment, &mut Inventory), With<Player>>,
+    mut station: ResMut<OpenStation>,
+    mut players: Query<
+        (
+            &ThisTick,
+            &mut Survival,
+            &mut Hotbar,
+            &mut Equipment,
+            &mut Inventory,
+            &mut crate::combat::Health,
+        ),
+        With<Player>,
+    >,
     mut containers: Query<&mut Container>,
 ) {
-    let Ok((this_tick, mut needs, mut hotbar, mut worn, mut inventory)) = players.single_mut() else {
+    let Ok((this_tick, mut needs, mut hotbar, mut worn, mut inventory, mut health)) = players.single_mut() else {
         return;
     };
     for stamped in &this_tick.0 {
@@ -366,7 +420,9 @@ pub fn hud_keys(
             Action::Inventory => toggle_panel(&mut hud.0, OpenPanel::Inventory),
             Action::Cancel => hud.0.open_panel = OpenPanel::None,
             Action::Hotbar { index } => {
-                let _ = hotbar_key(&mut needs.0, &mut hotbar.0, index, &registry.0, &mut worn.0);
+                if let Ok(heal) = hotbar_key(&mut needs.0, &mut hotbar.0, index, &registry.0, &mut worn.0) {
+                    heal_by(&mut health, heal);
+                }
             }
             Action::Transfer { half } => {
                 let Some(slot) = hovered.0 else {
@@ -383,8 +439,121 @@ pub fn hud_keys(
             _ => {}
         }
     }
-    // A closed inventory closes the box with it.
+    // A closed inventory closes the box with it; a closed station
+    // panel, the station.
     if hud.0.open_panel != OpenPanel::Inventory {
         open.0 = None;
+    }
+    if hud.0.open_panel != OpenPanel::Station {
+        station.0 = None;
+    }
+}
+
+/// The station panel: every recipe of the open station, one row each,
+/// what it takes and what it makes; a click crafts it.
+#[derive(Component)]
+pub struct StationPanel;
+
+/// One recipe row and which recipe it is.
+#[derive(Component)]
+pub struct RecipeRow(pub String);
+
+/// The most recipe rows a station panel shows.
+const RECIPE_ROWS: usize = 12;
+
+pub fn setup_station(mut commands: Commands) {
+    commands
+        .spawn((
+            StationPanel,
+            Node {
+                position_type: PositionType::Absolute,
+                top: Val::Px(60.0),
+                right: Val::Px(40.0),
+                flex_direction: FlexDirection::Column,
+                row_gap: Val::Px(4.0),
+                padding: UiRect::all(Val::Px(8.0)),
+                ..default()
+            },
+            BackgroundColor(Color::srgba(0.05, 0.05, 0.05, 0.85)),
+            Visibility::Hidden,
+        ))
+        .with_children(|p| {
+            for _ in 0..RECIPE_ROWS {
+                p.spawn((
+                    RecipeRow(String::new()),
+                    Node {
+                        padding: UiRect::all(Val::Px(6.0)),
+                        ..default()
+                    },
+                    BackgroundColor(SLOT_COLOR),
+                    children![(Text::new(""), TextFont::from_font_size(14.0), Pickable::IGNORE)],
+                ))
+                .observe(click_recipe);
+            }
+        });
+}
+
+/// Fill the station panel from the open station's recipes: a recipe the
+/// inventory can pay for is lit.
+pub fn render_station(
+    station: Res<OpenStation>,
+    recipes: Res<RecipeRegistryRes>,
+    players: Query<&Inventory, With<Player>>,
+    mut panels: Query<&mut Visibility, (With<StationPanel>, Without<RecipeRow>)>,
+    mut rows: Query<(&mut RecipeRow, &Children, &mut BackgroundColor, &mut Visibility)>,
+    mut texts: Query<&mut Text>,
+) {
+    let (Ok(mut panel), Ok(inventory)) = (panels.single_mut(), players.single()) else {
+        return;
+    };
+    let Some(kind) = station.0 else {
+        *panel = Visibility::Hidden;
+        return;
+    };
+    *panel = Visibility::Visible;
+    let list = recipes.0.for_station(kind);
+    for (i, (mut row, children, mut color, mut visibility)) in rows.iter_mut().enumerate() {
+        let Some(recipe) = list.get(i) else {
+            *visibility = Visibility::Hidden;
+            continue;
+        };
+        *visibility = Visibility::Inherited;
+        row.0 = recipe.name.clone();
+        let takes: Vec<String> = recipe.inputs.iter().map(|(item, n)| format!("{item} x{n}")).collect();
+        if let Some(mut text) = children.first().and_then(|c| texts.get_mut(*c).ok()) {
+            text.0 = format!("{} x{}  <-  {}", recipe.output.0, recipe.output.1, takes.join(", "));
+        }
+        color.0 = if can_craft(recipe, &inventory.0) { HELD_COLOR } else { SLOT_COLOR };
+    }
+}
+
+fn click_recipe(click: On<Pointer<Click>>, rows: Query<&RecipeRow>, mut commands: Commands) {
+    if let Ok(row) = rows.get(click.entity) {
+        commands.run_system_cached_with(craft_system, row.0.clone());
+    }
+}
+
+/// Craft the recipe `name` from the player's inventory (modforge's
+/// `craft`, the one way anything is made); what is made goes into the
+/// inventory, or at the player's feet when it is full.
+pub fn craft_system(
+    name: In<String>,
+    mut commands: Commands,
+    tick: Res<crate::SimTick>,
+    recipes: Res<RecipeRegistryRes>,
+    items: Res<ItemRegistryRes>,
+    mut players: Query<(&Transform, &mut Inventory), With<Player>>,
+) {
+    let (Some(recipe), Ok((at, mut inventory))) = (recipes.0.def(&name), players.single_mut()) else {
+        return;
+    };
+    let Some(made) = craft(recipe, &mut inventory.0, &items.0, &[], tick.0 as f32, tick.0) else {
+        return;
+    };
+    let Some(def) = items.0.def(&made.item) else {
+        return;
+    };
+    if let Some(left) = inventory.0.add(made, def.max_stack) {
+        crate::interact::spawn_item(&mut commands, def, left, at.translation.truncate(), [0.8, 0.8, 0.8]);
     }
 }

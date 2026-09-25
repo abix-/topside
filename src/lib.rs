@@ -84,6 +84,8 @@ pub fn build_app(headless: bool, seed: u64) -> App {
     app.init_resource::<interact::OpenContainer>();
     app.init_resource::<hud::HoveredSlot>();
     app.init_resource::<survival::Rates>();
+    app.init_resource::<content::RecipeRegistryRes>();
+    app.init_resource::<interact::OpenStation>();
     app.add_systems(
         Startup,
         (
@@ -135,6 +137,8 @@ pub fn build_app(headless: bool, seed: u64) -> App {
                 hud::setup,
                 hud::setup_death,
                 hud::setup_vitals,
+                hud::setup_station,
+                hud::setup_night,
             )
                 .after(terrain::roll),
         );
@@ -148,6 +152,8 @@ pub fn build_app(headless: bool, seed: u64) -> App {
                 hud::render,
                 hud::render_death,
                 hud::render_vitals,
+                hud::render_station,
+                hud::render_night,
             ),
         );
     }

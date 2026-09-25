@@ -17,6 +17,7 @@ use modforge::monument::{
     Arrangement, BuildingRegistry, BuildingSize, BuildingSlot, BuildingTypeDef,
     MonumentRegistry, MonumentTypeDef, PropDef,
 };
+use modforge::crafting::{RecipeDef, RecipeRegistry, StationKind};
 use modforge::structure::{
     CONCRETE_FLOOR, CONCRETE_WALL, LightDef, Opening, Rgb, RoomDef, Side, SolidDef, StructureDef,
 };
@@ -25,7 +26,9 @@ use modforge::structure::{
 /// food; a can is half a day of hunger and a bottle half a day of
 /// thirst, so six of each), plus the first weapons and a vest: item,
 /// count, salt, where in the bunker's plan (x, z), colour.
-pub const STARTING_ITEMS: [(&str, u32, u64, [f32; 2], Rgb); 8] = [
+pub const STARTING_ITEMS: [(&str, u32, u64, [f32; 2], Rgb); 9] = [
+    // Enough cloth for the bench's first bandage.
+    ("cloth", 2, 14, [-1.6, 2.0], [0.75, 0.7, 0.6]),
     ("canned food", 6, 1, [-1.0, 2.0], [0.2, 0.6, 0.2]),
     ("water bottle", 5, 3, [-1.0, 2.6], [0.3, 0.5, 0.8]),
     ("water bottle", 1, 4, [-1.6, 2.6], [0.3, 0.5, 0.8]),
@@ -36,9 +39,39 @@ pub const STARTING_ITEMS: [(&str, u32, u64, [f32; 2], Rgb); 8] = [
     ("road sign vest", 1, 12, [2.2, 2.0], [0.2, 0.5, 0.2]),
 ];
 
+/// Where the crafting bench is used in the starting bunker's plan
+/// (x, z): its right end, clear of the note on it.
+pub const BENCH_AT: [f32; 2] = [2.8, 3.5];
+
 /// Where the note lies in the starting bunker's plan (x, z): on the
 /// bench, the first question (design.md "The first hour").
 pub const STARTING_NOTE_AT: [f32; 2] = [2.2, 3.5];
+
+/// Every recipe, as data (modforge crafting).
+#[derive(Resource)]
+pub struct RecipeRegistryRes(pub RecipeRegistry);
+
+impl Default for RecipeRegistryRes {
+    fn default() -> Self {
+        let mut reg = RecipeRegistry::default();
+        // The bench's first recipes (todo 10): cloth into a bandage,
+        // scrap into a pipe. Tuning.
+        let bench = |name: &str, inputs: &[(&str, u32)], output: (&str, u32)| RecipeDef {
+            name: name.to_string(),
+            inputs: inputs.iter().map(|(i, n)| (i.to_string(), *n)).collect(),
+            output: (output.0.to_string(), output.1),
+            station: StationKind::CraftingBench,
+            craft_time: 0.0,
+        };
+        for def in [
+            bench("bandage", &[("cloth", 2)], ("bandage", 1)),
+            bench("pipe", &[("scrap", 3)], ("pipe", 1)),
+        ] {
+            reg.register(def).expect("recipe registered once");
+        }
+        Self(reg)
+    }
+}
 
 /// One game day in real seconds (the 3D game's Valheim-scale pacing;
 /// tune later). A full stomach lasts one, a full canteen half of one,
@@ -454,9 +487,11 @@ pub fn register_items(reg: &mut ItemRegistry) {
             max_stack: 10,
             quality_siblings: 1,
             combat: None,
+            // Food heals a little too (todo 10ca, Valheim). Tuning.
             food: Some(FoodStats {
                 hunger: 50.0,
                 thirst: 0.0,
+                health: 5.0,
             }),
             storage: None,
             armor: None,
@@ -473,6 +508,26 @@ pub fn register_items(reg: &mut ItemRegistry) {
             food: Some(FoodStats {
                 hunger: 0.0,
                 thirst: 50.0,
+                health: 0.0,
+            }),
+            storage: None,
+            armor: None,
+            good_for: Default::default(),
+            model: None,
+        },
+        // Made at the bench from cloth; heals far faster than food, a
+        // reason to craft before going out (todo 10ca). Tuning.
+        ItemDef {
+            name: "bandage".to_string(),
+            unique: false,
+            kind: ItemKind::Medicine,
+            max_stack: 5,
+            quality_siblings: 1,
+            combat: None,
+            food: Some(FoodStats {
+                hunger: 0.0,
+                thirst: 0.0,
+                health: 30.0,
             }),
             storage: None,
             armor: None,
