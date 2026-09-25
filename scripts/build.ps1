@@ -82,17 +82,27 @@ function Invoke-Cargo {
             Write-Host "[build] STALLED: no output for $StallMinutes minutes; stopping it" -ForegroundColor Red
             taskkill /T /F /PID $p.Id 2>&1 | Out-Null
             Write-Host '[build] the last lines before the stall:' -ForegroundColor Red
-            Get-Content $Log -Tail 15 | ForEach-Object { Write-Host "  $_" }
+            Get-Content $Log -Tail 15 | ForEach-Object { Write-Host "  $(Limit-Line $_)" }
             return 124
         }
     }
     return $p.ExitCode
 }
 
+function Limit-Line {
+    # Linker errors carry command lines thousands of characters long;
+    # the full text stays in the log.
+    param ([string]$Line)
+    if ($Line.Length -le 300) { return $Line }
+    return $Line.Substring(0, 300) + ' ...'
+}
+
 function Show-Problems {
     param ([Parameter(Mandatory = $true)][string]$Log)
     Select-String -Path $Log -Pattern '^(error|warning)(\[|:)' -Context 0, 6 |
-        ForEach-Object { Write-Host $_.ToString() -ForegroundColor Yellow }
+        ForEach-Object {
+            ($_.ToString() -split "`n") | ForEach-Object { Write-Host (Limit-Line $_) -ForegroundColor Yellow }
+        }
 }
 
 Stop-Game
