@@ -6503,7 +6503,9 @@ dependencies = [
  "avian2d",
  "bevy",
  "modforge",
+ "serde_json",
  "topside-content",
+ "ureq",
 ]
 
 [[package]]

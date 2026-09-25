@@ -362,11 +362,24 @@ pub fn register_damage(reg: &mut DamageRegistry) {
         self_scale: 1.0,
         falloff: Falloff::NONE,
     };
+    // An empty stomach or canteen (todo 10c): `amount` a second, no
+    // armor helps, through the one damage function. Tuning.
+    let wasting = |name: &str| DamageDef {
+        name: name.to_string(),
+        amount: 2.0,
+        kind: DamageType::Blunt,
+        knockback: 0.0,
+        ignores_armor: true,
+        self_scale: 1.0,
+        falloff: Falloff::NONE,
+    };
     for def in [
         melee("pipe swing", 20.0, DamageType::Blunt),
         melee("hatchet chop", 30.0, DamageType::Slash),
         pellet,
         fall,
+        wasting("starvation"),
+        wasting("dehydration"),
     ] {
         reg.register(def).expect("damage defs must not collide");
     }

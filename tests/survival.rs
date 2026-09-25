@@ -8,8 +8,23 @@ use common::{alone, game};
 use modforge::hud::{Holder, SlotRef};
 use modforge::item::create;
 use topside::actor::{Inventory, Survival};
+use topside::combat::Health;
 use topside::content::{GAME_DAY_SECS, ItemRegistryRes};
 use topside::hud::use_slot_system;
+
+#[test]
+fn an_empty_stomach_costs_health_every_second() {
+    let (mut app, player) = game();
+    alone(&mut app);
+    app.world_mut().get_mut::<Survival>(player).unwrap().0.hunger = 0.0;
+    let before = app.world().get::<Health>(player).unwrap().0.current;
+    // Three seconds.
+    for _ in 0..180 {
+        app.update();
+    }
+    let after = app.world().get::<Health>(player).unwrap().0.current;
+    assert!(before - after >= 4.0 && before - after <= 8.0, "lost {} in three seconds", before - after);
+}
 
 #[test]
 fn a_game_hour_drains_hunger_and_thirst_and_a_can_brings_hunger_back() {

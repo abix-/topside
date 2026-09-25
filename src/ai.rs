@@ -21,6 +21,7 @@ use crate::combat::Health;
 use crate::content::{ActorRegistryRes, FactionRegistryRes, ItemRegistryRes, MonumentRegistryRes, PLAYER_FACTION};
 use crate::input::Actions;
 use crate::player::Player;
+use crate::sight::Sight;
 
 /// Within this of home counts as home.
 const HOME_REACH: f32 = 6.0;
@@ -67,6 +68,7 @@ pub fn think(
     factions: Res<FactionRegistryRes>,
     items: Res<ItemRegistryRes>,
     monuments: Res<MonumentRegistryRes>,
+    sight: Sight,
     mut thinkers: Thinkers,
 ) {
     // What a remembered kind of thing is worth for a need: the
@@ -116,13 +118,14 @@ pub fn think(
         };
         let here = transform.translation.truncate();
         // Sense: the nearest hostile by the faction table within the
-        // def's sight (seeing through walls until sight like Zomboid's).
+        // def's sight, with nothing blocking the view (sight.rs).
         let hostile = everyone
             .iter()
             .filter(|(e, _, at, faction)| {
                 *e != entity
                     && at.distance(here) <= def.sight
                     && factions.0.hostile(npc.faction.as_deref(), faction.as_deref())
+                    && sight.clear(here, *at)
             })
             .min_by(|a, b| a.2.distance(here).total_cmp(&b.2.distance(here)))
             .map(|(_, id, at, _)| (*id, ground(*at)));

@@ -13,7 +13,11 @@ publish = false
 avian2d = { version = "0.7", default-features = false, features = ["2d", "f32", "parry-f32", "parallel"] }
 bevy = "0.19"
 modforge = { path = "../modforge/modforge" }
+serde_json = "1"
 topside-content = { path = "content" }
+
+[dev-dependencies]
+ureq = { version = "3", features = ["json"] }
 
 # Fast iteration: light optimization for our code, full for deps
 # (Bevy is unusably slow fully unoptimized). Deps carry no debug info:

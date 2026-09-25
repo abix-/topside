@@ -5,10 +5,12 @@
 pub mod actor;
 pub mod ai;
 pub mod combat;
+pub mod control_plane;
 pub mod hud;
 pub mod input;
 pub mod interact;
 pub mod player;
+pub mod sight;
 pub mod structure;
 pub mod survival;
 pub mod terrain;
@@ -105,6 +107,7 @@ pub fn build_app(headless: bool, seed: u64) -> App {
             ai::think,
             input::drain_actions,
             survival::survival_tick,
+            survival::waste,
             hud::hud_keys,
             player::roll,
             player::aim,
@@ -115,10 +118,15 @@ pub fn build_app(headless: bool, seed: u64) -> App {
             combat::fly,
             combat::die,
             player::respawn,
+            control_plane::publish,
         )
             .chain(),
     );
+    // What the player's person can see, every frame.
+    app.add_systems(Update, sight::player_sight);
     if !headless {
+        app.add_plugins(bevy::diagnostic::FrameTimeDiagnosticsPlugin::default());
+        control_plane::start();
         app.add_systems(
             Startup,
             (
