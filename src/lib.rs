@@ -3,6 +3,7 @@
 //! Ownership map: docs/authority.md.
 
 pub mod actor;
+pub mod combat;
 pub mod input;
 pub mod interact;
 pub mod player;
@@ -68,6 +69,8 @@ pub fn build_app(headless: bool, seed: u64) -> App {
     app.init_resource::<WorldName>();
     app.init_resource::<content::BiomeRegistryRes>();
     app.init_resource::<content::MonumentRegistryRes>();
+    app.init_resource::<content::ItemRegistryRes>();
+    app.init_resource::<content::DamageRegistryRes>();
     app.init_resource::<input::BindingsRes>();
     app.init_resource::<interact::HudRes>();
     app.add_systems(
@@ -93,6 +96,7 @@ pub fn build_app(headless: bool, seed: u64) -> App {
             player::aim,
             interact::interact_on_use,
             player::movement,
+            combat::die,
         )
             .chain(),
     );
