@@ -32,6 +32,80 @@ static FPS_BITS: AtomicU32 = AtomicU32::new(0);
 static DIAGNOSTICS: Mutex<Json> = Mutex::new(Json::Null);
 static PEOPLE_LIST: Mutex<Json> = Mutex::new(Json::Null);
 static PERF: Mutex<Json> = Mutex::new(Json::Null);
+static WORLD: Mutex<Json> = Mutex::new(Json::Null);
+/// How many times real time the game runs, set by the `speed` op
+/// (Factorio's game speed); 1 is normal.
+static SPEED_BITS: AtomicU32 = AtomicU32::new(0x3f80_0000);
+
+/// The game speed the `speed` op asked for, applied to the clock the
+/// fixed step runs on: the same game, more steps each frame. A frame may
+/// catch up at most a second of game time, so a slow machine runs as fast
+/// as it can, never skips steps.
+pub fn apply_speed(mut time: ResMut<Time<Virtual>>) {
+    let speed = f32::from_bits(SPEED_BITS.load(Ordering::Relaxed));
+    if time.relative_speed() != speed {
+        time.set_relative_speed(speed);
+        time.set_max_delta(std::time::Duration::from_secs(1));
+    }
+}
+
+/// Once a second of game time: the day, the storms, what the people have
+/// done, and every bunker's store and people, for the `world` op.
+pub fn publish_world(
+    tick: Res<crate::SimTick>,
+    day: Res<crate::survival::Day>,
+    storms: Res<crate::storm::StormRes>,
+    life: Res<crate::ai::LifeStats>,
+    items: Res<crate::content::ItemRegistryRes>,
+    stores: Query<&crate::interact::Container>,
+    people: Query<(&crate::actor::Store, &Npc, Has<crate::actor::Dead>, &Survival), With<crate::actor::Home>>,
+) {
+    if tick.0 % 60 != 0 {
+        return;
+    }
+    let mut bunkers: std::collections::BTreeMap<String, Json> = Default::default();
+    for (store, npc, dead, needs) in &people {
+        let name = npc.faction.clone().unwrap_or_default();
+        let entry = bunkers.entry(name).or_insert_with(|| {
+            let (mut food, mut water) = (0, 0);
+            if let Ok(held) = stores.get(store.0) {
+                for stack in held.0.slots.iter().flatten() {
+                    if let Some(f) = items.0.def(&stack.item).and_then(|d| d.food) {
+                        if f.hunger > 0.0 {
+                            food += stack.count;
+                        }
+                        if f.thirst > 0.0 {
+                            water += stack.count;
+                        }
+                    }
+                }
+            }
+            json!({"food": food, "water": water, "alive": 0, "starving": 0})
+        });
+        if !dead {
+            entry["alive"] = json!(entry["alive"].as_u64().unwrap_or(0) + 1);
+        }
+        if needs.0.starving() || needs.0.dehydrated() {
+            entry["starving"] = json!(entry["starving"].as_u64().unwrap_or(0) + 1);
+        }
+    }
+    let world = json!({
+        "tick": tick.0,
+        "day": crate::survival::Day::secs(&tick) / day.0,
+        "storms": storms.shifts,
+        "ate": life.ate,
+        "looked": life.looked,
+        "slept": life.slept,
+        "fights": life.fights,
+        "died": life.died,
+        "taken": life.taken,
+        "stocked": life.stocked,
+        "bunkers": bunkers,
+    });
+    if let Ok(mut slot) = WORLD.lock() {
+        *slot = world;
+    }
+}
 
 pub fn publish(
     tick: Res<crate::SimTick>,
@@ -133,6 +207,25 @@ pub fn start() {
         "every NPC: id, def, faction, position, health, needs, traits, actions this tick",
         "",
         |_| Ok(PEOPLE_LIST.lock().map(|p| p.clone()).unwrap_or(Json::Null)),
+    ));
+    OP_REGISTRY.register(OpDef::new(
+        "speed",
+        "run the game this many times real time (1 is normal); as fast as the machine allows",
+        "{\"times\": 20}",
+        |args| {
+            let times = args.get("times").and_then(Json::as_f64).ok_or_else(|| "times: a number".to_string())? as f32;
+            if !(times > 0.0) {
+                return Err("times must be above zero".to_string());
+            }
+            SPEED_BITS.store(times.to_bits(), Ordering::Relaxed);
+            Ok(json!({"times": times}))
+        },
+    ));
+    OP_REGISTRY.register(OpDef::new(
+        "world",
+        "the day, the storms, what the people have done, every bunker's store and people",
+        "",
+        |_| Ok(WORLD.lock().map(|w| w.clone()).unwrap_or(Json::Null)),
     ));
     modforge::server::spawn(
         modforge::server::Config {

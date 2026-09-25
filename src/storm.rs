@@ -15,7 +15,8 @@ use crate::actor::{Actor, ActorMapRes, Dead, Home, Npc};
 use crate::ai::LifeStats;
 use crate::combat::leave;
 use crate::combat::{Equipment, Health, Protection, hit_actor};
-use crate::content::{DamageRegistryRes, ItemRegistryRes, STORM};
+use crate::content::{DamageRegistryRes, ItemRegistryRes};
+use crate::survival::Day;
 use crate::interact::WorldItem;
 use crate::structure::{Shelter, sheltered};
 use crate::terrain::WorldPiece;
@@ -31,9 +32,9 @@ pub struct StormRes {
 #[derive(Resource)]
 pub struct Windowed;
 
-/// Where the world is in the storm's cycle now.
-pub fn phase(tick: &SimTick) -> StormPhase {
-    STORM.phase(tick.0 as f32 / 60.0)
+/// Where the world is in the storm's cycle now, on the day's clock.
+pub fn phase(tick: &SimTick, day: Day) -> StormPhase {
+    day.storm().phase(Day::secs(tick))
 }
 
 /// Every fixed step: during the storm, once a second, everyone in the
@@ -42,13 +43,14 @@ pub fn phase(tick: &SimTick) -> StormPhase {
 pub fn storm(
     mut commands: Commands,
     tick: Res<SimTick>,
+    day: Res<Day>,
     items: Res<ItemRegistryRes>,
     damage: Res<DamageRegistryRes>,
     mut state: ResMut<StormRes>,
     shelters: Query<&Shelter>,
     mut actors: Query<(&Transform, &Protection, &Equipment, &mut Health), Without<Dead>>,
 ) {
-    if phase(&tick) == StormPhase::Storm
+    if phase(&tick, *day) == StormPhase::Storm
         && tick.0 % 60 == 0
         && let Some(def) = damage.0.def("storm")
     {
@@ -65,7 +67,7 @@ pub fn storm(
             hit_actor(&hit, own, worn, &items.0, &mut health);
         }
     }
-    let passed = STORM.passed(tick.0 as f32 / 60.0);
+    let passed = day.storm().passed(Day::secs(&tick));
     if passed > state.shifts {
         state.shifts = passed;
         commands.run_system_cached(shift_world);

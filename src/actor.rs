@@ -108,6 +108,11 @@ pub struct Memory(pub modforge::memory::Memory);
 #[derive(Component, Debug, Clone, Copy, PartialEq)]
 pub struct Home(pub Vec2);
 
+/// Their bunker's store (design.md "Factions have real stores"): the box
+/// they eat from and bring loot home to.
+#[derive(Component, Debug, Clone, Copy, PartialEq)]
+pub struct Store(pub Entity);
+
 /// A person's needs (modforge survival).
 #[derive(Component, Default, Debug, Clone, Copy, PartialEq)]
 pub struct Survival(pub SurvivalStats);
@@ -308,6 +313,18 @@ pub fn home_knowledge(
     Memory(known)
 }
 
+/// What a person sees inside a box: each kind with how many.
+pub fn held_in(contents: &item::Inventory) -> Vec<(String, u32)> {
+    let mut held: Vec<(String, u32)> = Vec::new();
+    for stack in contents.slots.iter().flatten() {
+        match held.iter_mut().find(|(k, _)| *k == stack.item) {
+            Some((_, n)) => *n += stack.count,
+            None => held.push((stack.item.clone(), stack.count)),
+        }
+    }
+    held
+}
+
 /// A topside person at `stand` knowing `known`: through the one spawn
 /// path, with that memory and no home.
 pub fn settle(spawn: &mut SpawnActor, def: &ActorDef, stand: Vec2, known: &Memory) -> Option<Entity> {
@@ -332,12 +349,13 @@ pub fn populate_bunkers(
         let mut known = modforge::memory::Memory::default();
         let [x, z] = BUNKER_STORE_AT;
         let store_at = at + Vec2::new(x, z);
+        let mut store = None;
         for (entity, t, item, contents) in &stores {
             let p = t.translation.truncate();
             if p.distance(store_at) < 0.5 {
                 known.see(entity.to_bits(), &item.stack.item, Vec3::new(p.x, 0.0, p.y), tick.0);
-                let kinds = contents.0.slots.iter().flatten().map(|s| s.item.clone()).collect();
-                known.checked(entity.to_bits(), kinds, tick.0);
+                known.checked(entity.to_bits(), held_in(&contents.0), tick.0);
+                store = Some(entity);
             }
         }
         let faction = bunker_faction(i);
@@ -345,6 +363,9 @@ pub fn populate_bunkers(
             let stand = at + Vec2::new(x, z);
             if let Some(npc) = spawn_actor(&mut spawn, def, stand, Some(&faction)) {
                 spawn.commands.entity(npc).insert((Home(stand), Memory(known.clone())));
+                if let Some(store) = store {
+                    spawn.commands.entity(npc).insert(Store(store));
+                }
             }
         }
     }

@@ -5,20 +5,47 @@ use bevy::prelude::*;
 use modforge::survival::{Condition, SurvivalRates, day_fraction, is_night};
 
 use modforge::combat::Hit;
+use modforge::storm::StormDef;
 
 use crate::SimTick;
 use crate::actor::{ActorCondition, Dead, Survival};
 use crate::combat::{Equipment, Health, Protection, hit_actor};
-use crate::content::{DamageRegistryRes, GAME_DAY_SECS, ItemRegistryRes};
+use crate::content::{DamageRegistryRes, GAME_DAY_SECS, ItemRegistryRes, STORM};
 
-/// How fast everyone's needs move: a full stomach lasts one game day, a
-/// full canteen half of one, rest a day awake.
-#[derive(Resource, Clone, Copy)]
-pub struct Rates(pub SurvivalRates);
+/// How long a game day is, in seconds: the one clock hunger, thirst,
+/// rest, night, and the storm all read. The game's is `GAME_DAY_SECS`;
+/// a test that must see days pass sets a short one, and the same rules
+/// run on a faster clock.
+#[derive(Resource, Clone, Copy, Debug, PartialEq)]
+pub struct Day(pub f32);
 
-impl Default for Rates {
+impl Default for Day {
     fn default() -> Self {
-        Self(SurvivalRates::lasting(GAME_DAY_SECS, GAME_DAY_SECS / 2.0, GAME_DAY_SECS))
+        Self(GAME_DAY_SECS)
+    }
+}
+
+impl Day {
+    /// How fast everyone's needs move: a full stomach lasts one day, a
+    /// full canteen half of one, rest a day awake.
+    pub fn rates(self) -> SurvivalRates {
+        SurvivalRates::lasting(self.0, self.0 / 2.0, self.0)
+    }
+
+    /// The storm on this day's clock: once a day, its warning and its
+    /// length the same share of the day as the game's.
+    pub fn storm(self) -> StormDef {
+        let scale = self.0 / GAME_DAY_SECS;
+        StormDef {
+            every_secs: STORM.every_secs * scale,
+            warning_secs: STORM.warning_secs * scale,
+            storm_secs: STORM.storm_secs * scale,
+        }
+    }
+
+    /// Seconds since the world began at `tick`.
+    pub fn secs(tick: &SimTick) -> f32 {
+        tick.0 as f32 / 60.0
     }
 }
 
@@ -53,10 +80,9 @@ pub fn waste(
     }
 }
 
-/// Whether it is night now, from the one day clock: the simulation's
-/// ticks through a `GAME_DAY_SECS` day (todo 11e4).
-pub fn night(tick: &SimTick) -> bool {
-    is_night(day_fraction(tick.0 as f32 / 60.0, GAME_DAY_SECS))
+/// Whether it is night now, from the one day clock (todo 11e4).
+pub fn night(tick: &SimTick, day: Day) -> bool {
+    is_night(day_fraction(Day::secs(tick), day.0))
 }
 
 /// Every living actor's needs move one fixed step; at night the awake
@@ -64,13 +90,14 @@ pub fn night(tick: &SimTick) -> bool {
 pub fn survival_tick(
     time: Res<Time<Fixed>>,
     tick: Res<SimTick>,
-    rates: Res<Rates>,
+    day: Res<Day>,
     mut actors: Query<(&mut Survival, Option<&ActorCondition>), Without<Dead>>,
 ) {
-    let night = night(&tick);
+    let night = night(&tick, *day);
+    let rates = day.rates();
     for (mut survival, condition) in &mut actors {
         let mut condition = condition.map_or_else(Condition::default, |c| c.0);
         condition.night = night;
-        survival.0.tick(rates.0, condition, time.delta_secs());
+        survival.0.tick(rates, condition, time.delta_secs());
     }
 }

@@ -52,13 +52,16 @@ impl Nav<'_, '_> {
         !self.sensors.contains(e) && !self.doors.contains(e) && self.bodies.get(e).is_ok_and(|b| *b == RigidBody::Static)
     }
 
-    /// A closed door within reach ahead of someone at `here` stepping
-    /// along `way`.
-    fn closed_door_ahead(&self, here: Vec2, way: Vec2) -> bool {
-        self.doors.iter().any(|d| {
-            let to = d.closed_center - here;
-            !d.open && to.length() <= crate::interact::REACH && to.dot(way) > 0.0
-        })
+    /// Where a closed door stands within reach ahead of someone at
+    /// `here` stepping along `way`, if one does.
+    fn closed_door_ahead(&self, here: Vec2, way: Vec2) -> Option<Vec2> {
+        self.doors
+            .iter()
+            .find(|d| {
+                let to = d.closed_center - here;
+                !d.open && to.length() <= crate::interact::REACH && to.dot(way) > 0.0
+            })
+            .map(|d| d.closed_center)
     }
 
     /// A body can walk straight from `from` to `to`.
@@ -89,15 +92,33 @@ impl Nav<'_, '_> {
             .any(|e| self.solid(e))
     }
 
+    /// Nothing solid between two cell centres: a wall thinner than a
+    /// cell stands between centres, not on one. `ignore` is what stands
+    /// at the goal (the box being walked to).
+    fn crossable(&self, a: Cell, b: Cell, ignore: &SpatialQueryFilter) -> bool {
+        let (from, to) = (centre(a), centre(b));
+        let Ok((dir, distance)) = Dir2::new_and_length(to - from) else {
+            return true;
+        };
+        self.spatial
+            .cast_ray_predicate(from, dir, distance, true, ignore, &|e| self.solid(e))
+            .is_none()
+    }
+
     /// The way round from `from` to `to` as points to walk through,
     /// ending at `to`; None when there is none nearby. Each cell asks
-    /// the physics world once per plan.
+    /// the physics world once per plan, and each step between cells
+    /// once.
     pub fn plan(&self, from: Vec2, to: Vec2) -> Option<VecDeque<Vec2>> {
         let (start, goal) = (cell(from), cell(to));
         let known: std::cell::RefCell<std::collections::HashMap<Cell, bool>> = Default::default();
         let blocked = |c: Cell| *known.borrow_mut().entry(c).or_insert_with(|| self.blocked(c));
+        let at_goal = SpatialQueryFilter::from_excluded_entities(
+            self.spatial.point_intersections(to, &SpatialQueryFilter::default()),
+        );
         let step = |a: Cell, b: Cell| {
-            (b == goal || !blocked(b)).then(|| if a.0 != b.0 && a.1 != b.1 { 1.414 } else { 1.0 })
+            ((b == goal || !blocked(b)) && self.crossable(a, b, &at_goal))
+                .then(|| if a.0 != b.0 && a.1 != b.1 { 1.414 } else { 1.0 })
         };
         let estimate = |c: Cell| centre(c).distance(centre(goal));
         let cells = grid_path(start, goal, step, estimate, PLAN_LIMIT)?;
@@ -141,8 +162,10 @@ pub fn steer(
             continue;
         }
         // A closed door in the way: open it, with the player's own Use.
+        // The aim stays on where they are going, and the door ahead is
+        // the thing nearest it.
         let way = path.waypoints.front().copied().unwrap_or(target) - here;
-        if nav.closed_door_ahead(here, way) && !ActionQueue::has(&this_tick.0, Action::Use) {
+        if nav.closed_door_ahead(here, way).is_some() && !ActionQueue::has(&this_tick.0, Action::Use) {
             this_tick.0.push(modforge::actions::Stamped {
                 tick: tick.0,
                 action: Action::Use,

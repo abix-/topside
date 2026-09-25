@@ -385,6 +385,11 @@ pub const BUNKER_PEOPLE_AT: [[f32; 2]; BUNKER_PEOPLE] =
 pub const BUNKER_STORE_AT: [f32; 2] = [-2.0, -3.0];
 pub const BUNKER_STORE: [(&str, u32); 2] = [("canned food", 10), ("water bottle", 10)];
 
+/// A bunker is short when its store holds less than this many days of
+/// food or water for everyone living there: the starting bunker's three
+/// days (design.md "The bunker"). Tuning.
+pub const BUNKER_SHORT_DAYS: f32 = 3.0;
+
 /// The faction of the other bunker at `OTHER_BUNKERS[i]`.
 pub fn bunker_faction(i: usize) -> String {
     format!("bunker {}", i + 1)

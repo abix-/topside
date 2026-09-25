@@ -13,7 +13,7 @@ use modforge::structure::Rgb;
 
 use crate::actor::{Dead, Inventory};
 use crate::content::ItemRegistryRes;
-use crate::input::{Action, ThisTick};
+use crate::input::{Action, ActionQueue, ThisTick};
 
 /// How far a person reaches to use something, in metres.
 pub const REACH: f32 = 1.5;
@@ -143,12 +143,16 @@ pub fn interact_on_use(
         if !this_tick.0.iter().any(|s| matches!(s.action, Action::Use)) {
             continue;
         }
+        // The thing pointed at, the Factorio way: within reach of the
+        // person, the one nearest the point they aim at (the mouse, or
+        // what the brain means to use); with no aim, the nearest.
         let at = person.translation.truncate();
+        let pointed = ActionQueue::aim(&this_tick.0).map_or(at, |(x, y)| Vec2::new(x, y));
         let nearest = things
             .iter()
-            .map(|(e, _, door, _, t)| (e, use_point(door, t).distance(at)))
-            .filter(|(_, d)| *d <= REACH)
-            .min_by(|a, b| a.1.total_cmp(&b.1))
+            .map(|(e, _, door, _, t)| (e, use_point(door, t)))
+            .filter(|(_, p)| p.distance(at) <= REACH)
+            .min_by(|a, b| a.1.distance(pointed).total_cmp(&b.1.distance(pointed)))
             .map(|(e, _)| e);
         let Some(Ok(thing)) = nearest.map(|e| things.get_mut(e)) else {
             continue;

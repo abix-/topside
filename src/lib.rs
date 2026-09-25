@@ -85,7 +85,7 @@ pub fn build_app(headless: bool, seed: u64) -> App {
     app.init_resource::<actor::ActorMapRes>();
     app.init_resource::<input::BindingsRes>();
     app.init_resource::<hud::HoveredSlot>();
-    app.init_resource::<survival::Rates>();
+    app.init_resource::<survival::Day>();
     app.init_resource::<content::RecipeRegistryRes>();
     app.init_resource::<storm::StormRes>();
     app.init_resource::<ai::LifeStats>();
@@ -145,6 +145,7 @@ pub fn build_app(headless: bool, seed: u64) -> App {
                 player::respawn,
                 lap("death"),
                 control_plane::publish,
+                control_plane::publish_world,
                 lap("publish"),
             )
                 .chain(),
@@ -175,6 +176,7 @@ pub fn build_app(headless: bool, seed: u64) -> App {
         app.add_systems(
             Update,
             (
+                control_plane::apply_speed,
                 input::read_input,
                 player::camera_follow,
                 hud::render,

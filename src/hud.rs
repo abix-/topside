@@ -218,16 +218,17 @@ pub fn setup_vitals(mut commands: Commands) {
 
 pub fn render_vitals(
     tick: Res<crate::SimTick>,
+    day: Res<crate::survival::Day>,
     players: Query<(&crate::combat::Health, &Survival), With<Player>>,
     mut texts: Query<&mut Text, With<VitalsText>>,
 ) {
     let (Ok((health, needs)), Ok(mut text)) = (players.single(), texts.single_mut()) else {
         return;
     };
-    let time = match crate::storm::phase(&tick) {
+    let time = match crate::storm::phase(&tick, *day) {
         StormPhase::Storm => "THE STORM",
         StormPhase::Warning => "The sky has changed",
-        StormPhase::Calm if crate::survival::night(&tick) => "Night",
+        StormPhase::Calm if crate::survival::night(&tick, *day) => "Night",
         StormPhase::Calm => "Day",
     };
     text.0 = format!(
@@ -259,11 +260,15 @@ pub fn setup_sky(mut commands: Commands) {
     ));
 }
 
-pub fn render_sky(tick: Res<crate::SimTick>, mut layers: Query<&mut BackgroundColor, With<SkyLayer>>) {
-    let sky = match crate::storm::phase(&tick) {
+pub fn render_sky(
+    tick: Res<crate::SimTick>,
+    day: Res<crate::survival::Day>,
+    mut layers: Query<&mut BackgroundColor, With<SkyLayer>>,
+) {
+    let sky = match crate::storm::phase(&tick, *day) {
         StormPhase::Storm => Color::srgba(0.95, 0.93, 0.88, 0.85),
         StormPhase::Warning => Color::srgba(0.7, 0.3, 0.05, 0.3),
-        StormPhase::Calm if crate::survival::night(&tick) => Color::srgba(0.0, 0.02, 0.08, NIGHT_DARK),
+        StormPhase::Calm if crate::survival::night(&tick, *day) => Color::srgba(0.0, 0.02, 0.08, NIGHT_DARK),
         StormPhase::Calm => Color::NONE,
     };
     for mut color in &mut layers {
@@ -433,11 +438,16 @@ pub fn hud_keys(
                     };
                     transfer_slot(&mut holders, slot, half, &registry.0);
                 }
+                // In the open box too: you eat what you need where it is.
                 Action::UseSlot { slot } => {
+                    let mut container = open.0.and_then(|e| containers.get_mut(e).ok());
                     let holder = match slot.holder {
                         Holder::Inventory => &mut inventory.0,
                         Holder::Hotbar => &mut hotbar.0.slots,
-                        Holder::Container => continue,
+                        Holder::Container => match container.as_mut() {
+                            Some(c) => &mut c.0,
+                            None => continue,
+                        },
                     };
                     if let Ok(heal) = use_slot(&mut needs.0, holder, slot.index, &registry.0, &mut worn.0) {
                         heal_by(&mut health, heal);
