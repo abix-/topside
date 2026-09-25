@@ -1315,7 +1315,10 @@ view.
     into cover, as in Enter the Gungeon.
   - How deadly: similar to Enter the Gungeon, kept on topside's damage
     numbers: an ordinary hit takes about a sixth of a person's health,
-    and armor still reduces damage by type and body area.
+    and armor still reduces damage by type.
+  - No body parts, as in Enter the Gungeon: a hit lands on the person,
+    not on a part of them. This replaces rules 8 and 9 of "How a hit
+    works".
 
 ## Future goals (not v1)
 
