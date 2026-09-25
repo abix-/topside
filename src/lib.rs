@@ -107,6 +107,8 @@ pub fn build_app(headless: bool, seed: u64) -> App {
             interact::interact_on_use,
             player::movement,
             combat::melee,
+            combat::fire,
+            combat::fly,
             combat::die,
             player::respawn,
         )

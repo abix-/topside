@@ -7,8 +7,8 @@
 use avian2d::prelude::*;
 use bevy::prelude::*;
 use modforge::combat::{
-    FireTimer, Health as HealthStats, Hit, HitResult, Protection as ProtectionStats, Swing, Trigger,
-    resolve_hit,
+    BULLET_SPEED, FireTimer, Health as HealthStats, Hit, HitResult, MultiDamage, Protection as ProtectionStats,
+    Swing, Trigger, pellet_directions_2d, resolve_hit,
 };
 use modforge::item::{self, ItemRegistry};
 
@@ -16,7 +16,7 @@ use crate::actor::{Actor, ActorMapRes, Dead, Facing, Hotbar, Inventory, Personal
 use crate::content::{DamageRegistryRes, ItemRegistryRes};
 use crate::input::{Action, ActionQueue, ThisTick};
 use crate::interact::{Container, spawn_item};
-use crate::player::Player;
+use crate::player::{PLAYER_SIZE, Player};
 
 /// Health every actor starts with (the 3D game's number).
 pub const START_HEALTH: f32 = 100.0;
@@ -164,6 +164,153 @@ pub fn melee(
                 location_scale: scale,
             };
             hit_actor(&hit, own, target_worn, &items.0, &mut target_health);
+        }
+    }
+}
+
+/// One bullet in flight (combat.md "Guns": every shot a visible bullet
+/// moved in the fixed step, a ray from its last position to its new
+/// one, no drop).
+#[derive(Component)]
+pub struct Bullet {
+    pub shooter: Entity,
+    pub damage: String,
+    pub direction: Vec2,
+    /// How far it has flown, for falloff and the maximum range.
+    pub travelled: f32,
+    pub range: f32,
+}
+
+const BULLET_SIZE: f32 = 0.18;
+const BULLET_Z: f32 = 1.5;
+const BULLET_COLOR: Color = Color::srgb(1.0, 0.85, 0.3);
+
+/// Every actor with the trigger held and a gun in its hands fires
+/// through modforge's timer: a shot takes one round of the gun's ammo
+/// from the inventory (none left is the empty click) and sends one
+/// bullet per pellet, spread by modforge's seeded pattern.
+/// The fire timer is ticked once a step by `melee`, which runs before.
+pub fn fire(
+    mut commands: Commands,
+    tick: Res<crate::SimTick>,
+    items: Res<ItemRegistryRes>,
+    mut shooters: Query<
+        (Entity, &ThisTick, &Facing, &Hotbar, &Transform, &mut Firing, Option<&mut Inventory>),
+        Without<Dead>,
+    >,
+) {
+    for (entity, this_tick, facing, hotbar, transform, mut firing, inventory) in &mut shooters {
+        let Some(gun) = hotbar
+            .0
+            .held_stack()
+            .and_then(|s| items.0.def(&s.item))
+            .and_then(|d| d.combat.as_ref())
+        else {
+            continue;
+        };
+        // Hand weapons are `melee`'s.
+        let Some(ammo) = gun.ammo.as_deref() else {
+            continue;
+        };
+        if !ActionQueue::has(&this_tick.0, Action::Attack) {
+            continue;
+        }
+        let mut inventory = inventory;
+        let round = inventory.as_mut().and_then(|inv| {
+            inv.0
+                .slots
+                .iter()
+                .position(|s| s.as_ref().is_some_and(|s| s.item == ammo))
+        });
+        if firing.0.pull(gun.delay, round.is_some()) != Trigger::Fire {
+            continue;
+        }
+        if let (Some(inv), Some(slot)) = (inventory.as_mut(), round) {
+            inv.0.remove(slot, 1);
+        }
+        let muzzle = transform.translation.truncate() + facing.direction() * (PLAYER_SIZE / 2.0 + 0.1);
+        let seed = tick.0 ^ entity.to_bits();
+        for direction in pellet_directions_2d(facing.direction(), gun.spread_degrees, gun.pellets, seed) {
+            commands.spawn((
+                Bullet {
+                    shooter: entity,
+                    damage: gun.damage.clone(),
+                    direction,
+                    travelled: 0.0,
+                    range: gun.reach,
+                },
+                Sprite {
+                    color: BULLET_COLOR,
+                    custom_size: Some(Vec2::splat(BULLET_SIZE)),
+                    ..default()
+                },
+                Transform::from_translation(muzzle.extend(BULLET_Z)),
+            ));
+        }
+    }
+}
+
+/// Every bullet flies one fixed step: a ray from where it is to where
+/// it will be. Items lying about do not stop it; a wall does; a person
+/// takes the hit. Pellets that land on one person in one step are one
+/// hit (modforge's `MultiDamage`), through `hit_actor`. Nothing flies
+/// past its range.
+pub fn fly(
+    mut commands: Commands,
+    time: Res<Time<Fixed>>,
+    items: Res<ItemRegistryRes>,
+    damage: Res<DamageRegistryRes>,
+    spatial: SpatialQuery,
+    sensors: Query<(), With<Sensor>>,
+    mut bullets: Query<(Entity, &mut Bullet, &mut Transform)>,
+    mut targets: Query<(&Protection, &Equipment, &mut Health), Without<Dead>>,
+) {
+    let step = BULLET_SPEED * time.delta_secs();
+    // (damage def, pellets summed per target) this step.
+    let mut landed: Vec<(String, MultiDamage<Entity>)> = Vec::new();
+    for (entity, mut bullet, mut transform) in &mut bullets {
+        let from = transform.translation.truncate();
+        let reach = step.min(bullet.range - bullet.travelled);
+        let filter = SpatialQueryFilter::from_excluded_entities([bullet.shooter]);
+        let hit = Dir2::new(bullet.direction).ok().and_then(|dir| {
+            spatial.cast_ray_predicate(from, dir, reach, true, &filter, &|e| !sensors.contains(e))
+        });
+        if let Some(hit) = hit {
+            if targets.contains(hit.entity) {
+                let at = bullet.travelled + hit.distance;
+                match landed.iter_mut().find(|(d, _)| *d == bullet.damage) {
+                    Some((_, multi)) => multi.add(hit.entity, at),
+                    None => {
+                        let mut multi = MultiDamage::default();
+                        multi.add(hit.entity, at);
+                        landed.push((bullet.damage.clone(), multi));
+                    }
+                }
+            }
+            commands.entity(entity).despawn();
+            continue;
+        }
+        bullet.travelled += reach;
+        transform.translation = (from + bullet.direction * reach).extend(transform.translation.z);
+        if bullet.travelled >= bullet.range - 1e-4 {
+            commands.entity(entity).despawn();
+        }
+    }
+    for (name, mut multi) in landed {
+        let Some(def) = damage.0.def(&name) else {
+            continue;
+        };
+        for (target, pellets, distance) in multi.drain() {
+            let Ok((own, worn, mut health)) = targets.get_mut(target) else {
+                continue;
+            };
+            let hit = Hit {
+                def,
+                self_inflicted: false,
+                distance,
+                location_scale: pellets as f32,
+            };
+            hit_actor(&hit, own, worn, &items.0, &mut health);
         }
     }
 }
