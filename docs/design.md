@@ -1351,37 +1351,33 @@ minimap, which M makes a full screen overlay. It replaces
 below is kept for what still holds in 3D (nobody sees behind walls, people
 built from pieces, items in layers).
 
-## What 2D changes (2026-09-25)
+## What 2D changes (2026-09-25), and what still holds in 3D
 
-- The bunker still grows downward. Each level is its own floor, seen from
-  above, one floor at a time.
-- Buildings we explore are seen one floor at a time.
+- The bunker still grows downward. Each level is its own floor.
 - Nobody sees behind walls. The player sees only what their person can
-  see, the way Project Zomboid does it.
-- Combat changes the most in 2D; it is rebuilt for 2D in docs/combat.md.
+  see; in first person a wall simply hides what is past it.
+- Combat was rebuilt for the top-down view in docs/combat.md; the actions
+  are the same in first person (the four melee moves, the roll).
 - People walk three times as fast as in the 3D game: 15 m/s.
 - A scavenger waits outside the bunker door, as in the 3D game, so the
   first fight is close.
 - The models are made in Blender (2026-09-26), by Claude through an MCP
-  and automation; the operator does not model by hand. The first model is
-  a tree, worked through step by step to find out every detail the
-  pictures need; then the steps are automated so every later model is
-  easier. How Factorio does its pictures is in docs/references.md.
+  and automation; the operator does not model by hand. scripts/models.py
+  builds every model and exports it for the game (authority.md
+  "Presentation").
 - No shadows (2026-09-26). The operator does not like them.
 - No coloured boxes (operator, 2026-09-26): everything the game draws is a
-  picture.
+  model.
 - No circle of dirt round a bunker (operator, 2026-09-26): its clearing keeps
   its own ground.
 - People are built from shared pieces (operator, 2026-09-26: people are
   made a lot and must not all look the same; the body is built from DRY
-  pieces, equipment and weapon included). As RimWorld does it: each
-  person is layers drawn per facing (8): a body, a head and hair, then
-  every worn item's layer, each piece rendered once on one rig and pose;
-  skin and hair tinted in the game; a worn item's definition names its
-  worn pictures; the weapon is one picture at the hand, turned to where
-  the person aims. Each layer is rendered with the other pieces held out
-  (Blender's holdout), so what one piece hides of another is already cut
-  away. How RimWorld and Diablo 2 do it is in docs/references.md.
+  pieces, equipment and weapon included). Each body is one model on one
+  rig holding every piece that fits it (a head's hair, the beard, every
+  worn item's layer), each a mesh named after its layer; a person shows
+  their own pieces and hides the rest, skin and hair tinted in the game,
+  and plays their animations live; a worn item's definition names its
+  worn layer; what they hold is in their hand, its layers stacked.
 - Every item and every person is made in layers (operator, 2026-09-26),
   one layer system for all of them, so all sorts of things can be made.
   The type of the thing decides its layers: a person is a body, head
@@ -1395,8 +1391,8 @@ built from pieces, items in layers).
   handles: wooden handle, pipe, long pole. The first heads: none,
   nails, scrap blade, axe head, spear point, sharpened road sign. The
   handle decides reach and speed; the head decides damage and its kind
-  (blunt, slash, pierce). Each layer is its own model, rendered on its
-  own, and one drawing path draws every thing's layers stacked. The
+  (blunt, slash, pierce). Each layer is its own model, exported on its
+  own in its thing's frame, and drawn stacked. The
   first gun (operator, 2026-09-26): the pipe shotgun is the body, and
   its layers are a barrel (pipe barrel, short pipe barrel), a grip
   (wooden grip, taped grip), a stock (wooden stock, or none), and a

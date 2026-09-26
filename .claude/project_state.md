@@ -4,13 +4,19 @@ Git-tracked, shared across agent clones. No secrets.
 
 ## Current focus
 
-The 2D game (decided 2026-09-25, the Factorio way, Bevy 0.19 and
-Avian 2D 0.7) on the small world by default: 32 by 32 chunks of flat
-grass, the player's bunker, 5 other bunkers with 5 people each, 25
-neutral and 25 hostile topside people. The people live in it: needs,
-sight, memory of everything they do, stores, trips topside, and
-learning to stay alive (docs/life.md). Next is the first unchecked
-todo row. The 3D game in `3d/` is frozen and not built.
+One 3D world played in first person (decided 2026-09-26, authority.md
+"Presentation"; Bevy 0.19 and Avian 3D 0.7), low poly cel shaded models
+drawn live from scripts/models.py's glTF exports, people on the
+Quaternius rig with their pieces and animations, every item in layers.
+The simulation still reasons on the ground (x, y), standing at (x,
+height, y) in 3D. The small world by default: 32 by 32 chunks, the
+player's bunker, 5 other bunkers with 5 people each, 25 neutral and 25
+hostile topside people. The people live in it: needs, sight, memory of
+everything they do, stores, trips topside, and learning to stay alive
+(docs/life.md). Next: the Diablo 2 minimap (13f, needs 11af), the floors
+above ground (13a), worn and held drawing (13c), gun layers' numbers
+(12g). The old 3D game in `3d/` is frozen and not built; its model.rs was
+the prior art for the held weapon.
 
 ## Design goals (the locked ones)
 
