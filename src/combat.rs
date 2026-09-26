@@ -449,23 +449,6 @@ pub fn fly(
 }
 
 
-/// One death, for the control plane: when, who, and what killed them.
-#[derive(Clone, Debug)]
-pub struct Death {
-    pub tick: u64,
-    pub id: Option<u64>,
-    pub def: String,
-    pub faction: Option<String>,
-    /// The damage's name, or hunger, thirst, the storm.
-    pub of: String,
-    pub by: Option<u64>,
-}
-
-/// Every death in this game, newest last, as `die` sees it; a topside
-/// person's memory goes with them, this stays.
-#[derive(Resource, Default)]
-pub struct Deaths(pub Vec<Death>);
-
 /// Every actor at zero health dies the same way, the player included
 /// (design.md "Death and difficulty": everyone is equal): everything it
 /// carried (inventory, hotbar, worn gear) goes into one storage box
@@ -478,36 +461,25 @@ pub fn die(
     items: Res<ItemRegistryRes>,
     tick: Res<crate::SimTick>,
     mut map: ResMut<ActorMapRes>,
-    mut life: ResMut<crate::ai::LifeStats>,
-    mut deaths: ResMut<Deaths>,
-    mut dying: Query<(
-        Entity,
-        &mut Health,
-        &Transform,
-        (Has<Player>, Has<Home>),
-        Option<&Actor>,
-        Option<&mut Firing>,
-        Option<&mut Inventory>,
-        Option<&mut Hotbar>,
-        Option<&mut Equipment>,
-        (Option<&Memory>, Option<&crate::actor::Npc>),
-    )>,
+    mut dying: Query<
+        (
+            Entity,
+            &mut Health,
+            &Transform,
+            (Has<Player>, Has<Home>),
+            Option<&Actor>,
+            Option<&mut Firing>,
+            Option<&mut Inventory>,
+            Option<&mut Hotbar>,
+            Option<&mut Equipment>,
+        ),
+        Without<Dead>,
+    >,
 ) {
-    for (entity, mut health, transform, wakes, actor, firing, inventory, hotbar, worn, (memory, npc)) in &mut dying {
+    for (entity, mut health, transform, wakes, actor, firing, inventory, hotbar, worn) in &mut dying {
         if health.0.current > 0.0 {
             continue;
         }
-        let (by, of) = memory
-            .and_then(|m| m.0.killed_by())
-            .map_or((None, "unknown".to_string()), |(by, of)| (by.map(|a| a.0), of.to_string()));
-        deaths.0.push(Death {
-            tick: tick.0,
-            id: actor.map(|a| a.0.0),
-            def: npc.map_or("player".to_string(), |n| n.def.clone()),
-            faction: npc.and_then(|n| n.faction.clone()),
-            of,
-            by,
-        });
         if let (Some(mut inventory), Some(mut hotbar), Some(mut worn)) = (inventory, hotbar, worn) {
             let loot = item::loot_all(&mut inventory.0, &mut hotbar.0.slots, &mut worn.0);
             if !loot.is_empty()
@@ -530,9 +502,6 @@ pub fn die(
             }
         }
         let (is_player, has_home) = wakes;
-        if !is_player {
-            life.died += 1;
-        }
         if is_player || has_home {
             // The death message and the choice to respawn (design.md
             // "Death and difficulty"); the world keeps running meanwhile.

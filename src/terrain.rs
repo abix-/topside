@@ -52,6 +52,8 @@ pub struct Chunks {
     /// Per chunk made, its shore: the land tiles beside water, where a
     /// person stands to drink from a river (design.md: rivers drinkable).
     pub shores: std::collections::HashMap<ChunkKey, Vec<(i32, i32)>>,
+    /// Road tiles in the chunks made, for the `world` op.
+    pub roads: usize,
 }
 
 /// The land tiles of `chunk` with water beside them (in the chunk).
@@ -214,6 +216,7 @@ pub fn make_chunks(
             continue;
         }
         let chunk = world.world.chunk(r, key);
+        chunks.roads += chunk.ground.iter().filter(|g| **g == Ground::Road).count();
         body(&mut commands, &runs_of(&chunk, |g| g == Ground::Water), false);
         let mut solid = runs_of(&chunk, |g| matches!(g, Ground::Cliff | Ground::OutOfMap));
         solid.extend(chunk.things.iter().filter(|t| t.source.is_none()).map(|t| t.rect()));

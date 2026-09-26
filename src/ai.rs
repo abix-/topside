@@ -8,7 +8,7 @@
 
 use bevy::prelude::*;
 use modforge::actor::ActorId;
-use modforge::brain::{Activity, CombatState, Decision, Do, NEED_LINE, Perception, REACH, choose, reaction_ticks};
+use modforge::brain::{Activity, Decision, Do, NEED_LINE, Perception, REACH, choose, reaction_ticks};
 use modforge::learn::alive_for;
 use modforge::hud::{Holder, SlotRef};
 use modforge::item::ItemRegistry;
@@ -30,20 +30,6 @@ use crate::input::{Action, Actions};
 use crate::interact::{Container, OpenContainer, Source, WorldItem};
 use crate::player::Player;
 use crate::sight::Sight;
-
-/// What the people have done since the world began: proof they live,
-/// read by the control plane and the scale test. `taken` and `stocked`
-/// count stacks taken from boxes topside and put into a bunker's store.
-#[derive(Resource, Default, Debug, Clone, Copy)]
-pub struct LifeStats {
-    pub ate: u32,
-    pub looked: u32,
-    pub slept: u32,
-    pub fights: u32,
-    pub died: u32,
-    pub taken: u32,
-    pub stocked: u32,
-}
 
 /// Within this of home counts as home.
 pub(crate) const HOME_REACH: f32 = 6.0;
@@ -121,7 +107,6 @@ pub fn think(
     day: Res<crate::survival::Day>,
     mut walk: ResMut<crate::nav::Walk>,
     sight: Sight,
-    mut life: ResMut<LifeStats>,
     mut thinkers: Thinkers,
     containers: Query<(Entity, &Container, &Transform, &WorldItem)>,
     sources: Query<(Entity, &Transform, &Source)>,
@@ -271,7 +256,6 @@ pub fn think(
         // open box's panel.
         if let Some((key, container)) = open.0.and_then(|e| containers.get(e).ok().map(|(_, c, _, _)| (e, c))) {
             memory.0.checked(key.to_bits(), held_in(&container.0), tick.0);
-            life.looked += 1;
         }
         memory.0.forget_old(tick.0);
         let carried = carried_slot(inventory, hotbar, &items.0, Need::Hunger);
@@ -354,9 +338,6 @@ pub fn think(
         memory.0.learned.chose(situation, choice);
 
         // Act.
-        if matches!(next_combat, CombatState::Fighting { .. }) && !matches!(combat.0, CombatState::Fighting { .. }) {
-            life.fights += 1;
-        }
         activity.0 = next_activity;
         combat.0 = next_combat;
         // Their next decision comes at their reaction time.
@@ -376,7 +357,6 @@ pub fn think(
             None => {}
             Some(Do::Sleep) => {
                 condition.0.asleep = true;
-                life.slept += 1;
                 memory.0.did(Did::Slept, tick.0);
             }
             Some(Do::Wake) => condition.0.asleep = false,
@@ -396,7 +376,6 @@ pub fn think(
             Some(Do::EatCarried { need }) => {
                 if let Some(slot) = carried_slot(inventory, hotbar, &items.0, need) {
                     act(Action::UseSlot { slot });
-                    life.ate += 1;
                 }
             }
             // At a river's shore: drink from the water in reach, a
@@ -406,7 +385,6 @@ pub fn think(
                     Some(water) => {
                         act(Action::Aim { x: water.x, y: water.y });
                         act(Action::Use);
-                        life.ate += 1;
                     }
                     None => memory.0.gone(key),
                 }
@@ -417,7 +395,6 @@ pub fn think(
                 let at = source_at(key).expect("checked above");
                 act(Action::Aim { x: at.x, y: at.y });
                 act(Action::Use);
-                life.ate += 1;
             }
             // At the box: open it, then eat or drink one thing out of it
             // for the worse need, one a think, until fed. You eat what
@@ -445,7 +422,6 @@ pub fn think(
                             index,
                         },
                     });
-                    life.ate += 1;
                 }
             }
             // At a box topside: open it, then take every stack that
@@ -478,7 +454,6 @@ pub fn think(
                             index,
                         };
                         act(Action::Transfer { half: false, slot: Some(slot) });
-                        life.taken += 1;
                     }
                 }
             }
@@ -504,7 +479,6 @@ pub fn think(
                             index,
                         };
                         act(Action::Transfer { half: false, slot: Some(slot) });
-                        life.stocked += 1;
                     }
                 }
             }

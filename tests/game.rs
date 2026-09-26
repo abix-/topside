@@ -60,10 +60,10 @@ fn the_game_keeps_up_with_real_time_and_its_people_live() {
             speed,
             perf["result"]["step_ms"].as_f64().unwrap_or(0.0),
             parts.join(", "),
-            w["ate"],
-            w["taken"],
-            w["stocked"],
-            w["died"],
+            w["did"]["ate"],
+            w["did"]["took"],
+            w["did"]["put in"],
+            w["did"]["died"],
             bunkers.join(" | ")
         ));
         let _ = std::fs::write("../logs/game.txt", format!("{}\n", rows.join("\n")));

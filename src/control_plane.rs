@@ -239,8 +239,8 @@ pub fn publish_world(
     tick: Res<crate::SimTick>,
     day: Res<crate::survival::Day>,
     storms: Res<crate::storm::StormRes>,
-    life: Res<crate::ai::LifeStats>,
     items: Res<crate::content::ItemRegistryRes>,
+    memories: Query<&crate::actor::Memory>,
     stores: Query<&crate::interact::Container>,
     people: Query<
         (
@@ -251,7 +251,6 @@ pub fn publish_world(
     chunks: Option<Res<crate::terrain::Chunks>>,
     rolled: Option<Res<crate::terrain::WorldRes>>,
     standing: Option<Res<crate::structure::MonumentsRes>>,
-    deaths: Res<crate::combat::Deaths>,
 ) {
     if tick.0 % 60 != 0 {
         return;
@@ -305,35 +304,32 @@ pub fn publish_world(
         let stocked = memory.0.done.iter().filter(|(_, d)| matches!(d, modforge::memory::Did::Stocked(..))).count();
         add(entry, "stocked", stocked as u64);
     }
+    // What everyone did, alive and dead, each kind counted, read from
+    // their memories (life.md: memory is the one record).
+    let mut did = serde_json::Map::new();
+    for memory in &memories {
+        for (_, d) in &memory.0.done {
+            let n = did.get(d.kind()).and_then(Json::as_u64).unwrap_or(0);
+            did.insert(d.kind().to_string(), json!(n + 1));
+        }
+    }
     let world = json!({
         "tick": tick.0,
         "day": crate::survival::Day::secs(&tick) / day.0,
         "night": crate::survival::night(&tick, *day),
         "storms": storms.shifts,
-        "ate": life.ate,
-        "looked": life.looked,
-        "slept": life.slept,
-        "fights": life.fights,
-        "died": life.died,
-        "taken": life.taken,
-        "stocked": life.stocked,
+        "did": did,
         "bunkers": bunkers,
         "chunks": {"made": made, "missing": missing},
+        // The seed this world rolled from, and the road tiles in its chunks.
+        "seed": rolled.as_ref().map(|w| w.seed),
+        "roads": chunks.as_ref().map_or(0, |c| c.roads),
         // Every monument standing: its kind, where, and how many buildings.
         "monuments": standing.as_ref().map_or(Vec::new(), |m| m.0.iter().map(|(at, def)| json!({
             "kind": def.kind,
             "at": [at.x, at.y],
             "buildings": def.members.len(),
         })).collect::<Vec<_>>()),
-        // Every death: when, who, their faction, what killed them, by whom.
-        "deaths": deaths.0.iter().map(|d| json!({
-            "tick": d.tick,
-            "id": d.id,
-            "def": d.def,
-            "faction": d.faction,
-            "of": d.of,
-            "by": d.by,
-        })).collect::<Vec<_>>(),
     });
     if let Ok(mut slot) = WORLD.lock() {
         *slot = world;
@@ -422,6 +418,11 @@ pub fn publish(
                     "doing": format!("{:?}", doing.0),
                     "did": did,
                     "ate_what": ate_what,
+                    // Every death in their memory: when, of what, by whom.
+                    "deaths": memory.0.done.iter().filter_map(|(t, d)| match d {
+                        modforge::memory::Did::Died(by, of) => Some(json!({"tick": t, "of": of, "by": by.map(|a| a.0)})),
+                        _ => None,
+                    }).collect::<Vec<_>>(),
                     "last_did": memory.0.done.last().map(|(t, d)| json!({"tick": t, "did": d.words()})),
                     "killed_by": memory.0.killed_by().map(|(by, of)| json!({"by": by.map(|a| a.0), "of": of})),
                     "alive_for": memory.0.learned.last.map(|(_, secs)| secs),

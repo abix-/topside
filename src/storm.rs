@@ -12,7 +12,6 @@ use modforge::combat::Hit;
 use modforge::storm::StormPhase;
 
 use crate::actor::{Actor, ActorMapRes, Dead, Home, Memory, Npc};
-use crate::ai::LifeStats;
 use crate::combat::leave;
 use crate::combat::{Equipment, Health, Protection, hit_actor};
 use crate::content::{DamageRegistryRes, ItemRegistryRes};
@@ -87,7 +86,6 @@ pub fn shift_world(
     bunker: Query<&Shelter, Without<WorldPiece>>,
     mut topside_people: Query<(Entity, Option<&Actor>, Option<&mut Memory>), (With<Npc>, Without<Home>, Without<Dead>)>,
     mut map: ResMut<ActorMapRes>,
-    mut life: ResMut<LifeStats>,
     tick: Res<SimTick>,
 ) {
     for entity in &pieces {
@@ -97,7 +95,6 @@ pub fn shift_world(
     // (design.md "Bunker people and topside people"), the storm's death in
     // their memory like any other; they stay, dead, to query.
     for (entity, actor, memory) in &mut topside_people {
-        life.died += 1;
         if let Some(mut memory) = memory {
             memory.0.did(modforge::memory::Did::Died(None, "storm".to_string()), tick.0);
             memory.0.learned.died(tick.0);

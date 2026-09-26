@@ -13,6 +13,8 @@ mod hauling;
 mod monuments;
 mod night;
 mod respawn;
+mod roads;
 mod sources;
 mod storm;
+mod the_dead;
 mod wander;

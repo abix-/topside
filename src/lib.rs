@@ -104,8 +104,6 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind) -> App {
     app.init_resource::<survival::Day>();
     app.init_resource::<content::RecipeRegistryRes>();
     app.init_resource::<storm::StormRes>();
-    app.init_resource::<ai::LifeStats>();
-    app.init_resource::<combat::Deaths>();
     app.add_systems(
         Startup,
         (
