@@ -15,6 +15,7 @@ fn world() -> Option<Json> {
 fn every_chunk_of_the_small_world_is_made() {
     let world = world().unwrap_or_else(|| panic!("no topside game answering on {URL}; start it with scripts/build.ps1 run"));
     let chunks = &world["result"]["chunks"];
+    eprintln!("world op, tick {}: chunks {chunks}", world["result"]["tick"]);
     let made = chunks["made"].as_u64().unwrap_or(0);
     assert!(made > 0, "the game has made chunks: {chunks}");
     let missing = chunks["missing"]
