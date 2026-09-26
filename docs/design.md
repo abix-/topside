@@ -1367,6 +1367,8 @@ view.
 - No shadows (2026-09-26). The operator does not like them.
 - No coloured boxes (operator, 2026-09-26): everything the game draws is a
   picture.
+- No circle of dirt round a bunker (operator, 2026-09-26): its clearing keeps
+  its own ground.
 - People are built from shared pieces (operator, 2026-09-26: people are
   made a lot and must not all look the same; the body is built from DRY
   pieces, equipment and weapon included). As RimWorld does it: each
