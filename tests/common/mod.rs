@@ -13,7 +13,8 @@ use topside::player::Player;
 use topside::{SimTick, build_app};
 
 pub fn game() -> (App, Entity) {
-    let mut app = build_app(true, 1);
+    // The big world, which these tests were written for.
+    let mut app = build_app(true, 1, topside::content::WorldKind::Big);
     app.insert_resource(TimeUpdateStrategy::ManualDuration(Duration::from_secs_f64(1.0 / 60.0)));
     // Startup rolls the world, builds the bunker, and spawns the player.
     app.update();

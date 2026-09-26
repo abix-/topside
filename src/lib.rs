@@ -46,8 +46,8 @@ impl Default for WorldName {
 }
 
 /// Build the app. `headless` skips the window and the drawing so
-/// tests can run the simulation bare.
-pub fn build_app(headless: bool, seed: u64) -> App {
+/// tests can run the simulation bare; `world` is the 2D world to make.
+pub fn build_app(headless: bool, seed: u64, world: content::WorldKind) -> App {
     let mut app = App::new();
     if headless {
         app.add_plugins(MinimalPlugins);
@@ -74,6 +74,7 @@ pub fn build_app(headless: bool, seed: u64) -> App {
     }
     app.insert_resource(Time::<Fixed>::from_hz(60.0));
     app.insert_resource(WorldSeed(seed));
+    app.insert_resource(world);
     app.init_resource::<SimTick>();
     app.init_resource::<WorldName>();
     app.init_resource::<content::BiomeRegistryRes>();

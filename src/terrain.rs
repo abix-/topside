@@ -20,7 +20,7 @@ use modforge::walk::{CHUNK, ChunkKey, Rect, TILE, cell_of};
 use modforge::world2d::{Registries, World2d};
 
 use crate::WorldSeed;
-use crate::content::{BUNKER_AT, BiomeRegistryRes, MonumentRegistryRes, OTHER_BUNKERS, ground_color, roll_world2d};
+use crate::content::{BUNKER_AT, BiomeRegistryRes, MonumentRegistryRes, WorldKind, ground_color, roll_world2d};
 
 /// The world: its ground, sites, and roads (modforge), the player's
 /// bunker, the other bunkers, and the seed it was rolled from.
@@ -68,17 +68,18 @@ const AROUND_PERSON: i32 = 1;
 pub fn roll(
     mut commands: Commands,
     seed: Res<WorldSeed>,
+    kind: Res<WorldKind>,
     biomes: Res<BiomeRegistryRes>,
     monuments: Res<MonumentRegistryRes>,
 ) {
     // The seed in the log, so any world can be rolled again.
-    info!("rolling the world from seed {}", seed.0);
-    let world = roll_world2d(seed.0, &biomes.0, &monuments.monuments).expect("the ground def names registered biomes");
+    info!("rolling the {:?} world from seed {}", *kind, seed.0);
+    let world = roll_world2d(*kind, seed.0, &biomes.0, &monuments.monuments).expect("the ground def names registered biomes");
     commands.insert_resource(WorldRes {
         world,
         seed: seed.0,
         bunker: BUNKER_AT,
-        bunkers: OTHER_BUNKERS.to_vec(),
+        bunkers: kind.other_bunkers(),
     });
     commands.insert_resource(Chunks::default());
     commands.insert_resource(NewSites::default());
@@ -166,6 +167,15 @@ pub fn make_chunks(
     for b in world.bunkers.clone() {
         around(b, 2);
     }
+    // A world with an edge is made whole, and the ring of chunks past the
+    // edge with it, so the edge stops a body wherever anyone walks.
+    if let Some((lo, hi)) = world.world.ground.chunk_range() {
+        for y in lo - 1..=hi {
+            for x in lo - 1..=hi {
+                needed.push((x, y));
+            }
+        }
+    }
     let r = Registries {
         biomes: &biomes.0,
         monuments: &monuments.monuments,
@@ -177,7 +187,7 @@ pub fn make_chunks(
         }
         let chunk = world.world.chunk(r, key);
         body(&mut commands, &runs_of(&chunk, |g| g == Ground::Water), false);
-        let mut solid = runs_of(&chunk, |g| g == Ground::Cliff);
+        let mut solid = runs_of(&chunk, |g| matches!(g, Ground::Cliff | Ground::OutOfMap));
         solid.extend(chunk.things.iter().map(|t| t.rect()));
         body(&mut commands, &solid, true);
         if let Some(tiles) = tiles.as_ref() {

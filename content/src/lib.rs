@@ -369,8 +369,70 @@ pub fn ground_def() -> GroundDef {
         ],
         beach: 0.04,
         patch_size: 80.0,
+        chunks_across: None,
     }
 }
+
+/// Which 2D world to make: the small world to confirm everything works
+/// on (design.md "The small world first"), or the big one.
+#[derive(Resource, Clone, Copy, Debug, PartialEq, Eq)]
+pub enum WorldKind {
+    Small,
+    Big,
+}
+
+impl WorldKind {
+    pub fn from_name(name: &str) -> Option<Self> {
+        match name {
+            "small" => Some(Self::Small),
+            "big" => Some(Self::Big),
+            _ => None,
+        }
+    }
+
+    /// Where the other bunkers stand.
+    pub fn other_bunkers(self) -> Vec<Vec2> {
+        match self {
+            Self::Small => SMALL_OTHER_BUNKERS.to_vec(),
+            Self::Big => OTHER_BUNKERS.to_vec(),
+        }
+    }
+}
+
+/// The small world (design.md "The small world first"): 32 by 32 chunks,
+/// flat grass, no water, no cliffs, nothing scattered.
+pub fn small_ground_def() -> GroundDef {
+    GroundDef {
+        feature_size: 500.0,
+        water_level: -2.0,
+        cliff_every: 0.0,
+        cliff_gaps: 0.0,
+        climate_size: 900.0,
+        climate: vec![ClimateRule {
+            biome: "grassland".to_string(),
+            moisture: (0.0, 1.0),
+            temperature: (0.0, 1.0),
+            land: Ground::Grass,
+            patches: Ground::Grass,
+        }],
+        beach: 0.0,
+        patch_size: 80.0,
+        chunks_across: Some(32),
+    }
+}
+
+/// The small world's one other bunker, a short walk east.
+pub const SMALL_OTHER_BUNKERS: [Vec2; 1] = [Vec2::new(200.0, 0.0)];
+
+/// The small world's sites: one of each kind, each at a fixed place round
+/// the bunker, clear of both bunkers' ground.
+pub const SMALL_SITES: [(&str, [f32; 2]); 5] = [
+    ("roadside stop", [0.0, 180.0]),
+    ("wreck", [-150.0, 0.0]),
+    ("campsite", [0.0, -150.0]),
+    ("supply drop", [-120.0, 120.0]),
+    ("body", [120.0, -120.0]),
+];
 
 /// How each ground kind is drawn. Tuning.
 pub fn ground_color(ground: Ground) -> Rgb {
@@ -383,6 +445,7 @@ pub fn ground_color(ground: Ground) -> Rgb {
         Ground::Road => [0.22, 0.21, 0.20],
         Ground::Water => [0.20, 0.30, 0.45],
         Ground::Cliff => [0.28, 0.26, 0.24],
+        Ground::OutOfMap => [0.0, 0.0, 0.0],
     }
 }
 
@@ -412,15 +475,30 @@ pub fn site_kinds(monuments: &MonumentRegistry) -> Vec<SiteKind> {
 pub const BUNKER_AT: Vec2 = Vec2::ZERO;
 
 /// The world a seed gives (design.md "2D world generation"): the ground,
-/// the site kinds, and every bunker on its cleared ground. The one way a
-/// world is made, for the game and for the tests.
-pub fn roll_world2d(seed: u64, biomes: &BiomeRegistry, monuments: &MonumentRegistry) -> Result<World2d, String> {
-    let ground = GroundGen::new(ground_def(), seed, biomes)?;
+/// the sites (rolled in the big world, placed by hand in the small one),
+/// and every bunker on its cleared ground. The one way a world is made,
+/// for the game and for the tests.
+pub fn roll_world2d(
+    kind: WorldKind,
+    seed: u64,
+    biomes: &BiomeRegistry,
+    monuments: &MonumentRegistry,
+) -> Result<World2d, String> {
+    let def = match kind {
+        WorldKind::Small => small_ground_def(),
+        WorldKind::Big => ground_def(),
+    };
+    let ground = GroundGen::new(def, seed, biomes)?;
     let clearings: Vec<Clearing> = std::iter::once(BUNKER_AT)
-        .chain(OTHER_BUNKERS)
+        .chain(kind.other_bunkers())
         .map(|at| Clearing { at, radius: BUNKER_CLEAR })
         .collect();
-    let places = Places::new(site_kinds(monuments), clearings.iter().map(|c| (c.at, c.radius)).collect());
+    let keep_clear = clearings.iter().map(|c| (c.at, c.radius)).collect();
+    let places = match kind {
+        WorldKind::Small => Places::new(Vec::new(), keep_clear)
+            .with_fixed(SMALL_SITES.iter().map(|(m, [x, y])| (m.to_string(), Vec2::new(*x, *y))).collect()),
+        WorldKind::Big => Places::new(site_kinds(monuments), keep_clear),
+    };
     Ok(World2d::new(ground, places, clearings))
 }
 
@@ -1253,6 +1331,18 @@ pub fn register_biomes(reg: &mut BiomeRegistry) {
             wildlife: vec!["rat".to_string(), "crow".to_string()],
             harvest: vec!["scrap".to_string(), "pipe".to_string(), "cloth".to_string()],
         },
+        // The small world's ground (design.md "The small world first"):
+        // grass with nothing on it. Its sites are placed by hand.
+        BiomeDef {
+            name: "grassland".to_string(),
+            ground: [0.3, 0.45, 0.22],
+            scatter: vec![],
+            weather: vec!["clear".to_string()],
+            monuments: vec![],
+            npcs: vec![],
+            wildlife: vec![],
+            harvest: vec![],
+        },
     ];
     for biome in biomes {
         reg.register(biome).expect("biome defs must not collide");
@@ -1394,6 +1484,41 @@ mod tests {
     /// problems, by name, go to logs/valid.txt.
     #[test]
     fn the_rolled_worlds_are_valid() {
+        // Every bunker and the ground round them.
+        let far = OTHER_BUNKERS.iter().fold(0.0f32, |m, b| m.max(b.x.abs()).max(b.y.abs())) + 2.0 * BUNKER_CLEAR;
+        let (total, report) = check(WorldKind::Big, 100..140, far, "valid.txt");
+        assert_eq!(total, 0, "{report}");
+    }
+
+    /// The small world (design.md "The small world first") is valid over
+    /// all of it, and every one of its sites stands.
+    #[test]
+    fn the_small_world_is_valid_with_every_site() {
+        let (total, report) = check(WorldKind::Small, 1..4, 512.0, "valid_small.txt");
+        assert_eq!(total, 0, "{report}");
+        let biomes = BiomeRegistryRes::default();
+        let monuments = MonumentRegistryRes::default();
+        let r = modforge::world2d::Registries {
+            biomes: &biomes.0,
+            monuments: &monuments.monuments,
+            buildings: &monuments.buildings,
+        };
+        let mut world = roll_world2d(WorldKind::Small, 1, &biomes.0, &monuments.monuments).unwrap();
+        let mut sites: Vec<(String, Vec2)> = world
+            .sites_in(r, Vec2::splat(-512.0), Vec2::splat(512.0))
+            .into_iter()
+            .map(|p| (p.monument, p.position))
+            .collect();
+        sites.sort_by(|a, b| a.0.cmp(&b.0));
+        let mut want: Vec<(String, Vec2)> = SMALL_SITES.iter().map(|(m, [x, y])| (m.to_string(), Vec2::new(*x, *y))).collect();
+        want.sort_by(|a, b| a.0.cmp(&b.0));
+        assert_eq!(sites, want);
+    }
+
+    /// modforge's valid-world check on `kind` for each seed, over the
+    /// square `far` metres each way from the bunker: the problems found,
+    /// and each seed's problems by name, also written to logs/`file`.
+    fn check(kind: WorldKind, seeds: std::ops::Range<u64>, far: f32, file: &str) -> (usize, String) {
         let biomes = BiomeRegistryRes::default();
         let monuments = MonumentRegistryRes::default();
         let bunker = starting_bunker();
@@ -1409,13 +1534,11 @@ mod tests {
             at: BUNKER_AT,
             def: &bunker,
         }];
-        for (i, at) in OTHER_BUNKERS.iter().enumerate() {
-            bunkers.push(modforge::valid::Bunker { name: bunker_faction(i), at: *at, def: &bunker });
+        for (i, at) in kind.other_bunkers().into_iter().enumerate() {
+            bunkers.push(modforge::valid::Bunker { name: bunker_faction(i), at, def: &bunker });
         }
-        // Every bunker and the ground round them.
-        let far = OTHER_BUNKERS.iter().fold(0.0f32, |m, b| m.max(b.x.abs()).max(b.y.abs())) + 2.0 * BUNKER_CLEAR;
-        for seed in 100..140u64 {
-            let mut world = roll_world2d(seed, &biomes.0, &monuments.monuments).unwrap_or_else(|e| panic!("seed {seed}: {e}"));
+        for seed in seeds {
+            let mut world = roll_world2d(kind, seed, &biomes.0, &monuments.monuments).unwrap_or_else(|e| panic!("seed {seed}: {e}"));
             let problems = modforge::valid::problems(&mut world, r, Vec2::splat(-far), Vec2::splat(far), &bunkers);
             total += problems.len();
             report.push(format!("seed {seed}: {} problems", problems.len()));
@@ -1423,8 +1546,8 @@ mod tests {
         }
         let report = report.join("\n");
         let _ = std::fs::create_dir_all("../logs");
-        let _ = std::fs::write("../logs/valid.txt", &report);
-        assert_eq!(total, 0, "{report}");
+        let _ = std::fs::write(format!("../logs/{file}"), &report);
+        (total, report)
     }
 
     #[test]
