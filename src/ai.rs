@@ -200,10 +200,13 @@ pub fn think(
             continue;
         }
         // Dead with a home to wake in: at their moment they respawn, the
-        // same Respawn the player's Enter pushes.
+        // same Respawn the player's Enter pushes. Dead with none (a topside
+        // person): never back.
         if dead {
-            actions.0.push(tick.0, Action::Respawn);
-            next_think.0 = tick.0 + (modforge::brain::AWAKE_REACTION * 60.0) as u64;
+            if home.is_some() {
+                actions.0.push(tick.0, Action::Respawn);
+                next_think.0 = tick.0 + (modforge::brain::AWAKE_REACTION * 60.0) as u64;
+            }
             continue;
         }
         let Some(def) = registry.0.def(&npc.def) else {

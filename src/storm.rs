@@ -85,17 +85,23 @@ pub fn shift_world(
     pieces: Query<Entity, With<WorldPiece>>,
     lying: Query<(Entity, &Transform), With<WorldItem>>,
     bunker: Query<&Shelter, Without<WorldPiece>>,
-    topside_people: Query<(Entity, Option<&Actor>), (With<Npc>, Without<Home>)>,
+    mut topside_people: Query<(Entity, Option<&Actor>, Option<&mut Memory>), (With<Npc>, Without<Home>, Without<Dead>)>,
     mut map: ResMut<ActorMapRes>,
     mut life: ResMut<LifeStats>,
+    tick: Res<SimTick>,
 ) {
     for entity in &pieces {
         commands.entity(entity).despawn();
     }
     // The topside people are part of this world and die with it
-    // (design.md "Bunker people and topside people").
-    for (entity, actor) in &topside_people {
+    // (design.md "Bunker people and topside people"), the storm's death in
+    // their memory like any other; they stay, dead, to query.
+    for (entity, actor, memory) in &mut topside_people {
         life.died += 1;
+        if let Some(mut memory) = memory {
+            memory.0.did(modforge::memory::Did::Died(None, "storm".to_string()), tick.0);
+            memory.0.learned.died(tick.0);
+        }
         leave(&mut commands, &mut map, entity, actor);
     }
     for (entity, at) in &lying {

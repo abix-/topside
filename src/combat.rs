@@ -549,11 +549,13 @@ pub fn die(
     }
 }
 
-/// A topside person leaves the world for good: out of the actor map
-/// (its id never returns) and gone. Dying and the storm both end here.
+/// A topside person is dead for good: out of the actor map's live count
+/// (its id never returns) and never back, but still there, `Dead`, to
+/// query, memory and all (life.md: a person who dies still exists). Dying
+/// and the storm both end here.
 pub fn leave(commands: &mut Commands, map: &mut ActorMapRes, entity: Entity, actor: Option<&Actor>) {
     if let Some(actor) = actor {
         map.0.remove(actor.0);
     }
-    commands.entity(entity).despawn();
+    commands.entity(entity).insert((Dead, Visibility::Hidden, ColliderDisabled));
 }
