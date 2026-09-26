@@ -10,9 +10,8 @@
 use std::collections::HashSet;
 
 use avian2d::prelude::*;
-use bevy::asset::RenderAssetUsages;
+use bevy::image::{ImageArrayLayout, ImageLoaderSettings};
 use bevy::prelude::*;
-use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
 use bevy::sprite_render::{TileData, TilemapChunk, TilemapChunkTileData};
 use modforge::ground::{Ground, GroundChunk};
 use modforge::places::Place;
@@ -224,9 +223,12 @@ fn draw(commands: &mut Commands, chunk: &GroundChunk, tileset: &Handle<Image>) {
             chunk
                 .ground
                 .iter()
-                .map(|g| {
+                .enumerate()
+                .map(|(i, g)| {
                     let rgb = ground_color(*g);
+                    let tile = (first.0 + i as i32 % CHUNK, first.1 + i as i32 / CHUNK);
                     Some(TileData {
+                        tileset_index: ground_layer(*g, tile),
                         color: Color::srgb(rgb[0], rgb[1], rgb[2]),
                         ..default()
                     })
@@ -257,22 +259,41 @@ fn draw(commands: &mut Commands, chunk: &GroundChunk, tileset: &Handle<Image>) {
     }
 }
 
-/// With a window: the white tile the ground is drawn with.
-pub fn setup_ground_tiles(mut commands: Commands, mut images: ResMut<Assets<Image>>) {
-    // TilemapChunk samples an array texture of at least two layers.
-    let mut white = Image::new_fill(
-        Extent3d {
-            width: 1,
-            height: 2,
-            depth_or_array_layers: 1,
-        },
-        TextureDimension::D2,
-        &[255, 255, 255, 255],
-        TextureFormat::Rgba8UnormSrgb,
-        RenderAssetUsages::RENDER_WORLD,
-    );
-    white
-        .reinterpret_stacked_2d_as_array(2)
-        .expect("two stacked pixels are two layers");
-    commands.insert_resource(GroundTiles(images.add(white)));
+/// The kinds of ground in the order scripts/models.py stacks their tiles
+/// into assets/pictures/ground.png (its GROUND_KINDS), each with
+/// GROUND_VARIANTS tiles; change both together.
+const GROUND_KINDS: [Ground; 9] = [
+    Ground::Grass,
+    Ground::Dirt,
+    Ground::Sand,
+    Ground::ForestFloor,
+    Ground::Rubble,
+    Ground::Road,
+    Ground::Water,
+    Ground::Cliff,
+    Ground::OutOfMap,
+];
+const GROUND_VARIANTS: u16 = 4;
+
+/// Which ground tile picture a tile shows: its kind's, in a variant picked
+/// by where it is (as Factorio picks a tile's variation), so the ground
+/// does not repeat and a tile always looks the same.
+fn ground_layer(ground: Ground, tile: (i32, i32)) -> u16 {
+    let kind = GROUND_KINDS.iter().position(|g| *g == ground).unwrap_or(0) as u16;
+    let hash = (tile.0 as u32).wrapping_mul(73_856_093) ^ (tile.1 as u32).wrapping_mul(19_349_663);
+    kind * GROUND_VARIANTS + (hash.wrapping_mul(2_654_435_761) >> 30) as u16 % GROUND_VARIANTS
+}
+
+/// With a window: the ground tiles (scripts/models.py renders them), one
+/// picture a tile tall each, stacked into one strip read as a tileset.
+pub fn setup_ground_tiles(mut commands: Commands, assets: Res<AssetServer>) {
+    let tiles = assets
+        .load_builder()
+        .with_settings(|s: &mut ImageLoaderSettings| {
+            s.array_layout = Some(ImageArrayLayout::RowHeight {
+                pixels: crate::picture::PIXELS_PER_METRE as u32,
+            });
+        })
+        .load("pictures/ground.png");
+    commands.insert_resource(GroundTiles(tiles));
 }

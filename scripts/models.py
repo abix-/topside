@@ -16,6 +16,7 @@ Usage:
 """
 
 import math
+import random
 import sys
 from pathlib import Path
 
@@ -412,6 +413,109 @@ def parachute():
     return join(parts, "parachute", 3.0)
 
 
+# -- the ground ------------------------------------------------------------------
+#
+# Every kind of ground gets GROUND_VARIANTS tile pictures (as Factorio's
+# tiles have variations), near white with light and dark detail, which the
+# game tints with the kind's colour (content/src/lib.rs ground_color). They
+# are stacked kind by kind, variant by variant, into one strip,
+# assets/pictures/ground.png, the game's ground tileset: the kinds in this
+# order (src/terrain.rs GROUND_KINDS; change both together).
+GROUND_KINDS = ["grass", "dirt", "sand", "forest floor", "rubble", "road", "water", "cliff", "out of map"]
+GROUND_VARIANTS = 4
+TILE_PIXELS = PIXELS_PER_METRE  # a tile is a metre
+
+
+def ground_tile(kind, rng):
+    """one tile of `kind`: a near-white tile with its detail, kept off the
+    tile's edges so neighbouring tiles join."""
+    base = material("ground", (0.85, 0.85, 0.85))
+    light = material("light", (1.0, 1.0, 1.0))
+    dark = material("dark", (0.65, 0.65, 0.65))
+    shade = lambda: light if rng.random() < 0.5 else dark
+    spot = lambda edge=0.38: (rng.uniform(-edge, edge), rng.uniform(-edge, edge))
+    parts = [box("tile", (1.0, 1.0, 0.01), at=(0, 0, -0.005), mat=base)]
+
+    def flat(name, r, mat, sides=6):
+        x, y = spot()
+        parts.append(cylinder(name, r, 0.004, sides=sides, at=(x, y, 0.002), mat=mat))
+
+    def stroke(name, length, width, mat, height=0.004):
+        x, y = spot(0.3)
+        parts.append(box(name, (length, width, height), at=(x, y, height / 2), rotation=(0, 0, rng.uniform(0, math.pi)), mat=mat))
+
+    if kind == "grass":
+        for i in range(12):
+            x, y = spot()
+            m = shade()
+            for j in range(3):
+                h = rng.uniform(0.05, 0.09)
+                bpy.ops.mesh.primitive_cone_add(vertices=4, radius1=0.012, radius2=0, depth=h, location=(x + (j - 1) * 0.012, y, h / 2), rotation=(rng.uniform(-0.3, 0.3), rng.uniform(-0.3, 0.3), 0))
+                parts.append(_named(f"blade_{i}_{j}", m))
+    elif kind == "forest floor":
+        for i in range(10):
+            flat(f"leaf_{i}", rng.uniform(0.03, 0.05), shade(), sides=5)
+        for i in range(2):
+            stroke(f"twig_{i}", rng.uniform(0.12, 0.2), 0.012, dark, 0.01)
+    elif kind == "dirt":
+        for i in range(3):
+            flat(f"patch_{i}", rng.uniform(0.08, 0.14), dark, sides=7)
+        for i in range(8):
+            bpy.ops.mesh.primitive_ico_sphere_add(subdivisions=1, radius=rng.uniform(0.015, 0.035), location=(*spot(), 0.01))
+            parts.append(_named(f"pebble_{i}", shade()))
+    elif kind == "sand":
+        for i in range(5):
+            stroke(f"ripple_{i}", rng.uniform(0.3, 0.5), 0.015, shade())
+    elif kind == "rubble":
+        for i in range(10):
+            s = rng.uniform(0.04, 0.12)
+            x, y = spot()
+            parts.append(box(f"chunk_{i}", (s, s * rng.uniform(0.5, 1.0), s * 0.5), at=(x, y, s * 0.25), rotation=(0, 0, rng.uniform(0, math.pi)), mat=shade()))
+    elif kind == "road":
+        for i in range(3):
+            stroke(f"crack_{i}", rng.uniform(0.15, 0.35), 0.008, dark, 0.002)
+        flat("patch", rng.uniform(0.06, 0.1), dark)
+    elif kind == "water":
+        for i in range(4):
+            stroke(f"ripple_{i}", rng.uniform(0.2, 0.35), 0.01, light, 0.002)
+    elif kind == "cliff":
+        for i in range(3):
+            x, y = spot(0.25)
+            bpy.ops.mesh.primitive_ico_sphere_add(subdivisions=1, radius=rng.uniform(0.15, 0.22), location=(x, y, 0))
+            rock = _named(f"rock_{i}", shade())
+            rock.scale.z = 0.35
+            parts.append(rock)
+    return parts
+
+
+def ground():
+    """render every ground tile and stack them into assets/pictures/ground.png."""
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as tmp:
+        files = []
+        for k, kind in enumerate(GROUND_KINDS):
+            for v in range(GROUND_VARIANTS):
+                clear()
+                parts = ground_tile(kind, random.Random(k * 100 + v))
+                files.append(Path(tmp) / f"{kind} {v}.png")
+                picture(parts, files[-1], frame=(0.5, 0.5))
+        # Blender keeps an image's rows bottom first, and the game reads the
+        # strip's first tile at the top: stack the last tile at the bottom.
+        pixels = []
+        for f in reversed(files):
+            tile = bpy.data.images.load(str(f))
+            if tuple(tile.size) != (TILE_PIXELS, TILE_PIXELS):
+                sys.exit(f"ERROR: ground tile {f.name} is {tuple(tile.size)}, not {TILE_PIXELS} square")
+            pixels.extend(tile.pixels[:])
+        strip = bpy.data.images.new("ground", TILE_PIXELS, TILE_PIXELS * len(files), alpha=True)
+        strip.pixels[:] = pixels
+        strip.filepath_raw = str(OUT / "ground.png")
+        strip.file_format = "PNG"
+        strip.save()
+        print(f"ground: {len(files)} tiles, {TILE_PIXELS}x{TILE_PIXELS * len(files)} pixels -> {OUT / 'ground.png'}")
+
+
 # -- buildings -----------------------------------------------------------------
 #
 # A building is drawn a tile at a time, as Factorio draws its walls
@@ -616,7 +720,7 @@ def people():
 
 
 # Models that render several pictures themselves.
-SETS = {"person": people}
+SETS = {"person": people, "ground": ground}
 
 
 MODELS = {
