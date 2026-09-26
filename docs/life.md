@@ -268,12 +268,13 @@ learns individually. genes come later". Every person learns, topside
 people as well as bunker people; each learns alone, nothing learned is
 shared; genes are a later step.
 
-Open, for the operator:
-
-- Do bunker people start knowing their store and bunker, or nothing?
-- A topside person today leaves the world for good at death and at
-  every storm, taking their memory with them. To learn across lives they
-  have to come back as themselves: how and where?
+Decided (operator, 2026-09-25): "bunker peole start knowing their bunker
+is their home. that's it. topside people can only learn what they have
+iin their life. they still have memoryes that should affect them right".
+A bunker person's first life knows one thing: their bunker is home. Not
+the store, not what is in it; that is found. A topside person learns
+only within their one life, and what they learn in it changes what they
+do for the rest of it; they do not come back.
 
 ### The map each person carries (operator, 2026-09-25)
 
