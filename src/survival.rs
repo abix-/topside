@@ -8,7 +8,7 @@ use modforge::combat::Hit;
 use modforge::storm::StormDef;
 
 use crate::SimTick;
-use crate::actor::{ActorCondition, Dead, Survival};
+use crate::actor::{ActorCondition, Dead, Memory, Survival};
 use crate::combat::{Equipment, Health, Protection, hit_actor};
 use crate::content::{DamageRegistryRes, GAME_DAY_SECS, ItemRegistryRes, STORM};
 
@@ -56,12 +56,12 @@ pub fn waste(
     tick: Res<SimTick>,
     items: Res<ItemRegistryRes>,
     damage: Res<DamageRegistryRes>,
-    mut actors: Query<(&Survival, &Protection, &Equipment, &mut Health), Without<Dead>>,
+    mut actors: Query<(&Survival, &Protection, &Equipment, &mut Health, Option<&mut Memory>), Without<Dead>>,
 ) {
     if tick.0 % 60 != 0 {
         return;
     }
-    for (needs, own, worn, mut health) in &mut actors {
+    for (needs, own, worn, mut health, mut memory) in &mut actors {
         for (empty, name) in [(needs.0.starving(), "starvation"), (needs.0.dehydrated(), "dehydration")] {
             if !empty {
                 continue;
@@ -75,7 +75,7 @@ pub fn waste(
                 distance: 0.0,
                 location_scale: 1.0,
             };
-            hit_actor(&hit, own, worn, &items.0, &mut health);
+            hit_actor(&hit, own, worn, &items.0, &mut health, memory.as_deref_mut(), None, tick.0);
         }
     }
 }

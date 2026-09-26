@@ -165,11 +165,15 @@ pub fn movement(
 pub fn respawn(
     mut commands: Commands,
     world: Res<WorldRes>,
-    mut dead: Query<(Entity, &ThisTick, &mut Transform, Option<&Home>), With<Dead>>,
+    tick: Res<crate::SimTick>,
+    mut dead: Query<(Entity, &ThisTick, &mut Transform, Option<&Home>, Option<&mut crate::actor::Memory>), With<Dead>>,
 ) {
-    for (entity, this_tick, mut transform, home) in &mut dead {
+    for (entity, this_tick, mut transform, home, memory) in &mut dead {
         if !this_tick.0.iter().any(|s| matches!(s.action, Action::Respawn)) {
             continue;
+        }
+        if let Some(mut memory) = memory {
+            memory.0.did(modforge::memory::Did::Respawned, tick.0);
         }
         transform.translation = match home {
             Some(home) => home.0.extend(transform.translation.z),

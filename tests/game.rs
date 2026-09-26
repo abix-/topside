@@ -125,6 +125,45 @@ fn the_game_keeps_up_with_real_time_and_its_people_live() {
         }
         let _ = std::fs::write("logs/game.txt", format!("{}\n", rows.join("\n")));
     }
+    // Every person at the end, from their memory (life.md "What a person
+    // did"): needs, what they are doing, how many of each thing they did,
+    // who killed them last. A topside person who died is gone; their
+    // killer's "killed" counts them.
+    if let Some(people) = op("people") {
+        const KINDS: [&str; 9] = ["ate", "slept", "took", "put in", "hit", "was hit", "killed", "died", "respawned"];
+        rows.push(String::new());
+        rows.push(format!(
+            "{:>5} {:<14} {:<17} {:>4} {:>4} {:>4} {:>4} {:>4}  {:<20} {}  killed by / last did",
+            "id", "def", "faction", "dead", "hp", "hung", "thir", "rest", "doing",
+            KINDS.map(|k| format!("{k:>6}")).join("")
+        ));
+        let mut list: Vec<Json> = people["result"].as_array().cloned().unwrap_or_default();
+        list.sort_by_key(|p| p["id"].as_u64().unwrap_or(0));
+        for p in list {
+            let n = |k: &str| p["did"][k].as_u64().unwrap_or(0);
+            let doing: String = p["doing"].as_str().unwrap_or("?").chars().take(20).collect();
+            let killed_by = match &p["killed_by"] {
+                Json::Null => String::new(),
+                k => format!("{} by {} / ", k["of"].as_str().unwrap_or("?"), k["by"]),
+            };
+            rows.push(format!(
+                "{:>5} {:<14} {:<17} {:>4} {:>4.0} {:>4.0} {:>4.0} {:>4.0}  {:<20} {}  {}{}",
+                p["id"],
+                p["def"].as_str().unwrap_or("?"),
+                p["faction"].as_str().unwrap_or("-"),
+                if p["dead"].as_bool().unwrap_or(false) { "yes" } else { "" },
+                p["health"].as_f64().unwrap_or(0.0),
+                p["hunger"].as_f64().unwrap_or(0.0),
+                p["thirst"].as_f64().unwrap_or(0.0),
+                p["rest"].as_f64().unwrap_or(0.0),
+                doing,
+                KINDS.map(|k| format!("{:>6}", n(k))).join(""),
+                killed_by,
+                p["last_did"]["did"].as_str().unwrap_or("")
+            ));
+        }
+        let _ = std::fs::write("logs/game.txt", format!("{}\n", rows.join("\n")));
+    }
     // And the last searches that found no way.
     if let Some(ways) = op("ways") {
         rows.push(String::new());

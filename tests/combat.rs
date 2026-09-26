@@ -26,7 +26,7 @@ fn swing(app: &mut App, target: Entity) -> f32 {
                     location_scale: 1.0,
                 };
                 let (own, worn, mut health) = actors.get_mut(target).unwrap();
-                hit_actor(&hit, own, worn, &items.0, &mut health).damage_dealt
+                hit_actor(&hit, own, worn, &items.0, &mut health, None, None, 0).0.damage_dealt
             },
         )
         .unwrap()

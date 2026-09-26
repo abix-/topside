@@ -11,6 +11,7 @@ use modforge::combat::{
     RollTimer, Swing, Trigger, pellet_directions_2d, resolve_hit,
 };
 use modforge::item::{self, ItemRegistry};
+use modforge::memory::Did;
 
 use modforge::actor::ActorId;
 
@@ -43,16 +44,34 @@ pub struct Equipment(pub item::Equipment);
 
 /// The one path a hit lands on an actor: its protection is its own
 /// plus every piece it wears, added into one total, then modforge's
-/// damage function decides.
+/// damage function decides. It goes into the actor's memory (life.md
+/// "What a person did"): a hit by a person (`by`), and the hit that kills,
+/// with who gave it and the damage's name (a weapon, hunger, the storm).
+/// Returns the result and whether this hit killed.
+#[allow(clippy::too_many_arguments)]
 pub fn hit_actor(
     hit: &Hit<'_>,
     own: &Protection,
     worn: &Equipment,
     items: &ItemRegistry,
     health: &mut Health,
-) -> HitResult {
+    memory: Option<&mut Memory>,
+    by: Option<ActorId>,
+    now: u64,
+) -> (HitResult, bool) {
+    let alive = health.0.current > 0.0;
     let mut protection = own.0.worn(&worn.0, |name| items.def(name).and_then(|d| d.armor));
-    resolve_hit(hit, &mut protection, &mut health.0)
+    let result = resolve_hit(hit, &mut protection, &mut health.0);
+    let killed = alive && health.0.current <= 0.0;
+    if let Some(memory) = memory {
+        if by.is_some() {
+            memory.0.did(Did::WasHit(by, result.damage_dealt), now);
+        }
+        if killed {
+            memory.0.did(Did::Died(by, hit.def.name.clone()), now);
+        }
+    }
+    (result, killed)
 }
 
 /// When this person may swing or fire next, and what they are
@@ -115,6 +134,7 @@ pub fn melee(
                 &Equipment,
                 &mut Health,
                 Option<&mut Memory>,
+                Option<&Actor>,
             ),
             Without<Dead>,
         >,
@@ -187,12 +207,15 @@ pub fn melee(
             weapon.damage.clone(),
         ));
     }
-    // Land them: one hit on everyone inside each swing's shape.
+    // Land them: one hit on everyone inside each swing's shape. What each
+    // attacker did goes into their memory after: (attacker, whom, how
+    // much, killed).
+    let mut gave: Vec<(Entity, ActorId, f32, bool)> = Vec::new();
     for (attacker, attacker_id, here, facing, swing, reach, scale, damage_name) in swings {
         let Some(def) = damage.0.def(&damage_name) else {
             continue;
         };
-        for (target, at, guard, rolling, own, target_worn, mut target_health, memory) in &mut actors.p1() {
+        for (target, at, guard, rolling, own, target_worn, mut target_health, mut memory, target_id) in &mut actors.p1() {
             let offset = at.translation.truncate() - here;
             if target == attacker
                 || !swing.covers(offset, facing, reach)
@@ -207,9 +230,36 @@ pub fn melee(
                 distance: offset.length(),
                 location_scale: scale,
             };
-            let result = hit_actor(&hit, own, target_worn, &items.0, &mut target_health);
+            let (result, killed) = hit_actor(
+                &hit,
+                own,
+                target_worn,
+                &items.0,
+                &mut target_health,
+                memory.as_deref_mut(),
+                Some(attacker_id),
+                tick.0,
+            );
             struck(memory, attacker_id, here, result.damage_dealt, tick.0);
+            if let Some(whom) = target_id {
+                gave.push((attacker, whom.0, result.damage_dealt, killed));
+            }
         }
+    }
+    let mut attackers = actors.p1();
+    for (attacker, whom, amount, killed) in gave {
+        if let Ok((.., Some(mut memory), _)) = attackers.get_mut(attacker) {
+            gave_hit(&mut memory, whom, amount, killed, tick.0);
+        }
+    }
+}
+
+/// What a person who landed a hit remembers: whom they hit, and whom
+/// they killed.
+fn gave_hit(memory: &mut Memory, whom: ActorId, amount: f32, killed: bool, now: u64) {
+    memory.0.did(Did::Hit(whom, amount), now);
+    if killed {
+        memory.0.did(Did::Killed(whom), now);
     }
 }
 
@@ -334,7 +384,7 @@ pub fn fly(
     tick: Res<crate::SimTick>,
     shooters: Query<(&Transform, Option<&Actor>), Without<Bullet>>,
     mut bullets: Query<(Entity, &mut Bullet, &mut Transform)>,
-    mut targets: Query<(&Protection, &Equipment, &mut Health, Option<&mut Memory>), Without<Dead>>,
+    mut targets: Query<(&Protection, &Equipment, &mut Health, Option<&mut Memory>, Option<&Actor>), Without<Dead>>,
 ) {
     let step = BULLET_SPEED * time.delta_secs();
     // (shooter, damage def, pellets summed per target) this step.
@@ -381,7 +431,7 @@ pub fn fly(
             .get(shooter)
             .map_or((Vec2::ZERO, ActorId(0)), |(t, a)| (t.translation.truncate(), a.map_or(ActorId(0), |a| a.0)));
         for (target, pellets, distance) in multi.drain() {
-            let Ok((own, worn, mut health, memory)) = targets.get_mut(target) else {
+            let Ok((own, worn, mut health, mut memory, target_id)) = targets.get_mut(target) else {
                 continue;
             };
             let hit = Hit {
@@ -390,8 +440,13 @@ pub fn fly(
                 distance,
                 location_scale: pellets as f32,
             };
-            let result = hit_actor(&hit, own, worn, &items.0, &mut health);
+            let (result, killed) =
+                hit_actor(&hit, own, worn, &items.0, &mut health, memory.as_deref_mut(), Some(by), tick.0);
             struck(memory, by, from, result.damage_dealt, tick.0);
+            let whom = target_id.map(|a| a.0);
+            if let (Some(whom), Ok((.., Some(mut memory), _))) = (whom, targets.get_mut(shooter)) {
+                gave_hit(&mut memory, whom, result.damage_dealt, killed, tick.0);
+            }
         }
     }
 }

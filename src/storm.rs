@@ -11,7 +11,7 @@ use bevy::prelude::*;
 use modforge::combat::Hit;
 use modforge::storm::StormPhase;
 
-use crate::actor::{Actor, ActorMapRes, Dead, Home, Npc};
+use crate::actor::{Actor, ActorMapRes, Dead, Home, Memory, Npc};
 use crate::ai::LifeStats;
 use crate::combat::leave;
 use crate::combat::{Equipment, Health, Protection, hit_actor};
@@ -48,13 +48,13 @@ pub fn storm(
     damage: Res<DamageRegistryRes>,
     mut state: ResMut<StormRes>,
     shelters: Query<&Shelter>,
-    mut actors: Query<(&Transform, &Protection, &Equipment, &mut Health), Without<Dead>>,
+    mut actors: Query<(&Transform, &Protection, &Equipment, &mut Health, Option<&mut Memory>), Without<Dead>>,
 ) {
     if phase(&tick, *day) == StormPhase::Storm
         && tick.0 % 60 == 0
         && let Some(def) = damage.0.def("storm")
     {
-        for (at, own, worn, mut health) in &mut actors {
+        for (at, own, worn, mut health, mut memory) in &mut actors {
             if sheltered(&shelters, at.translation.truncate()) {
                 continue;
             }
@@ -64,7 +64,7 @@ pub fn storm(
                 distance: 0.0,
                 location_scale: 1.0,
             };
-            hit_actor(&hit, own, worn, &items.0, &mut health);
+            hit_actor(&hit, own, worn, &items.0, &mut health, memory.as_deref_mut(), None, tick.0);
         }
     }
     let passed = day.storm().passed(Day::secs(&tick));

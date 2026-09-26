@@ -150,6 +150,7 @@ pub fn answer_npc(view: PersonView, mut walk: ResMut<crate::nav::Walk>, tick: Re
                 },
                 "chunk": picture,
                 "goal_chunk": goal_picture,
+                "did": memory.0.done.iter().map(|(t, d)| json!({"tick": t, "did": d.words()})).collect::<Vec<_>>(),
             })
         }
     };
@@ -266,7 +267,10 @@ pub fn publish(
     actors: Res<ActorMapRes>,
     diagnostics: Option<Res<DiagnosticsStore>>,
     players: Query<(&Transform, &Health, &Survival), With<Player>>,
-    npcs: Query<(&Actor, &Npc, &Transform, &Health, &Survival, &Personality, &ThisTick)>,
+    npcs: Query<(
+        (&Actor, &Npc, &Transform, &Health, &Survival, &Personality, &ThisTick),
+        (&crate::actor::Memory, &crate::actor::ActorActivity, Has<crate::actor::Dead>),
+    )>,
 ) {
     TICK.store(tick.0, Ordering::Relaxed);
     PEOPLE.store(actors.0.live_count(), Ordering::Relaxed);
@@ -297,15 +301,28 @@ pub fn publish(
     if tick.0 % 60 == 0 {
         let list: Vec<Json> = npcs
             .iter()
-            .map(|(actor, npc, at, health, needs, personality, this_tick)| {
+            .map(|((actor, npc, at, health, needs, personality, this_tick), (memory, doing, dead))| {
+                // How many of each kind of thing they did (life.md "What a
+                // person did"), and the last one.
+                let mut did = serde_json::Map::new();
+                for (_, d) in &memory.0.done {
+                    let n = did.get(d.kind()).and_then(Json::as_u64).unwrap_or(0);
+                    did.insert(d.kind().to_string(), json!(n + 1));
+                }
                 json!({
                     "id": actor.0.0,
                     "def": npc.def,
                     "faction": npc.faction,
+                    "dead": dead,
                     "at": [at.translation.x, at.translation.y],
                     "health": health.0.current,
                     "hunger": needs.0.hunger,
                     "thirst": needs.0.thirst,
+                    "rest": needs.0.rest,
+                    "doing": format!("{:?}", doing.0),
+                    "did": did,
+                    "last_did": memory.0.done.last().map(|(t, d)| json!({"tick": t, "did": d.words()})),
+                    "killed_by": memory.0.killed_by().map(|(by, of)| json!({"by": by.map(|a| a.0), "of": of})),
                     "axes": personality.0.axes,
                     "actions": this_tick.0.iter().map(|s| format!("{:?}", s.action)).collect::<Vec<_>>(),
                 })

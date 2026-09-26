@@ -10,6 +10,7 @@ use modforge::hud::{
 };
 
 use crate::actor::{Dead, Hotbar, Inventory, INVENTORY_SLOTS, Survival};
+use modforge::memory::Did;
 use crate::combat::Equipment;
 use modforge::crafting::{can_craft, craft};
 use modforge::storm::StormPhase;
@@ -412,14 +413,30 @@ pub fn hud_keys(
             &mut Equipment,
             &mut Inventory,
             &mut crate::combat::Health,
+            Option<&mut crate::actor::Memory>,
         ),
         Without<Dead>,
     >,
     mut containers: Query<&mut Container>,
 ) {
-    for ((this_tick, at), (mut hud, mut open, mut station), mut needs, mut hotbar, mut worn, mut inventory, mut health) in
-        &mut people
+    for (
+        (this_tick, at),
+        (mut hud, mut open, mut station),
+        mut needs,
+        mut hotbar,
+        mut worn,
+        mut inventory,
+        mut health,
+        mut memory,
+    ) in &mut people
     {
+        // What they did goes into their memory (life.md "What a person
+        // did").
+        let mut did = |what: Did| {
+            if let Some(memory) = memory.as_mut() {
+                memory.0.did(what, tick.0);
+            }
+        };
         for stamped in &this_tick.0 {
             match stamped.action {
                 Action::Inventory => toggle_panel(&mut hud.0, OpenPanel::Inventory),
@@ -431,12 +448,22 @@ pub fn hud_keys(
                 }
                 Action::Transfer { half, slot: Some(slot) } => {
                     let mut container = open.0.and_then(|e| containers.get_mut(e).ok());
+                    let with_box = container.is_some();
                     let mut holders = Holders {
                         inventory: &mut inventory.0,
                         hotbar: &mut hotbar.0.slots,
                         container: container.as_mut().map(|c| &mut c.0),
                     };
+                    let before = stack_in(&holders, slot);
                     transfer_slot(&mut holders, slot, half, &registry.0);
+                    // Out of the open box: taken; into it: put in.
+                    if let (true, Some((item, count))) = (with_box, before) {
+                        let left = stack_in(&holders, slot).filter(|(i, _)| *i == item).map_or(0, |(_, n)| n);
+                        let moved = count.saturating_sub(left);
+                        if moved > 0 {
+                            did(if slot.holder == Holder::Container { Did::Took(item, moved) } else { Did::Stocked(item, moved) });
+                        }
+                    }
                 }
                 // In the open box too: you eat what you need where it is.
                 Action::UseSlot { slot } => {
@@ -449,8 +476,12 @@ pub fn hud_keys(
                             None => continue,
                         },
                     };
+                    let food = holder.slots.get(slot.index).and_then(|s| s.as_ref()).map(|s| s.item.clone());
                     if let Ok(heal) = use_slot(&mut needs.0, holder, slot.index, &registry.0, &mut worn.0) {
                         heal_by(&mut health, heal);
+                        if let Some(item) = food.filter(|item| registry.0.def(item).is_some_and(|d| d.food.is_some())) {
+                            did(Did::Ate(item));
+                        }
                     }
                 }
                 Action::Craft { index } => {
@@ -482,6 +513,15 @@ pub fn hud_keys(
             station.0 = None;
         }
     }
+}
+
+/// The item and how many are in `slot`, if anything is.
+fn stack_in(holders: &Holders, slot: SlotRef) -> Option<(String, u32)> {
+    holders
+        .get(slot.holder)
+        .and_then(|h| h.slots.get(slot.index))
+        .and_then(|s| s.as_ref())
+        .map(|s| (s.item.clone(), s.count))
 }
 
 /// The station panel: every recipe of the open station, one row each,

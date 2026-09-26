@@ -11,7 +11,7 @@ use modforge::actor::ActorId;
 use modforge::brain::{Activity, CombatState, Decision, Do, NEED_LINE, Perception, REACH, decide, reaction_ticks};
 use modforge::hud::{Holder, SlotRef};
 use modforge::item::ItemRegistry;
-use modforge::memory::{Known, food_worth, short_of};
+use modforge::memory::{Did, Known, food_worth, short_of};
 use modforge::monument::Roll;
 use modforge::survival::Need;
 
@@ -309,6 +309,7 @@ pub fn think(
             Some(Do::Sleep) => {
                 condition.0.asleep = true;
                 life.slept += 1;
+                memory.0.did(Did::Slept, tick.0);
             }
             Some(Do::Wake) => condition.0.asleep = false,
             // A key is a place (PLACE_KEY set) or a box (an entity): a
