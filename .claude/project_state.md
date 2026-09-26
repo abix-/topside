@@ -54,11 +54,23 @@ waiting. They are their own crate, `topside-tests` (`tests/`, one
 binary `all`, run by cargo-nextest with every test's time and output
 in logs/nextest/default/junit.xml), talking only to the control plane,
 so building them never builds or stops the game. Every headless test
-(45) and the content crate's tests (8) were deleted. Two tests remain:
-`game` (reads status, world, perf, people, ways once; passes when the
-game's own speed, now reported in `status`, is at least 0.95) and
-`control_plane` (status ticks). The todo's "Done when" cells were
+(45) and the content crate's tests (8) were deleted. The tests
+validate the work, not the operator. The todo's "Done when" cells were
 rewritten to tests against the running game.
+
+Then "The small world first" (design.md) was confirmed on the
+endpoint, one test each: chunks made (1156, none missing), people go
+through doorways (new: memory records it), NPCs eat, bunker people
+haul food home. Hauling first failed: everyone respawned with no food
+or water and died of it again about 1000 ticks later. Respawn now
+gives half health, full food, and full water (operator), and at tick
+57000 (4x) all 7 tests pass: 25 respawns, none starved after, every
+bunker alive and fed. The game's speed is set on the endpoint's
+`speed` op (4x while watching); a restart goes back to 1x.
+
+Tests now: `chunks`, `control_plane`, `doorways`, `eating`, `game`,
+`hauling`, `respawn`. A failing test prints what the game reported,
+kept in logs/nextest/default/junit.xml.
 
 ## Next steps
 
@@ -66,10 +78,12 @@ The first unchecked row of docs/todo.md, unless the operator says.
 
 ## Open questions
 
-- Everything the deleted tests checked (melee, guns, the storm, stores,
-  sight, and the rest) has no test against the running game yet.
-- The running game (seed 1, read 2026-09-26) had 26 of 78 people alive,
-  106 deaths, and bunkers down to 0 to 2 water; not looked into.
+- Everything the deleted tests checked (melee, guns, sight, and the
+  rest) has no test against the running game yet; wander and the
+  storm are next in the todo.
+- At tick 57000 every topside person (50) was dead before the first
+  storm, and only one bunker person had hauled food; both are todo
+  rows.
 - Todo row 1 (one content file for both games) asks the 3D game to
   build, but the 3D game is frozen and not built.
 - Seen in logs/game.txt (2026-09-25 22:11), not looked into: the

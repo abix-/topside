@@ -1307,6 +1307,9 @@ option to respawn. The world they died in keeps running, their death
 box stays where they fell, and they respawn in the bunker carrying
 nothing.
 
+Everyone respawns with half health, full food, and full water
+(operator, 2026-09-26).
+
 ## The v1 session model (operator, 2026-08-22)
 
 v1 is a roguelike session loop. Each session starts fresh: the player
@@ -1348,6 +1351,12 @@ view.
 - People walk three times as fast as in the 3D game: 15 m/s.
 - A scavenger waits outside the bunker door, as in the 3D game, so the
   first fight is close.
+- The models are made in Blender (2026-09-26), by Claude through an MCP
+  and automation; the operator does not model by hand. The first model is
+  a tree, worked through step by step to find out every detail the
+  pictures need; then the steps are automated so every later model is
+  easier. How Factorio does its pictures is in docs/references.md.
+- No shadows (2026-09-26). The operator does not like them.
 
 ## Future goals (not v1)
 

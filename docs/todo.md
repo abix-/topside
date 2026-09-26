@@ -6,7 +6,8 @@ v3: polish and endgame (NPC memory, vehicles, GPU simulation, quality/named uniq
 
 | Priority | Version | System | Todo | Done when |
 |---:|---|---|---|---|
-| 1 | v1 | topside-tests | [ ] Confirm on the endpoint that bunker people haul food home | A test reads the running game and finds food a bunker person carried home into its store |
+| 1 | v1 | topside-tests | [ ] Find on the endpoint what kills every topside person before the first storm (at tick 57000 in the running game all 50 were dead, 77 deaths in all) | A test reads the running game and names how each topside person died |
+| 1 | v1 | topside-tests | [ ] Find on the endpoint why only one bunker person hauls food home (at tick 57000 only bunker person 17 of bunker 4 had put anything in, twice, while bunkers 1 and 3 ate their stores down) | A test reads the running game and shows what each bunker person of a bunker short of food is doing |
 | 1 | v1 | topside-tests | [ ] Confirm on the endpoint that people wander | A test reads the running game and finds people wandering to spots they can reach |
 | 1 | v1 | topside-tests | [ ] Confirm on the endpoint that the storm comes, hurts those in the open, and shifts the world | A test reads the running game and finds a storm that hurt people in the open and a world shifted after it |
 | 1 | v1 | content | [ ] The 2D game (`topside`, repo root) and the 3D game (`topside-3d`, `3d/`) read the same content (items, damage, biomes, monuments, actors, factions, world defs) from one `content.rs`, not a copy | One `content.rs` in the repo; both crates build; `3d/` content tests pass |
