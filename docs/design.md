@@ -1379,6 +1379,21 @@ view.
   the person aims. Each layer is rendered with the other pieces held out
   (Blender's holdout), so what one piece hides of another is already cut
   away. How RimWorld and Diablo 2 do it is in docs/references.md.
+- Every item and every person is made in layers (operator, 2026-09-26),
+  one layer system for all of them, so all sorts of things can be made.
+  The type of the thing decides its layers: a person is a body, head
+  and hair, and what they wear (above); a melee weapon is a handle and a
+  head, to start; a gun is a body, barrel, grip, stock, and sight; a
+  simple item is one layer. Each layer changes both the thing's numbers
+  and how it looks. Layers and the rolled properties ("Loot
+  randomization") are both kept. Each thing carries its own layers, the
+  way Borderlands guns carry their parts: any handle goes with any head,
+  and the numbers are worked out from the layers. The first melee
+  handles: wooden handle, pipe, long pole. The first heads: none,
+  nails, scrap blade, axe head, spear point, sharpened road sign. The
+  handle decides reach and speed; the head decides damage and its kind
+  (blunt, slash, pierce). Each layer is its own model, rendered on its
+  own, and one drawing path draws every thing's layers stacked.
 
 ## Future goals (not v1)
 
