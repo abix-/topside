@@ -1,5 +1,5 @@
-# The tests, a crate of their own: building them builds the topside
-# library, never topside.exe, so the running game is never touched.
+# The tests, a crate of their own: they test the running game over its
+# control plane, so building them never builds or touches the game.
 # One test binary (`all`, like factoriobot's), every file a module.
 [package]
 name = "topside-tests"
@@ -13,9 +13,5 @@ name = "all"
 path = "all.rs"
 
 [dev-dependencies]
-avian2d = { version = "0.7", default-features = false, features = ["2d", "f32", "parry-f32", "parallel"] }
-bevy = "0.19"
-modforge = { path = "../../modforge/modforge" }
 serde_json = "1"
-topside = { path = ".." }
 ureq = { version = "3", features = ["json"] }
