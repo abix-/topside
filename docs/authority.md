@@ -22,17 +22,13 @@ endless/docs/k8s.md):
 - **Def**: the shape of a kind of thing. Immutable, no runtime state.
   Content in `content/src/lib.rs`, the struct in modforge.
 - **Registry**: every Def of that kind, stored once and looked up by name.
-- **Where its data lives**: one thing in the game is a Bevy entity, and all
-  of its data lives on its components; no parallel list, no second store. An
-  index (the `ActorMap`) holds lookup only.
-- **The one way**: the functions everyone goes through to make, change, or
-  read it.
+- **How**: the functions everyone goes through to make, change, or read it.
 - **Copies**: the control plane's published numbers, the HUD, and the
   pictures read the owners and are never read back as the truth.
 
 Rules:
 
-1. Before building anything, find its system below and use its one way.
+1. Before building anything, find its system below and do it that way.
    Never a second path, a second record, or a second answer, even when every
    test passes.
 2. Something with no system here: ask the operator, then add it here.
@@ -40,26 +36,26 @@ Rules:
 4. Modforge holds every rule that needs no engine, with its test; topside
    senses, acts, and holds content (topside skill: modforge first).
 
-| System | Def | Registry | Where its data lives | The one way | Status |
-|---|---|---|---|---|---|
-| People | modforge `ActorDef` (player, bunker person, scavenger, raider, lookout, wanderer) | `ActorRegistryRes` (content `register_actors`); index `ActorMapRes` (ActorId to entity, live count) | On the person's entity, the player included; the dead stay, to query | Made by `actor::spawn_person`; changed only through their action queue (Actions) and the systems below; dies through `combat::die`; back through `player::respawn` | RED: `combat::leave` despawns a dead topside person; `storm::shift_world` erases topside people through it |
-| Memory | modforge `memory::Memory` (`Known`, `Did`, threats, `learn`) | - | The person's one `Memory` | Written by the path that did the thing (`ai::think`, `combat::hit_actor`, `hud`, `nav::doorways`, `player::respawn`); read by modforge `brain::choose` and the control plane | RED: `combat::Deaths` second record of deaths; `ai::LifeStats` counts beside memory |
-| The brain | the `ActorDef`'s behaviour and sight; `Personality` | - | On the person | `ai::think` builds the `Perception` (sight in the cone, memory, worth by modforge `memory::food_worth`); modforge `brain::choose` decides | Not audited |
-| Actions | modforge `actions::Action` | `input::BindingsRes` (keys to actions) | The person's `Actions` | Pushed by the keys (`input::read_input`, the one raw input reader) and the brain (`ai::think`), the same actions; handed out by `input::drain_actions` | Not audited |
-| Needs and the day | modforge `survival` (`SurvivalStats`, drain, `eat`, `is_night`) | - | The person's `Survival`; the clock `SimTick` | Drained by `survival::survival_tick`; eating and drinking only through `SurvivalStats::eat` via `hud::use_slot`; empty needs hit through `survival::waste` | RED: `interact::use_source` repeats eat, heal, remember |
-| Health, hits, death | modforge `DamageDef` | `DamageRegistryRes` | The person's `Health` | Every hit through `combat::hit_actor` (modforge `resolve_hit`); every death through `combat::die` | RED: the respawn rule (half health, full food and water) is in topside `player::respawn`, not modforge |
-| Items and things in the world | modforge `ItemDef` (food, material, tool, weapon, deployable, note, medicine, source) | `ItemRegistryRes` (content `register_items`) | Held: in whoever holds it. In the world: its own `WorldItem` entity | Into the world only through `interact::spawn_item` (a dropped can, a death box, a loot box, a bench, a well, a berry bush; loot rolled by modforge `loot`); moved between holders through `hud` | RED: wells and berry bushes through `interact::spawn_source` and a `Source` component |
-| Using things | modforge `hud::InteractKind` | - | On the thing | `interact::interact_on_use` (Use reaches the thing in reach nearest the aim), decided by modforge `hud::interact` | Not audited |
-| Crafting | modforge `RecipeDef` | `RecipeRegistryRes` | On the station | Stations made by `interact::spawn_station`; items made only by the Craft action through modforge `crafting::craft` | Not audited |
-| The world and its ground | modforge `GroundDef` (content `small_ground_def`, `ground_def`), `BiomeDef` with its scatter | `BiomeRegistryRes` | The made chunks | Rolled by `terrain::roll` (content `roll_world2d`), made by `terrain::make_chunks`; a tile's ground only from the made chunk, modforge `World2d::chunk` | RED: `interact::nearest_water` asks `GroundGen::ground_at` |
-| Pathing | modforge `walk` (`WalkMap`, `find_way`, `standable`; by pathing.md also the queue, its budget, the wait after a way not found) | - | The walk grid; each walker's `NavPath` | The grid painted by `nav::record_solids`; every way asked of the one queue and walked by `nav::steer` | RED: the queue, budget, retry, replanning live in topside `nav.rs`; `ai::think`'s `can_go` calls `find_way` outside the queue |
-| Monuments and buildings | modforge `MonumentTypeDef`, `BuildingTypeDef`, `StructureDef`; content `SMALL_SITES` | `MonumentRegistryRes` | On each building's entity | Every building through `structure::spawn_structure` (the bunkers too); sites through `structure::spawn_sites` | Not audited |
-| Factions | modforge `FactionDef` | `FactionRegistryRes` (content `register_factions`) | On the person | Hostility read from the registry's table | Not audited |
-| The storm | modforge `StormDef` (content `STORM`) | - | `StormRes` | `storm::storm` hits the open through `hit_actor` (a `Shelter` is safe); `storm::shift_world` rolls the world again through `terrain::roll`, bunkers and bunker people kept | RED through People |
-| Bunkers and their stores | a building (Monuments and buildings) | - | The bunker building; its store is a box | As Monuments and buildings, and Items | Not audited |
-| Sight | - | - | On what blocks a view | `sight` (`Sight`), for `ai::think`'s cone and `sight::player_sight` | Not audited |
-| Copies | - | - | Nowhere: they copy the owners | Published by `control_plane.rs` for tests and watching, never read back by the game | Not audited |
-| Tests | - | - | `tests/` | Every test reads the running game through the control plane; no headless tests | Built |
+| System | Def | Registry | How | Status |
+|---|---|---|---|---|
+| People | modforge `ActorDef` (player, bunker person, scavenger, raider, lookout, wanderer) | `ActorRegistryRes` (content `register_actors`); index `ActorMapRes` (ActorId to entity, live count) | Made by `actor::spawn_person`; changed only through their action queue (Actions) and the systems below; dies through `combat::die` and stays, to query; back through `player::respawn` | RED: `combat::leave` despawns a dead topside person; `storm::shift_world` erases topside people through it |
+| Memory | modforge `memory::Memory` (`Known`, `Did`, threats, `learn`) | - | Each person's one `Memory`, written by the path that did the thing (`ai::think`, `combat::hit_actor`, `hud`, `nav::doorways`, `player::respawn`); read by modforge `brain::choose` and the control plane | RED: `combat::Deaths` second record of deaths; `ai::LifeStats` counts beside memory |
+| The brain | the `ActorDef`'s behaviour and sight; `Personality` | - | `ai::think` builds the `Perception` (sight in the cone, memory, worth by modforge `memory::food_worth`); modforge `brain::choose` decides | Not audited |
+| Actions | modforge `actions::Action` | `input::BindingsRes` (keys to actions) | Pushed by the keys (`input::read_input`, the one raw input reader) and the brain (`ai::think`), the same actions; handed out by `input::drain_actions` | Not audited |
+| Needs and the day | modforge `survival` (`SurvivalStats`, drain, `eat`, `is_night`) | - | Drained by `survival::survival_tick`; eating and drinking only through `SurvivalStats::eat` via `hud::use_slot`; empty needs hit through `survival::waste` | RED: `interact::use_source` repeats eat, heal, remember |
+| Health, hits, death | modforge `DamageDef` | `DamageRegistryRes` | Every hit through `combat::hit_actor` (modforge `resolve_hit`); every death through `combat::die` | RED: the respawn rule (half health, full food and water) is in topside `player::respawn`, not modforge |
+| Items and things in the world | modforge `ItemDef` (food, material, tool, weapon, deployable, note, medicine, source) | `ItemRegistryRes` (content `register_items`) | Into the world only through `interact::spawn_item` (a dropped can, a death box, a loot box, a bench, a well, a berry bush; loot rolled by modforge `loot`); moved between holders through `hud` | RED: wells and berry bushes through `interact::spawn_source` and a `Source` component |
+| Using things | modforge `hud::InteractKind` | - | `interact::interact_on_use` (Use reaches the thing in reach nearest the aim), decided by modforge `hud::interact` | Not audited |
+| Crafting | modforge `RecipeDef` | `RecipeRegistryRes` | Stations made by `interact::spawn_station`; items made only by the Craft action through modforge `crafting::craft` | Not audited |
+| The world and its ground | modforge `GroundDef` (content `small_ground_def`, `ground_def`), `BiomeDef` with its scatter | `BiomeRegistryRes` | Rolled by `terrain::roll` (content `roll_world2d`), made by `terrain::make_chunks`; a tile's ground only from the made chunk, modforge `World2d::chunk` | RED: `interact::nearest_water` asks `GroundGen::ground_at` |
+| Pathing | modforge `walk` (`WalkMap`, `find_way`, `standable`; by pathing.md also the queue, its budget, the wait after a way not found) | - | The grid painted by `nav::record_solids`; every way asked of the one queue and walked by `nav::steer` | RED: the queue, budget, retry, replanning live in topside `nav.rs`; `ai::think`'s `can_go` calls `find_way` outside the queue |
+| Monuments and buildings | modforge `MonumentTypeDef`, `BuildingTypeDef`, `StructureDef`; content `SMALL_SITES` | `MonumentRegistryRes` | Every building through `structure::spawn_structure` (the bunkers too); sites through `structure::spawn_sites` | Not audited |
+| Factions | modforge `FactionDef` | `FactionRegistryRes` (content `register_factions`) | Hostility read from the registry's table | Not audited |
+| The storm | modforge `StormDef` (content `STORM`) | - | `storm::storm` hits the open through `hit_actor` (a `Shelter` is safe); `storm::shift_world` rolls the world again through `terrain::roll`, bunkers and bunker people kept | RED through People |
+| Bunkers and their stores | a building (Monuments and buildings) | - | As Monuments and buildings; the store is a box (Items) | Not audited |
+| Sight | - | - | `sight` (`Sight`), for `ai::think`'s cone and `sight::player_sight` | Not audited |
+| Copies | - | - | Published by `control_plane.rs` for tests and watching, never read back by the game | Not audited |
+| Tests | - | - | Every test reads the running game through the control plane; no headless tests | Built |
 
 ## The one boundary: modforge owns the systems, topside uses them
 
