@@ -180,10 +180,11 @@ def load(file, colours):
     return meshes
 
 
-def join(parts, name, size=None):
-    """join parts into one flat-shaded object named `name`, resting on the
-    ground. With `size`, it is scaled evenly so its largest side is that
-    many metres (the game's size for it)."""
+def join(parts, name, size=None, turn=0):
+    """join parts into one flat-shaded object named `name`, turned `turn`
+    degrees about upright, resting on the ground. With `size`, it is
+    scaled evenly so its largest side is that many metres (the game's size
+    for it)."""
     bpy.ops.object.select_all(action="DESELECT")
     for p in parts:
         p.select_set(True)
@@ -193,6 +194,10 @@ def join(parts, name, size=None):
     obj = bpy.context.active_object
     obj.name = name
     bpy.ops.object.shade_flat()
+    # The glTF importer leaves objects turned by quaternion.
+    obj.rotation_mode = "XYZ"
+    obj.rotation_euler.z += math.radians(turn)
+    bpy.context.view_layer.update()
     if size is not None:
         obj.scale *= size / max(obj.dimensions)
         bpy.context.view_layer.update()
@@ -288,10 +293,11 @@ ITEM = 0.35
 DEPLOYABLE = 0.7
 
 
-def kenney(kit, model, name, size=ITEM, rgb=None):
+def kenney(kit, model, name, size=ITEM, rgb=None, turn=0):
     """a model from one of Kenney's kits (scripts/kenney-<kit>, CC0), in
-    its own flat colours, or all in `rgb`."""
-    return join(load(ROOT / "scripts" / f"kenney-{kit}" / f"{model}.glb", {"colormap": (rgb, False)}), name, size)
+    its own flat colours, or all in `rgb`; turned `turn` degrees about
+    upright, so it lies the way content sizes it."""
+    return join(load(ROOT / "scripts" / f"kenney-{kit}" / f"{model}.glb", {"colormap": (rgb, False)}), name, size, turn)
 
 
 def pipe():
@@ -380,17 +386,6 @@ def road_sign_vest():
 #
 # Each at its largest side as content/src/lib.rs sizes it (the minor
 # sites' `prop`); change both together.
-
-
-def car_wreck():
-    """a wrecked car: Kenney's sedan all in rust, lying along x as content
-    sizes it (4.2 m long)."""
-    car = kenney("car", "sedan", "car wreck", 4.2, rgb=(0.45, 0.2, 0.15))
-    # The glTF importer leaves objects turned by quaternion.
-    car.rotation_mode = "XYZ"
-    car.rotation_euler.z += math.radians(90)
-    bpy.context.view_layer.update()
-    return car
 
 
 def parachute():
@@ -495,6 +490,10 @@ SETS = {"person": people}
 MODELS = {
     "tree": tree,
     "rock": rock,
+    # The wasteland's and the ruins' scatter, at their largest side as
+    # content/src/lib.rs sizes them.
+    "fallen log": lambda: kenney("survival", "tree-log", "fallen log", 1.2, rgb=(0.5, 0.42, 0.32), turn=90),
+    "broken wall": lambda: kenney("graveyard", "stone-wall-damaged", "broken wall", 2.0, rgb=(0.45, 0.43, 0.4)),
     # Items, named as in content/src/lib.rs.
     "note": note,
     "canned food": lambda: kenney("food", "can", "canned food"),
@@ -509,7 +508,8 @@ MODELS = {
     "shotgun shell": shotgun_shell,
     "road sign vest": road_sign_vest,
     # The minor sites' props, named as in content/src/lib.rs.
-    "car wreck": car_wreck,
+    # A wrecked car: Kenney's sedan all in rust, lying along x (4.2 m long).
+    "car wreck": lambda: kenney("car", "sedan", "car wreck", 4.2, rgb=(0.45, 0.2, 0.15), turn=90),
     "barrel": lambda: kenney("survival", "barrel", "barrel", 0.9),
     "tent": lambda: kenney("survival", "tent", "tent", 2.4),
     "fire pit": lambda: kenney("survival", "campfire-pit", "fire pit", 1.0),
