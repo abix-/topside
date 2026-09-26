@@ -5,6 +5,7 @@
 //! queue and never knows what a key is; an NPC's AI will push the same
 //! actions.
 
+use bevy::input::mouse::{AccumulatedMouseScroll, MouseScrollUnit};
 use bevy::prelude::*;
 use bevy::window::PrimaryWindow;
 use modforge::hud::OpenPanel;
@@ -66,11 +67,21 @@ fn key_of(code: KeyCode) -> Option<Key> {
     })
 }
 
+/// How much one wheel notch zooms. Tuning.
+const ZOOM_PER_NOTCH: f32 = 1.15;
+/// The closest and the farthest zoom, times the normal view (34 m tall):
+/// 17 m, and about 1090 m, the whole small world.
+const ZOOM_IN: f32 = 0.5;
+const ZOOM_OUT: f32 = 32.0;
+/// A touchpad's pixels that count as one wheel notch.
+const PIXELS_PER_NOTCH: f32 = 40.0;
+
 /// Read the keys and the mouse once per frame and push the player's
 /// actions for the next fixed tick: movement, use, attack, the point
 /// under the cursor to face, and the panel and hotbar keys. While a
 /// panel is open only the panel keys, the hotbar, and use get through
-/// (the 3D game's rule): no walking, aiming, or swinging.
+/// (the 3D game's rule): no walking, aiming, or swinging. The wheel
+/// zooms the camera.
 pub fn read_input(
     keys: Res<ButtonInput<KeyCode>>,
     buttons: Res<ButtonInput<MouseButton>>,
@@ -79,12 +90,28 @@ pub fn read_input(
     hovered: Res<HoveredSlot>,
     windows: Query<&Window, With<PrimaryWindow>>,
     cameras: Query<(&Camera, &GlobalTransform)>,
+    scroll: Res<AccumulatedMouseScroll>,
+    mut projections: Query<&mut Projection, With<Camera2d>>,
     mut players: Query<(&mut Actions, &Hud), With<Player>>,
 ) {
     let Ok((mut actions, hud)) = players.single_mut() else {
         return;
     };
     let in_world = hud.0.open_panel == OpenPanel::None;
+    // The wheel zooms the camera, as in Factorio: out to the whole small
+    // world, in to half the normal view. Only the view changes, never
+    // what the person does.
+    if in_world && scroll.delta.y != 0.0 {
+        let notches = match scroll.unit {
+            MouseScrollUnit::Line => scroll.delta.y,
+            MouseScrollUnit::Pixel => scroll.delta.y / PIXELS_PER_NOTCH,
+        };
+        for mut projection in &mut projections {
+            if let Projection::Orthographic(view) = projection.as_mut() {
+                view.scale = (view.scale * ZOOM_PER_NOTCH.powf(-notches)).clamp(ZOOM_IN, ZOOM_OUT);
+            }
+        }
+    }
     if in_world
         && let (Ok(window), Ok((camera, camera_at))) = (windows.single(), cameras.single())
         && let Some(cursor) = window.cursor_position()
