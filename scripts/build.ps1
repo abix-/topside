@@ -3,22 +3,24 @@
 The one build script for topside: builds, tests, and runs the 2D game,
 with every log in logs/.
 .DESCRIPTION
-Every action stops the running game first (a running game locks
-topside.exe), runs cargo through k3sc cargo-lock from the repo root,
+build and run stop the running game first (a running game locks
+topside.exe); test never does, it tests the running game. Every action
+runs cargo through k3sc cargo-lock from the repo root,
 writes the full output to a log in logs/, and prints only what matters.
 Every cargo run is watched: when its log has not grown for
 StallMinutes, the script stops it and shows where it stalled instead of
 hanging.
 .PARAMETER Action
 run: build, then launch the game (logs/topside.log, logs/topside.err.log).
-test: run the tests through cargo-nextest (.config/nextest.toml), all of
-them or one tests/<Name>.rs; every test's time is printed, the run is in
+test: run the tests (the topside-tests crate) against the running game
+through cargo-nextest (.config/nextest.toml), all of them or one
+tests/<Name>.rs; every test's time is printed, the run is in
 logs/test.log, and every test's time and output in
 logs/nextest/default/junit.xml.
 build: build only (logs/build.log).
 .PARAMETER Name
 For test: one test file under tests/, without .rs. Empty runs every
-test, the library's included.
+test.
 .PARAMETER StallMinutes
 Minutes without new output before a cargo run counts as stalled.
 .PARAMETER GameArgs
@@ -26,7 +28,7 @@ For run: passed to the game, for example --world labyrinth.
 .EXAMPLE
 pwsh -NoProfile -File scripts/build.ps1 test
 .EXAMPLE
-pwsh -NoProfile -File scripts/build.ps1 test melee
+pwsh -NoProfile -File scripts/build.ps1 test game
 .EXAMPLE
 pwsh -NoProfile -File scripts/build.ps1 run
 .NOTES
@@ -110,9 +112,9 @@ function Show-Problems {
         }
 }
 
-Stop-Game
 switch ($Action) {
     'build' {
+        Stop-Game
         $log = Join-Path $logs 'build.log'
         $code = Invoke-Cargo 'build' $log
         Show-Problems $log
@@ -121,16 +123,11 @@ switch ($Action) {
         $log = Join-Path $logs 'test.log'
         # cargo-nextest (.config/nextest.toml): every test in its own
         # process, its time printed, its output kept in
-        # logs/nextest/default/junit.xml, a hung test stopped. The
-        # content crate's tests too: its world defs must roll.
-        $targets = if ($Name -eq 'content') {
-            '-p topside-content'
-        } elseif ($Name) {
-            "-p topside -E binary($Name)"
-        } else {
-            '-p topside -p topside-content'
-        }
-        $code = Invoke-Cargo "nextest run --no-fail-fast $targets" $log
+        # logs/nextest/default/junit.xml, a hung test stopped. The tests
+        # are the topside-tests crate and test the running game, so the
+        # game is left running.
+        $targets = if ($Name) { "-p topside-tests -E test(/^$Name::/)" } else { '-p topside-tests' }
+        $code = Invoke-Cargo "nextest run $targets" $log
         Show-Problems $log
         Select-String -Path $log -Pattern '^\s+(PASS|FAIL|SLOW|TERMINATING|TIMEOUT|SIGSEGV|SIGABRT|ABORT|LEAK|SKIP)\b|^\s+Summary|^\s+Starting|^error: ' |
             ForEach-Object {
@@ -140,6 +137,7 @@ switch ($Action) {
         Write-Host "[build] every test's time and output: $(Join-Path $logs 'nextest\default\junit.xml')"
     }
     'run' {
+        Stop-Game
         $log = Join-Path $logs 'build.log'
         $code = Invoke-Cargo 'build' $log
         Show-Problems $log
