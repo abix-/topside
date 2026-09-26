@@ -166,12 +166,20 @@ pub fn respawn(
     mut commands: Commands,
     world: Res<WorldRes>,
     tick: Res<crate::SimTick>,
-    mut dead: Query<(Entity, &ThisTick, &mut Transform, Option<&Home>, Option<&mut crate::actor::Memory>), With<Dead>>,
+    mut dead: Query<
+        (Entity, &ThisTick, &mut Transform, Option<&Home>, Option<&mut crate::actor::Memory>, &mut Health, &mut Survival),
+        With<Dead>,
+    >,
 ) {
-    for (entity, this_tick, mut transform, home, memory) in &mut dead {
+    for (entity, this_tick, mut transform, home, memory, mut health, mut needs) in &mut dead {
         if !this_tick.0.iter().any(|s| matches!(s.action, Action::Respawn)) {
             continue;
         }
+        // Back with half health, full food, and full water (operator,
+        // 2026-09-26), everyone alike.
+        health.0.current = health.0.max / 2.0;
+        needs.0.hunger = modforge::survival::FULL;
+        needs.0.thirst = modforge::survival::FULL;
         if let Some(mut memory) = memory {
             memory.0.did(modforge::memory::Did::Respawned, tick.0);
         }

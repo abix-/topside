@@ -6,3 +6,5 @@ mod control_plane;
 mod doorways;
 mod eating;
 mod game;
+mod hauling;
+mod respawn;
