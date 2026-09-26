@@ -174,6 +174,7 @@ pub fn make_chunks(
     mut new_sites: ResMut<NewSites>,
     biomes: Res<BiomeRegistryRes>,
     monuments: Res<MonumentRegistryRes>,
+    items: Res<crate::content::ItemRegistryRes>,
     tiles: Option<Res<GroundTiles>>,
     players: Query<&Transform, With<crate::player::Player>>,
     people: Query<&Transform, (With<crate::actor::Npc>, Without<crate::player::Player>)>,
@@ -225,11 +226,14 @@ pub fn make_chunks(
         if !shore.is_empty() {
             chunks.shores.insert(key, shore);
         }
-        // The sources (wells, berry bushes) stop nobody: each is a spot
-        // to use, drawn with the chunk's things.
-        for thing in &chunk.things {
-            if let Some(name) = &thing.source {
-                crate::interact::spawn_source(&mut commands, name, modforge::walk::centre(thing.tile));
+        // The sources (wells, berry bushes) are items standing in the world,
+        // through the one `spawn_item`; they stop nobody.
+        for (k, thing) in chunk.things.iter().enumerate() {
+            if let Some(def) = thing.source.as_ref().and_then(|name| items.0.def(name)) {
+                let stack = modforge::item::create(def, 1, &[], 0.0, k as u64);
+                let at = modforge::walk::centre(thing.tile);
+                let found = crate::interact::spawn_item(&mut commands, def, stack, at);
+                commands.entity(found).insert(WorldPiece);
             }
         }
         if let Some(tiles) = tiles.as_ref() {

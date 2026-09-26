@@ -291,8 +291,29 @@ fn click_slot(
 }
 
 /// Heal by what food or medicine gives, never past full.
-pub(crate) fn heal_by(health: &mut crate::combat::Health, heal: f32) {
+fn heal_by(health: &mut crate::combat::Health, heal: f32) {
     health.0.current = (health.0.current + heal).min(health.0.max);
+}
+
+/// Someone just used `item`, and modforge (`use_slot`, `hotbar_key`, or
+/// `SurvivalStats::eat`) gave `heal`: the heal goes on, and if it was
+/// food or drink it goes into their memory as eaten (life.md "What a
+/// person did"). Every eat, drink, and heal ends here: the hotbar, a slot,
+/// a box, a well, a river, a bush.
+pub(crate) fn used(
+    item: &str,
+    heal: f32,
+    registry: &ItemRegistryRes,
+    health: &mut crate::combat::Health,
+    memory: Option<&mut crate::actor::Memory>,
+    now: u64,
+) {
+    heal_by(health, heal);
+    if registry.0.def(item).is_some_and(|d| d.food.is_some())
+        && let Some(memory) = memory
+    {
+        memory.0.did(Did::Ate(item.to_string()), now);
+    }
 }
 
 /// The death message, shown while the player is dead.
@@ -430,20 +451,16 @@ pub fn hud_keys(
         mut memory,
     ) in &mut people
     {
-        // What they did goes into their memory (life.md "What a person
-        // did").
-        let mut did = |what: Did| {
-            if let Some(memory) = memory.as_mut() {
-                memory.0.did(what, tick.0);
-            }
-        };
         for stamped in &this_tick.0 {
             match stamped.action {
                 Action::Inventory => toggle_panel(&mut hud.0, OpenPanel::Inventory),
                 Action::Cancel => hud.0.open_panel = OpenPanel::None,
                 Action::Hotbar { index } => {
-                    if let Ok(heal) = hotbar_key(&mut needs.0, &mut hotbar.0, index, &registry.0, &mut worn.0) {
-                        heal_by(&mut health, heal);
+                    let item = hotbar.0.slots.slots.get(index).and_then(|s| s.as_ref()).map(|s| s.item.clone());
+                    if let Ok(heal) = hotbar_key(&mut needs.0, &mut hotbar.0, index, &registry.0, &mut worn.0)
+                        && let Some(item) = item
+                    {
+                        used(&item, heal, &registry, &mut health, memory.as_deref_mut(), tick.0);
                     }
                 }
                 Action::Transfer { half, slot: Some(slot) } => {
@@ -460,8 +477,13 @@ pub fn hud_keys(
                     if let (true, Some((item, count))) = (with_box, before) {
                         let left = stack_in(&holders, slot).filter(|(i, _)| *i == item).map_or(0, |(_, n)| n);
                         let moved = count.saturating_sub(left);
-                        if moved > 0 {
-                            did(if slot.holder == Holder::Container { Did::Took(item, moved) } else { Did::Stocked(item, moved) });
+                        // What they did goes into their memory (life.md
+                        // "What a person did").
+                        if moved > 0
+                            && let Some(memory) = memory.as_mut()
+                        {
+                            let what = if slot.holder == Holder::Container { Did::Took(item, moved) } else { Did::Stocked(item, moved) };
+                            memory.0.did(what, tick.0);
                         }
                     }
                 }
@@ -476,12 +498,11 @@ pub fn hud_keys(
                             None => continue,
                         },
                     };
-                    let food = holder.slots.get(slot.index).and_then(|s| s.as_ref()).map(|s| s.item.clone());
-                    if let Ok(heal) = use_slot(&mut needs.0, holder, slot.index, &registry.0, &mut worn.0) {
-                        heal_by(&mut health, heal);
-                        if let Some(item) = food.filter(|item| registry.0.def(item).is_some_and(|d| d.food.is_some())) {
-                            did(Did::Ate(item));
-                        }
+                    let item = holder.slots.get(slot.index).and_then(|s| s.as_ref()).map(|s| s.item.clone());
+                    if let Ok(heal) = use_slot(&mut needs.0, holder, slot.index, &registry.0, &mut worn.0)
+                        && let Some(item) = item
+                    {
+                        used(&item, heal, &registry, &mut health, memory.as_deref_mut(), tick.0);
                     }
                 }
                 Action::Craft { index } => {

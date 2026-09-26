@@ -27,7 +27,7 @@ use crate::content::{
     MonumentRegistryRes, PLAYER_FACTION,
 };
 use crate::input::{Action, Actions};
-use crate::interact::{Container, OpenContainer, Source, WorldItem};
+use crate::interact::{Container, OpenContainer, WorldItem};
 use crate::player::Player;
 use crate::sight::Sight;
 
@@ -109,7 +109,7 @@ pub fn think(
     sight: Sight,
     mut thinkers: Thinkers,
     containers: Query<(Entity, &Container, &Transform, &WorldItem)>,
-    sources: Query<(Entity, &Transform, &Source)>,
+    lying: Query<(Entity, &Transform, &WorldItem), Without<Container>>,
     world: Option<Res<crate::terrain::WorldRes>>,
     chunks: Option<Res<crate::terrain::Chunks>>,
 ) {
@@ -130,9 +130,13 @@ pub fn think(
         .iter()
         .map(|(e, _, t, w)| (e, t.translation.truncate(), w.stack.item.clone()))
         .collect();
-    // Every source once (a well, a berry bush): where, what kind.
-    let sources_at: Vec<(Entity, Vec2, String)> =
-        sources.iter().map(|(e, t, s)| (e, t.translation.truncate(), s.0.clone())).collect();
+    // Every source once (a well, a berry bush: an item of kind `Source`):
+    // where, what kind.
+    let sources_at: Vec<(Entity, Vec2, String)> = lying
+        .iter()
+        .filter(|(_, _, w)| items.0.def(&w.stack.item).is_some_and(|d| d.kind == modforge::item::ItemKind::Source))
+        .map(|(e, t, w)| (e, t.translation.truncate(), w.stack.item.clone()))
+        .collect();
     let source_at = |key: u64| {
         sources_at
             .iter()

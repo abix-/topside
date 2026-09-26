@@ -10,7 +10,6 @@ use modforge::crafting::StationKind;
 use modforge::hud::{HudState, InteractKind, InteractResult, OpenPanel, interact};
 use modforge::item::{self, ItemDef, ItemKind, ItemStack};
 
-use modforge::memory::Did;
 use modforge::walk::{cell_of, centre};
 
 use crate::actor::{Dead, Inventory, Memory, Survival};
@@ -56,32 +55,13 @@ pub struct OpenContainer(pub Option<Entity>);
 #[derive(Component, Default)]
 pub struct OpenStation(pub Option<StationKind>);
 
-/// A source standing in the world (a well, a berry bush; design.md: a
-/// livable world): eaten or drunk from where it stands, never used up.
-/// It names its ItemDef of kind `Source`.
-#[derive(Component)]
-pub struct Source(pub String);
-
 /// The def a river's water is (content: kind `Source`).
 pub const WATER: &str = "water";
 
-/// Where a source stands for E: nothing to draw (the chunk draws its
-/// things), only the spot.
-pub fn spawn_source(commands: &mut Commands, name: &str, at: Vec2) -> Entity {
-    commands
-        .spawn((
-            Interactable { kind: InteractKind::Source },
-            Source(name.to_string()),
-            crate::terrain::WorldPiece,
-            Transform::from_translation(at.extend(0.0)),
-        ))
-        .id()
-}
-
-/// Eat or drink one use of the source `name`: its food fills the needs
-/// and heals, and it goes into memory as eaten (life.md "What a person
-/// did"), the same as eating from the hotbar.
-fn use_source(
+/// One mouthful from a source where it stands (a well, a bush, a river's
+/// water): modforge's `SurvivalStats::eat` fills the needs, then the one
+/// `hud::used` heals and remembers it. Nothing is used up.
+fn eat_from_source(
     name: &str,
     registry: &ItemRegistryRes,
     needs: &mut Survival,
@@ -89,14 +69,10 @@ fn use_source(
     memory: Option<&mut Memory>,
     now: u64,
 ) {
-    let Some(def) = registry.0.def(name) else {
-        return;
-    };
-    if let Ok(heal) = needs.0.eat(def) {
-        crate::hud::heal_by(health, heal);
-        if let Some(memory) = memory {
-            memory.0.did(Did::Ate(name.to_string()), now);
-        }
+    if let Some(def) = registry.0.def(name)
+        && let Ok(heal) = needs.0.eat(def)
+    {
+        crate::hud::used(name, heal, registry, health, memory, now);
     }
 }
 
@@ -132,6 +108,9 @@ pub fn spawn_item(commands: &mut Commands, def: &ItemDef, stack: ItemStack, at: 
         InteractKind::Container
     } else if def.kind == ItemKind::Note {
         InteractKind::Read
+    } else if def.kind == ItemKind::Source {
+        // A well, a bush: used where it stands, never picked up.
+        InteractKind::Source
     } else {
         InteractKind::Pickup
     };
@@ -192,7 +171,7 @@ pub fn interact_on_use(
         Without<Dead>,
     >,
     mut things: Query<
-        (Entity, &mut Interactable, Option<&mut Door>, Option<&WorldItem>, &mut Transform, Option<&Source>),
+        (Entity, &mut Interactable, Option<&mut Door>, Option<&WorldItem>, &mut Transform),
         Without<ThisTick>,
     >,
 ) {
@@ -207,20 +186,23 @@ pub fn interact_on_use(
         let pointed = ActionQueue::aim(&this_tick.0).map_or(at, |(x, y)| Vec2::new(x, y));
         let nearest = things
             .iter()
-            .map(|(e, _, door, _, t, _)| (e, use_point(door, t)))
+            .map(|(e, _, door, _, t)| (e, use_point(door, t)))
             .filter(|(_, p)| p.distance(at) <= REACH)
             .min_by(|a, b| a.1.distance(pointed).total_cmp(&b.1.distance(pointed)))
             .map(|(e, _)| e);
-        let Some(Ok((entity, thing, door, item, transform, source))) = nearest.map(|e| things.get_mut(e)) else {
+        let Some(Ok((entity, thing, door, item, transform))) = nearest.map(|e| things.get_mut(e)) else {
             // Nothing to use in reach: a river's water pointed at is drunk
             // (design.md: rivers are drinkable).
             if world.as_ref().is_some_and(|w| water_in_reach(w, at, pointed)) {
-                use_source(WATER, &registry, &mut needs, &mut health, memory.as_deref_mut(), tick.0);
+                eat_from_source(WATER, &registry, &mut needs, &mut health, memory.as_deref_mut(), tick.0);
             }
             continue;
         };
-        if let Some(source) = source {
-            use_source(&source.0, &registry, &mut needs, &mut health, memory.as_deref_mut(), tick.0);
+        // A source item (a well, a bush), decided by modforge's interact.
+        if thing.kind == InteractKind::Source {
+            if let Some(item) = item {
+                eat_from_source(&item.stack.item, &registry, &mut needs, &mut health, memory.as_deref_mut(), tick.0);
+            }
             continue;
         }
         use_thing(
@@ -314,7 +296,7 @@ fn use_thing(
         }
         // The note's words are in the HUD state now; nothing moves. A
         // gate stays shut. A full inventory leaves the item lying.
-        // A source is used before this (`use_source`), never here.
+        // A source is eaten from before this (`eat_from_source`), never here.
         InteractResult::Read | InteractResult::Locked(_) | InteractResult::InventoryFull | InteractResult::UseSource => {}
     }
 }
