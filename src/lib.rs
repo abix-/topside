@@ -91,6 +91,7 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind) -> App {
     app.init_resource::<content::BiomeRegistryRes>();
     app.init_resource::<content::MonumentRegistryRes>();
     app.init_resource::<content::ItemRegistryRes>();
+    app.init_resource::<content::LayerRegistryRes>();
     app.init_resource::<content::DamageRegistryRes>();
     app.init_resource::<content::ActorRegistryRes>();
     app.init_resource::<content::FactionRegistryRes>();

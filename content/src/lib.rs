@@ -14,7 +14,7 @@ use modforge::combat::{DamageDef, DamageRegistry, DamageType, Falloff};
 use modforge::faction::{FactionDef, FactionKind, FactionRegistry};
 use modforge::memory::GoodFor;
 use modforge::survival::Need;
-use modforge::item::{Armor, CombatStats, EquipSlot, FoodStats, ItemDef, ItemKind, ItemRegistry, Note};
+use modforge::item::{Armor, CombatStats, EquipSlot, FoodStats, ItemDef, ItemKind, ItemRegistry, LayerRegistry, Note};
 use modforge::monument::Roll;
 use modforge::monument::{
     Arrangement, BuildingRegistry, BuildingSize, BuildingSlot, BuildingTypeDef,
@@ -193,6 +193,12 @@ impl Default for ItemRegistryRes {
         Self(reg)
     }
 }
+
+/// The layer registry as an app resource (design.md "What 2D changes":
+/// every item is made in layers): every layer a stack carries is a def
+/// from here.
+#[derive(Resource, Default)]
+pub struct LayerRegistryRes(pub LayerRegistry);
 
 /// The damage registry as an app resource: every hit names a def
 /// from here (design.md "How a hit works").
@@ -839,6 +845,7 @@ fn source(name: &str, hunger: f32, thirst: f32) -> ItemDef {
         armor: None,
         good_for: Default::default(),
         picture: None,
+        layer_slots: Vec::new(),
     }
 }
 
@@ -856,6 +863,7 @@ pub fn register_items(reg: &mut ItemRegistry) {
             armor: None,
             good_for: Default::default(),
             picture: None,
+            layer_slots: Vec::new(),
         },
         ItemDef {
             name: "canned food".to_string(),
@@ -874,6 +882,7 @@ pub fn register_items(reg: &mut ItemRegistry) {
             armor: None,
             good_for: Default::default(),
             picture: None,
+            layer_slots: Vec::new(),
         },
         ItemDef {
             name: "water bottle".to_string(),
@@ -891,6 +900,7 @@ pub fn register_items(reg: &mut ItemRegistry) {
             armor: None,
             good_for: Default::default(),
             picture: None,
+            layer_slots: Vec::new(),
         },
         // The sources (design.md: a livable world, rivers drinkable,
         // wells scattered, food sources): eaten or drunk from where they
@@ -916,6 +926,7 @@ pub fn register_items(reg: &mut ItemRegistry) {
             armor: None,
             good_for: Default::default(),
             picture: None,
+            layer_slots: Vec::new(),
         },
         ItemDef {
             name: "storage box".to_string(),
@@ -931,6 +942,7 @@ pub fn register_items(reg: &mut ItemRegistry) {
             // (modforge `food_worth`, life.md "What things are good for").
             good_for: Default::default(),
             picture: None,
+            layer_slots: Vec::new(),
         },
         ItemDef {
             name: "scrap".to_string(),
@@ -944,6 +956,7 @@ pub fn register_items(reg: &mut ItemRegistry) {
             armor: None,
             good_for: Default::default(),
             picture: None,
+            layer_slots: Vec::new(),
         },
         ItemDef {
             name: "cloth".to_string(),
@@ -957,6 +970,7 @@ pub fn register_items(reg: &mut ItemRegistry) {
             armor: None,
             good_for: Default::default(),
             picture: None,
+            layer_slots: Vec::new(),
         },
         ItemDef {
             name: "pipe".to_string(),
@@ -977,6 +991,7 @@ pub fn register_items(reg: &mut ItemRegistry) {
             armor: None,
             good_for: Default::default(),
             picture: None,
+            layer_slots: Vec::new(),
         },
         ItemDef {
             name: "hatchet".to_string(),
@@ -997,6 +1012,7 @@ pub fn register_items(reg: &mut ItemRegistry) {
             armor: None,
             good_for: Default::default(),
             picture: None,
+            layer_slots: Vec::new(),
         },
         // Rust's pipe shotgun: one shell, six pellets, wide spread,
         // instant out to 40 m (the hybrid's instant part).
@@ -1019,6 +1035,7 @@ pub fn register_items(reg: &mut ItemRegistry) {
             armor: None,
             good_for: Default::default(),
             picture: None,
+            layer_slots: Vec::new(),
         },
         ItemDef {
             name: "shotgun shell".to_string(),
@@ -1032,6 +1049,7 @@ pub fn register_items(reg: &mut ItemRegistry) {
             armor: None,
             good_for: Default::default(),
             picture: None,
+            layer_slots: Vec::new(),
         },
         // Worn in the chest slot; guards the chest only.
         ItemDef {
@@ -1049,6 +1067,7 @@ pub fn register_items(reg: &mut ItemRegistry) {
             }),
             good_for: Default::default(),
             picture: None,
+            layer_slots: Vec::new(),
         },
     ];
     for mut item in items {

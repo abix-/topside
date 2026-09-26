@@ -14,9 +14,10 @@ use modforge::item::{self, ItemRegistry};
 use modforge::memory::Did;
 
 use modforge::actor::ActorId;
+use modforge::item::combat_of;
 
 use crate::actor::{Actor, ActorMapRes, Dead, Facing, Home, Hotbar, Inventory, Memory, Personality};
-use crate::content::{DamageRegistryRes, ItemRegistryRes};
+use crate::content::{DamageRegistryRes, ItemRegistryRes, LayerRegistryRes};
 use crate::input::{Action, ActionQueue, ThisTick};
 use crate::interact::{Container, spawn_item};
 use crate::player::{PLAYER_SIZE, Player};
@@ -111,6 +112,7 @@ pub const OVERHEAD_STEP: f32 = 0.5;
 pub fn melee(
     time: Res<Time<Fixed>>,
     items: Res<ItemRegistryRes>,
+    layers: Res<LayerRegistryRes>,
     damage: Res<DamageRegistryRes>,
     move_and_slide: MoveAndSlide,
     mut actors: ParamSet<(
@@ -161,12 +163,12 @@ pub fn melee(
             firing.0.release();
             continue;
         }
-        // What is in the hands: the held hotbar slot (Rust).
+        // What is in the hands: the held hotbar slot (Rust), its numbers
+        // worked out from its layers.
         let Some(weapon) = hotbar
             .0
             .held_stack()
-            .and_then(|s| items.0.def(&s.item))
-            .and_then(|d| d.combat.as_ref())
+            .and_then(|s| items.0.def(&s.item).and_then(|d| combat_of(d, s, &layers.0)))
         else {
             continue;
         };
@@ -300,6 +302,7 @@ pub fn fire(
     mut commands: Commands,
     tick: Res<crate::SimTick>,
     items: Res<ItemRegistryRes>,
+    layers: Res<LayerRegistryRes>,
     mut shooters: Query<
         (
             Entity,
@@ -322,8 +325,7 @@ pub fn fire(
         let Some(gun) = hotbar
             .0
             .held_stack()
-            .and_then(|s| items.0.def(&s.item))
-            .and_then(|d| d.combat.as_ref())
+            .and_then(|s| items.0.def(&s.item).and_then(|d| combat_of(d, s, &layers.0)))
         else {
             continue;
         };
