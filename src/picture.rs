@@ -22,9 +22,21 @@ pub struct Picture(pub String);
 pub const FACINGS: usize = 8;
 
 /// A person drawn as picture layers, bottom to top (design.md "What 2D
-/// changes": built from pieces); each layer's picture is `<layer> <facing>`.
+/// changes": built from pieces), each with its tint; each layer's picture
+/// is `<layer> <facing>`.
 #[derive(Component)]
-pub struct Person(pub Vec<String>);
+pub struct Person(pub Vec<(String, Color)>);
+
+impl Person {
+    /// The layers of a rolled look: the body in its skin, then each piece
+    /// in its hair colour.
+    pub fn of(look: &modforge::actor::Look) -> Person {
+        let tint = |c: [f32; 3]| Color::srgb(c[0], c[1], c[2]);
+        let body = (format!("person {} body", look.body), tint(look.skin));
+        let pieces = look.pieces.iter().map(|p| (format!("person {} {p}", look.body), tint(look.hair)));
+        Person(std::iter::once(body).chain(pieces).collect())
+    }
+}
 
 /// One of a person's layers, and the facing its picture shows now.
 #[derive(Component)]
@@ -49,10 +61,13 @@ fn layer_picture(name: &str, facing: usize) -> String {
 pub fn draw_people(mut commands: Commands, assets: Res<AssetServer>, new: Query<(Entity, &Person), Added<Person>>) {
     for (entity, person) in &new {
         commands.entity(entity).with_children(|p| {
-            for (i, name) in person.0.iter().enumerate() {
+            for (i, (name, tint)) in person.0.iter().enumerate() {
                 p.spawn((
                     Layer { name: name.clone(), facing: 0 },
-                    Sprite::from_image(assets.load(layer_picture(name, 0))),
+                    Sprite {
+                        color: *tint,
+                        ..Sprite::from_image(assets.load(layer_picture(name, 0)))
+                    },
                     // Above the marker under their feet, each layer over the last.
                     Transform::from_xyz(0.0, 0.0, 0.01 * (i + 1) as f32).with_scale(Vec3::splat(1.0 / PIXELS_PER_METRE)),
                 ));

@@ -32,9 +32,6 @@ pub const MAX_ACTORS: usize = 8192;
 /// Above the ground and the buildings.
 const NPC_Z: f32 = 0.9;
 const NPC_COLOR: Color = Color::srgb(0.75, 0.25, 0.2);
-/// A person's picture layers, drawn bottom to top (scripts/models.py
-/// renders `person <layer> <facing>` for each).
-const PERSON_LAYERS: [&str; 2] = ["person body", "person hair"];
 
 /// Which way a person faces, in radians: 0 is along +x, a quarter turn
 /// is +y (up the screen).
@@ -234,7 +231,6 @@ pub fn spawn_person(
                 custom_size: Some(Vec2::splat(PLAYER_SIZE)),
                 ..default()
             },
-            crate::picture::Person(PERSON_LAYERS.iter().map(|l| l.to_string()).collect()),
         ))
         .id();
     let Some((id, _row)) = spawn.actors.0.spawn(entity) else {
@@ -242,6 +238,9 @@ pub fn spawn_person(
         return None;
     };
     let personality = modforge::actor::Personality::seed(id, spawn.seed.0);
+    // What they look like, rolled from who they are, drawn over the marker.
+    let look = modforge::actor::Look::roll(id, spawn.seed.0, &crate::content::look_def());
+    spawn.commands.entity(entity).insert(crate::picture::Person::of(&look));
     let mut health = def.health();
     health.max *= personality.health_mult();
     health.current = health.max;

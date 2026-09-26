@@ -155,9 +155,10 @@ def box(name, size, at=(0, 0, 0), rotation=(0, 0, 0), mat=None):
 def load(file, colours):
     """import a model file (glTF) and put the cel shade on it. `colours`
     maps the start of each of its material names to (rgb, cut): rgb None
-    keeps the model's own flat colours from its picture (a palette); with
-    cut, the material keeps its picture's see-through parts (leaf cards)
-    and nothing else of the picture."""
+    keeps the model's own colours from its picture (a palette), a Path
+    takes them from that picture file instead; with cut, the material
+    keeps its picture's see-through parts (leaf cards) and nothing else of
+    the picture."""
     bpy.ops.import_scene.gltf(filepath=str(file))
     meshes = [o for o in bpy.context.selected_objects if o.type == "MESH"]
     made = {}
@@ -170,6 +171,8 @@ def load(file, colours):
             if old.name not in made:
                 rgb, cut = colours[key]
                 image = next((n.image for n in old.node_tree.nodes if n.type == "TEX_IMAGE" and n.image), None)
+                if isinstance(rgb, Path):
+                    rgb = bpy.data.images.load(str(rgb), check_existing=True)
                 if (cut or rgb is None) and image is None:
                     sys.exit(f"ERROR: {file.name}: material {old.name} has no picture to take from")
                 made[old.name] = material(key, image if rgb is None else rgb, cutout=image if cut else None)
@@ -382,13 +385,18 @@ FACINGS = 8
 # Every person picture is this many metres either side of the ground point
 # (half width, half height), so all layers and facings line up.
 PERSON_FRAME = (0.6, 1.45)
+# The bodies, each with its light skin (the game tints it darker) and the
+# pieces that fit its head: hairstyles, and the beard.
+BODIES = {
+    "male": ("Superhero_Male_FullBody.gltf", "T_Superhero_Male_Ligh.png", ["SimpleParted", "Buzzed", "Long", "Beard"]),
+    "female": ("Superhero_Female_FullBody.gltf", "T_Superhero_Female_Light_BaseColor.png", ["Buns", "BuzzedFemale", "Long"]),
+}
 
 
-def person():
-    """the rig standing with its arms at its sides, and its layers: the
-    body (with eyes and brows) and one hairstyle, pinned to the head."""
-    own = {"MI_": (None, False)}
-    meshes = load(CHARACTERS / "Superhero_Male_FullBody.gltf", own)
+def person(file, skin):
+    """a body standing with its arms at its sides: its rig and meshes (with
+    eyes and brows), in its light skin."""
+    meshes = load(CHARACTERS / file, {"MI_Superhero": (CHARACTERS / skin, False), "MI_": (None, False)})
     # The file carries a loose helper ball; the body is what the rig holds.
     for m in [m for m in meshes if m.parent is None]:
         bpy.data.objects.remove(m, do_unlink=True)
@@ -400,32 +408,50 @@ def person():
     # Arms down from the T-pose: each upper arm turns down about its Z.
     bones["upperarm_l"].rotation_euler = (0, 0, math.radians(-72))
     bones["upperarm_r"].rotation_euler = (0, 0, math.radians(72))
-    hair = load(CHARACTERS / "Hair_SimpleParted.gltf", own)
-    for h in hair:
+    bpy.context.view_layer.update()
+    return rig, body
+
+
+def piece(name, rig):
+    """one hairstyle or the beard, pinned to the rig's head."""
+    meshes = load(CHARACTERS / f"Hair_{name}.gltf", {"MI_": (None, False)})
+    for h in meshes:
         world = h.matrix_world.copy()
         h.parent, h.parent_type, h.parent_bone = rig, "BONE", "Head"
         h.matrix_world = world
-    bpy.context.view_layer.update()
-    return rig, {"body": body, "hair": hair}
+    return meshes
 
 
 def people():
-    """render every layer of a person per facing: `person <layer> <facing>`."""
-    clear()
-    rig, layers = person()
-    # Which way the rig faces at rest: from its ankles to its toes.
-    bones, m = rig.pose.bones, rig.matrix_world
-    toes = (m @ bones["ball_l"].head + m @ bones["ball_r"].head) / 2
-    ankles = (m @ bones["foot_l"].head + m @ bones["foot_r"].head) / 2
-    rest = math.atan2(toes.y - ankles.y, toes.x - ankles.x)
-    for k in range(FACINGS):
-        rig.rotation_euler = (0, 0, math.radians(k * 360 / FACINGS) - rest)
-        bpy.context.view_layer.update()
-        for layer, meshes in layers.items():
-            for other, others in layers.items():
-                for o in others:
-                    o.is_holdout = other != layer
-            picture(meshes, OUT / f"person {layer} {k}.png", frame=PERSON_FRAME)
+    """render every body and every piece that fits it, per facing:
+    `person <body> body <facing>` and `person <body> <piece> <facing>`. A
+    piece is rendered with the body held out, so whatever of it is behind
+    the body is cut away and any piece draws over the body; the body is
+    rendered whole, so every piece fits it."""
+    for body_name, (file, skin, names) in BODIES.items():
+        clear()
+        rig, body = person(file, skin)
+        pieces = {n.lower(): piece(n, rig) for n in names}
+        # Which way the rig faces at rest: from its ankles to its toes.
+        bones, m = rig.pose.bones, rig.matrix_world
+        toes = (m @ bones["ball_l"].head + m @ bones["ball_r"].head) / 2
+        ankles = (m @ bones["foot_l"].head + m @ bones["foot_r"].head) / 2
+        rest = math.atan2(toes.y - ankles.y, toes.x - ankles.x)
+
+        def only(shown, held_out=()):
+            for meshes in [body, *pieces.values()]:
+                for o in meshes:
+                    o.hide_render = o not in shown and o not in held_out
+                    o.is_holdout = o in held_out
+
+        for k in range(FACINGS):
+            rig.rotation_euler = (0, 0, math.radians(k * 360 / FACINGS) - rest)
+            bpy.context.view_layer.update()
+            only(body)
+            picture(body, OUT / f"person {body_name} body {k}.png", frame=PERSON_FRAME)
+            for name, meshes in pieces.items():
+                only(meshes, held_out=body)
+                picture(meshes, OUT / f"person {body_name} {name} {k}.png", frame=PERSON_FRAME)
 
 
 # Models that render several pictures themselves.

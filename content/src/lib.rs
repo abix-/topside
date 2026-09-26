@@ -8,7 +8,7 @@ use modforge::worldgen::{BiomeRule, Generator, WorldDef};
 use modforge::ground::{ClimateRule, Ground, GroundDef, GroundGen};
 use modforge::places::{Places, SiteKind};
 use modforge::world2d::{Clearing, World2d};
-use modforge::actor::{ActorDef, ActorRegistry, Behaviour};
+use modforge::actor::{ActorDef, ActorRegistry, Behaviour, BodyLook, LookDef};
 use modforge::biome::{BiomeDef, BiomeRegistry, ScatterDef};
 use modforge::combat::{DamageDef, DamageRegistry, DamageType, Falloff};
 use modforge::faction::{FactionDef, FactionKind, FactionRegistry};
@@ -396,6 +396,35 @@ impl WorldKind {
             Self::Small => SMALL_OTHER_BUNKERS.to_vec(),
             Self::Big => OTHER_BUNKERS.to_vec(),
         }
+    }
+}
+
+/// What people look like (design.md "What 2D changes": built from pieces,
+/// and they differ): the bodies and pieces scripts/models.py renders
+/// (`person <body> body <facing>`, `person <body> <piece> <facing>`), and
+/// the tints: skin multiplies the light skin picture, hair the grey hair.
+pub fn look_def() -> LookDef {
+    let slot = |names: &[Option<&str>]| names.iter().map(|n| n.map(str::to_string)).collect();
+    LookDef {
+        bodies: vec![
+            BodyLook {
+                name: "male".to_string(),
+                slots: vec![slot(&[Some("simpleparted"), Some("buzzed"), Some("long"), None]), slot(&[Some("beard"), None, None])],
+            },
+            BodyLook {
+                name: "female".to_string(),
+                slots: vec![slot(&[Some("buns"), Some("buzzedfemale"), Some("long")])],
+            },
+        ],
+        skins: vec![[1.0, 1.0, 1.0], [0.85, 0.72, 0.62], [0.65, 0.5, 0.4], [0.45, 0.33, 0.26]],
+        hair: vec![
+            [0.12, 0.1, 0.09],
+            [0.3, 0.2, 0.12],
+            [0.5, 0.35, 0.2],
+            [0.85, 0.72, 0.45],
+            [0.75, 0.75, 0.75],
+            [0.6, 0.25, 0.12],
+        ],
     }
 }
 
