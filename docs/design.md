@@ -1345,7 +1345,8 @@ The material lives in topside (it is Bevy-specific presentation).
 
 Presentation is decided in authority.md: one 3D world played in first
 person (2026-09-26), the low poly cel shaded models drawn live, with
-Diablo 2's automap on M showing only what the player has seen. It replaces
+Diablo 2's automap showing only what the player has seen: a corner
+minimap, which M makes a full screen overlay. It replaces
 2D with pictures rendered ahead of time (2026-09-25); "What 2D changes"
 below is kept for what still holds in 3D (nobody sees behind walls, people
 built from pieces, items in layers).

@@ -394,8 +394,9 @@ to build.
 Topside is one 3D world played in first person (operator, 2026-09-26). The
 world is built once in 3D: low poly cel shaded models drawn live, 3D
 physics, height; the pictures rendered ahead of time and their drawing
-retire. The overhead view is the map, on M, as Diablo 2's automap: drawn
-over the first person view while the player keeps playing, showing only
+retire. The overhead view is the map, as Diablo 2's automap: a minimap in
+the corner, which M makes a full screen overlay (operator, 2026-09-26),
+both drawn over the first person view while the player keeps playing, showing only
 what the player has seen (their map, life.md "The map each person
 carries"), the player at its centre, no live people on it. It is drawn from
 the player's map, not by a second camera.
