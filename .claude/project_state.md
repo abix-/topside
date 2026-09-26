@@ -68,8 +68,13 @@ gives half health, full food, and full water (operator), and at tick
 bunker alive and fed. The game's speed is set on the endpoint's
 `speed` op (4x while watching); a restart goes back to 1x.
 
+Then the small world got 20 monuments of varying sizes (operator), the
+`world` op reports every monument, and the mouse wheel zooms out to
+the whole small world to watch. Trees are drawn as rendered pictures
+(another session, bd59d7b). At tick 65940 (4x) all 8 tests pass.
+
 Tests now: `chunks`, `control_plane`, `doorways`, `eating`, `game`,
-`hauling`, `respawn`. A failing test prints what the game reported,
+`hauling`, `monuments`, `respawn`. A failing test prints what the game reported,
 kept in logs/nextest/default/junit.xml.
 
 ## Next steps
@@ -81,9 +86,9 @@ The first unchecked row of docs/todo.md, unless the operator says.
 - Everything the deleted tests checked (melee, guns, sight, and the
   rest) has no test against the running game yet; wander and the
   storm are next in the todo.
-- At tick 57000 every topside person (50) was dead before the first
-  storm, and only one bunker person had hauled food; both are todo
-  rows.
+- Every topside person (50) dies before the first storm (seen at tick
+  57000 and again at 65940 after a restart), and only one or two bunker
+  people haul food; both are todo rows.
 - Todo row 1 (one content file for both games) asks the 3D game to
   build, but the 3D game is frozen and not built.
 - Seen in logs/game.txt (2026-09-25 22:11), not looked into: the

@@ -806,6 +806,9 @@ walk". "lets do 32x32 chunks. that's small".
   bunker and one other bunker; one site of each kind at a fixed place;
   a few topside people at them and the other bunker's people. The same
   world every run.
+- 20 monuments of varying sizes (operator, 2026-09-26), each at a fixed
+  place: large (launch site, power plant, airfield), medium, small, and
+  minor sites; every kind but the ruined city.
 - The same code as the big world, only different content: no second
   path.
 - Each thing is confirmed on the endpoint while the operator plays, one
