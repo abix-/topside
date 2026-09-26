@@ -8,6 +8,7 @@ mod control_plane;
 mod deaths;
 mod doorways;
 mod eating;
+mod equipment;
 mod game;
 mod hauling;
 mod items;

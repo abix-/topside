@@ -486,7 +486,7 @@ pub fn publish(
     players: Query<(&Transform, &Health, &Survival), With<Player>>,
     npcs: Query<(
         (&Actor, &Npc, &Transform, &Health, &Survival, &Personality, &ThisTick),
-        (&crate::actor::Memory, &crate::actor::ActorRecord, Has<crate::actor::Dead>, &crate::actor::Hotbar, &crate::actor::Facing, Option<&crate::people::Drawn>, &crate::actor::Map),
+        (&crate::actor::Memory, &crate::actor::ActorRecord, Has<crate::actor::Dead>, &crate::actor::Hotbar, &crate::actor::Facing, Option<&crate::people::Drawn>, &crate::actor::Map, &crate::combat::Equipment),
     )>,
 ) {
     TICK.store(tick.0, Ordering::Relaxed);
@@ -533,7 +533,7 @@ pub fn publish(
     if tick.0 % 60 == 0 {
         let list: Vec<Json> = npcs
             .iter()
-            .map(|((actor, npc, at, health, needs, personality, this_tick), (memory, record, dead, hotbar, facing, drawn, map))| {
+            .map(|((actor, npc, at, health, needs, personality, this_tick), (memory, record, dead, hotbar, facing, drawn, map, worn))| {
                 // What is in their hands, its layers, and the damage its
                 // hits land, worked out by the one place a hit reads it.
                 let weapon = hotbar.0.held_stack().map(|stack| {
@@ -571,6 +571,8 @@ pub fn publish(
                     "weapon": weapon,
                     // Where they face on the ground, in radians (0 along +x).
                     "facing": facing.0,
+                    // What they wear, each with the equipment slots it holds.
+                    "worn": worn.0.items().map(|(s, slots)| json!({"item": s.item, "slots": slots.iter().map(|x| format!("{x:?}")).collect::<Vec<_>>()})).collect::<Vec<_>>(),
                     // How many tiles are on the map they carry.
                     "map_tiles": map.map.tiles_seen(),
                     // What their model shows (only with a window).

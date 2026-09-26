@@ -1165,8 +1165,10 @@ pub fn register_items(reg: &mut ItemRegistry) {
             combat: None,
             food: None,
             storage: None,
+            // Rust's road sign jacket: the chest's armor layer, over a
+            // shirt.
             armor: Some(Armor {
-                slot: EquipSlot::Chest,
+                occupies: &[EquipSlot::ChestArmor],
                 amount: 40.0,
             }),
             good_for: Default::default(),

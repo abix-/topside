@@ -71,11 +71,10 @@ fn layer_of(name: &str) -> &str {
 /// Whether `worn` has on the item whose model layer is `layer` (the road
 /// sign vest), in any slot but the hands.
 fn wears(items: &ItemRegistryRes, worn: &Equipment, layer: &str) -> bool {
-    EquipSlot::ALL
-        .into_iter()
-        .filter(|slot| *slot != EquipSlot::Weapon)
-        .filter_map(|slot| worn.0.get(slot))
-        .filter_map(|stack| items.0.def(&stack.item))
+    worn.0
+        .items()
+        .filter(|(_, slots)| !slots.contains(&EquipSlot::Weapon))
+        .filter_map(|(stack, _)| items.0.def(&stack.item))
         .any(|def| def.picture.as_deref() == Some(layer))
 }
 
