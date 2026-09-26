@@ -194,6 +194,12 @@ died, respawned. "in games like rust you know your enemy killer": a
 person who dies knows who killed them. The endpoint reads it; the same
 memory the brain reads, no second record.
 
+A person who dies still exists (operator, 2026-09-26): each NPC has
+one memory and all of it goes there; after an NPC dies, that NPC is
+still there to query, memory and all. They lived, they died, and they
+still exist. A topside person who dies, by a hand or the storm, never
+comes back, but is never erased.
+
 ### Learning to stay alive (operator, 2026-09-25)
 
 Every person learns from what they live through (reinforcement
