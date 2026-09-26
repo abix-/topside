@@ -741,6 +741,35 @@ a monument is rolled then spawned. What a roll decides:
   own spacing, enough that one stands within 150 m of almost any point
   on land. What each one is (a trace, a question) is in "The unknown".
 
+### 2D world generation, the Factorio way (operator, 2026-09-25)
+
+The world is made for 2D, modelled on Factorio: the base world is flat.
+Cliffs, no real height changes. (Levels up and down stay: the bunker
+digs down, buildings have floors above and basements below, each seen
+one floor at a time; the ground they stand on is flat.) This replaces
+the heightmap, levelling ground for buildings, roads paying for slopes,
+and a landmark seen over hills from the 3D game.
+
+- Tiles and chunks only (pathing.md "One grid"). Each chunk is made from
+  the seed the first time it is needed, so the world can be any size
+  without being built up front (the aim: 1,000,000 tiles across).
+- Every tile has a ground kind from noise: grass, dirt, sand, forest
+  floor, rubble, water. Biomes from noise (moisture, temperature), and a
+  biome decides its ground, what grows and lies on it, its monuments,
+  people, and wildlife.
+- Water, cliffs, trees, and rocks are what stop a body. Cliffs run as
+  lines with gaps (Factorio's cliffs follow hidden contour lines, the
+  only use of any height). They block walking and, since nobody sees
+  behind walls, sight: a cliff or a wood hides what is past it until you
+  go round, the 2D form of "a hill you can't see over is a question".
+- Sites are placed region by region from the seed, only where the
+  monument's whole footprint is valid; the ground under it is cleared.
+  Minor sites every 150 m. Roads on tiles between places people used,
+  never to the bunker.
+- How "the door opens on one big thing" works in 2D is open: something
+  found by going (smoke, a light at night, a sound, a road's end), not a
+  far sight line.
+
 ### A valid world (operator, 2026-09-25)
 
 World generation only makes valid worlds; nothing later has to repair
