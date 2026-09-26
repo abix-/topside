@@ -215,13 +215,15 @@ def join(parts, name, size=None, turn=0):
 # -- the picture -------------------------------------------------------------
 
 
-def picture(obj, out, frame=None):
+def picture(obj, out, frame=None, fit=None):
     """render `obj` (one object or several) from the game's camera to `out`,
-    its ground point at the centre. The picture fits the model, or with
-    `frame`, is that many metres either side of the ground point (half
-    width, half height) as the camera sees it, so pictures that are drawn
-    over each other line up."""
+    its ground point at the centre. The picture fits the model, or the
+    objects in `fit` (so pictures of pieces drawn over each other share one
+    frame), or with `frame`, is that many metres either side of the ground
+    point (half width, half height) as the camera sees it, so pictures that
+    are drawn over each other line up."""
     objs = obj if isinstance(obj, list) else [obj]
+    fit = fit or objs
     scene = bpy.context.scene
     # Square tiles (FFF 269: the camera is 45 degrees down, "but in Factorio
     # ... our tiles being square"): the scene is stretched along the ground
@@ -251,7 +253,7 @@ def picture(obj, out, frame=None):
     # reaches from the ground point, as the camera sees it.
     if frame is None:
         view = cam.matrix_world.inverted()
-        seen = [view @ (o.matrix_world @ v.co) for o in objs for v in o.data.vertices]
+        seen = [view @ (o.matrix_world @ v.co) for o in fit for v in o.data.vertices]
         half_w = max(abs(p.x) for p in seen) + MARGIN
         half_h = max(abs(p.y) for p in seen) + MARGIN
     else:
@@ -314,21 +316,176 @@ def kenney(kit, model, name, size=ITEM, rgb=None, turn=0):
     return join(load(ROOT / "scripts" / f"kenney-{kit}" / f"{model}.glb", {"colormap": (rgb, False)}), name, size, turn)
 
 
-def pipe():
+# -- weapons, in layers ----------------------------------------------------------
+#
+# A melee weapon is a handle and a head (design.md "What 2D changes"). Every
+# handle is built lying along x, its grip at x = 0 and its tip at x = its
+# length, its middle at the height of its radius, so it rests on the ground;
+# every head is built on that tip. Handles differ in length, so each head is
+# rendered once per handle, as each hair is once per body: the handle alone
+# is `<handle>` (the item's own picture) and each head alone on it is
+# `<handle> <head>`, all of one handle's pictures in one frame, so they stack.
+# Every weapon is drawn at WEAPON_SCALE, so a metre-long pipe lies ITEM long
+# and a head is the same size on every handle.
+WEAPON_SCALE = ITEM
+
+
+def pipe_handle():
     """the pipe: a metre of rusty steel with a taped grip at one end."""
     length, radius = 1.0, 0.025
     steel = material("steel", (0.45, 0.42, 0.40))
     tape = material("tape", (0.18, 0.16, 0.14))
     parts = [
-        cylinder("shaft", radius, length, along="X", mat=steel),
+        cylinder("shaft", radius, length, along="X", at=(length / 2, 0, radius), mat=steel),
         # The grip: a fatter band over the near end.
-        cylinder("grip", radius * 1.25, 0.22, along="X", at=(-length / 2 + 0.14, 0, 0), mat=tape),
+        cylinder("grip", radius * 1.25, 0.22, along="X", at=(0.14, 0, radius), mat=tape),
         # A threaded collar at the far end, so the hitting end reads.
-        cylinder("collar", radius * 1.4, 0.05, along="X", at=(length / 2 - 0.04, 0, 0), mat=steel),
-        # A dent: a shallow box pressed into the shaft a third of the way up.
-        box("dent", (0.06, radius * 1.1, radius * 0.5), at=(0.1, 0, radius * 0.9), mat=steel),
+        cylinder("collar", radius * 1.4, 0.05, along="X", at=(length - 0.04, 0, radius), mat=steel),
+        # A dent: a shallow box pressed into the shaft past the middle.
+        box("dent", (0.06, radius * 1.1, radius * 0.5), at=(0.6, 0, radius * 1.9), mat=steel),
     ]
-    return join(parts, "pipe", ITEM)
+    return parts, length, radius
+
+
+def wooden_handle():
+    """the wooden handle: a short length of grey-brown wood, its grip
+    wrapped in cloth."""
+    length, radius = 0.7, 0.022
+    wood = material("wood", (0.4, 0.28, 0.16))
+    cloth = material("wrap", (0.5, 0.46, 0.38))
+    parts = [
+        cylinder("shaft", radius, length, along="X", at=(length / 2, 0, radius), mat=wood),
+        cylinder("grip", radius * 1.2, 0.18, along="X", at=(0.1, 0, radius), mat=cloth),
+    ]
+    return parts, length, radius
+
+
+def long_pole():
+    """the long pole: nearly two metres of pale wood, wrapped where both
+    hands hold it."""
+    length, radius = 1.8, 0.025
+    wood = material("pole", (0.48, 0.37, 0.22))
+    cloth = material("wrap", (0.5, 0.46, 0.38))
+    parts = [
+        cylinder("shaft", radius, length, along="X", at=(length / 2, 0, radius), mat=wood),
+        cylinder("grip_near", radius * 1.2, 0.16, along="X", at=(0.2, 0, radius), mat=cloth),
+        cylinder("grip_far", radius * 1.2, 0.16, along="X", at=(0.8, 0, radius), mat=cloth),
+    ]
+    return parts, length, radius
+
+
+def nails(tip, radius):
+    """nails driven through the last hand's width of the handle, sticking
+    out to both sides and up."""
+    steel = material("nail", (0.55, 0.55, 0.58))
+    parts = []
+    # Drawn thicker and longer than real nails, so they read at item size.
+    for i in range(6):
+        x = tip - 0.03 - i * 0.04
+        if i % 3 == 2:
+            parts.append(cylinder(f"nail_{i}", 0.009, 0.14, sides=6, along="Z", at=(x, 0, radius + 0.06), mat=steel))
+        else:
+            side = 1 if i % 3 == 0 else -1
+            parts.append(cylinder(f"nail_{i}", 0.009, 0.14, sides=6, along="Y", at=(x, side * 0.06, radius), mat=steel))
+    return parts
+
+
+def scrap_blade(tip, radius):
+    """a strip of rusty scrap sharpened along one edge, bound to the tip."""
+    rust = material("scrap", (0.5, 0.35, 0.25))
+    edge = material("edge", (0.65, 0.63, 0.6))
+    tape = material("tape", (0.18, 0.16, 0.14))
+    return [
+        box("blade", (0.28, 0.07, 0.006), at=(tip + 0.1, 0, radius), mat=rust),
+        box("edge", (0.26, 0.012, 0.007), at=(tip + 0.1, 0.035, radius), mat=edge),
+        cylinder("binding", radius * 1.35, 0.07, along="X", at=(tip - 0.03, 0, radius), mat=tape),
+    ]
+
+
+def axe_head(tip, radius):
+    """an axe head across the tip: the blade to one side, its bright edge
+    ground, a short poll to the other."""
+    steel = material("axe", (0.32, 0.32, 0.34))
+    edge = material("edge", (0.65, 0.63, 0.6))
+    return [
+        box("cheek", (0.08, 0.16, 0.03), at=(tip - 0.05, 0.06, radius), mat=steel),
+        box("edge", (0.1, 0.02, 0.031), at=(tip - 0.05, 0.145, radius), mat=edge),
+        box("poll", (0.06, 0.05, 0.04), at=(tip - 0.05, -0.04, radius), mat=steel),
+    ]
+
+
+def spear_point(tip, radius):
+    """a steel point past the tip, bound on with wire."""
+    steel = material("point", (0.5, 0.5, 0.52))
+    wire = material("wire", (0.35, 0.3, 0.25))
+    bpy.ops.mesh.primitive_cone_add(vertices=4, radius1=0.055, radius2=0, depth=0.3, location=(tip + 0.15, 0, radius), rotation=(0, math.pi / 2, 0))
+    return [
+        _named("point", steel),
+        cylinder("binding", radius * 1.3, 0.08, along="X", at=(tip - 0.02, 0, radius), mat=wire),
+    ]
+
+
+def sharpened_road_sign(tip, radius):
+    """a piece of green road sign with its white border, cut to a point
+    and bolted on past the tip."""
+    sign = material("sign", (0.2, 0.5, 0.2))
+    white = material("border", (0.9, 0.9, 0.88))
+    bolt = material("bolt", (0.55, 0.55, 0.58))
+    return [
+        box("plate", (0.24, 0.13, 0.006), at=(tip + 0.08, 0, radius), mat=sign),
+        box("point", (0.1, 0.1, 0.006), at=(tip + 0.2, 0, radius), rotation=(0, 0, math.pi / 4), mat=sign),
+        box("border", (0.24, 0.015, 0.007), at=(tip + 0.08, 0.058, radius), mat=white),
+        cylinder("bolt", 0.012, 0.02, along="Z", at=(tip - 0.02, 0, radius + 0.01), mat=bolt),
+    ]
+
+
+# The handles and heads, named as in content/src/lib.rs (register_items,
+# register_layers).
+HANDLES = {"pipe": pipe_handle, "wooden handle": wooden_handle, "long pole": long_pole}
+HEADS = {
+    "nails": nails,
+    "scrap blade": scrap_blade,
+    "axe head": axe_head,
+    "spear point": spear_point,
+    "sharpened road sign": sharpened_road_sign,
+}
+
+
+def merge(parts, name):
+    """join parts into one flat-shaded object named `name`, left where it
+    was built, its origin at the world's."""
+    bpy.ops.object.select_all(action="DESELECT")
+    for p in parts:
+        p.select_set(True)
+    bpy.context.view_layer.objects.active = parts[0]
+    if len(parts) > 1:
+        bpy.ops.object.join()
+    obj = bpy.context.active_object
+    obj.name = name
+    bpy.ops.object.shade_flat()
+    bpy.context.scene.cursor.location = (0.0, 0.0, 0.0)
+    bpy.ops.object.origin_set(type="ORIGIN_CURSOR")
+    return obj
+
+
+def weapons():
+    """render every handle alone and every head alone on each handle, one
+    frame per handle, the handle's middle at the ground point."""
+    for handle, build in HANDLES.items():
+        clear()
+        parts, length, radius = build()
+        layers = {handle: merge(parts, handle)}
+        for head, put_on in HEADS.items():
+            layers[f"{handle} {head}"] = merge(put_on(length, radius), head)
+        for obj in layers.values():
+            obj.scale = (WEAPON_SCALE,) * 3
+            obj.location = (-length / 2 * WEAPON_SCALE, 0.0, 0.0)
+        bpy.context.view_layer.update()
+        every = list(layers.values())
+        for name, obj in layers.items():
+            for other in every:
+                other.hide_render = other is not obj
+            picture(obj, OUT / f"{name}.png", fit=every)
 
 
 def pipe_shotgun():
@@ -755,7 +912,7 @@ def people():
 
 
 # Models that render several pictures themselves.
-SETS = {"person": people, "ground": ground}
+SETS = {"person": people, "ground": ground, "weapons": weapons}
 
 
 MODELS = {
@@ -778,8 +935,6 @@ MODELS = {
     "storage box": lambda: kenney("survival", "box", "storage box", DEPLOYABLE),
     "scrap": lambda: kenney("survival", "metal-panel-screws-half", "scrap"),
     "cloth": lambda: kenney("survival", "bedroll-packed", "cloth"),
-    "pipe": pipe,
-    "hatchet": lambda: kenney("survival", "tool-axe", "hatchet"),
     "pipe shotgun": pipe_shotgun,
     "shotgun shell": shotgun_shell,
     "road sign vest": road_sign_vest,
