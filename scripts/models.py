@@ -196,7 +196,13 @@ def join(parts, name, size=None):
     if size is not None:
         obj.scale *= size / max(obj.dimensions)
         bpy.context.view_layer.update()
-    obj.location.z -= min((obj.matrix_world @ v.co).z for v in obj.data.vertices)
+    # Centred on its footprint, its lowest point on the ground: the ground
+    # point is the middle of what it stands on.
+    world = [obj.matrix_world @ v.co for v in obj.data.vertices]
+    obj.location.x -= (min(p.x for p in world) + max(p.x for p in world)) / 2
+    obj.location.y -= (min(p.y for p in world) + max(p.y for p in world)) / 2
+    obj.location.z -= min(p.z for p in world)
+    bpy.context.view_layer.update()
     return obj
 
 
@@ -282,10 +288,10 @@ ITEM = 0.35
 DEPLOYABLE = 0.7
 
 
-def kenney(kit, model, name, size=ITEM):
+def kenney(kit, model, name, size=ITEM, rgb=None):
     """a model from one of Kenney's kits (scripts/kenney-<kit>, CC0), in
-    its own flat colours."""
-    return join(load(ROOT / "scripts" / f"kenney-{kit}" / f"{model}.glb", {"colormap": (None, False)}), name, size)
+    its own flat colours, or all in `rgb`."""
+    return join(load(ROOT / "scripts" / f"kenney-{kit}" / f"{model}.glb", {"colormap": (rgb, False)}), name, size)
 
 
 def pipe():
@@ -368,6 +374,34 @@ def road_sign_vest():
         box("strap_r", (0.07, 0.16, 0.02), at=(0.12, h / 2 + 0.06, 0), mat=strap),
     ]
     return join(parts, "road sign vest", ITEM)
+
+
+# -- the minor sites' props ----------------------------------------------------
+#
+# Each at its largest side as content/src/lib.rs sizes it (the minor
+# sites' `prop`); change both together.
+
+
+def car_wreck():
+    """a wrecked car: Kenney's sedan all in rust, lying along x as content
+    sizes it (4.2 m long)."""
+    car = kenney("car", "sedan", "car wreck", 4.2, rgb=(0.45, 0.2, 0.15))
+    # The glTF importer leaves objects turned by quaternion.
+    car.rotation_mode = "XYZ"
+    car.rotation_euler.z += math.radians(90)
+    bpy.context.view_layer.update()
+    return car
+
+
+def parachute():
+    """a supply drop's parachute lying flat: a canvas disc with its seams."""
+    canvas = material("canvas", (0.6, 0.6, 0.62))
+    seam = material("seam", (0.45, 0.45, 0.47))
+    parts = [cylinder("canopy", 1.5, 0.05, sides=16, mat=canvas)]
+    for i in range(8):
+        a = i * math.pi / 8
+        parts.append(box(f"seam_{i}", (3.0, 0.03, 0.01), at=(0, 0, 0.03), rotation=(0, 0, a), mat=seam))
+    return join(parts, "parachute", 3.0)
 
 
 # -- people ------------------------------------------------------------------
@@ -474,6 +508,16 @@ MODELS = {
     "pipe shotgun": pipe_shotgun,
     "shotgun shell": shotgun_shell,
     "road sign vest": road_sign_vest,
+    # The minor sites' props, named as in content/src/lib.rs.
+    "car wreck": car_wreck,
+    "barrel": lambda: kenney("survival", "barrel", "barrel", 0.9),
+    "tent": lambda: kenney("survival", "tent", "tent", 2.4),
+    "fire pit": lambda: kenney("survival", "campfire-pit", "fire pit", 1.0),
+    "crate": lambda: kenney("survival", "box", "crate", 0.5),
+    "supply crate": lambda: kenney("survival", "box-large", "supply crate", 1.6),
+    "parachute": parachute,
+    "grave": lambda: kenney("graveyard", "grave", "grave", 1.8),
+    "stone": lambda: kenney("graveyard", "gravestone-broken", "stone", 0.5),
 }
 
 

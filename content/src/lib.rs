@@ -1166,11 +1166,14 @@ pub fn register_monuments(reg: &mut MonumentRegistry, buildings: &BuildingRegist
     };
     // Minor sites (design.md: "something worth stopping for every 30
     // seconds"): props around a loot box, no buildings, close spacing.
-    let prop = |size: [f32; 3], color: Rgb, count: (u32, u32), radius: f32| PropDef {
+    // Each prop is drawn as its picture, rendered by scripts/models.py to
+    // its size here.
+    let prop = |picture: &str, size: [f32; 3], color: Rgb, count: (u32, u32), radius: f32| PropDef {
         size: Vec3::from(size),
         color,
         count,
         radius,
+        picture: Some(picture.to_string()),
     };
     let minor = |name: &str, danger, suffix: &str, props: Vec<PropDef>| MonumentTypeDef {
         name: name.to_string(),
@@ -1290,8 +1293,8 @@ pub fn register_monuments(reg: &mut MonumentRegistry, buildings: &BuildingRegist
             0,
             "Wreck",
             vec![
-                prop([4.2, 1.4, 1.9], [0.45, 0.2, 0.15], (1, 2), 4.0),
-                prop([0.6, 0.9, 0.6], [0.3, 0.3, 0.32], (0, 3), 5.0),
+                prop("car wreck", [4.2, 1.4, 1.9], [0.45, 0.2, 0.15], (1, 2), 4.0),
+                prop("barrel", [0.6, 0.9, 0.6], [0.3, 0.3, 0.32], (0, 3), 5.0),
             ],
         ),
         minor(
@@ -1299,9 +1302,9 @@ pub fn register_monuments(reg: &mut MonumentRegistry, buildings: &BuildingRegist
             1,
             "Camp",
             vec![
-                prop([2.4, 1.6, 2.4], [0.35, 0.3, 0.2], (1, 2), 4.0),
-                prop([1.0, 0.4, 1.0], [0.2, 0.2, 0.2], (1, 1), 2.5),
-                prop([0.5, 0.5, 0.5], [0.4, 0.32, 0.2], (1, 3), 3.5),
+                prop("tent", [2.4, 1.6, 2.4], [0.35, 0.3, 0.2], (1, 2), 4.0),
+                prop("fire pit", [1.0, 0.4, 1.0], [0.2, 0.2, 0.2], (1, 1), 2.5),
+                prop("crate", [0.5, 0.5, 0.5], [0.4, 0.32, 0.2], (1, 3), 3.5),
             ],
         ),
         minor(
@@ -1309,8 +1312,8 @@ pub fn register_monuments(reg: &mut MonumentRegistry, buildings: &BuildingRegist
             1,
             "Drop",
             vec![
-                prop([1.6, 1.2, 1.6], [0.3, 0.4, 0.3], (1, 1), 1.5),
-                prop([3.0, 0.1, 3.0], [0.6, 0.6, 0.62], (1, 1), 4.0),
+                prop("supply crate", [1.6, 1.2, 1.6], [0.3, 0.4, 0.3], (1, 1), 1.5),
+                prop("parachute", [3.0, 0.1, 3.0], [0.6, 0.6, 0.62], (1, 1), 4.0),
             ],
         ),
         minor(
@@ -1318,8 +1321,8 @@ pub fn register_monuments(reg: &mut MonumentRegistry, buildings: &BuildingRegist
             0,
             "Grave",
             vec![
-                prop([1.8, 0.3, 0.6], [0.3, 0.28, 0.25], (1, 1), 1.5),
-                prop([0.5, 0.5, 0.5], [0.4, 0.4, 0.38], (0, 2), 3.0),
+                prop("grave", [1.8, 0.3, 0.6], [0.3, 0.28, 0.25], (1, 1), 1.5),
+                prop("stone", [0.5, 0.5, 0.5], [0.4, 0.4, 0.38], (0, 2), 3.0),
             ],
         ),
     ];

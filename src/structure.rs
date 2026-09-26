@@ -253,11 +253,12 @@ pub fn spawn_sites(
             ));
             for p in &monument.props {
                 let centre = site.position + Vec2::new(p.position.x, p.position.z);
-                commands.spawn((
-                    WorldPiece,
-                    sprite(p.color, Vec2::new(p.size.x, p.size.z)),
-                    Transform::from_translation(centre.extend(SOLID_Z)),
-                ));
+                let at = Transform::from_translation(centre.extend(SOLID_Z));
+                // Its picture, or a box in its colour until it has one.
+                match &p.picture {
+                    Some(name) => commands.spawn((WorldPiece, crate::picture::Picture(name.clone()), at)),
+                    None => commands.spawn((WorldPiece, sprite(p.color, Vec2::new(p.size.x, p.size.z)), at)),
+                };
             }
         }
         // A box at every loot spot, filled by the spot's danger from the
