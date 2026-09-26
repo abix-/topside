@@ -263,14 +263,17 @@ How it is done, from those who did it:
 Proof on the small world: across a person's lives, each life lasts
 longer.
 
+Decided (operator, 2026-09-25): "all npcs learn and evolve. everyone
+learns individually. genes come later". Every person learns, topside
+people as well as bunker people; each learns alone, nothing learned is
+shared; genes are a later step.
+
 Open, for the operator:
 
 - Do bunker people start knowing their store and bunker, or nothing?
-- Do topside people learn? They leave the world at death and every
-  storm.
-- Does a bunker share what its people learned ("Told"), or does each
-  person learn alone?
-- Genes (learning across generations) later on top?
+- A topside person today leaves the world for good at death and at
+  every storm, taking their memory with them. To learn across lives they
+  have to come back as themselves: how and where?
 
 ### The map each person carries (operator, 2026-09-25)
 
