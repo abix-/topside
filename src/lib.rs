@@ -155,6 +155,8 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind) -> App {
                 lap("interact"),
                 player::movement,
                 lap("movement"),
+                nav::doorways,
+                lap("doorways"),
                 combat::melee,
                 lap("melee"),
                 combat::fire,

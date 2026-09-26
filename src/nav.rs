@@ -175,6 +175,44 @@ fn closed_door_ahead(index: &DoorIndex, doors: &Query<&Door>, here: Vec2, way: V
         })
 }
 
+/// How near a door's closed place someone stands to be in its doorway.
+const IN_DOORWAY: f32 = 0.6;
+
+/// The door whose doorway someone at `here` stands in, if any.
+fn doorway_at(index: &DoorIndex, doors: &Query<&Door>, here: Vec2) -> Option<Entity> {
+    let (cx, cy) = chunk_at(here);
+    (cy - 1..=cy + 1)
+        .flat_map(|y| (cx - 1..=cx + 1).map(move |x| (x, y)))
+        .filter_map(|key| index.by_chunk.get(&key))
+        .flatten()
+        .copied()
+        .find(|e| doors.get(*e).is_ok_and(|d| d.closed_center.distance(here) <= IN_DOORWAY))
+}
+
+/// Going through a doorway goes into the person's memory (life.md "What
+/// a person did"), once each time they step into it, player and NPC
+/// alike.
+pub fn doorways(
+    tick: Res<SimTick>,
+    index: Res<DoorIndex>,
+    doors: Query<&Door>,
+    mut people: Query<(Entity, &Transform, &mut crate::actor::Memory), Without<Dead>>,
+    mut inside: Local<std::collections::HashMap<Entity, Entity>>,
+) {
+    for (person, at, mut memory) in &mut people {
+        match doorway_at(&index, &doors, at.translation.truncate()) {
+            Some(door) => {
+                if inside.insert(person, door) != Some(door) {
+                    memory.0.did(modforge::memory::Did::Doorway, tick.0);
+                }
+            }
+            None => {
+                inside.remove(&person);
+            }
+        }
+    }
+}
+
 /// Every NPC the brain sent walking this tick: a way asked for when
 /// there is none, it is old, or the goal moved; the queue worked through
 /// within the budget; then each steps to the next point of its way.

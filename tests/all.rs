@@ -3,4 +3,5 @@
 
 mod chunks;
 mod control_plane;
+mod doorways;
 mod game;

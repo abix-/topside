@@ -26,6 +26,7 @@ These rules govern `docs/changelog.md`. Follow them exactly.
 
 | System | Item | Done when |
 |---|---|---|
+| topside-tests | [x] Confirm on the endpoint that people walk and go through doorways: going through a doorway goes into the person's memory (modforge `Did::Doorway`, topside `nav::doorways`), counted in the `people` op | tests/doorways.rs `people_go_through_doorways` passes against the running game: bunker person 21 of bunker 4 went through a doorway |
 | topside-tests | [x] Confirm on the endpoint that chunks are made in the small world (design.md "The small world first"): the `world` op reports the chunks made and how many of the world and the ring past its edge are missing | tests/chunks.rs `every_chunk_of_the_small_world_is_made` passes against the running game: chunks made, none missing |
 
 ## 2026-09-25

@@ -6,7 +6,6 @@ v3: polish and endgame (NPC memory, vehicles, GPU simulation, quality/named uniq
 
 | Priority | Version | System | Todo | Done when |
 |---:|---|---|---|---|
-| 1 | v1 | topside-tests | [ ] Confirm on the endpoint that people walk and go through doorways | A test reads the running game and finds people who walked through a doorway |
 | 1 | v1 | topside-tests | [ ] Confirm on the endpoint that a hungry person eats from a box | A test reads the running game and finds a hungry person who ate from a box |
 | 1 | v1 | topside-tests | [ ] Confirm on the endpoint that bunker people haul food home | A test reads the running game and finds food a bunker person carried home into its store |
 | 1 | v1 | topside-tests | [ ] Confirm on the endpoint that people wander | A test reads the running game and finds people wandering to spots they can reach |
