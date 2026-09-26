@@ -28,6 +28,28 @@ so survival is how the explorer half and the killer half meet.
 In one line (operator, 2026-08-22): "think of it like Diablo 2 but with
 survival and exploration and incremental and building."
 
+## Your own story (operator, 2026-09-25)
+
+This is the core of what topside is trying to solve. It is not just a
+game, it is a feeling.
+
+As a young boy the operator read Choose Your Own Adventure books and
+loved them for the choice they gave, but always wanted more choice and
+more freedom: to truly write their own story. Since then the operator has chased
+books, stories, and games looking for that experience: a truly unique
+choose-your-own-adventure, with NPCs that react to you, not through
+scripted triggers and thresholds, but through how the player interacts
+with the world and how the world interacts back. Something truly
+emergent, and then enjoying it.
+
+So nothing in topside is a written choice. The story is what happens
+when the player pushes on the world and the world pushes back: people
+with their own needs and memories, who remember what you did to them,
+bunkers whose standing with you changes with what happens between you,
+knowledge that travels, and consequences that stay in a world that
+keeps going without you. Every system is judged by whether it lets the
+player write a story no one wrote for them.
+
 ## The feeling (operator, 2026-08-22)
 
 "Always navigating uncertain terrain with limited supplies. Figuring
