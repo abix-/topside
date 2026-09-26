@@ -389,16 +389,25 @@ to build.
 | 18 | Save | topside | - | Persistence of the 1000 people, bunkers, factions, and world seed across restarts, with version migration. | UNBUILT. Endless save-load.md is the model. |
 | 20 | MonumentDef | topside | - | Monuments as data: a list of possible BuildingTypes to pick from, loot spots, NPC spots, gates, arrangement rules, names. Two layers of randomization: the monument picks buildings from its list, each building generates with varied parameters. spawn_monument is the one path; members spawn only through spawn_structure; loot value, NPC identity, and world placement belong to Quality, Genome/the edge, and Worldgen respectively. | UNBUILT. Building types and monument composition rules documented in design.md. Rust's monuments are the reference. |
 
-## Presentation (decided 2026-09-25: 2D)
+## Presentation (decided 2026-09-26: one 3D world, two cameras)
 
-Topside is 2D, because 3D takes far more work and this is a one person
-project; Factorio and the other big scope games stayed 2D for the same
-reason. Everything is done the Factorio way: the low poly cel shaded models
-are rendered to pictures ahead of time, and the game draws only pictures,
-from Factorio's view. Only 3D first person changes; low poly, cel shading,
-AI-generated assets, and Bevy stay.
+Topside is one 3D world seen through two cameras (operator, 2026-09-26):
+a top-down camera (Factorio's view) and a first person camera, on the same
+world, the same actors, and the same actions. The world is built once in 3D:
+low poly cel shaded models drawn live, 3D physics, height. The top-down view
+is a camera looking down at that scene, not pictures rendered ahead of time,
+so the pictures and their drawing retire. The camera and how input reads
+into actions are the only things the two views do differently. The top-down
+camera comes first (it replaces what runs today), first person second; the
+player switches between them with a key. Whether the storm forces a switch
+is decided later.
 
-The 2026-08-19 decision, with only its 3D first person part replaced:
+This replaces the 2026-09-25 decision (2D, pictures rendered ahead of time,
+because 3D takes far more work for one person): with one world and two
+cameras, 3D removes the picture work instead of adding to it, and first
+person brings back the embodiment the 2026-08-19 decision was made for.
+
+The 2026-08-19 decision:
 
 Topside is 3D, first person, low poly with cel shading, with AI-generated
 assets, built on Bevy.
