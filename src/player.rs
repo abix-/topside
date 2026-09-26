@@ -172,11 +172,8 @@ pub fn respawn(
         if !this_tick.0.iter().any(|s| matches!(s.action, Action::Respawn)) {
             continue;
         }
-        // Back with half health, full food, and full water (operator,
-        // 2026-09-26), everyone alike.
-        health.0.current = health.0.max / 2.0;
-        needs.0.hunger = modforge::survival::FULL;
-        needs.0.thirst = modforge::survival::FULL;
+        // What they come back with: modforge's rule.
+        modforge::survival::respawn(&mut health.0, &mut needs.0);
         if let Some(mut memory) = memory {
             memory.0.did(modforge::memory::Did::Respawned, tick.0);
         }
