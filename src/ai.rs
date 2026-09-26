@@ -304,6 +304,9 @@ pub fn think(
             &items.0,
         );
         memory.0.learned.score(tick.0, alive);
+        // Reached with no search: a clear straight way on the tiles
+        // (pathing.md "Short trips go straight").
+        let reachable = |at: Vec3| walk.borrow_mut().line_clear(here, Vec2::new(at.x, at.z));
         let perception = Perception {
             now: tick.0,
             position: ground(here),
@@ -327,6 +330,7 @@ pub fn think(
             personality: &personality.0,
             worth: &worth,
             standable: &standable,
+            reachable: &reachable,
         };
 
         // Decide: seeded by the tick and the person, so a replay
