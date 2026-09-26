@@ -571,8 +571,11 @@ pub fn publish(
                     "weapon": weapon,
                     // Where they face on the ground, in radians (0 along +x).
                     "facing": facing.0,
-                    // What they wear, each with the equipment slots it holds.
-                    "worn": worn.0.items().map(|(s, slots)| json!({"item": s.item, "slots": slots.iter().map(|x| format!("{x:?}")).collect::<Vec<_>>()})).collect::<Vec<_>>(),
+                    // What they wear, each in its equipment slot (one row of
+                    // plain slots).
+                    "worn": (0..modforge::item::EQUIPMENT_SLOTS)
+                        .filter_map(|i| worn.0.get(i).map(|s| json!({"slot": i, "item": s.item})))
+                        .collect::<Vec<_>>(),
                     // How many tiles are on the map they carry.
                     "map_tiles": map.map.tiles_seen(),
                     // What their model shows (only with a window).

@@ -16,7 +16,7 @@ use modforge::combat::{DamageDef, DamageRegistry, DamageType, Falloff};
 use modforge::faction::{FactionDef, FactionKind, FactionRegistry};
 use modforge::memory::GoodFor;
 use modforge::survival::Need;
-use modforge::item::{Armor, CombatStats, EquipSlot, FoodStats, ItemDef, ItemKind, ItemRegistry, LayerDef, LayerRegistry, Note};
+use modforge::item::{Armor, CombatStats, FoodStats, ItemDef, ItemKind, ItemRegistry, LayerDef, LayerRegistry, Note};
 use modforge::monument::Roll;
 use modforge::monument::{
     Arrangement, BuildingRegistry, BuildingSize, BuildingSlot, BuildingTypeDef,
@@ -1165,12 +1165,7 @@ pub fn register_items(reg: &mut ItemRegistry) {
             combat: None,
             food: None,
             storage: None,
-            // Rust's road sign jacket: the chest's armor layer, over a
-            // shirt.
-            armor: Some(Armor {
-                occupies: &[EquipSlot::ChestArmor],
-                amount: 40.0,
-            }),
+            armor: Some(Armor { amount: 40.0 }),
             good_for: Default::default(),
             picture: None,
             layer_slots: Vec::new(),

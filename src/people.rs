@@ -12,7 +12,6 @@ use std::time::Duration;
 
 use bevy::gltf::Gltf;
 use bevy::prelude::*;
-use modforge::item::EquipSlot;
 
 use crate::actor::Look;
 use crate::combat::Equipment;
@@ -73,8 +72,7 @@ fn layer_of(name: &str) -> &str {
 fn wears(items: &ItemRegistryRes, worn: &Equipment, layer: &str) -> bool {
     worn.0
         .items()
-        .filter(|(_, slots)| !slots.contains(&EquipSlot::Weapon))
-        .filter_map(|(stack, _)| items.0.def(&stack.item))
+        .filter_map(|stack| items.0.def(&stack.item))
         .any(|def| def.picture.as_deref() == Some(layer))
 }
 
