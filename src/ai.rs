@@ -287,6 +287,26 @@ pub fn think(
             &items.0,
         );
         memory.0.learned.score(tick.0, alive);
+        // A trip whose way the queue could not find (pathing.md rule 5) is
+        // dropped: they pick again from the root. A thing they could not
+        // reach counts as looked at, so the same one is not picked again
+        // at once.
+        let unreached = match record.0.target {
+            modforge::statetree::Target::Point(to) => Some((to, None)),
+            modforge::statetree::Target::Thing { key, at, .. } => Some((at, Some(key))),
+            _ => None,
+        };
+        if let (Some((to, thing)), Some(way)) = (unreached, way)
+            && tick.0 < way.retry_at
+            && way.goal.distance(Vec2::new(to.x, to.z)) <= 1.0
+        {
+            match thing {
+                Some(key) if key & PLACE_KEY != 0 || source_at(key).is_some() => memory.0.visited(key, tick.0),
+                Some(key) => memory.0.checked(key, Vec::new(), tick.0),
+                None => {}
+            }
+            record.0 = Default::default();
+        }
         let standable = |at: Vec3| can_go(at);
         let reachable = || walk.borrow_mut().reachable_in_chunk(here).into_iter().map(ground).collect();
         let unknown = |at: Vec3| !map.is_some_and(|m| m.map.seen(modforge::walk::cell_of(Vec2::new(at.x, at.z))));
@@ -321,14 +341,6 @@ pub fn think(
         // what they learn from.
         let mut roll = Roll::new(tick.0 ^ actor.0.0.wrapping_mul(0x9E37_79B9_7F4A_7C15));
         let situation = situation(&perception);
-        // A stroll or trip out whose way the queue could not find
-        // (pathing.md rule 5) is dropped: they pick again from the root.
-        if let (modforge::statetree::Target::Point(to), Some(way)) = (record.0.target, way)
-            && tick.0 < way.retry_at
-            && way.goal.distance(Vec2::new(to.x, to.z)) <= 1.0
-        {
-            record.0 = Default::default();
-        }
         let mut thought = Think::new(&perception, &mut roll);
         let chose = tree.0.think(&mut thought, &mut record.0);
         let Think {

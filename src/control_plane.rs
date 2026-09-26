@@ -258,7 +258,10 @@ pub fn publish_ways(tick: Res<crate::SimTick>, failed: Res<crate::nav::FailedWay
 }
 /// How many times real time the game runs, set by the `speed` op
 /// (Factorio's game speed); 1 is normal.
-static SPEED_BITS: AtomicU32 = AtomicU32::new(0x3f80_0000);
+/// The game starts at 4 times real time (operator, 2026-09-26: a test
+/// waits at most 3 minutes; the first night, where the thirst deaths
+/// were, is past by tick 42,000, 2 minutes 55 seconds at 4x).
+static SPEED_BITS: AtomicU32 = AtomicU32::new(0x4080_0000);
 
 /// The `screenshot` op asked for one, taken the next frame.
 static SCREENSHOT: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);

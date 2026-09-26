@@ -123,6 +123,7 @@ pub fn brain_tree() -> StateTree<Brain> {
     errand(&mut s, "go to a need", ROOT, brain::enter_need, "using it", brain::use_it);
     s[NEED].choice = Some(Choice::GoToNeed);
     s[NEED].transitions.push(when(brain::danger, ROOT));
+    s[NEED].transitions.push(when(brain::worse_need, ROOT));
 
     let mut supply = choice(state("supply the bunker", Some(ROOT), Some(brain::enter_supply), None), Choice::Supply);
     supply.transitions.push(when(brain::danger, ROOT));
