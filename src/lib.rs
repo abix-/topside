@@ -6,6 +6,7 @@ pub mod actor;
 pub mod ai;
 pub mod combat;
 pub mod control_plane;
+pub mod held;
 pub mod hud;
 pub mod input;
 pub mod interact;
@@ -220,7 +221,9 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind) -> App {
         app.add_plugins(bevy::diagnostic::FrameTimeDiagnosticsPlugin::default());
         control_plane::start();
         app.add_systems(Startup, terrain::setup_ground.before(terrain::make_chunks));
+        app.add_plugins(MaterialPlugin::<model::Cel>::default());
         app.init_resource::<model::Tinted>();
+        app.init_resource::<model::CelShaded>();
         app.init_resource::<people::Animations>();
         app.add_systems(
             Update,
@@ -229,9 +232,13 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind) -> App {
                 input::cursor_grab,
                 people::draw_people,
                 model::attach,
-                model::tint,
-                people::dress,
+                (model::tint, people::dress).before(model::cel_shade),
+                model::cel_shade,
                 people::animate,
+                held::hold,
+                held::swing,
+                control_plane::take_screenshot,
+                control_plane::publish_view,
             ),
         );
         app.add_systems(
@@ -268,7 +275,7 @@ fn tick_system(mut tick: ResMut<SimTick>) {
     tick.0 += 1;
 }
 
-/// The sun: from the left at 45 degrees (scripts/models.py's), no shadows
+/// The sun, shining from `model::SUN` (the cel shade's light), no shadows
 /// (design.md), and a soft light everywhere so nothing is black.
 fn spawn_sun(mut commands: Commands) {
     commands.spawn((
@@ -277,7 +284,7 @@ fn spawn_sun(mut commands: Commands) {
             shadow_maps_enabled: false,
             ..default()
         },
-        Transform::from_rotation(Quat::from_euler(EulerRot::YXZ, -std::f32::consts::FRAC_PI_2, -std::f32::consts::FRAC_PI_4, 0.0)),
+        Transform::default().looking_to(-model::SUN, Vec3::Y),
     ));
     commands.insert_resource(GlobalAmbientLight {
         brightness: 400.0,

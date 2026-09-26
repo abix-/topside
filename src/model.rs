@@ -7,7 +7,69 @@
 use std::collections::HashMap;
 
 use bevy::gltf::GltfAssetLabel;
+use bevy::pbr::{ExtendedMaterial, MaterialExtension};
 use bevy::prelude::*;
+use bevy::render::render_resource::AsBindGroup;
+use bevy::shader::ShaderRef;
+
+/// Towards the sun, in the world: the cel shade's light (and the one the
+/// `DirectionalLight` in lib.rs shines from).
+pub const SUN: Vec3 = Vec3::new(0.5, 1.0, 0.3);
+
+/// The cel shade on top of Bevy's standard material (assets/shaders/
+/// cel_shade.wgsl): the model's colours, the sun's light cut into hard
+/// bands. The one material every mesh in the game is drawn with.
+#[derive(Asset, AsBindGroup, Reflect, Debug, Clone)]
+pub struct CelShade {
+    #[uniform(100)]
+    pub sun: Vec4,
+}
+
+impl MaterialExtension for CelShade {
+    fn fragment_shader() -> ShaderRef {
+        "shaders/cel_shade.wgsl".into()
+    }
+}
+
+/// A standard material, cel shaded.
+pub type Cel = ExtendedMaterial<StandardMaterial, CelShade>;
+
+/// The cel shaded twin of every standard material met so far.
+#[derive(Resource, Default)]
+pub struct CelShaded(HashMap<AssetId<StandardMaterial>, Handle<Cel>>);
+
+/// The tick a mesh appears with a standard material (a model's, the
+/// ground's), it is drawn with the cel shaded twin of it instead; after
+/// anything that tints it.
+pub fn cel_shade(
+    mut commands: Commands,
+    mut shaded: ResMut<CelShaded>,
+    standard: Res<Assets<StandardMaterial>>,
+    mut cel: ResMut<Assets<Cel>>,
+    loaded: Query<(Entity, &MeshMaterial3d<StandardMaterial>), Added<MeshMaterial3d<StandardMaterial>>>,
+) {
+    for (entity, material) in &loaded {
+        let id = material.0.id();
+        let handle = match shaded.0.get(&id) {
+            Some(handle) => handle.clone(),
+            None => {
+                let Some(base) = standard.get(id).cloned() else {
+                    continue;
+                };
+                let handle = cel.add(Cel {
+                    base,
+                    extension: CelShade { sun: SUN.normalize().extend(0.0) },
+                });
+                shaded.0.insert(id, handle.clone());
+                handle
+            }
+        };
+        commands
+            .entity(entity)
+            .remove::<MeshMaterial3d<StandardMaterial>>()
+            .insert(MeshMaterial3d(handle));
+    }
+}
 
 /// Draw this thing as the model of this name (assets/models/<name>.glb),
 /// its ground point at the thing's own.

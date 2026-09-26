@@ -458,7 +458,8 @@ def weapons():
     for handle, build in HANDLES.items():
         clear()
         parts, length, radius = build()
-        layered(handle, parts, {head: put_on(length, radius) for head, put_on in HEADS.items()}, length / 2)
+        # The grip at the ground point, so a hand holds it there.
+        layered(handle, parts, {head: put_on(length, radius) for head, put_on in HEADS.items()}, 0.0)
     clear()
     layered("pipe shotgun", pipe_shotgun_body(), {name: build() for name, build in GUN_PARTS.items()}, 0.0)
 

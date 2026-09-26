@@ -226,6 +226,60 @@ pub fn publish_ways(tick: Res<crate::SimTick>, failed: Res<crate::nav::FailedWay
 /// (Factorio's game speed); 1 is normal.
 static SPEED_BITS: AtomicU32 = AtomicU32::new(0x3f80_0000);
 
+/// The `screenshot` op asked for one, taken the next frame.
+static SCREENSHOT: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+/// Where the screenshot is saved.
+const SCREENSHOT_PATH: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/logs/screenshot.png");
+
+/// What the camera sees, once a second, for the `view` op.
+static VIEW: Mutex<Json> = Mutex::new(Json::Null);
+
+/// Once a second: where the camera is and looks, and how many meshes
+/// there are, by material, and how many the camera sees.
+pub fn publish_view(
+    tick: Res<crate::SimTick>,
+    cameras: Query<&GlobalTransform, With<Camera3d>>,
+    meshes: Query<(
+        Has<MeshMaterial3d<StandardMaterial>>,
+        Has<MeshMaterial3d<crate::model::Cel>>,
+        &ViewVisibility,
+    ), With<Mesh3d>>,
+    models: Query<(), With<crate::model::Model>>,
+) {
+    if tick.0 % 60 != 0 {
+        return;
+    }
+    let camera = cameras.iter().next().map(|c| {
+        let (at, forward) = (c.translation(), c.forward());
+        json!({"at": [at.x, at.y, at.z], "forward": [forward.x, forward.y, forward.z]})
+    });
+    let (mut standard, mut cel, mut seen, mut all) = (0, 0, 0, 0);
+    for (is_standard, is_cel, visible) in &meshes {
+        all += 1;
+        standard += is_standard as u32;
+        cel += is_cel as u32;
+        seen += visible.get() as u32;
+    }
+    if let Ok(mut slot) = VIEW.lock() {
+        *slot = json!({
+            "camera": camera,
+            "meshes": all,
+            "standard": standard,
+            "cel": cel,
+            "seen": seen,
+            "models": models.iter().count(),
+        });
+    }
+}
+
+/// What the window shows, saved to disk when the `screenshot` op asked.
+pub fn take_screenshot(mut commands: Commands) {
+    if SCREENSHOT.swap(false, Ordering::Relaxed) {
+        use bevy::render::view::screenshot::{Screenshot, save_to_disk};
+        commands.spawn(Screenshot::primary_window()).observe(save_to_disk(SCREENSHOT_PATH));
+    }
+}
+
 /// The game speed the `speed` op asked for, applied to the clock the
 /// fixed step runs on: the same game, more steps each frame. A frame may
 /// catch up at most a second of game time, so a slow machine runs as fast
@@ -565,6 +619,21 @@ pub fn start() {
         "the day, the storms, what the people have done, every bunker's store and people",
         "",
         |_| Ok(WORLD.lock().map(|w| w.clone()).unwrap_or(Json::Null)),
+    ));
+    OP_REGISTRY.register(OpDef::new(
+        "view",
+        "where the camera is and looks, how many meshes there are by material, and how many the camera sees",
+        "",
+        |_| Ok(VIEW.lock().map(|v| v.clone()).unwrap_or(Json::Null)),
+    ));
+    OP_REGISTRY.register(OpDef::new(
+        "screenshot",
+        "save what the game window shows next frame to logs/screenshot.png",
+        "",
+        |_| {
+            SCREENSHOT.store(true, Ordering::Relaxed);
+            Ok(json!({"path": SCREENSHOT_PATH}))
+        },
     ));
     modforge::server::spawn(
         modforge::server::Config {
