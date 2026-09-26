@@ -263,6 +263,18 @@ How it is done, from those who did it:
 Proof on the small world: across a person's lives, each life lasts
 longer.
 
+As built (modforge `learn`, 2026-09-25): food in their own store and in
+their bags counts in full, food in any other box they know of counts
+half (others may take it), so taking loot and carrying it home is worth
+something. Dying costs a game day beyond the measure. A choice's value
+moves toward what it brought each time (the Q-learning step), never a
+sum that grows without end. Instinct's order leads by a minute of
+staying alive for each place, so what was learned overturns instinct
+only by more than that. A remembered moment stands in for a new one
+only when a hostile in sight, the storm, and having a home all match:
+the first real run showed a calm lucky find standing in for a fight,
+and nobody fought.
+
 Decided (operator, 2026-09-25): "all npcs learn and evolve. everyone
 learns individually. genes come later". Every person learns, topside
 people as well as bunker people; each learns alone, nothing learned is
