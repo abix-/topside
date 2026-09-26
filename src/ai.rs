@@ -330,7 +330,7 @@ pub fn think(
         }
 
         // Act. Their next decision comes at their reaction time.
-        let fighting = crate::content::brain::fighting(&tree.0, &record.0);
+        let fighting = crate::content::brain::fighting(&record.0);
         next_think.0 = tick.0 + reaction_ticks(condition.0.asleep, fighting, needs.0.rest, &personality.0, 60.0);
         for action in decided {
             actions.0.push(tick.0, action);

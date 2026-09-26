@@ -2,13 +2,14 @@
 //! "The brain"). modforge runs any tree and holds the rules; which states
 //! topside's people have, in what order, is here.
 //!
-//! root, in order:
-//!   hide from the storm
-//!   combat, in order: flee, break off, fight
-//!   the day's life, picked by what the person learned: eat what they
-//!   carry, go to a need (going, then using it), supply the bunker (haul,
-//!   fetch, look in a box, head out), look (check the nearest unchecked
-//!   thing, head out), wander
+//! The root picks by what the person learned, all of it, the storm and
+//! fighting included (life.md "Learning to stay alive"); with nothing
+//! learned, instinct's order below decides:
+//!   hide from the storm, flee, break off, fight, eat what they carry,
+//!   go to a need (going, then using it), supply the bunker (in order:
+//!   haul, fetch, look in a box, head out), look (in order: the nearest
+//!   unchecked thing, head out), wander
+//! The storm or a threat takes a person out of any errand to choose again.
 
 use bevy::prelude::Resource;
 use modforge::brain::{self, Brain};
@@ -16,32 +17,30 @@ use modforge::learn::Choice;
 use modforge::statetree::{Enter, Holds, ROOT, Select, StateDef, StateId, StateTree, Task, Transition, When};
 
 pub const HIDE: StateId = 1;
-pub const COMBAT: StateId = 2;
-pub const FLEE: StateId = 3;
-pub const BREAK_OFF: StateId = 4;
-pub const FIGHT: StateId = 5;
-pub const LIFE: StateId = 6;
-pub const EAT_CARRIED: StateId = 7;
-pub const NEED: StateId = 8;
-pub const NEED_GOING: StateId = 9;
-pub const NEED_USING: StateId = 10;
-pub const SUPPLY: StateId = 11;
-pub const HAUL: StateId = 12;
-pub const HAUL_GOING: StateId = 13;
-pub const HAUL_STOCKING: StateId = 14;
-pub const FETCH: StateId = 15;
-pub const FETCH_GOING: StateId = 16;
-pub const FETCH_TAKING: StateId = 17;
-pub const LOOK_IN: StateId = 18;
-pub const LOOK_IN_GOING: StateId = 19;
-pub const LOOK_IN_CHECKING: StateId = 20;
-pub const SUPPLY_HEAD_OUT: StateId = 21;
-pub const LOOK: StateId = 22;
-pub const LOOK_AT: StateId = 23;
-pub const LOOK_AT_GOING: StateId = 24;
-pub const LOOK_AT_CHECKING: StateId = 25;
-pub const LOOK_HEAD_OUT: StateId = 26;
-pub const WANDER: StateId = 27;
+pub const FLEE: StateId = 2;
+pub const BREAK_OFF: StateId = 3;
+pub const FIGHT: StateId = 4;
+pub const EAT_CARRIED: StateId = 5;
+pub const NEED: StateId = 6;
+pub const NEED_GOING: StateId = 7;
+pub const NEED_USING: StateId = 8;
+pub const SUPPLY: StateId = 9;
+pub const HAUL: StateId = 10;
+pub const HAUL_GOING: StateId = 11;
+pub const HAUL_STOCKING: StateId = 12;
+pub const FETCH: StateId = 13;
+pub const FETCH_GOING: StateId = 14;
+pub const FETCH_TAKING: StateId = 15;
+pub const LOOK_IN: StateId = 16;
+pub const LOOK_IN_GOING: StateId = 17;
+pub const LOOK_IN_CHECKING: StateId = 18;
+pub const SUPPLY_HEAD_OUT: StateId = 19;
+pub const LOOK: StateId = 20;
+pub const LOOK_AT: StateId = 21;
+pub const LOOK_AT_GOING: StateId = 22;
+pub const LOOK_AT_CHECKING: StateId = 23;
+pub const LOOK_HEAD_OUT: StateId = 24;
+pub const WANDER: StateId = 25;
 
 fn state(
     name: &'static str,
@@ -91,35 +90,42 @@ fn errand(
     states.push(state(doing_name, Some(at), None, Some(doing)));
 }
 
-pub fn brain_tree() -> StateTree<Brain> {
-    let mut s = vec![state("root", None, None, None)];
+/// A choice at the root: what it means to the learning.
+fn choice(mut state: StateDef<Brain>, choice: Choice) -> StateDef<Brain> {
+    state.choice = Some(choice);
+    state
+}
 
-    let mut hide = state("hide", Some(ROOT), Some(brain::enter_hide), Some(brain::hide));
+pub fn brain_tree() -> StateTree<Brain> {
+    let mut root = state("root", None, None, None);
+    root.select = Select::<Brain>::Learned(brain::learned);
+    let mut s = vec![root];
+
+    let mut hide = choice(state("hide", Some(ROOT), Some(brain::enter_hide), Some(brain::hide)), Choice::Hide);
     hide.transitions.push(when(brain::storm_over, ROOT));
     s.push(hide);
 
-    s.push(state("combat", Some(ROOT), Some(brain::enter_combat), None));
-    s.push(state("flee", Some(COMBAT), Some(brain::enter_flee), Some(brain::flee)));
-    s.push(state("break off", Some(COMBAT), Some(brain::enter_break_off), Some(brain::break_off)));
-    let mut fight = state("fight", Some(COMBAT), None, Some(brain::fight));
-    fight.transitions.push(when(brain::hurt, COMBAT));
-    fight.transitions.push(when(brain::past_leash, COMBAT));
+    s.push(choice(state("flee", Some(ROOT), Some(brain::enter_flee), Some(brain::flee)), Choice::Flee));
+    s.push(choice(
+        state("break off", Some(ROOT), Some(brain::enter_break_off), Some(brain::break_off)),
+        Choice::BreakOff,
+    ));
+    let mut fight = choice(state("fight", Some(ROOT), Some(brain::enter_combat), Some(brain::fight)), Choice::Fight);
+    fight.transitions.push(when(brain::hurt, ROOT));
+    fight.transitions.push(when(brain::past_leash, ROOT));
     s.push(fight);
 
-    let mut life = state("the day's life", Some(ROOT), None, None);
-    life.select = Select::<Brain>::Learned(brain::learned);
-    life.transitions.push(when(brain::danger, ROOT));
-    s.push(life);
+    s.push(choice(
+        state("eat what they carry", Some(ROOT), Some(brain::enter_eat_carried), Some(brain::eat_carried)),
+        Choice::EatCarried,
+    ));
 
-    let mut eat_carried = state("eat what they carry", Some(LIFE), Some(brain::enter_eat_carried), Some(brain::eat_carried));
-    eat_carried.choice = Some(Choice::EatCarried);
-    s.push(eat_carried);
-
-    errand(&mut s, "go to a need", LIFE, brain::enter_need, "using it", brain::use_it);
+    errand(&mut s, "go to a need", ROOT, brain::enter_need, "using it", brain::use_it);
     s[NEED].choice = Some(Choice::GoToNeed);
+    s[NEED].transitions.push(when(brain::danger, ROOT));
 
-    let mut supply = state("supply the bunker", Some(LIFE), Some(brain::enter_supply), None);
-    supply.choice = Some(Choice::Supply);
+    let mut supply = choice(state("supply the bunker", Some(ROOT), Some(brain::enter_supply), None), Choice::Supply);
+    supply.transitions.push(when(brain::danger, ROOT));
     s.push(supply);
     errand(&mut s, "haul home", SUPPLY, brain::enter_haul, "stocking", brain::stock);
     errand(&mut s, "fetch", SUPPLY, brain::enter_fetch, "taking", brain::take);
@@ -128,16 +134,16 @@ pub fn brain_tree() -> StateTree<Brain> {
     head_out.transitions.push(when(brain::knows_better, ROOT));
     s.push(head_out);
 
-    let mut look = state("look", Some(LIFE), Some(brain::enter_look), None);
-    look.choice = Some(Choice::Look);
+    let mut look = choice(state("look", Some(ROOT), Some(brain::enter_look), None), Choice::Look);
+    look.transitions.push(when(brain::danger, ROOT));
     s.push(look);
     errand(&mut s, "look at", LOOK, brain::enter_unchecked, "checking", brain::check);
     let mut head_out = state("head out", Some(LOOK), Some(brain::enter_head_out_need), Some(brain::going));
     head_out.transitions.push(when(brain::knows_better, ROOT));
     s.push(head_out);
 
-    let mut wander = state("wander", Some(LIFE), Some(brain::enter_wander), Some(brain::wander));
-    wander.choice = Some(Choice::Wander);
+    let mut wander = choice(state("wander", Some(ROOT), Some(brain::enter_wander), Some(brain::wander)), Choice::Wander);
+    wander.transitions.push(when(brain::danger, ROOT));
     wander.transitions.push(when(brain::pressing, ROOT));
     s.push(wander);
 
@@ -155,10 +161,10 @@ impl Default for BrainTreeRes {
     }
 }
 
-/// Whether the record is somewhere in combat: they react at the combat
-/// rate.
-pub fn fighting(tree: &StateTree<Brain>, record: &modforge::statetree::Record) -> bool {
-    record.state.is_some_and(|s| tree.is_under(s, COMBAT))
+/// Whether they are fleeing, breaking off, or fighting: they react at the
+/// combat rate.
+pub fn fighting(record: &modforge::statetree::Record) -> bool {
+    matches!(record.state, Some(FLEE | BREAK_OFF | FIGHT))
 }
 
 #[cfg(test)]
@@ -368,7 +374,7 @@ mod tests {
         let mut later = perception(&memory, &personality);
         later.now = 90 + THREAT_RECENT + 1;
         think(&later, &mut record, &mut Roll::new(1));
-        assert!(!fighting(&brain_tree(), &record), "long gone: {record:?}");
+        assert!(!fighting(&record), "long gone: {record:?}");
     }
 
     #[test]
@@ -384,6 +390,31 @@ mod tests {
         let (actions, _) = think(&p, &mut record, &mut Roll::new(1));
         assert_eq!(record.state, Some(HIDE), "no fighting in a storm");
         assert!(actions.contains(&Action::Aim { x: 0.0, y: 30.0 }), "heading home");
+    }
+
+    /// Everything is learnable, the storm too (life.md "Learning to stay
+    /// alive"): with nothing learned they hide; someone who learned that
+    /// staying out went better than hiding by more than instinct's lead
+    /// stays out.
+    #[test]
+    fn what_they_learned_can_overturn_even_the_storm() {
+        let personality = Personality::default();
+        let storm = |memory: &Memory| {
+            let mut p = perception(memory, &personality);
+            p.storm_coming = true;
+            p.home = Some(Vec3::new(0.0, 0.0, 30.0));
+            p.at_home = false;
+            let mut record = Record::default();
+            think(&p, &mut record, &mut Roll::new(1));
+            (record.state, modforge::brain::situation(&p))
+        };
+        let fresh = Memory::default();
+        let (chose, situation) = storm(&fresh);
+        assert_eq!(chose, Some(HIDE), "nothing learned: instinct hides");
+        let mut learned = Memory::default();
+        learned.learned.values.insert((situation, Choice::Wander), 2.0 * modforge::learn::INSTINCT_STEP);
+        let (chose, _) = storm(&learned);
+        assert_eq!(chose, Some(WANDER), "learned to stay out");
     }
 
     #[test]

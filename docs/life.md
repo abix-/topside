@@ -104,15 +104,17 @@ life these matter:
 ## The brain
 
 The brain is one StateTree in modforge (operator, 2026-09-26; how it
-works: modforge docs/statetree.md). In order at the root: hide from
-the storm, combat (flee below the flee line, courage moving the line;
-break off past the leash; fight: look, close, attack), then the day's
-life, where what the person learned picks among the errands. An errand
-is going, then doing; arriving belongs to the errand. Nothing is chosen
-again until the errand ends, fails, or the storm or a hostile takes
-them out of it.
+works: modforge docs/statetree.md; topside's tree: content/src/brain.rs).
+The root is flat: what the person learned picks among every choice,
+the storm and fighting included (operator, 2026-09-26). With nothing
+learned, instinct's order decides: hide from the storm, flee (below the
+flee line, courage moving the line), break off (past the leash), fight
+(look, close, attack), eat what they carry, go to a need, supply the
+bunker, look, wander. An errand is going, then doing; arriving belongs
+to the errand. Nothing is chosen again until the errand ends, fails, or
+the storm or a threat takes them out of it.
 
-The day's life: for the worst need, every KNOWN thing (memory, below) that
+Going to a need: for the worst need, every KNOWN thing (memory, below) that
 is good for it scores satisfaction minus travel cost, times the
 personality multiplier, plus a small seeded random so the same person
 in the same spot does not always choose the same; the best wins. The
