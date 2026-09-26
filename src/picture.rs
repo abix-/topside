@@ -232,6 +232,32 @@ pub fn turn_people(
     }
 }
 
+/// Every door shows its closed picture, or its open one once it has swung,
+/// stretched along the door's width (a picture is one tile) and upright
+/// however the door is turned.
+pub fn draw_doors(
+    assets: Res<AssetServer>,
+    doors: Query<(&crate::interact::Door, &Transform, &Children), Or<(Changed<crate::interact::Door>, Added<Children>)>>,
+    mut sprites: Query<(&mut Sprite, &mut Transform), Without<crate::interact::Door>>,
+) {
+    for (door, transform, children) in &doors {
+        let width = 2.0 * door.closed_center.distance(door.hinge);
+        let (name, stretch) = if door.open {
+            ("door open", Vec3::new(1.0, width, 1.0))
+        } else {
+            ("door", Vec3::new(width, 1.0, 1.0))
+        };
+        for child in children.iter() {
+            let Ok((mut sprite, mut at)) = sprites.get_mut(child) else {
+                continue;
+            };
+            sprite.image = assets.load(format!("pictures/{name}.png"));
+            at.rotation = transform.rotation.inverse();
+            at.scale = stretch / PIXELS_PER_METRE;
+        }
+    }
+}
+
 /// A picture's tint: its light picture multiplied by this colour (a
 /// building's wall in its palette colour).
 #[derive(Component)]

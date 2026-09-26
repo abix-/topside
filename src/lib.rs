@@ -201,6 +201,7 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind) -> App {
                 picture::dress_people,
                 picture::turn_people,
                 picture::draw_held,
+                picture::draw_doors,
             ),
         );
         app.add_systems(

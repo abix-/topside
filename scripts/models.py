@@ -433,6 +433,28 @@ def furniture():
     return join([box("block", (0.9, 0.9, 0.7), mat=material("furniture", LIGHT))], "furniture")
 
 
+DOOR = (0.35, 0.25, 0.15)  # modforge structure.rs DOOR_COLOR
+
+
+def door():
+    """one tile of a closed door: a wooden panel across the tile, as tall
+    as a wall, with its planks and a handle."""
+    wood = material("door", DOOR)
+    dark = material("plank", (0.25, 0.18, 0.1))
+    metal = material("handle", (0.6, 0.6, 0.6))
+    parts = [box("panel", (1.0, 0.12, WALL_HEIGHT), at=(0, 0, WALL_HEIGHT / 2), mat=wood)]
+    for i in range(1, 4):
+        parts.append(box(f"plank_{i}", (0.015, 0.125, WALL_HEIGHT * 0.95), at=(-0.5 + i * 0.25, 0, WALL_HEIGHT / 2), mat=dark))
+    parts.append(box("handle", (0.06, 0.16, 0.04), at=(0.35, 0, WALL_HEIGHT * 0.55), mat=metal))
+    return join(parts, "door")
+
+
+def door_open():
+    """one tile of an open door: the same panel swung a quarter turn, seen
+    edge on along its hinge side."""
+    return join([door()], "door open", turn=90)
+
+
 def floor():
     """one tile of floor, with darker seams along its edges so the tiles
     show."""
@@ -621,6 +643,8 @@ MODELS = {
     "wall": wall,
     "furniture": furniture,
     "floor": floor,
+    "door": door,
+    "door open": door_open,
     # The minor sites' props, named as in content/src/lib.rs.
     # A wrecked car: Kenney's sedan all in rust, lying along x (4.2 m long).
     "car wreck": lambda: kenney("car", "sedan", "car wreck", 4.2, rgb=(0.45, 0.2, 0.15), turn=90),

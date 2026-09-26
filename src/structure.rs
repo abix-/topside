@@ -30,7 +30,6 @@ use crate::terrain::{NewSites, WorldPiece, WorldRes};
 const FLOOR_Z: f32 = 0.2;
 const SOLID_Z: f32 = 0.6;
 const DOOR_Z: f32 = 0.7;
-const DOOR_COLOR: Rgb = [0.35, 0.25, 0.15];
 
 /// A building's root: the body holding its one collider.
 #[derive(Component)]
@@ -148,7 +147,7 @@ pub fn spawn_structure(commands: &mut Commands, def: &StructureDef, at: Vec2, of
             },
             RigidBody::Static,
             Collider::rectangle(size.x, size.y),
-            sprite(DOOR_COLOR, size),
+            crate::picture::Picture("door".to_string()),
             Transform::from_translation(centre.extend(DOOR_Z)),
         ));
         if of_world {
