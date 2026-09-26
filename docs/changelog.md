@@ -22,6 +22,12 @@ These rules govern `docs/changelog.md`. Follow them exactly.
 - Use plain terms. Do not use vague descriptions, invented language, or design
   essays.
 
+## 2026-09-26
+
+| System | Item | Done when |
+|---|---|---|
+| topside-tests | [x] Confirm on the endpoint that chunks are made in the small world (design.md "The small world first"): the `world` op reports the chunks made and how many of the world and the ring past its edge are missing | tests/chunks.rs `every_chunk_of_the_small_world_is_made` passes against the running game: chunks made, none missing |
+
 ## 2026-09-25
 
 | System | Item | Done when |
