@@ -4,10 +4,13 @@ Git-tracked, shared across agent clones. No secrets.
 
 ## Current focus
 
-The people (docs/life.md): a thousand persistent NPCs living their
-lives as a simulation. The brain, needs, memory, factions, and
-personality are built; next is perception with belief (todo 11f),
-then the day clock (11e4) and far people (11h).
+The 2D game (decided 2026-09-25, the Factorio way, Bevy 0.19 and
+Avian 2D 0.7) on the small world by default: 32 by 32 chunks of flat
+grass, the player's bunker, 5 other bunkers with 5 people each, 25
+neutral and 25 hostile topside people. The people live in it: needs,
+sight, memory of everything they do, stores, trips topside, and
+learning to stay alive (docs/life.md). Next is the first unchecked
+todo row. The 3D game in `3d/` is frozen and not built.
 
 ## Design goals (the locked ones)
 
@@ -25,32 +28,42 @@ then the day clock (11e4) and far people (11h).
 - No advertising: things say what they are good for on their defs;
   people remember what they saw; the brain reads memory only.
 
-## Last session (2026-08-21)
+## Last session (2026-09-25, docs caught up 2026-09-26)
 
-Built in order: the action queue (all input through one system),
-the NPC spawn path, ActorMap with ActorId, combat rest (player body,
-pipe shotgun with shells and pellets, body areas, worn armor, Rust
-style hotbar), actor death with a loot box, worldgen (3500 m world,
-heightmap with plains, ridges to 400 m, plateaus, biomes, sites,
-roads, minor sites every 150 m), admin fly on V, factions with the
-relation table, personality on the genome, needs (rest, safety),
-good-for fields and memory with home knowledge, the brain (sense,
-decide, act: eat from known boxes, sleep, wander, fight, flee,
-leash), a `people` control plane op with a live test.
+Built on 2026-09-25 (docs/changelog.md): the 2D game from the top
+down, walls and doors as Avian colliders, melee, guns, the roll,
+loot, the hotbar, the player's death, hunger and thirst on screen,
+starvation damage, sight (cone and clear view, walls and closed doors
+block it), memory of what was seen and who hit them, reaction time
+per person, the day clock with night tiredness, the crafting bench
+and bandage, healing, the storm and the world shift, every bunker its
+own faction, bunker people respawning at home, topside people dying
+with each world, real stores and trips topside, pathing on one tile
+grid, valid worlds, chunks made as needed, the small world, the
+control plane ops (status, perf, people, npc, ways, world, speed),
+and learning to stay alive.
+
+On 2026-09-26 the todo and changelog were caught up to the code:
+rows 14, 14b, 15, 10c, 11f, 11g, 11p, 11y, 11z, 11aa, 12, 10, 10ca
+closed, and 11e4 cut to what is left. Each was checked in the code
+only; their tests were not run (the operator does not like the state
+of the tests: the last run went on forever).
 
 ## Next steps
 
-1. 11f perception: cone plus Avian ray, seen things into memory, a
-   striker becomes the target, remembered threats.
-2. 11e4 the day clock: people home at night.
-3. 11h far people: drop bodies beyond a radius, same brain on paper.
-4. 11o measure the 3500 m world; delete ground.rs.
-5. Then 11e5 told, 11g cadence, 11e6 stores, 11e7 navmesh.
+The first unchecked row of docs/todo.md, unless the operator says.
 
 ## Open questions
 
-- The player's own death (design.md "Death") is not built and has no
-  row.
+- The tests: the operator does not like their state and the last run
+  went on forever. Nothing is decided about them yet.
+- Todo row 1 (one content file for both games) asks the 3D game to
+  build, but the 3D game is frozen and not built.
+- Seen in logs/game.txt (2026-09-25 22:11, two minutes at 1x), not
+  looked into: every person's hunger, thirst, and rest read 90, 80,
+  90 after two minutes; the alive seconds column reads 4081 and 2785
+  for two people in a 123 s run; one person has 126 health; "walk
+  grid: chunks painted" is 547 a step; every wanderer stays Idle.
 - Water is a blue flat you walk on; rivers and swimming are row 33.
 - modforge `input::tests::backend_parse_rejects_garbage` fails from
   commit 6796b7bc (another agent's work); left alone.
