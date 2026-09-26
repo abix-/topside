@@ -269,6 +269,7 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind) -> App {
                 control_plane::apply_speed,
                 input::read_input,
                 hud::render,
+                hud::render_item_panel,
                 hud::render_death,
                 hud::render_vitals,
                 hud::render_station,

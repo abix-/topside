@@ -913,6 +913,8 @@ pub fn starting_note(seed: u64) -> Note {
 fn source(name: &str, hunger: f32, thirst: f32) -> ItemDef {
     ItemDef {
         name: name.to_string(),
+        // Never carried, so never shown in the item information panel.
+        description: String::new(),
         unique: false,
         kind: ItemKind::Source,
         max_stack: 1,
@@ -931,6 +933,7 @@ pub fn register_items(reg: &mut ItemRegistry) {
     let items = [
         ItemDef {
             name: "note".to_string(),
+            description: "Someone's words on a scrap of paper.".to_string(),
             unique: false,
             kind: ItemKind::Note,
             max_stack: 1,
@@ -945,6 +948,7 @@ pub fn register_items(reg: &mut ItemRegistry) {
         },
         ItemDef {
             name: "canned food".to_string(),
+            description: "A dented can of food from before. Eat it to fill your hunger.".to_string(),
             unique: false,
             kind: ItemKind::Food,
             max_stack: 10,
@@ -964,6 +968,7 @@ pub fn register_items(reg: &mut ItemRegistry) {
         },
         ItemDef {
             name: "water bottle".to_string(),
+            description: "A plastic bottle of clean water. Drink it to quench your thirst.".to_string(),
             unique: false,
             kind: ItemKind::Food,
             max_stack: 5,
@@ -990,6 +995,7 @@ pub fn register_items(reg: &mut ItemRegistry) {
         // reason to craft before going out (todo 10ca). Tuning.
         ItemDef {
             name: "bandage".to_string(),
+            description: "A strip of clean cloth. Use it to heal your wounds.".to_string(),
             unique: false,
             kind: ItemKind::Medicine,
             max_stack: 5,
@@ -1008,6 +1014,7 @@ pub fn register_items(reg: &mut ItemRegistry) {
         },
         ItemDef {
             name: "storage box".to_string(),
+            description: "A wooden box to keep things in. Set it down and fill it.".to_string(),
             unique: false,
             kind: ItemKind::Deployable,
             max_stack: 1,
@@ -1024,6 +1031,7 @@ pub fn register_items(reg: &mut ItemRegistry) {
         },
         ItemDef {
             name: "scrap".to_string(),
+            description: "Bent metal and screws, for making things.".to_string(),
             unique: false,
             kind: ItemKind::Material,
             max_stack: 20,
@@ -1038,6 +1046,7 @@ pub fn register_items(reg: &mut ItemRegistry) {
         },
         ItemDef {
             name: "cloth".to_string(),
+            description: "A roll of old cloth, for making things.".to_string(),
             unique: false,
             kind: ItemKind::Material,
             max_stack: 20,
@@ -1052,6 +1061,7 @@ pub fn register_items(reg: &mut ItemRegistry) {
         },
         ItemDef {
             name: "pipe".to_string(),
+            description: "A length of steel pipe to swing. A head can be fixed to it.".to_string(),
             unique: false,
             kind: ItemKind::Weapon,
             max_stack: 1,
@@ -1075,6 +1085,7 @@ pub fn register_items(reg: &mut ItemRegistry) {
         },
         ItemDef {
             name: "wooden handle".to_string(),
+            description: "A short wooden handle to swing. A head can be fixed to it.".to_string(),
             unique: false,
             kind: ItemKind::Weapon,
             max_stack: 1,
@@ -1096,6 +1107,7 @@ pub fn register_items(reg: &mut ItemRegistry) {
         },
         ItemDef {
             name: "long pole".to_string(),
+            description: "A long pole that keeps them at a distance. A head can be fixed to it.".to_string(),
             unique: false,
             kind: ItemKind::Weapon,
             max_stack: 1,
@@ -1119,6 +1131,7 @@ pub fn register_items(reg: &mut ItemRegistry) {
         // instant out to 40 m (the hybrid's instant part).
         ItemDef {
             name: "pipe shotgun".to_string(),
+            description: "A shotgun made from pipe. Fires shotgun shells; its parts can be swapped.".to_string(),
             unique: false,
             kind: ItemKind::Weapon,
             max_stack: 1,
@@ -1143,6 +1156,7 @@ pub fn register_items(reg: &mut ItemRegistry) {
         },
         ItemDef {
             name: "shotgun shell".to_string(),
+            description: "Ammunition for the pipe shotgun.".to_string(),
             unique: false,
             kind: ItemKind::Material,
             max_stack: 20,
@@ -1158,6 +1172,7 @@ pub fn register_items(reg: &mut ItemRegistry) {
         // Worn in the chest slot; guards the chest only.
         ItemDef {
             name: "road sign vest".to_string(),
+            description: "Road signs strapped over the chest. Wear it for protection.".to_string(),
             unique: false,
             kind: ItemKind::Tool,
             max_stack: 1,

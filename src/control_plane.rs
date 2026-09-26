@@ -356,7 +356,8 @@ pub fn publish_hud(
     windows: Query<&Window, With<bevy::window::PrimaryWindow>>,
     screen: Query<&Visibility, With<crate::hud::InventoryScreen>>,
     panels: Query<(&crate::hud::Panel, &UiGlobalTransform)>,
-    slots: Query<&crate::hud::SlotUi>,
+    slots: Query<(&crate::hud::SlotUi, &crate::hud::SlotIcons)>,
+    item_panel: Query<&crate::hud::ItemPanel>,
 ) {
     if tick.0 % 60 != 0 {
         return;
@@ -370,16 +371,44 @@ pub fn publish_hud(
         .map(|(panel, at)| {
             json!({
                 "holder": format!("{:?}", panel.0),
-                "slots": slots.iter().filter(|s| s.0.holder == panel.0).count(),
+                "slots": slots.iter().filter(|(s, _)| s.0.holder == panel.0).count(),
                 "x": at.translation.x / w,
                 "y": at.translation.y / h,
             })
         })
         .collect();
+    // Every slot with something in it, and the icons it shows.
+    let filled: Vec<Json> = slots
+        .iter()
+        .filter_map(|(slot, icons)| {
+            let item = icons.item.as_ref()?;
+            Some(json!({
+                "holder": format!("{:?}", slot.0.holder),
+                "index": slot.0.index,
+                "item": item,
+                "icons": icons.shown,
+            }))
+        })
+        .collect();
+    // The item information panel: the selected slot and what it shows.
+    let selected = item_panel.single().ok().and_then(|p| p.shown.as_ref()).map(|s| {
+        json!({
+            "holder": format!("{:?}", s.slot.holder),
+            "index": s.slot.index,
+            "name": s.name,
+            "description": s.description,
+            "information": s.information,
+            "actions": s.actions.iter().map(|a| a.label()).collect::<Vec<_>>(),
+            "count": s.count,
+            "split": s.split,
+        })
+    });
     if let Ok(mut slot) = HUD.lock() {
         *slot = json!({
             "open": screen.single().is_ok_and(|v| *v != Visibility::Hidden),
             "panels": list,
+            "filled": filled,
+            "selected": selected,
         });
     }
 }
@@ -758,7 +787,7 @@ pub fn start() {
     ));
     OP_REGISTRY.register(OpDef::new(
         "hud",
-        "the inventory screen: whether it is open, and each panel of slots with its holder, slot count, and where it stands on the window",
+        "the inventory screen: whether it is open, each panel of slots with its holder, slot count, and where it stands on the window, and every filled slot with the icons it shows",
         "",
         |_| Ok(HUD.lock().map(|v| v.clone()).unwrap_or(Json::Null)),
     ));

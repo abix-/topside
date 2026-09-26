@@ -5,8 +5,8 @@
 
 use bevy::prelude::*;
 use modforge::hud::{
-    Holder, Holders, HudState, OpenPanel, SlotRef, end_drag, hotbar_key, slot_label, start_drag, toggle_panel,
-    transfer_slot, use_slot, HOTBAR_SLOTS,
+    Holder, Holders, HudState, OpenPanel, SlotRef, drop_from, end_drag, hotbar_key, select_slot, set_split,
+    slot_label, start_drag, toggle_panel, transfer_slot, use_slot, HOTBAR_SLOTS,
 };
 use modforge::item::EQUIPMENT_SLOTS;
 
@@ -42,6 +42,153 @@ const HOVER_COLOR: Color = Color::srgba(0.3, 0.3, 0.32, 0.95);
 #[derive(Component)]
 pub struct SlotUi(pub SlotRef);
 
+/// The icons a slot shows, bottom to top: its item's and each of its
+/// layers' (`model::stacked`), as scripts/models.py rendered them to
+/// assets/icons; and the nodes drawing them.
+#[derive(Component, Default)]
+pub struct SlotIcons {
+    /// The item in the slot, if any.
+    pub item: Option<String>,
+    pub shown: Vec<String>,
+    nodes: Vec<Entity>,
+}
+
+/// The icons a stack shows: its item's picture and each layer's on it
+/// (`model::stacked`, the same models the hand and the ground draw).
+pub fn icons_of(
+    stack: &modforge::item::ItemStack,
+    items: &modforge::item::ItemRegistry,
+    layers: &modforge::item::LayerRegistry,
+) -> Vec<String> {
+    items
+        .def(&stack.item)
+        .and_then(|def| def.picture.as_deref())
+        .map(|base| crate::model::stacked(base, stack, layers))
+        .unwrap_or_default()
+}
+
+/// What is in `slot` of the player's holders, if anything.
+fn stack_at<'a>(
+    slot: SlotRef,
+    inventory: &'a Inventory,
+    hotbar: &'a Hotbar,
+    worn: &'a Equipment,
+    container: Option<&'a Container>,
+) -> Option<&'a modforge::item::ItemStack> {
+    let holder = match slot.holder {
+        Holder::Inventory => &inventory.0,
+        Holder::Hotbar => &hotbar.0.slots,
+        Holder::Container => &container?.0,
+        Holder::Equipment => return worn.0.get(slot.index),
+    };
+    holder.slots.get(slot.index).and_then(|s| s.as_ref())
+}
+
+/// Draw `wanted` icons in `node`, one over the other, unless it already
+/// shows them.
+fn show_icons(commands: &mut Commands, assets: &AssetServer, node: Entity, icons: &mut SlotIcons, wanted: Vec<String>) {
+    if wanted == icons.shown {
+        return;
+    }
+    for old in icons.nodes.drain(..) {
+        commands.entity(old).despawn();
+    }
+    for name in &wanted {
+        let icon = commands
+            .spawn((
+                ImageNode::new(assets.load(format!("icons/{name}.png"))),
+                Node {
+                    position_type: PositionType::Absolute,
+                    width: Val::Percent(100.0),
+                    height: Val::Percent(100.0),
+                    ..default()
+                },
+                Pickable::IGNORE,
+                ChildOf(node),
+            ))
+            .id();
+        icons.nodes.push(icon);
+    }
+    icons.shown = wanted;
+}
+
+/// The INFORMATION of the item information panel: a stack's numbers from
+/// its definition, one line each; a layered item's from its layers
+/// (`numbers_of`).
+pub fn information(
+    def: &modforge::item::ItemDef,
+    stack: &modforge::item::ItemStack,
+    layers: &modforge::item::LayerRegistry,
+) -> Vec<String> {
+    let mut lines = Vec::new();
+    if let Some(food) = &def.food {
+        for (what, amount) in [("Hunger", food.hunger), ("Thirst", food.thirst), ("Health", food.health)] {
+            if amount != 0.0 {
+                lines.push(format!("{what} {amount:+.0}"));
+            }
+        }
+    }
+    let numbers = modforge::item::numbers_of(def, stack, layers);
+    if let Some(armor) = numbers.armor {
+        lines.push(format!("Protection {:.0}", armor.amount));
+    }
+    if let Some(combat) = numbers.combat {
+        lines.push(format!("Damage {}", combat.damage));
+        lines.push(format!("Reach {:.1} m", combat.reach));
+        if combat.spread_degrees > 0.0 {
+            lines.push(format!("Spread {:.0} degrees", combat.spread_degrees));
+        }
+        lines.push(format!("Delay {:.2} s", combat.delay));
+        if combat.pellets > 1 {
+            lines.push(format!("Pellets {}", combat.pellets));
+        }
+        if let Some(ammo) = combat.ammo {
+            lines.push(format!("Ammo {ammo}"));
+        }
+    }
+    if !stack.layers.is_empty() {
+        lines.push(format!("Parts: {}", stack.layers.join(", ")));
+    }
+    lines
+}
+
+/// A button of the item information panel's ACTIONS.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum PanelAction {
+    /// Eat, drink, use, or wear it (modforge's `use_slot`), named here.
+    Use(&'static str),
+    Drop,
+}
+
+impl PanelAction {
+    pub fn label(self) -> &'static str {
+        match self {
+            PanelAction::Use(name) => name,
+            PanelAction::Drop => "Drop",
+        }
+    }
+}
+
+/// The ACTIONS for the item in `slot`: what using it does, if anything
+/// (food is eaten, drink drunk, a bandage used, gear worn unless it is
+/// worn already), then Drop.
+pub fn panel_actions(def: &modforge::item::ItemDef, slot: SlotRef) -> Vec<PanelAction> {
+    let mut actions = Vec::new();
+    if let Some(food) = &def.food {
+        actions.push(PanelAction::Use(if food.hunger > 0.0 {
+            "Eat"
+        } else if food.thirst > 0.0 {
+            "Drink"
+        } else {
+            "Use"
+        }));
+    } else if def.armor.is_some() && slot.holder != Holder::Equipment {
+        actions.push(PanelAction::Use("Wear"));
+    }
+    actions.push(PanelAction::Drop);
+    actions
+}
+
 /// The panel that shows a note's words while it is being read.
 #[derive(Component)]
 pub struct NotePanel;
@@ -56,6 +203,51 @@ pub struct Panel(pub Holder);
 /// in the middle over the belt, the open box on the right.
 #[derive(Component)]
 pub struct InventoryScreen;
+
+/// The item information panel (Rust's), over the inventory: the selected
+/// slot's item, and what it shows now, for the control plane.
+#[derive(Component, Default)]
+pub struct ItemPanel {
+    pub shown: Option<Shown>,
+}
+
+/// What the item information panel shows.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Shown {
+    pub slot: SlotRef,
+    pub name: String,
+    pub description: String,
+    pub information: Vec<String>,
+    pub actions: Vec<PanelAction>,
+    pub count: u32,
+    /// The splitting bar's amount; None is the whole stack.
+    pub split: Option<u32>,
+}
+
+/// A text of the item information panel, and which.
+#[derive(Component, Clone, Copy, PartialEq)]
+pub enum PanelText {
+    Name,
+    Description,
+    Information,
+    Split,
+    Action(usize),
+}
+
+/// The `n`th ACTIONS button, and the action it does now.
+#[derive(Component)]
+pub struct ActionButton(usize, Option<PanelAction>);
+
+/// The splitting bar's row, shown for a stack of more than one.
+#[derive(Component)]
+pub struct SplitRow;
+
+/// A splitting bar button: take one off the amount, or add one.
+#[derive(Component)]
+struct SplitButton(i32);
+
+/// The most ACTIONS buttons the panel shows.
+const ACTION_BUTTONS: usize = 2;
 
 /// The slot under the cursor, for T.
 #[derive(Resource, Default)]
@@ -77,6 +269,7 @@ fn slot_row(parent: &mut ChildSpawnerCommands, holder: Holder, from: usize, to: 
             for index in from..to {
                 row.spawn((
                     SlotUi(SlotRef { holder, index }),
+                    SlotIcons::default(),
                     Node {
                         width: Val::Px(SLOT_PX),
                         height: Val::Px(SLOT_PX),
@@ -84,7 +277,8 @@ fn slot_row(parent: &mut ChildSpawnerCommands, holder: Holder, from: usize, to: 
                         ..default()
                     },
                     BackgroundColor(SLOT_COLOR),
-                    children![(Text::new(""), TextFont::from_font_size(11.0), Pickable::IGNORE)],
+                    // The words over the icons.
+                    children![(Text::new(""), TextFont::from_font_size(11.0), ZIndex(1), Pickable::IGNORE)],
                 ))
                 .observe(hover_slot)
                 .observe(leave_slot)
@@ -193,16 +387,170 @@ pub fn setup(mut commands: Commands) {
                     ..default()
                 },
             );
+            // The item information panel, over the inventory.
+            let inventory_tall = (INVENTORY_SLOTS / ACROSS) as f32 * (SLOT_PX + GAP_PX) - GAP_PX + 2.0 * PAD_PX;
+            screen
+                .spawn((
+                    ItemPanel::default(),
+                    Node {
+                        width: Val::Px(panel_width(ACROSS)),
+                        flex_direction: FlexDirection::Column,
+                        row_gap: Val::Px(6.0),
+                        padding: UiRect::all(Val::Px(PAD_PX)),
+                        ..centred(over_belt + inventory_tall + MARGIN_PX)
+                    },
+                    BackgroundColor(PANEL_COLOR),
+                    Visibility::Hidden,
+                ))
+                .with_children(|p| {
+                    p.spawn(Node {
+                        justify_content: JustifyContent::SpaceBetween,
+                        column_gap: Val::Px(8.0),
+                        ..default()
+                    })
+                    .with_children(|top| {
+                        top.spawn(Node {
+                            flex_direction: FlexDirection::Column,
+                            flex_shrink: 1.0,
+                            ..default()
+                        })
+                        .with_children(|words| {
+                            words.spawn((PanelText::Name, Text::new(""), TextFont::from_font_size(16.0)));
+                            words.spawn((PanelText::Description, Text::new(""), TextFont::from_font_size(11.0)));
+                        });
+                        top.spawn((
+                            SlotIcons::default(),
+                            Node {
+                                width: Val::Px(SLOT_PX),
+                                height: Val::Px(SLOT_PX),
+                                flex_shrink: 0.0,
+                                ..default()
+                            },
+                        ));
+                    });
+                    p.spawn(Node {
+                        column_gap: Val::Px(8.0),
+                        ..default()
+                    })
+                    .with_children(|boxes| {
+                        let heading = |text: &str| (Text::new(text), TextFont::from_font_size(10.0));
+                        boxes
+                            .spawn((
+                                Node {
+                                    flex_direction: FlexDirection::Column,
+                                    flex_grow: 1.0,
+                                    padding: UiRect::all(Val::Px(4.0)),
+                                    ..default()
+                                },
+                                BackgroundColor(SLOT_COLOR),
+                            ))
+                            .with_children(|info| {
+                                info.spawn(heading("INFORMATION"));
+                                info.spawn((PanelText::Information, Text::new(""), TextFont::from_font_size(12.0)));
+                            });
+                        boxes
+                            .spawn((
+                                Node {
+                                    flex_direction: FlexDirection::Column,
+                                    flex_grow: 1.0,
+                                    row_gap: Val::Px(4.0),
+                                    padding: UiRect::all(Val::Px(4.0)),
+                                    ..default()
+                                },
+                                BackgroundColor(SLOT_COLOR),
+                            ))
+                            .with_children(|acts| {
+                                acts.spawn(heading("ACTIONS"));
+                                for n in 0..ACTION_BUTTONS {
+                                    acts.spawn((ActionButton(n, None), button_node(), BackgroundColor(HELD_COLOR)))
+                                        .with_child((PanelText::Action(n), Text::new(""), TextFont::from_font_size(12.0), Pickable::IGNORE))
+                                        .observe(click_action);
+                                }
+                            });
+                    });
+                    p.spawn((
+                        SplitRow,
+                        Node {
+                            column_gap: Val::Px(6.0),
+                            align_items: AlignItems::Center,
+                            ..default()
+                        },
+                    ))
+                    .with_children(|row| {
+                        row.spawn((Text::new("SPLITTING"), TextFont::from_font_size(10.0)));
+                        for (step, label) in [(-1, "-"), (1, "+")] {
+                            if step == 1 {
+                                row.spawn((PanelText::Split, Text::new(""), TextFont::from_font_size(12.0)));
+                            }
+                            row.spawn((SplitButton(step), button_node(), BackgroundColor(HELD_COLOR)))
+                                .with_child((Text::new(label), TextFont::from_font_size(12.0), Pickable::IGNORE))
+                                .observe(click_split);
+                        }
+                        row.spawn((Text::new("then drag"), TextFont::from_font_size(10.0)));
+                    });
+                });
         });
+}
+
+/// A button of the item information panel.
+fn button_node() -> Node {
+    Node {
+        padding: UiRect::axes(Val::Px(8.0), Val::Px(3.0)),
+        justify_content: JustifyContent::Center,
+        ..default()
+    }
+}
+
+/// An ACTIONS button clicked: the player does it to the selected slot.
+fn click_action(
+    click: On<Pointer<Click>>,
+    buttons: Query<&ActionButton>,
+    tick: Res<crate::SimTick>,
+    mut players: Query<(&Hud, &mut Actions), With<Player>>,
+) {
+    let (Ok(ActionButton(_, Some(action))), Ok((hud, mut actions))) = (buttons.get(click.entity), players.single_mut()) else {
+        return;
+    };
+    let Some(slot) = hud.0.selected else {
+        return;
+    };
+    let action = match action {
+        PanelAction::Use(_) => Action::UseSlot { slot },
+        PanelAction::Drop => Action::Drop { slot: Some(slot) },
+    };
+    actions.0.push(tick.0 + 1, action);
+}
+
+/// A splitting bar button clicked: the amount one less or one more, from
+/// the whole stack when none is set.
+fn click_split(click: On<Pointer<Click>>, buttons: Query<&SplitButton>, mut commands: Commands) {
+    if let Ok(button) = buttons.get(click.entity) {
+        commands.run_system_cached_with(step_split, button.0);
+    }
+}
+
+/// The player's splitting bar moved by `step`.
+pub fn step_split(step: In<i32>, mut holders: PlayerHolders) {
+    holders.with(|hud, h| {
+        let Some(count) = hud.selected.and_then(|slot| h.stack(slot)).map(|s| s.count) else {
+            return;
+        };
+        let now = hud.split.unwrap_or(count) as i32;
+        set_split(hud, h, (now + *step).max(1) as u32);
+    });
 }
 
 /// Paint every slot from its holder, the held and hovered slots
 /// marked, and show the screen and the box modforge says are open.
 pub fn render(
+    mut commands: Commands,
+    assets: Res<AssetServer>,
+    items: Res<ItemRegistryRes>,
+    layers: Res<crate::content::LayerRegistryRes>,
     hovered: Res<HoveredSlot>,
     players: Query<(&Inventory, &Hotbar, &Equipment, &Hud, &OpenContainer), With<Player>>,
     containers: Query<&Container>,
-    mut slots: Query<(&SlotUi, &Children, &mut BackgroundColor, &mut Visibility)>,
+    mut slots: Query<(Entity, &SlotUi, &mut SlotIcons, &Children, &mut BackgroundColor, &mut Visibility)>,
     mut texts: Query<&mut Text, Without<NotePanel>>,
     mut screen: Query<&mut Visibility, (With<InventoryScreen>, Without<SlotUi>, Without<Panel>)>,
     mut panels: Query<(&Panel, &mut Visibility), (Without<SlotUi>, Without<InventoryScreen>)>,
@@ -221,22 +569,23 @@ pub fn render(
             *v = if container.is_some() { Visibility::Inherited } else { Visibility::Hidden };
         }
     }
-    for (slot, children, mut color, mut visibility) in &mut slots {
-        let holder = match slot.0.holder {
-            Holder::Inventory => Some(&inventory.0),
-            Holder::Hotbar => Some(&hotbar.0.slots),
-            Holder::Container => container.map(|c| &c.0),
-            Holder::Equipment => None,
-        };
+    for (entity, slot, mut icons, children, mut color, mut visibility) in &mut slots {
         if slot.0.holder == Holder::Container {
-            let exists = holder.is_some_and(|h| slot.0.index < h.slots.len());
+            let exists = container.is_some_and(|c| slot.0.index < c.0.slots.len());
             *visibility = if exists { Visibility::Inherited } else { Visibility::Hidden };
         }
-        let stack = match slot.0.holder {
-            Holder::Equipment => worn.0.get(slot.0.index),
-            _ => holder.and_then(|h| h.slots.get(slot.0.index)).and_then(|s| s.as_ref()),
+        let stack = stack_at(slot.0, inventory, hotbar, worn, container);
+        let item = stack.map(|s| s.item.clone());
+        if icons.item != item {
+            icons.item = item;
+        }
+        let wanted = stack.map(|s| icons_of(s, &items.0, &layers.0)).unwrap_or_default();
+        show_icons(&mut commands, &assets, entity, &mut icons, wanted);
+        // With an icon, only the count is written; without, the name too.
+        let label = match stack {
+            Some(s) if !icons.shown.is_empty() => if s.count > 1 { format!("x{}", s.count) } else { String::new() },
+            _ => slot_label(stack),
         };
-        let label = slot_label(stack);
         let label = if slot.0.holder == Holder::Hotbar {
             format!("{}\n{}", slot.0.index + 1, label)
         } else {
@@ -246,7 +595,7 @@ pub fn render(
             text.0 = label;
         }
         let held = slot.0.holder == Holder::Hotbar && hotbar.0.held == Some(slot.0.index);
-        color.0 = if hovered.0 == Some(slot.0) {
+        color.0 = if hovered.0 == Some(slot.0) || hud.0.selected == Some(slot.0) {
             HOVER_COLOR
         } else if held {
             HELD_COLOR
@@ -263,6 +612,73 @@ pub fn render(
             _ => *visibility = Visibility::Hidden,
         }
     }
+}
+
+/// Fill the item information panel from the selected slot: its name,
+/// description, icons, INFORMATION, ACTIONS, and for a stack the
+/// splitting bar. Hidden with nothing selected.
+pub fn render_item_panel(
+    mut commands: Commands,
+    assets: Res<AssetServer>,
+    items: Res<ItemRegistryRes>,
+    layers: Res<crate::content::LayerRegistryRes>,
+    players: Query<(&Inventory, &Hotbar, &Equipment, &Hud, &OpenContainer), With<Player>>,
+    containers: Query<&Container>,
+    mut panels: Query<(&mut ItemPanel, &mut Visibility)>,
+    mut icons: Query<(Entity, &mut SlotIcons), Without<SlotUi>>,
+    mut texts: Query<(&PanelText, &mut Text)>,
+    mut buttons: Query<(&mut ActionButton, &mut Visibility), Without<ItemPanel>>,
+    mut split_rows: Query<&mut Visibility, (With<SplitRow>, Without<ItemPanel>, Without<ActionButton>)>,
+) {
+    let (Ok((inventory, hotbar, worn, hud, open)), Ok((mut panel, mut visibility))) = (players.single(), panels.single_mut()) else {
+        return;
+    };
+    let container = open.0.and_then(|e| containers.get(e).ok());
+    let shown = hud.0.selected.and_then(|slot| {
+        let stack = stack_at(slot, inventory, hotbar, worn, container)?;
+        let def = items.0.def(&stack.item)?;
+        Some((
+            Shown {
+                slot,
+                name: def.name.to_uppercase(),
+                description: def.description.clone(),
+                information: information(def, stack, &layers.0),
+                actions: panel_actions(def, slot),
+                count: stack.count,
+                split: hud.0.split,
+            },
+            icons_of(stack, &items.0, &layers.0),
+        ))
+    });
+    let Some((shown, wanted)) = shown else {
+        visibility.set_if_neq(Visibility::Hidden);
+        panel.shown = None;
+        return;
+    };
+    visibility.set_if_neq(Visibility::Inherited);
+    if let Ok((node, mut icons)) = icons.single_mut() {
+        show_icons(&mut commands, &assets, node, &mut icons, wanted);
+    }
+    if panel.shown.as_ref() == Some(&shown) {
+        return;
+    }
+    for (which, mut text) in &mut texts {
+        text.0 = match which {
+            PanelText::Name => shown.name.clone(),
+            PanelText::Description => shown.description.clone(),
+            PanelText::Information => shown.information.join("\n"),
+            PanelText::Split => format!("{} of {}", shown.split.unwrap_or(shown.count), shown.count),
+            PanelText::Action(n) => shown.actions.get(*n).map(|a| a.label().to_string()).unwrap_or_default(),
+        };
+    }
+    for (mut button, mut v) in &mut buttons {
+        button.1 = shown.actions.get(button.0).copied();
+        *v = if button.1.is_some() { Visibility::Inherited } else { Visibility::Hidden };
+    }
+    for mut v in &mut split_rows {
+        *v = if shown.count > 1 { Visibility::Inherited } else { Visibility::Hidden };
+    }
+    panel.shown = Some(shown);
 }
 
 /// The vitals line: health, hunger, thirst, always shown.
@@ -343,17 +759,18 @@ pub fn render_sky(
     }
 }
 
-/// A click on a slot uses what is in it (modforge's `use_slot`): food
-/// and drink are eaten, worn gear is put on.
-fn click_slot(
-    click: On<Pointer<Click>>,
-    slots: Query<&SlotUi>,
-    tick: Res<crate::SimTick>,
-    mut players: Query<&mut Actions, With<Player>>,
-) {
-    if let (Ok(slot), Ok(mut actions)) = (slots.get(click.entity), players.single_mut()) {
-        actions.0.push(tick.0 + 1, Action::UseSlot { slot: slot.0 });
+/// A click on a slot selects it (modforge's `select_slot`): its item
+/// shows in the item information panel, Rust's. Using it is the panel's
+/// Eat, Drink, Use, or Wear.
+fn click_slot(click: On<Pointer<Click>>, slots: Query<&SlotUi>, mut commands: Commands) {
+    if let Ok(slot) = slots.get(click.entity) {
+        commands.run_system_cached_with(select, slot.0);
     }
+}
+
+/// The player selects `slot`.
+pub fn select(slot: In<SlotRef>, mut holders: PlayerHolders) {
+    holders.with(|hud, h| select_slot(hud, h, *slot));
 }
 
 /// Heal by what food or medicine gives, never past full.
@@ -561,6 +978,22 @@ pub fn hud_keys(
                         }
                     }
                 }
+                // Out of any holder, worn gear too, onto the ground at the
+                // feet.
+                Action::Drop { slot: Some(slot) } => {
+                    let mut container = open.0.and_then(|e| containers.get_mut(e).ok());
+                    let mut holders = Holders {
+                        inventory: &mut inventory.0,
+                        hotbar: &mut hotbar.0.slots,
+                        container: container.as_mut().map(|c| &mut c.0),
+                        equipment: &mut worn.0,
+                    };
+                    if let Some(stack) = drop_from(&mut holders, slot)
+                        && let Some(def) = registry.0.def(&stack.item)
+                    {
+                        crate::interact::spawn_item(&mut commands, def, stack, at.translation.ground());
+                    }
+                }
                 // In the open box too: you eat what you need where it is.
                 Action::UseSlot { slot } => {
                     let mut container = open.0.and_then(|e| containers.get_mut(e).ok());
@@ -605,6 +1038,8 @@ pub fn hud_keys(
         // panel, the station.
         if hud.0.open_panel != OpenPanel::Inventory {
             open.0 = None;
+            hud.0.selected = None;
+            hud.0.split = None;
         }
         if hud.0.open_panel != OpenPanel::Station {
             station.0 = None;

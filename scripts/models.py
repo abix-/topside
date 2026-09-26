@@ -56,6 +56,8 @@ def material(name, rgb, cutout=None):
         t.links.new(palette.outputs["Color"], bsdf.inputs["Base Color"])
     else:
         bsdf.inputs["Base Color"].default_value = (*(linear(c) for c in rgb), 1.0)
+        # The icons' renderer (Workbench) reads this, not the nodes.
+        mat.diffuse_color = (*(linear(c) for c in rgb), 1.0)
     if cutout is not None:
         leaf = t.nodes.new("ShaderNodeTexImage")
         leaf.image = cutout
@@ -171,6 +173,67 @@ def export(obj, name):
     bpy.ops.export_scene.gltf(filepath=str(out), export_format="GLB", use_selection=True, export_yup=True)
     faces = sum(len(o.data.polygons) for o in objs if o.type == "MESH")
     print(f"{name}: {faces} faces -> {out}")
+
+
+# -- the icons -------------------------------------------------------------------
+#
+# Every item's model is also rendered to a picture, its icon in an inventory
+# slot (design.md: the inventory screen, item icons rendered from the
+# models): seen from the front and above, on nothing.
+
+ICONS = ROOT / "assets" / "icons"
+ICON_PIXELS = 128
+# Where the icon camera looks from: in front (-y) and above.
+ICON_VIEW = (0.0, -1.0, 0.7)
+# Room left round the item, as a share of its size.
+ICON_ROOM = 1.15
+
+
+def icon(frame, shown, name):
+    """render `shown` (one object or several) alone as assets/icons/<name>.png,
+    framed to fit every object of `frame`: the layers of one item share a
+    frame, so their icons, drawn in one slot, stack as the layers do."""
+    from mathutils import Vector
+
+    frame = frame if isinstance(frame, list) else [frame]
+    shown = shown if isinstance(shown, list) else [shown]
+    shown = {c for o in shown for c in [o, *o.children_recursive]}
+    scene = bpy.context.scene
+    if scene.camera is None:
+        cam = bpy.data.objects.new("icon camera", bpy.data.cameras.new("icon camera"))
+        scene.collection.objects.link(cam)
+        scene.camera = cam
+    cam = scene.camera
+    for o in scene.objects:
+        o.hide_render = o not in shown and o is not cam
+    view = Vector(ICON_VIEW).normalized()
+    cam.rotation_euler = (-view).to_track_quat("-Z", "Y").to_euler()
+    bpy.context.view_layer.update()
+    right = cam.matrix_world.to_3x3() @ Vector((1, 0, 0))
+    up = cam.matrix_world.to_3x3() @ Vector((0, 1, 0))
+    corners = [o.matrix_world @ Vector(c) for f in frame for o in [f, *f.children_recursive] for c in o.bound_box]
+    across = [c.dot(right) for c in corners]
+    tall = [c.dot(up) for c in corners]
+    middle = right * (min(across) + max(across)) / 2 + up * (min(tall) + max(tall)) / 2
+    cam.data.type = "ORTHO"
+    cam.data.ortho_scale = max(max(across) - min(across), max(tall) - min(tall)) * ICON_ROOM
+    cam.data.clip_start = 0.01
+    cam.data.clip_end = 100.0
+    cam.location = middle + view * 20.0
+    # Flat colours as the models carry them, lit enough to show their shape.
+    scene.render.engine = "BLENDER_WORKBENCH"
+    scene.display.shading.light = "STUDIO"
+    scene.display.shading.color_type = "TEXTURE"
+    scene.view_settings.view_transform = "Standard"
+    scene.render.film_transparent = True
+    scene.render.resolution_x = scene.render.resolution_y = ICON_PIXELS
+    scene.render.image_settings.file_format = "PNG"
+    scene.render.image_settings.color_mode = "RGBA"
+    out = ICONS / f"{name}.png"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    scene.render.filepath = str(out)
+    bpy.ops.render.render(write_still=True)
+    print(f"{name}: icon -> {out}")
 
 
 # -- the models --------------------------------------------------------------
@@ -384,6 +447,8 @@ def layered(base, parts, layers, middle):
     bpy.context.view_layer.update()
     for name, obj in objs.items():
         export(obj, name)
+    for name, obj in objs.items():
+        icon(every, obj, name)
 
 
 # -- the pipe shotgun, in layers -----------------------------------------------
@@ -738,7 +803,21 @@ def people():
 SETS = {"person": people, "weapons": weapons}
 
 
+# Items, named as in content/src/lib.rs: each also gets its icon.
+ITEMS = {
+    "note": note,
+    "canned food": lambda: kenney("food", "can", "canned food"),
+    "water bottle": lambda: kenney("survival", "bottle", "water bottle"),
+    "bandage": bandage,
+    "storage box": lambda: kenney("survival", "box", "storage box", DEPLOYABLE),
+    "scrap": lambda: kenney("survival", "metal-panel-screws-half", "scrap"),
+    "cloth": lambda: kenney("survival", "bedroll-packed", "cloth"),
+    "shotgun shell": shotgun_shell,
+    "road sign vest": road_sign_vest,
+}
+
 MODELS = {
+    **ITEMS,
     "tree": tree,
     "rock": rock,
     # The wasteland's and the ruins' scatter, at their largest side as
@@ -750,16 +829,6 @@ MODELS = {
     "well": well,
     # What flies.
     "pellet": pellet,
-    # Items, named as in content/src/lib.rs.
-    "note": note,
-    "canned food": lambda: kenney("food", "can", "canned food"),
-    "water bottle": lambda: kenney("survival", "bottle", "water bottle"),
-    "bandage": bandage,
-    "storage box": lambda: kenney("survival", "box", "storage box", DEPLOYABLE),
-    "scrap": lambda: kenney("survival", "metal-panel-screws-half", "scrap"),
-    "cloth": lambda: kenney("survival", "bedroll-packed", "cloth"),
-    "shotgun shell": shotgun_shell,
-    "road sign vest": road_sign_vest,
     # Buildings, a tile at a time (src/structure.rs).
     "wall": wall,
     "furniture": furniture,
@@ -790,7 +859,10 @@ def main():
             SETS[name]()
             continue
         clear()
-        export(MODELS[name](), name)
+        obj = MODELS[name]()
+        export(obj, name)
+        if name in ITEMS:
+            icon(obj, obj, name)
 
 
 main()

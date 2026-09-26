@@ -1084,7 +1084,10 @@ Item interaction mirrors Atlas (operator, 2026-08-20: "i like atlas
 interaction", "mirror on atlas controls"): I or Tab opens the
 inventory (operator, 2026-08-20: "i think i like tab better. its more
 natural. can we have both for inventory?"),
-double click uses an item (eat food, equip gear), drag and drop moves
+a click selects an item and opens Rust's item information panel over
+the inventory (its name, description, icon, INFORMATION, and ACTIONS:
+Eat, Drink, Use, or Wear, and Drop; a stack's splitting bar sets how
+many a drag moves) (operator, 2026-09-26), drag and drop moves
 stacks, hover plus T transfers the stack to the other open inventory
 (Shift+T half), hover plus O drops it on the ground, 1-6 uses the
 hotbar slot (the hotbar is Rust's belt of 6), Shift+1-6 equips to it,

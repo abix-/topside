@@ -123,6 +123,11 @@ pub fn read_input(
                 Some(slot) => Action::Transfer { half, slot: Some(slot) },
                 None => continue,
             },
+            // O drops the stack under the cursor.
+            Action::Drop { slot: None } => match hovered.0 {
+                Some(slot) => Action::Drop { slot: Some(slot) },
+                None => continue,
+            },
             // W forward, D to the right of where the player faces, turned
             // into a direction on the ground (the camera's right is the
             // facing turned a quarter counter-clockwise on the ground).
@@ -144,11 +149,12 @@ pub fn read_input(
             | Action::Cancel
             | Action::Hotbar { .. }
             | Action::Transfer { .. }
+            | Action::Drop { .. }
             | Action::UseSlot { .. }
             | Action::Craft { .. }
             | Action::Map
             | Action::Respawn => true,
-            Action::Look { .. } | Action::Aim { .. } | Action::Drop | Action::Fly => false,
+            Action::Look { .. } | Action::Aim { .. } | Action::Fly => false,
         };
         if allowed {
             moved |= matches!(action, Action::Move { .. });
