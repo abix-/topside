@@ -26,7 +26,7 @@ use crate::interact::Door;
 /// Chunk doorways searched before a way counts as not found
 /// (pathing.md "Search by chunk, then across chunks"): a 150 m trip
 /// crosses about five chunks with a few doorways each.
-const PLAN_LIMIT: usize = 2_000;
+pub(crate) const PLAN_LIMIT: usize = 2_000;
 /// Searches worked through each step at most (Endless: 200 a frame).
 const PLANS_PER_STEP: usize = 50;
 /// Time spent searching each step at most (Endless: 2 ms a frame).

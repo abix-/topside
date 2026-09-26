@@ -154,10 +154,15 @@ pub fn think(
             .find(|(e, _, _)| e.to_bits() == key)
             .map(|(_, at, _)| *at)
     };
-    // Where someone can stand, from the tiles (pathing.md: never head for
-    // a place nobody can stand on).
+    // Where someone can go from `here`: a tile they can stand on
+    // (pathing.md: never head for a place nobody can stand on) that the
+    // pathing finds a way to (life.md "Wander: random, reachable").
     let walk = std::cell::RefCell::new(&mut walk.0);
-    let standable = |at: Vec3| walk.borrow_mut().standable(Vec2::new(at.x, at.z));
+    let can_go = |here: Vec2, at: Vec3| {
+        let to = Vec2::new(at.x, at.z);
+        let mut walk = walk.borrow_mut();
+        walk.standable(to) && walk.find_way(here, to, crate::nav::PLAN_LIMIT).is_some()
+    };
     // The storm is the same for everyone: coming or here, hide.
     let storm_coming = crate::storm::phase(&tick, *day) != modforge::storm::StormPhase::Calm;
     // Everyone's position and faction first, so the pass below holds
@@ -304,9 +309,7 @@ pub fn think(
             &items.0,
         );
         memory.0.learned.score(tick.0, alive);
-        // Reached with no search: a clear straight way on the tiles
-        // (pathing.md "Short trips go straight").
-        let reachable = |at: Vec3| walk.borrow_mut().line_clear(here, Vec2::new(at.x, at.z));
+        let standable = |at: Vec3| can_go(here, at);
         let perception = Perception {
             now: tick.0,
             position: ground(here),
@@ -330,7 +333,6 @@ pub fn think(
             personality: &personality.0,
             worth: &worth,
             standable: &standable,
-            reachable: &reachable,
         };
 
         // Decide: seeded by the tick and the person, so a replay
