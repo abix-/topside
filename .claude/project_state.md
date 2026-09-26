@@ -13,9 +13,11 @@ height, y) in 3D. The small world by default: 32 by 32 chunks, the
 player's bunker, 5 other bunkers with 5 people each, 25 neutral and 25
 hostile topside people. The people live in it: needs, sight, memory of
 everything they do, stores, trips topside, and learning to stay alive
-(docs/life.md). Next: the Diablo 2 minimap (13f, needs 11af), the floors
-above ground (13a), worn and held drawing (13c), gun layers' numbers
-(12g). The old 3D game in `3d/` is frozen and not built; its model.rs was
+(docs/life.md). Built 2026-09-26: gun layers' numbers, items on the
+ground in layers, every level above ground with stairs the player
+climbs, the map each person carries, the Diablo 2 minimap (M full
+screen). Next: NPCs on floors above and basements (13a), held weapon
+angles (13c), a bunker sharing its maps (11af). The old 3D game in `3d/` is frozen and not built; its model.rs was
 the prior art for the held weapon.
 
 ## Design goals (the locked ones)
