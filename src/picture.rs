@@ -38,11 +38,28 @@ impl Person {
     }
 }
 
-/// One of a person's layers, and the facing its picture shows now.
+/// One of a person's layers, and the picture it shows now.
 #[derive(Component)]
 pub struct Layer {
     name: String,
-    facing: usize,
+    shows: String,
+}
+
+/// Walking frames rendered per facing (scripts/models.py WALK_FRAMES).
+pub const WALK_FRAMES: usize = 8;
+/// Metres walked in one loop of the walking frames.
+const STRIDE: f32 = 1.5;
+/// Seconds without moving before a person shows standing again (movement
+/// is stepped in the fixed step, drawing every frame).
+const STILL: f32 = 0.1;
+
+/// How far a person has walked, for their walking frames, and how long
+/// since they last moved.
+#[derive(Component, Default)]
+pub struct Stride {
+    last: Vec2,
+    walked: f32,
+    still: f32,
 }
 
 /// Which facing's picture shows a person turned to `angle` (radians,
@@ -52,22 +69,28 @@ pub fn facing_index(angle: f32) -> usize {
     ((angle / step).round() as i64).rem_euclid(FACINGS as i64) as usize
 }
 
-fn layer_picture(name: &str, facing: usize) -> String {
-    format!("pictures/{name} {facing}.png")
+/// A layer's picture: standing, or one walking frame, for a facing.
+fn layer_picture(name: &str, facing: usize, walk: Option<usize>) -> String {
+    match walk {
+        Some(frame) => format!("pictures/{name} {facing} walk {frame}.png"),
+        None => format!("pictures/{name} {facing}.png"),
+    }
 }
 
 /// Give every new `Person` a child sprite per layer, and one for what
 /// they hold.
 pub fn draw_people(mut commands: Commands, assets: Res<AssetServer>, new: Query<(Entity, &Person), Added<Person>>) {
     for (entity, person) in &new {
+        commands.entity(entity).insert(Stride::default());
         commands.entity(entity).with_children(|p| {
             for (i, (name, tint)) in person.0.iter().enumerate() {
+                let shows = layer_picture(name, 0, None);
                 p.spawn((
-                    Layer { name: name.clone(), facing: 0 },
                     Sprite {
                         color: *tint,
-                        ..Sprite::from_image(assets.load(layer_picture(name, 0)))
+                        ..Sprite::from_image(assets.load(&shows))
                     },
+                    Layer { name: name.clone(), shows },
                     // Above the marker under their feet, each layer over the last.
                     Transform::from_xyz(0.0, 0.0, 0.01 * (i + 1) as f32).with_scale(Vec3::splat(1.0 / PIXELS_PER_METRE)),
                 ));
@@ -121,33 +144,54 @@ pub fn draw_held(
     }
 }
 
-/// Every person's layers show the picture for where they face, upright
-/// however the person itself is turned.
+/// Every person's layers show the picture for where they face, standing
+/// or in the walking frame for how far they have walked, upright however
+/// the person itself is turned.
 pub fn turn_people(
+    time: Res<Time>,
     assets: Res<AssetServer>,
-    people: Query<(&crate::actor::Facing, &Transform, &Children), With<Person>>,
+    mut people: Query<(&crate::actor::Facing, &Transform, &Children, &mut Stride), With<Person>>,
     mut layers: Query<(&mut Layer, &mut Sprite, &mut Transform), Without<Person>>,
 ) {
-    for (facing, transform, children) in &people {
+    for (facing, transform, children, mut stride) in &mut people {
+        let here = transform.translation.truncate();
+        let step = here.distance(stride.last);
+        stride.last = here;
+        if step > 0.001 {
+            stride.walked += step;
+            stride.still = 0.0;
+        } else {
+            stride.still += time.delta_secs();
+        }
+        let walk = (stride.still < STILL).then(|| (stride.walked / STRIDE * WALK_FRAMES as f32) as usize % WALK_FRAMES);
         let k = facing_index(facing.0);
         for child in children.iter() {
             let Ok((mut layer, mut sprite, mut at)) = layers.get_mut(child) else {
                 continue;
             };
             at.rotation = transform.rotation.inverse();
-            if layer.facing != k {
-                layer.facing = k;
-                sprite.image = assets.load(layer_picture(&layer.name, k));
+            let shows = layer_picture(&layer.name, k, walk);
+            if layer.shows != shows {
+                sprite.image = assets.load(&shows);
+                layer.shows = shows;
             }
         }
     }
 }
 
+/// A picture's tint: its light picture multiplied by this colour (a
+/// building's wall in its palette colour).
+#[derive(Component)]
+pub struct Tint(pub Color);
+
 /// Give every new `Picture` its sprite.
-pub fn draw_pictures(mut commands: Commands, assets: Res<AssetServer>, new: Query<(Entity, &Picture), Added<Picture>>) {
-    for (entity, picture) in &new {
+pub fn draw_pictures(mut commands: Commands, assets: Res<AssetServer>, new: Query<(Entity, &Picture, Option<&Tint>), Added<Picture>>) {
+    for (entity, picture, tint) in &new {
         commands.entity(entity).with_child((
-            Sprite::from_image(assets.load(format!("pictures/{}.png", picture.0))),
+            Sprite {
+                color: tint.map_or(Color::WHITE, |t| t.0),
+                ..Sprite::from_image(assets.load(format!("pictures/{}.png", picture.0)))
+            },
             Transform::from_scale(Vec3::splat(1.0 / PIXELS_PER_METRE)),
         ));
     }

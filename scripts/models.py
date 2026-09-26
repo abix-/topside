@@ -222,6 +222,19 @@ def picture(obj, out, frame=None):
     over each other line up."""
     objs = obj if isinstance(obj, list) else [obj]
     scene = bpy.context.scene
+    # Square tiles (FFF 269: the camera is 45 degrees down, "but in Factorio
+    # ... our tiles being square"): the scene is stretched along the ground
+    # away from the camera by 1/cos(45), so a metre of ground is a metre
+    # on screen both ways, while heights still show as the camera sees them.
+    stretch = bpy.data.objects.get("square tiles")
+    if stretch is None:
+        stretch = bpy.data.objects.new("square tiles", None)
+        stretch.scale = (1.0, 1.0 / math.cos(CAMERA_DOWN), 1.0)
+        scene.collection.objects.link(stretch)
+    for o in scene.objects:
+        if o.parent is None and o is not stretch and o.type in {"MESH", "ARMATURE"}:
+            o.parent = stretch
+    bpy.context.view_layer.update()
     cam = bpy.data.objects.new("camera", bpy.data.cameras.new("camera"))
     cam.data.type = "ORTHO"
     scene.collection.objects.link(cam)
@@ -399,6 +412,38 @@ def parachute():
     return join(parts, "parachute", 3.0)
 
 
+# -- buildings -----------------------------------------------------------------
+#
+# A building is drawn a tile at a time, as Factorio draws its walls
+# (src/structure.rs): every piece is one tile (a metre) across, near white,
+# and the game tints it the building's colour. Walls are drawn 1 m tall, so
+# a wall seen from the camera does not hide the room behind it.
+WALL_HEIGHT = 1.0
+LIGHT = (0.92, 0.92, 0.92)
+
+
+def wall():
+    """one tile of wall: a block WALL_HEIGHT tall."""
+    return join([box("block", (1.0, 1.0, WALL_HEIGHT), mat=material("wall", LIGHT))], "wall")
+
+
+def furniture():
+    """one tile of furniture (shelves, a counter): a block a little smaller
+    than its tile."""
+    return join([box("block", (0.9, 0.9, 0.7), mat=material("furniture", LIGHT))], "furniture")
+
+
+def floor():
+    """one tile of floor, with darker seams along its edges so the tiles
+    show."""
+    tile = material("floor", LIGHT)
+    seam = material("seam", (0.75, 0.75, 0.75))
+    parts = [box("tile", (1.0, 1.0, 0.02), mat=tile)]
+    for i, (w, h, x, y) in enumerate([(1.0, 0.03, 0, 0.485), (1.0, 0.03, 0, -0.485), (0.03, 1.0, 0.485, 0), (0.03, 1.0, -0.485, 0)]):
+        parts.append(box(f"seam_{i}", (w, h, 0.004), at=(x, y, 0.011), mat=seam))
+    return join(parts, "floor")
+
+
 # -- people ------------------------------------------------------------------
 #
 # People are built from pieces (design.md "What 2D changes"): each is layers
@@ -422,23 +467,45 @@ BODIES = {
 }
 
 
+# The rig's animations: Quaternius's Universal Animation Library (CC0,
+# scripts/quaternius-animations/License.txt), from
+# https://quaternius.itch.io/universal-animation-library, made for this rig.
+ANIMATIONS = Path(__file__).resolve().parent / "quaternius-animations" / "UAL1_Standard.glb"
+# The poses a person is rendered in: standing (one frame of the idle), and
+# walking (WALK_FRAMES frames spread over one loop of the walk).
+STAND = ("Idle_Loop", 0)
+WALK = "Walk_Loop"
+WALK_FRAMES = 8
+
+
+def animations():
+    """bring in the animation library's actions, and nothing of its own
+    mannequin."""
+    before = set(bpy.data.objects)
+    bpy.ops.import_scene.gltf(filepath=str(ANIMATIONS))
+    for o in set(bpy.data.objects) - before:
+        bpy.data.objects.remove(o, do_unlink=True)
+
+
+def pose(rig, action, frame):
+    """put the rig in one frame of one of the library's actions."""
+    act = bpy.data.actions[action]
+    rig.animation_data_create()
+    rig.animation_data.action = act
+    if act.slots:
+        rig.animation_data.action_slot = act.slots[0]
+    bpy.context.scene.frame_set(frame)
+    bpy.context.view_layer.update()
+
+
 def person(file, skin):
-    """a body standing with its arms at its sides: its rig and meshes (with
-    eyes and brows), in its light skin."""
+    """a body: its rig and meshes (with eyes and brows), in its light skin."""
     meshes = load(CHARACTERS / file, {"MI_Superhero": (CHARACTERS / skin, False), "MI_": (None, False)})
     # The file carries a loose helper ball; the body is what the rig holds.
     for m in [m for m in meshes if m.parent is None]:
         bpy.data.objects.remove(m, do_unlink=True)
     body = [m for m in meshes if m.parent is not None]
-    rig = body[0].parent
-    bones = rig.pose.bones
-    for b in bones:
-        b.rotation_mode = "XYZ"
-    # Arms down from the T-pose: each upper arm turns down about its Z.
-    bones["upperarm_l"].rotation_euler = (0, 0, math.radians(-72))
-    bones["upperarm_r"].rotation_euler = (0, 0, math.radians(72))
-    bpy.context.view_layer.update()
-    return rig, body
+    return body[0].parent, body
 
 
 def piece(name, rig):
@@ -452,35 +519,43 @@ def piece(name, rig):
 
 
 def people():
-    """render every body and every piece that fits it, per facing:
-    `person <body> body <facing>` and `person <body> <piece> <facing>`. A
-    piece is rendered with the body held out, so whatever of it is behind
-    the body is cut away and any piece draws over the body; the body is
-    rendered whole, so every piece fits it."""
+    """render every body and every piece that fits it, per facing, standing
+    and in each walking frame: `person <body> <layer> <facing>` and
+    `person <body> <layer> <facing> walk <frame>`, the layer being `body`
+    or a piece. A piece is rendered with the body held out, so whatever of
+    it is behind the body is cut away and any piece draws over the body;
+    the body is rendered whole, so every piece fits it."""
     for body_name, (file, skin, names) in BODIES.items():
         clear()
+        animations()
         rig, body = person(file, skin)
+        rig.rotation_mode = "XYZ"
         pieces = {n.lower(): piece(n, rig) for n in names}
-        # Which way the rig faces at rest: from its ankles to its toes.
+        layers = {"body": body, **pieces}
+        pose(rig, *STAND)
+        # Which way the rig faces standing: from its ankles to its toes.
         bones, m = rig.pose.bones, rig.matrix_world
         toes = (m @ bones["ball_l"].head + m @ bones["ball_r"].head) / 2
         ankles = (m @ bones["foot_l"].head + m @ bones["foot_r"].head) / 2
         rest = math.atan2(toes.y - ankles.y, toes.x - ankles.x)
 
-        def only(shown, held_out=()):
-            for meshes in [body, *pieces.values()]:
-                for o in meshes:
-                    o.hide_render = o not in shown and o not in held_out
-                    o.is_holdout = o in held_out
+        def render(suffix):
+            for name, meshes in layers.items():
+                held_out = body if name != "body" else []
+                for other in layers.values():
+                    for o in other:
+                        o.hide_render = o not in meshes and o not in held_out
+                        o.is_holdout = o in held_out
+                picture(meshes, OUT / f"person {body_name} {name} {suffix}.png", frame=PERSON_FRAME)
 
+        length = int(bpy.data.actions[WALK].frame_range[1])
         for k in range(FACINGS):
             rig.rotation_euler = (0, 0, math.radians(k * 360 / FACINGS) - rest)
-            bpy.context.view_layer.update()
-            only(body)
-            picture(body, OUT / f"person {body_name} body {k}.png", frame=PERSON_FRAME)
-            for name, meshes in pieces.items():
-                only(meshes, held_out=body)
-                picture(meshes, OUT / f"person {body_name} {name} {k}.png", frame=PERSON_FRAME)
+            pose(rig, *STAND)
+            render(f"{k}")
+            for f in range(WALK_FRAMES):
+                pose(rig, WALK, f * length // WALK_FRAMES)
+                render(f"{k} walk {f}")
 
 
 # Models that render several pictures themselves.
@@ -507,6 +582,10 @@ MODELS = {
     "pipe shotgun": pipe_shotgun,
     "shotgun shell": shotgun_shell,
     "road sign vest": road_sign_vest,
+    # Buildings, a tile at a time (src/structure.rs).
+    "wall": wall,
+    "furniture": furniture,
+    "floor": floor,
     # The minor sites' props, named as in content/src/lib.rs.
     # A wrecked car: Kenney's sedan all in rust, lying along x (4.2 m long).
     "car wreck": lambda: kenney("car", "sedan", "car wreck", 4.2, rgb=(0.45, 0.2, 0.15), turn=90),

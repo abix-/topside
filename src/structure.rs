@@ -110,15 +110,25 @@ pub fn spawn_structure(commands: &mut Commands, def: &StructureDef, at: Vec2, of
         root.insert(WorldPiece);
     }
     let root = root.id();
+    // Every tile its picture (scripts/models.py), tinted the run's colour,
+    // as Factorio draws a wall a tile at a time: lower on the screen draws
+    // in front, so a wall's face shows whichever way it runs.
     for r in runs.iter().filter(|r| r.kind != TileKind::Door) {
-        let z = if r.kind == TileKind::Floor { FLOOR_Z } else { SOLID_Z };
-        let (min, max) = rect(r);
-        let mut piece = commands.spawn((
-            sprite(r.color, max - min),
-            Transform::from_translation((at + (min + max) / 2.0).extend(z)),
-        ));
-        if of_world {
-            piece.insert(WorldPiece);
+        let (picture, z) = match r.kind {
+            TileKind::Floor => ("floor", FLOOR_Z),
+            TileKind::Furniture => ("furniture", SOLID_Z),
+            _ => ("wall", SOLID_Z),
+        };
+        for x in r.from..r.to {
+            let centre = at + Vec2::new(x as f32 + 0.5, r.row as f32 + 0.5);
+            let mut piece = commands.spawn((
+                crate::picture::Picture(picture.to_string()),
+                crate::picture::Tint(Color::srgb(r.color[0], r.color[1], r.color[2])),
+                Transform::from_translation(centre.extend(z - centre.y * 1e-6)),
+            ));
+            if of_world {
+                piece.insert(WorldPiece);
+            }
         }
     }
     for r in runs.iter().filter(|r| r.kind == TileKind::Door) {
