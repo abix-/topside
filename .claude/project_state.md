@@ -68,8 +68,6 @@ The first unchecked row of docs/todo.md, unless the operator says.
 
 - Everything the deleted tests checked (melee, guns, the storm, stores,
   sight, and the rest) has no test against the running game yet.
-- `tests/control_plane.rs` passes when no game is running (it prints
-  "skipping"); `tests/game.rs` fails then.
 - The running game (seed 1, read 2026-09-26) had 26 of 78 people alive,
   106 deaths, and bunkers down to 0 to 2 water; not looked into.
 - Todo row 1 (one content file for both games) asks the 3D game to
