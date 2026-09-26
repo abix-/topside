@@ -468,38 +468,101 @@ def merge(parts, name):
     return obj
 
 
+def layered(base, parts, layers, middle):
+    """render `base` alone as `<base>`, and each of its layers alone on it as
+    `<base> <layer>`, in one frame fitted to all of them, at WEAPON_SCALE,
+    `middle` (metres along x) at the ground point and the lowest point of any
+    of them on the ground. `layers` maps each layer's name to its parts."""
+    objs = {base: merge(parts, base)}
+    for name, layer_parts in layers.items():
+        objs[f"{base} {name}"] = merge(layer_parts, name)
+    every = list(objs.values())
+    low = min(v.co.z for o in every for v in o.data.vertices)
+    for obj in every:
+        obj.scale = (WEAPON_SCALE,) * 3
+        obj.location = (-middle * WEAPON_SCALE, 0.0, -low * WEAPON_SCALE)
+    bpy.context.view_layer.update()
+    for name, obj in objs.items():
+        for other in every:
+            other.hide_render = other is not obj
+        picture(obj, OUT / f"{name}.png", fit=every)
+
+
+# -- the pipe shotgun, in layers -----------------------------------------------
+#
+# A gun is a body, barrel, grip, stock, and sight (design.md "What 2D
+# changes"). The body is built lying along x, the muzzle toward +x, its middle
+# at x = 0; every part is built where it goes on the body.
+
+
+def pipe_shotgun_body():
+    """the pipe shotgun's body: the fat steel sleeve the barrel slides into,
+    and a bent strip of steel for a trigger guard."""
+    steel = material("steel", (0.3, 0.3, 0.3))
+    return [
+        cylinder("sleeve", 0.032, 0.16, along="X", mat=steel),
+        box("guard", (0.05, 0.012, 0.035), at=(-0.03, 0, -0.045), mat=steel),
+    ]
+
+
+def barrel(length):
+    """a steel pipe barrel of `length`, slid into the sleeve."""
+    steel = material("barrel", (0.34, 0.34, 0.35))
+    return [
+        cylinder("barrel", 0.022, length, along="X", at=(-0.05 + length / 2, 0, 0), mat=steel),
+        cylinder("muzzle", 0.026, 0.03, along="X", at=(-0.05 + length - 0.015, 0, 0), mat=steel),
+    ]
+
+
+def wooden_grip():
+    """a rough wooden grip under the back of the sleeve."""
+    wood = material("wood", (0.4, 0.28, 0.16))
+    return [box("grip", (0.05, 0.04, 0.12), at=(-0.07, 0, -0.08), rotation=(0, -0.25, 0), mat=wood)]
+
+
+def taped_grip():
+    """a grip of scrap wrapped in black tape."""
+    tape = material("tape", (0.14, 0.13, 0.12))
+    band = material("band", (0.3, 0.28, 0.25))
+    return [
+        box("grip", (0.05, 0.042, 0.12), at=(-0.07, 0, -0.08), rotation=(0, -0.25, 0), mat=tape),
+        box("band", (0.055, 0.046, 0.015), at=(-0.075, 0, -0.1), rotation=(0, -0.25, 0), mat=band),
+    ]
+
+
+def wooden_stock():
+    """a rough plank of a stock behind the sleeve."""
+    wood = material("wood", (0.4, 0.28, 0.16))
+    return [box("stock", (0.32, 0.045, 0.09), at=(-0.24, 0, -0.03), mat=wood)]
+
+
+def nail_sight():
+    """a nail standing up on the front of the sleeve, to aim along."""
+    steel = material("nail", (0.55, 0.55, 0.58))
+    return [cylinder("sight", 0.006, 0.05, sides=6, along="Z", at=(0.06, 0, 0.05), mat=steel)]
+
+
+# The pipe shotgun's parts, named as in content/src/lib.rs. No stock and no
+# sight are no layer at all.
+GUN_PARTS = {
+    "pipe barrel": lambda: barrel(0.6),
+    "short pipe barrel": lambda: barrel(0.35),
+    "wooden grip": wooden_grip,
+    "taped grip": taped_grip,
+    "wooden stock": wooden_stock,
+    "nail sight": nail_sight,
+}
+
+
 def weapons():
-    """render every handle alone and every head alone on each handle, one
-    frame per handle, the handle's middle at the ground point."""
+    """render every handle with its heads, and the pipe shotgun with its
+    parts, each in its own frame."""
     for handle, build in HANDLES.items():
         clear()
         parts, length, radius = build()
-        layers = {handle: merge(parts, handle)}
-        for head, put_on in HEADS.items():
-            layers[f"{handle} {head}"] = merge(put_on(length, radius), head)
-        for obj in layers.values():
-            obj.scale = (WEAPON_SCALE,) * 3
-            obj.location = (-length / 2 * WEAPON_SCALE, 0.0, 0.0)
-        bpy.context.view_layer.update()
-        every = list(layers.values())
-        for name, obj in layers.items():
-            for other in every:
-                other.hide_render = other is not obj
-            picture(obj, OUT / f"{name}.png", fit=every)
-
-
-def pipe_shotgun():
-    """the pipe shotgun: a steel pipe barrel slid into a fatter sleeve, on a
-    rough wooden stock."""
-    steel = material("steel", (0.3, 0.3, 0.3))
-    wood = material("wood", (0.4, 0.28, 0.16))
-    parts = [
-        cylinder("barrel", 0.022, 0.6, along="X", at=(0.15, 0, 0), mat=steel),
-        cylinder("sleeve", 0.032, 0.16, along="X", at=(-0.2, 0, 0), mat=steel),
-        box("stock", (0.3, 0.045, 0.09), at=(-0.42, 0, -0.02), mat=wood),
-        box("grip", (0.05, 0.04, 0.11), at=(-0.25, 0, -0.07), mat=wood),
-    ]
-    return join(parts, "pipe shotgun", ITEM)
+        layered(handle, parts, {head: put_on(length, radius) for head, put_on in HEADS.items()}, length / 2)
+    clear()
+    layered("pipe shotgun", pipe_shotgun_body(), {name: build() for name, build in GUN_PARTS.items()}, 0.0)
 
 
 def shotgun_shell():
@@ -935,7 +998,6 @@ MODELS = {
     "storage box": lambda: kenney("survival", "box", "storage box", DEPLOYABLE),
     "scrap": lambda: kenney("survival", "metal-panel-screws-half", "scrap"),
     "cloth": lambda: kenney("survival", "bedroll-packed", "cloth"),
-    "pipe shotgun": pipe_shotgun,
     "shotgun shell": shotgun_shell,
     "road sign vest": road_sign_vest,
     # Buildings, a tile at a time (src/structure.rs).

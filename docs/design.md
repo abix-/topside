@@ -1393,7 +1393,13 @@ view.
   nails, scrap blade, axe head, spear point, sharpened road sign. The
   handle decides reach and speed; the head decides damage and its kind
   (blunt, slash, pierce). Each layer is its own model, rendered on its
-  own, and one drawing path draws every thing's layers stacked.
+  own, and one drawing path draws every thing's layers stacked. The
+  first gun (operator, 2026-09-26): the pipe shotgun is the body, and
+  its layers are a barrel (pipe barrel, short pipe barrel), a grip
+  (wooden grip, taped grip), a stock (wooden stock, or none), and a
+  sight (nail sight, or none). The body decides damage and ammo, the
+  barrel reach and spread, the stock spread, the grip speed, the sight
+  reach.
 
 ## Future goals (not v1)
 
