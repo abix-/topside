@@ -447,14 +447,34 @@ pub const SMALL_OTHER_BUNKERS: [Vec2; 5] = [
 /// 25 hostile topside creatures"): each actor def and how many.
 pub const SMALL_TOPSIDE_PEOPLE: [(&str, u32); 3] = [("wanderer", 25), ("scavenger", 13), ("raider", 12)];
 
-/// The small world's sites: one of each kind, each at a fixed place round
-/// the bunker, clear of both bunkers' ground.
-pub const SMALL_SITES: [(&str, [f32; 2]); 5] = [
+/// The small world's sites (operator, 2026-09-26: "20 monuments of
+/// varying sizes"): every kind but the ruined city, from large to minor,
+/// each at a fixed place clear of every bunker's ground.
+pub const SMALL_SITES: [(&str, [f32; 2]); 20] = [
+    // Large.
+    ("launch site", [-300.0, 300.0]),
+    ("power plant", [300.0, 300.0]),
+    ("airfield", [-300.0, -300.0]),
+    // Medium.
+    ("military outpost", [150.0, 180.0]),
+    ("research station", [-150.0, 180.0]),
+    ("train yard", [150.0, -170.0]),
+    ("harbor", [-150.0, -170.0]),
+    ("sewer", [420.0, 150.0]),
+    // Small.
+    ("junkyard", [-420.0, 150.0]),
+    ("junkyard", [-420.0, -150.0]),
     ("roadside stop", [0.0, 180.0]),
+    ("roadside stop", [420.0, -150.0]),
+    // Minor.
     ("wreck", [-150.0, 0.0]),
+    ("wreck", [420.0, 420.0]),
     ("campsite", [0.0, -150.0]),
-    ("supply drop", [-120.0, 120.0]),
-    ("body", [120.0, -120.0]),
+    ("campsite", [-420.0, 420.0]),
+    ("supply drop", [150.0, 60.0]),
+    ("supply drop", [420.0, -420.0]),
+    ("body", [-80.0, -90.0]),
+    ("body", [-420.0, -420.0]),
 ];
 
 /// How each ground kind is drawn. Tuning.

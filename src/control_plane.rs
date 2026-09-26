@@ -245,6 +245,7 @@ pub fn publish_world(
     people: Query<(&crate::actor::Store, &Npc, Has<crate::actor::Dead>, &Survival), With<crate::actor::Home>>,
     chunks: Option<Res<crate::terrain::Chunks>>,
     rolled: Option<Res<crate::terrain::WorldRes>>,
+    standing: Option<Res<crate::structure::MonumentsRes>>,
 ) {
     if tick.0 % 60 != 0 {
         return;
@@ -298,6 +299,12 @@ pub fn publish_world(
         "stocked": life.stocked,
         "bunkers": bunkers,
         "chunks": {"made": made, "missing": missing},
+        // Every monument standing: its kind, where, and how many buildings.
+        "monuments": standing.as_ref().map_or(Vec::new(), |m| m.0.iter().map(|(at, def)| json!({
+            "kind": def.kind,
+            "at": [at.x, at.y],
+            "buildings": def.members.len(),
+        })).collect::<Vec<_>>()),
     });
     if let Ok(mut slot) = WORLD.lock() {
         *slot = world;

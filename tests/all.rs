@@ -7,4 +7,5 @@ mod doorways;
 mod eating;
 mod game;
 mod hauling;
+mod monuments;
 mod respawn;
