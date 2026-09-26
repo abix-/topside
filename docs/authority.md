@@ -16,37 +16,31 @@ grow a second path.
 ## How topside works: every system (2026-09-26)
 
 Every system in the game, documented once, so that whoever builds something
-uses the path written here and never makes a second one. The shape is
-Endless's Kubernetes architecture (endless/docs/k8s.md), which factoriobot's
-authority map also follows:
+uses the path written here and never makes a second one (the shape of
+endless/docs/k8s.md):
 
-- **Def** (the CRD): the shape of a kind of thing. Immutable, no runtime
-  state. Content in `content/src/lib.rs`, the struct in modforge.
-- **Registry** (etcd): every Def of that kind, stored once and looked up by
-  name; the source of truth for base values.
-- **Instance** (a CR): one thing in the game, a Bevy entity. All of its
-  runtime data lives on its components, each component one concern; no
-  parallel list, no second store. An index (the `ActorMap`) holds lookup
-  only, never gameplay data.
-- **Apply** (`kubectl apply`): the one function that makes an instance from a
-  Def. Nothing else makes one.
-- **Controllers**: the systems that read the Def and the instance and act.
-  They never keep a copy of Def fields on an instance, and they never keep
-  their own copy of an instance's data.
+- **Def**: the shape of a kind of thing. Immutable, no runtime state.
+  Content in `content/src/lib.rs`, the struct in modforge.
+- **Registry**: every Def of that kind, stored once and looked up by name.
+- **Where its data lives**: one thing in the game is a Bevy entity, and all
+  of its data lives on its components; no parallel list, no second store. An
+  index (the `ActorMap`) holds lookup only.
+- **The one way**: the functions everyone goes through to make, change, or
+  read it.
 - **Copies**: the control plane's published numbers, the HUD, and the
   pictures read the owners and are never read back as the truth.
 
 Rules:
 
-1. Before building anything, find its system below and use its Def,
-   Registry, Apply, and Controllers. Never a second path, a second record,
-   or a second answer, even when every test passes.
+1. Before building anything, find its system below and use its one way.
+   Never a second path, a second record, or a second answer, even when every
+   test passes.
 2. Something with no system here: ask the operator, then add it here.
 3. A change that breaks a system here is undone, not worked around.
 4. Modforge holds every rule that needs no engine, with its test; topside
    senses, acts, and holds content (topside skill: modforge first).
 
-| # | System | Def (CRD) | Registry (etcd) | Instance: where its data lives (CR) | The one way | Status |
+| # | System | Def | Registry | Where its data lives | The one way | Status |
 |---:|---|---|---|---|---|---|
 | 1 | People | modforge `ActorDef` (player, bunker person, scavenger, raider, lookout, wanderer) | `ActorRegistryRes` (content `register_actors`); index `ActorMapRes` (ActorId to entity, live count) | One entity per person, the player included: `Actor`, `Npc`, `Transform`, `Facing`, `Health`, `Protection`, `Equipment`, `Inventory`, `Hotbar`, `Survival`, `Memory`, `Personality`, `Home`, `Store`, `SpawnedAt`, `ActorActivity`, `ActorCombat`, `ActorCondition`, `NextThink`, `Actions`, `ThisTick`, `NavPath`, `Firing`, `Rolling`, `Hud`, `OpenContainer`, `OpenStation`, `Dead` while dead (the dead stay, to query) | Made by `actor::spawn_person`; changed only through their action queue (row 4) and the rows below; dies through `combat::die`; back through `player::respawn` | RED: `combat::leave` despawns a dead topside person; `storm::shift_world` erases topside people through it |
 | 2 | Memory | modforge `memory::Memory` (`Known`, `Did`, threats, `learn`) | - | The `Memory` component on each person, their one memory: everything they saw, who hurt them, what they did (ate, slept, took, put in, hit, was hit, killed, died, respawned, went through a doorway), what they learned | Written by the path that did the thing (`ai::think`, `combat::hit_actor`, `hud`, `nav::doorways`, `player::respawn`); read by modforge `brain::choose` and the control plane | RED: `combat::Deaths` second record of deaths; `ai::LifeStats` counts beside memory |
