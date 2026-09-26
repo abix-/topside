@@ -44,7 +44,8 @@ fn layer_picture(name: &str, facing: usize) -> String {
     format!("pictures/{name} {facing}.png")
 }
 
-/// Give every new `Person` a child sprite per layer.
+/// Give every new `Person` a child sprite per layer, and one for what
+/// they hold.
 pub fn draw_people(mut commands: Commands, assets: Res<AssetServer>, new: Query<(Entity, &Person), Added<Person>>) {
     for (entity, person) in &new {
         commands.entity(entity).with_children(|p| {
@@ -56,7 +57,52 @@ pub fn draw_people(mut commands: Commands, assets: Res<AssetServer>, new: Query<
                     Transform::from_xyz(0.0, 0.0, 0.01 * (i + 1) as f32).with_scale(Vec3::splat(1.0 / PIXELS_PER_METRE)),
                 ));
             }
+            p.spawn((Held(None), Sprite::default(), Visibility::Hidden, Transform::from_scale(Vec3::splat(1.0 / PIXELS_PER_METRE))));
         });
+    }
+}
+
+/// What a person holds, drawn as its picture at their hand, pointing where
+/// they face (design.md: the weapon is one picture turned to the aim); the
+/// picture it shows now.
+#[derive(Component)]
+pub struct Held(Option<String>);
+
+/// How far in front of a person their hand holds an item, in metres.
+const HAND_REACH: f32 = 0.35;
+
+/// Every person's hand shows the picture of the item they hold, or nothing.
+/// The person is turned to their facing, so the hand is straight ahead of
+/// them; it is behind the body when they face away from the camera.
+pub fn draw_held(
+    assets: Res<AssetServer>,
+    registry: Res<crate::content::ItemRegistryRes>,
+    people: Query<(&crate::actor::Facing, &crate::actor::Hotbar, &Children), With<Person>>,
+    mut hands: Query<(&mut Held, &mut Sprite, &mut Visibility, &mut Transform), Without<Person>>,
+) {
+    for (facing, hotbar, children) in &people {
+        let picture = hotbar
+            .0
+            .held_stack()
+            .and_then(|stack| registry.0.def(&stack.item))
+            .and_then(|def| def.picture.clone());
+        let away = (1..=3).contains(&facing_index(facing.0));
+        for child in children.iter() {
+            let Ok((mut held, mut sprite, mut shown, mut at)) = hands.get_mut(child) else {
+                continue;
+            };
+            at.translation = Vec3::new(HAND_REACH, 0.0, if away { 0.005 } else { 0.05 });
+            if held.0 != picture {
+                match &picture {
+                    Some(name) => {
+                        sprite.image = assets.load(format!("pictures/{name}.png"));
+                        *shown = Visibility::Inherited;
+                    }
+                    None => *shown = Visibility::Hidden,
+                }
+                held.0 = picture.clone();
+            }
+        }
     }
 }
 
