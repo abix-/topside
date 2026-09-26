@@ -46,8 +46,19 @@ and learning to stay alive.
 On 2026-09-26 the todo and changelog were caught up to the code:
 rows 14, 14b, 15, 10c, 11f, 11g, 11p, 11y, 11z, 11aa, 12, 10, 10ca
 closed, and 11e4 cut to what is left. Each was checked in the code
-only; their tests were not run (the operator does not like the state
-of the tests: the last run went on forever).
+only; their tests were not run.
+
+Then the tests were remade (operator, 2026-09-26): the game is always
+running, and all tests test the running game as it runs, with no
+waiting. They are their own crate, `topside-tests` (`tests/`, one
+binary `all`, run by cargo-nextest with every test's time and output
+in logs/nextest/default/junit.xml), talking only to the control plane,
+so building them never builds or stops the game. Every headless test
+(45) and the content crate's tests (8) were deleted. Two tests remain:
+`game` (reads status, world, perf, people, ways once; passes when the
+game's own speed, now reported in `status`, is at least 0.95) and
+`control_plane` (status ticks). The todo's "Done when" cells were
+rewritten to tests against the running game.
 
 ## Next steps
 
@@ -55,15 +66,18 @@ The first unchecked row of docs/todo.md, unless the operator says.
 
 ## Open questions
 
-- The tests: the operator does not like their state and the last run
-  went on forever. Nothing is decided about them yet.
+- Everything the deleted tests checked (melee, guns, the storm, stores,
+  sight, and the rest) has no test against the running game yet.
+- `tests/control_plane.rs` passes when no game is running (it prints
+  "skipping"); `tests/game.rs` fails then.
+- The running game (seed 1, read 2026-09-26) had 26 of 78 people alive,
+  106 deaths, and bunkers down to 0 to 2 water; not looked into.
 - Todo row 1 (one content file for both games) asks the 3D game to
   build, but the 3D game is frozen and not built.
-- Seen in logs/game.txt (2026-09-25 22:11, two minutes at 1x), not
-  looked into: every person's hunger, thirst, and rest read 90, 80,
-  90 after two minutes; the alive seconds column reads 4081 and 2785
-  for two people in a 123 s run; one person has 126 health; "walk
-  grid: chunks painted" is 547 a step; every wanderer stays Idle.
+- Seen in logs/game.txt (2026-09-25 22:11), not looked into: the
+  alive seconds column reads 4081 and 2785 for two people in a 123 s
+  run; one person has 126 health; "walk grid: chunks painted" is 547 a
+  step; every wanderer stays Idle.
 - Water is a blue flat you walk on; rivers and swimming are row 33.
 - modforge `input::tests::backend_parse_rejects_garbage` fails from
   commit 6796b7bc (another agent's work); left alone.
@@ -72,7 +86,8 @@ The first unchecked row of docs/todo.md, unless the operator says.
 
 - `scripts/build.ps1` is the one way to build, test, and run:
   `pwsh -NoProfile -File scripts/build.ps1 run | test [name] | build`.
-  It stops the game first, logs everything to logs/, prints the
-  summary, and stops a cargo run that stalls.
-- modforge: `k3sc cargo-lock test -p modforge --lib` from
+  build and run stop the game first; test never does, it tests the
+  running game. It logs everything to logs/, prints the summary, and
+  stops a cargo run that stalls.
+- modforge: `k3sc cargo-lock nextest run -p modforge --lib` from
   C:\code\modforge.
