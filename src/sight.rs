@@ -13,6 +13,39 @@ use crate::interact::Door;
 use crate::structure::StructureRoot;
 use crate::{EYE_HEIGHT, on_ground};
 
+/// How far a person's eyes reach on their map, in tiles (an NPC's sight,
+/// content's `ActorDef::sight`).
+pub const MAP_SIGHT: i32 = 25;
+
+/// Every fixed step, anyone standing on a tile they have not looked
+/// around from adds to their map what their eyes reach from it (modforge
+/// `Map::look`): what stops a body on the walk grid blocks the eyes,
+/// except water, which is seen over.
+pub fn look_around(
+    tick: Res<crate::SimTick>,
+    mut walk: ResMut<crate::nav::Walk>,
+    chunks: Option<Res<crate::terrain::Chunks>>,
+    mut laps: ResMut<crate::profile::Laps>,
+    mut people: Query<(&Transform, &mut crate::actor::Map), Without<crate::actor::Dead>>,
+) {
+    let Some(chunks) = chunks else {
+        return;
+    };
+    let mut looked = 0;
+    for (at, mut map) in &mut people {
+        let tile = modforge::walk::cell_of(crate::Ground::ground(at.translation));
+        if map.looked_from == Some(tile) {
+            continue;
+        }
+        map.looked_from = Some(tile);
+        looked += 1;
+        let mut opaque =
+            |c: (i32, i32)| walk.0.blocked(c) && chunks.ground_at(c) != Some(modforge::ground::Ground::Water);
+        map.map.look(tile, MAP_SIGHT, &mut opaque, tick.0);
+    }
+    laps.count("people looking around", looked);
+}
+
 /// The one line of sight check.
 #[derive(SystemParam)]
 pub struct Sight<'w, 's> {

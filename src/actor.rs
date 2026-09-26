@@ -105,6 +105,15 @@ pub struct Personality(pub modforge::actor::Personality);
 #[derive(Component, Default, Debug, Clone, PartialEq)]
 pub struct Memory(pub modforge::memory::Memory);
 
+/// The map this person carries (modforge `map`, life.md "The map each
+/// person carries"): every tile they have seen; and the tile they last
+/// looked around from.
+#[derive(Component, Default, Debug, Clone)]
+pub struct Map {
+    pub map: modforge::map::Map,
+    pub looked_from: Option<(i32, i32)>,
+}
+
 /// Where this person lives and returns to.
 #[derive(Component, Debug, Clone, Copy, PartialEq)]
 pub struct Home(pub Vec2);
@@ -208,6 +217,7 @@ pub fn spawn_person(
                 Survival::default(),
                 ActorCondition::default(),
                 Memory::default(),
+                Map::default(),
                 ActorRecord::default(),
             ),
             (Hud::default(), OpenContainer::default(), OpenStation::default()),

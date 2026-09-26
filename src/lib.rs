@@ -10,6 +10,7 @@ pub mod held;
 pub mod hud;
 pub mod input;
 pub mod interact;
+pub mod minimap;
 pub mod model;
 pub mod nav;
 pub mod people;
@@ -193,7 +194,7 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind) -> App {
             (
                 interact::interact_on_use,
                 lap("interact"),
-                player::movement,
+                (player::movement, sight::look_around).chain(),
                 lap("movement"),
                 nav::doorways,
                 lap("doorways"),
@@ -221,6 +222,9 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind) -> App {
         app.add_plugins(bevy::diagnostic::FrameTimeDiagnosticsPlugin::default());
         control_plane::start();
         app.add_systems(Startup, terrain::setup_ground.before(terrain::make_chunks));
+        app.add_systems(Startup, minimap::setup_map);
+        app.add_systems(FixedUpdate, minimap::toggle_map.after(input::drain_actions));
+        app.add_systems(Update, minimap::draw_map);
         app.add_plugins(MaterialPlugin::<model::Cel>::default());
         app.init_resource::<model::Tinted>();
         app.init_resource::<model::CelShaded>();

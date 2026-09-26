@@ -11,6 +11,7 @@ mod eating;
 mod game;
 mod hauling;
 mod items;
+mod map;
 mod monuments;
 mod night;
 mod people_drawn;

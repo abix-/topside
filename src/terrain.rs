@@ -64,6 +64,19 @@ pub struct Chunks {
     pub shores: std::collections::HashMap<ChunkKey, Vec<Shore>>,
     /// Road tiles in the chunks made, for the `world` op.
     pub roads: usize,
+    /// Per chunk made, the ground of each of its tiles (row by row), the
+    /// one answer for what a tile is: water is seen over, and the map
+    /// draws each kind its colour.
+    pub ground: std::collections::HashMap<ChunkKey, Vec<Ground>>,
+}
+
+impl Chunks {
+    /// The ground of tile `t`, if its chunk is made.
+    pub fn ground_at(&self, t: (i32, i32)) -> Option<Ground> {
+        let key = (t.0.div_euclid(CHUNK), t.1.div_euclid(CHUNK));
+        let i = (t.1.rem_euclid(CHUNK) * CHUNK + t.0.rem_euclid(CHUNK)) as usize;
+        self.ground.get(&key).and_then(|g| g.get(i).copied())
+    }
 }
 
 /// A land tile beside water, and that water tile.
@@ -250,6 +263,7 @@ pub fn make_chunks(
         }
         let chunk = world.world.chunk(r, key);
         chunks.roads += chunk.ground.iter().filter(|g| **g == Ground::Road).count();
+        chunks.ground.insert(key, chunk.ground.to_vec());
         body(&mut commands, &runs_of(&chunk, |g| g == Ground::Water), WATER_HEIGHT, false);
         let mut solid = runs_of(&chunk, |g| matches!(g, Ground::Cliff | Ground::OutOfMap));
         solid.extend(chunk.things.iter().filter(|t| t.source.is_none()).map(|t| t.rect()));

@@ -46,6 +46,7 @@ fn key_of(code: KeyCode) -> Option<Key> {
         KeyCode::KeyD => Key::D,
         KeyCode::KeyE => Key::E,
         KeyCode::KeyI => Key::I,
+        KeyCode::KeyM => Key::M,
         KeyCode::KeyT => Key::T,
         KeyCode::Tab => Key::Tab,
         KeyCode::Escape => Key::Escape,
@@ -145,6 +146,7 @@ pub fn read_input(
             | Action::Transfer { .. }
             | Action::UseSlot { .. }
             | Action::Craft { .. }
+            | Action::Map
             | Action::Respawn => true,
             Action::Look { .. } | Action::Aim { .. } | Action::Drop | Action::Fly => false,
         };

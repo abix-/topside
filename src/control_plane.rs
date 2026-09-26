@@ -247,10 +247,27 @@ pub fn publish_view(
         &ViewVisibility,
     ), With<Mesh3d>>,
     models: Query<(&crate::model::Model, &Transform)>,
+    map_view: Option<Res<crate::minimap::MapView>>,
+    players: Query<(&Transform, &crate::actor::Map), With<Player>>,
 ) {
     if tick.0 % 60 != 0 {
         return;
     }
+    // What the map last drew, against where the player stands and what
+    // their map holds.
+    let map = map_view.map(|v| {
+        let player = players.single().ok().map(|(t, m)| {
+            let tile = modforge::walk::cell_of(t.translation.ground());
+            json!({"tile": [tile.0, tile.1], "tiles_seen": m.map.tiles_seen()})
+        });
+        json!({
+            "full": v.full,
+            "centre": [v.drawn.centre.0, v.drawn.centre.1],
+            "span": v.drawn.span,
+            "shown": v.drawn.shown,
+            "player": player,
+        })
+    });
     // Floor tiles standing above the ground (a building's upper
     // storeys), and blocks standing above it (steps and landings).
     let above = |name: &str| models.iter().filter(|(m, t)| m.0 == name && t.translation.y > 0.5).count();
@@ -276,6 +293,7 @@ pub fn publish_view(
             "models": models.iter().count(),
             "floors_above": floors_above,
             "blocks_above": blocks_above,
+            "map": map,
         });
     }
 }
@@ -468,7 +486,7 @@ pub fn publish(
     players: Query<(&Transform, &Health, &Survival), With<Player>>,
     npcs: Query<(
         (&Actor, &Npc, &Transform, &Health, &Survival, &Personality, &ThisTick),
-        (&crate::actor::Memory, &crate::actor::ActorRecord, Has<crate::actor::Dead>, &crate::actor::Hotbar, &crate::actor::Facing, Option<&crate::people::Drawn>),
+        (&crate::actor::Memory, &crate::actor::ActorRecord, Has<crate::actor::Dead>, &crate::actor::Hotbar, &crate::actor::Facing, Option<&crate::people::Drawn>, &crate::actor::Map),
     )>,
 ) {
     TICK.store(tick.0, Ordering::Relaxed);
@@ -515,7 +533,7 @@ pub fn publish(
     if tick.0 % 60 == 0 {
         let list: Vec<Json> = npcs
             .iter()
-            .map(|((actor, npc, at, health, needs, personality, this_tick), (memory, record, dead, hotbar, facing, drawn))| {
+            .map(|((actor, npc, at, health, needs, personality, this_tick), (memory, record, dead, hotbar, facing, drawn, map))| {
                 // What is in their hands, its layers, and the damage its
                 // hits land, worked out by the one place a hit reads it.
                 let weapon = hotbar.0.held_stack().map(|stack| {
@@ -553,6 +571,8 @@ pub fn publish(
                     "weapon": weapon,
                     // Where they face on the ground, in radians (0 along +x).
                     "facing": facing.0,
+                    // How many tiles are on the map they carry.
+                    "map_tiles": map.map.tiles_seen(),
                     // What their model shows (only with a window).
                     "drawn": drawn.map(|d| json!({"layers": d.layers, "held": d.held, "walking": d.walking})),
                     "did": did,
