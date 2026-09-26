@@ -794,6 +794,26 @@ One check proves it: the walk grid built from the rolled world, flooded
 from the bunker door; whatever it does not reach is a broken world,
 reported by name. Every seed must report nothing.
 
+### The small world first (operator, 2026-09-25)
+
+"before we can do a crazy big world we need a world with less variables
+where we can confirm all the stuff works. we gotta stop running before we
+walk". "lets do 32x32 chunks. that's small".
+
+- 32 by 32 chunks: 1,024 by 1,024 tiles, a kilometre across. All of it
+  made, so nothing depends on where people walk.
+- Few variables: flat grass, no water or cliffs at first; the player's
+  bunker and one other bunker; one site of each kind at a fixed place;
+  a few topside people at them and the other bunker's people. The same
+  world every run.
+- The same code as the big world, only different content: no second
+  path.
+- Each thing is confirmed on the endpoint while the operator plays, one
+  at a time: chunks made, people walk and go through doorways, a hungry
+  person eats from a box, bunker people haul food home, wander, the
+  storm. Then one thing is added back at a time (water, cliffs, rolled
+  sites, more bunkers, size).
+
 Rivers, rain and wildlife per biome, and the people who live at the
 sites come after the first world stands. The storm re-rolls the
 world by rolling a new seed through the same path and rebuilding
