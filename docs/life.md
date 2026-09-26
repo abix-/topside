@@ -96,25 +96,23 @@ life these matter:
   hurt me, who fed me, the last seen position of a threat. Small,
   per person; the brain reads it, perception writes it, and it feeds
   relationships and the chronicle.
-- Two states: `Activity` (kind, phase, target) and `CombatState`
-  (none, fighting from where, fleeing). Kept separate so a fight
-  interrupts an errand and the errand resumes.
+- What they are doing: one state in the brain's one tree (modforge
+  docs/statetree.md), fighting included. A fight interrupts an errand;
+  after it the person chooses again, nothing is held underneath to
+  resume (operator, 2026-09-26).
 
 ## The brain
 
-In priority order, the first rule that applies wins:
+The brain is one StateTree in modforge (operator, 2026-09-26; how it
+works: modforge docs/statetree.md). In order at the root: hide from
+the storm, combat (flee below the flee line, courage moving the line;
+break off past the leash; fight: look, close, attack), then the day's
+life, where what the person learned picks among the errands. An errand
+is going, then doing; arriving belongs to the errand. Nothing is chosen
+again until the errand ends, fails, or the storm or a hostile takes
+them out of it.
 
-1. Arrived at the target: Transit becomes Active (sleeping, looting,
-   eating).
-2. Fighting and health under the flee line (courage moves the line):
-   flee toward home.
-3. Fighting and chased past the leash from where it started: break
-   off, go home.
-4. A hostile in sight (by the faction table): fight: look, close,
-   attack. The combat we have.
-5. Otherwise, the life: pick something I know of.
-
-The pick: for the worst need, every KNOWN thing (memory, below) that
+The day's life: for the worst need, every KNOWN thing (memory, below) that
 is good for it scores satisfaction minus travel cost, times the
 personality multiplier, plus a small seeded random so the same person
 in the same spot does not always choose the same; the best wins. The
