@@ -81,6 +81,40 @@ pub struct Model(pub String);
 #[derive(Component, Clone, Copy, Debug, PartialEq)]
 pub struct Tint(pub Color);
 
+/// The models a stack is drawn with, bottom to top: its item's `base`
+/// model, then each of its layers' on it, `<base> <layer>`
+/// (scripts/models.py exports them in one frame, so they stack). The one
+/// answer for the hand and the ground.
+pub fn stacked(base: &str, stack: &modforge::item::ItemStack, layers: &modforge::item::LayerRegistry) -> Vec<String> {
+    std::iter::once(base.to_string())
+        .chain(
+            stack
+                .layers
+                .iter()
+                .filter_map(|l| layers.def(l))
+                .filter_map(|l| l.picture.as_ref())
+                .map(|p| format!("{base} {p}")),
+        )
+        .collect()
+}
+
+/// A thing lying in the world with layers (a nailed pipe on the floor)
+/// shows each layer's model on its own, as the hand does.
+pub fn draw_item_layers(
+    mut commands: Commands,
+    layers: Res<crate::content::LayerRegistryRes>,
+    items: Query<(Entity, &Model, &crate::interact::WorldItem), Added<crate::interact::WorldItem>>,
+) {
+    for (entity, model, item) in &items {
+        let models = stacked(&model.0, &item.stack, &layers.0);
+        commands.entity(entity).with_children(|c| {
+            for layer in models.into_iter().skip(1) {
+                c.spawn(Model(layer));
+            }
+        });
+    }
+}
+
 /// Load the model of every thing that just got a `Model`, as its scene.
 pub fn attach(mut commands: Commands, assets: Res<AssetServer>, added: Query<(Entity, &Model), Added<Model>>) {
     for (entity, model) in &added {

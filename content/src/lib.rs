@@ -112,7 +112,9 @@ pub fn loot_table() -> LootTable {
             weapon("pipe", &["sharpened road sign"], 1, 2),
             weapon("long pole", &["spear point"], 1, 2),
             e("road sign vest", (1, 1), 1, 3),
-            e("pipe shotgun", (1, 1), 1, 3),
+            weapon("pipe shotgun", &["pipe barrel", "wooden grip", "wooden stock"], 1, 3),
+            weapon("pipe shotgun", &["short pipe barrel", "taped grip"], 1, 3),
+            weapon("pipe shotgun", &["pipe barrel", "taped grip", "wooden stock", "nail sight"], 1, 4),
         ],
         picks: (1, 2),
         picks_per_danger: 1,
@@ -221,24 +223,48 @@ impl Default for LayerRegistryRes {
     }
 }
 
-/// The first heads (design.md "What 2D changes"), each landing its own
-/// damage; a handle with no head hits with the handle. Each is drawn
-/// as its own picture over the handle.
+/// The first heads and the first gun's parts (design.md "What 2D
+/// changes"). A head lands its own damage; a handle with no head hits
+/// with the handle. A gun's part adds to its numbers: the barrel reach
+/// and spread, the stock spread, the grip speed, the sight reach. Each
+/// is drawn as its own model over its item. Tuning.
 pub fn register_layers(reg: &mut LayerRegistry) {
-    for (name, damage) in [
+    let layer = |name: &str, slot: &str, damage: Option<&str>, reach, spread_degrees, delay| LayerDef {
+        name: name.to_string(),
+        slot: slot.to_string(),
+        damage: damage.map(String::from),
+        reach,
+        spread_degrees,
+        delay,
+        picture: Some(name.to_string()),
+    };
+    let heads = [
         ("nails", "nail hit"),
         ("scrap blade", "blade cut"),
         ("axe head", "axe chop"),
         ("spear point", "spear thrust"),
         ("sharpened road sign", "sign cut"),
-    ] {
-        reg.register(LayerDef {
-            name: name.to_string(),
-            slot: "head".to_string(),
-            damage: Some(damage.to_string()),
-            picture: Some(name.to_string()),
-        })
-        .expect("layer registered once");
+    ]
+    .map(|(name, damage)| layer(name, "head", Some(damage), 0.0, 0.0, 0.0));
+    let gun_parts = [
+        layer("pipe barrel", "barrel", None, 20.0, -3.0, 0.0),
+        layer("short pipe barrel", "barrel", None, 5.0, 2.0, 0.0),
+        layer("wooden grip", "grip", None, 0.0, 0.0, -0.1),
+        layer("taped grip", "grip", None, 0.0, 0.0, -0.2),
+        layer("wooden stock", "stock", None, 0.0, -2.0, 0.0),
+        layer("nail sight", "sight", None, 5.0, 0.0, 0.0),
+    ];
+    for def in heads.into_iter().chain(gun_parts) {
+        reg.register(def).expect("layer registered once");
+    }
+}
+
+/// The layers an item lies in the starting bunker with: the pipe shotgun
+/// with its barrel, grip, and stock.
+pub fn starting_layers(item: &str) -> &'static [&'static str] {
+    match item {
+        "pipe shotgun" => &["pipe barrel", "wooden grip", "wooden stock"],
+        _ => &[],
     }
 }
 
@@ -1097,12 +1123,13 @@ pub fn register_items(reg: &mut ItemRegistry) {
             kind: ItemKind::Weapon,
             max_stack: 1,
             quality_siblings: 3,
+            // The body alone; its parts add to these (register_layers).
             combat: Some(CombatStats {
                 damage: "shotgun pellet".to_string(),
                 delay: 1.2,
-                reach: 40.0,
+                reach: 20.0,
                 pellets: 6,
-                spread_degrees: 6.0,
+                spread_degrees: 10.0,
                 ammo: Some("shotgun shell".to_string()),
             }),
             food: None,
@@ -1110,7 +1137,9 @@ pub fn register_items(reg: &mut ItemRegistry) {
             armor: None,
             good_for: Default::default(),
             picture: None,
-            layer_slots: Vec::new(),
+            // A gun (design.md "What 2D changes"): the body takes a
+            // barrel, a grip, a stock, and a sight.
+            layer_slots: ["barrel", "grip", "stock", "sight"].map(String::from).to_vec(),
         },
         ItemDef {
             name: "shotgun shell".to_string(),

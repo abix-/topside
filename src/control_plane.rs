@@ -272,6 +272,52 @@ pub fn publish_view(
     }
 }
 
+/// The layered items lying in the world, once a second, for the `items`
+/// op.
+static ITEMS: Mutex<Json> = Mutex::new(Json::Null);
+
+/// Once a second: every item lying in the world with layers, its layers,
+/// the numbers `numbers_of` works out from them, and the models it is
+/// drawn with (its own and each child's).
+pub fn publish_items(
+    tick: Res<crate::SimTick>,
+    registry: Res<crate::content::ItemRegistryRes>,
+    layers: Res<crate::content::LayerRegistryRes>,
+    items: Query<(&crate::interact::WorldItem, &Transform, Option<&crate::model::Model>, Option<&Children>)>,
+    models: Query<&crate::model::Model>,
+) {
+    if tick.0 % 60 != 0 {
+        return;
+    }
+    let list: Vec<Json> = items
+        .iter()
+        .filter(|(item, ..)| !item.stack.layers.is_empty())
+        .map(|(item, at, own, children)| {
+            let combat = registry
+                .0
+                .def(&item.stack.item)
+                .and_then(|def| modforge::item::numbers_of(def, &item.stack, &layers.0).combat);
+            let drawn: Vec<&str> = own
+                .into_iter()
+                .chain(children.into_iter().flat_map(|c| c.iter()).filter_map(|c| models.get(c).ok()))
+                .map(|m| m.0.as_str())
+                .collect();
+            json!({
+                "item": item.stack.item,
+                "layers": item.stack.layers,
+                "at": [at.translation.x, at.translation.z],
+                "reach": combat.as_ref().map(|c| c.reach),
+                "spread_degrees": combat.as_ref().map(|c| c.spread_degrees),
+                "delay": combat.as_ref().map(|c| c.delay),
+                "models": drawn,
+            })
+        })
+        .collect();
+    if let Ok(mut slot) = ITEMS.lock() {
+        *slot = Json::Array(list);
+    }
+}
+
 /// What the window shows, saved to disk when the `screenshot` op asked.
 pub fn take_screenshot(mut commands: Commands) {
     if SCREENSHOT.swap(false, Ordering::Relaxed) {
@@ -414,7 +460,7 @@ pub fn publish(
     players: Query<(&Transform, &Health, &Survival), With<Player>>,
     npcs: Query<(
         (&Actor, &Npc, &Transform, &Health, &Survival, &Personality, &ThisTick),
-        (&crate::actor::Memory, &crate::actor::ActorRecord, Has<crate::actor::Dead>, &crate::actor::Hotbar, &crate::actor::Facing),
+        (&crate::actor::Memory, &crate::actor::ActorRecord, Has<crate::actor::Dead>, &crate::actor::Hotbar, &crate::actor::Facing, Option<&crate::people::Drawn>),
     )>,
 ) {
     TICK.store(tick.0, Ordering::Relaxed);
@@ -459,7 +505,7 @@ pub fn publish(
     if tick.0 % 60 == 0 {
         let list: Vec<Json> = npcs
             .iter()
-            .map(|((actor, npc, at, health, needs, personality, this_tick), (memory, record, dead, hotbar, facing))| {
+            .map(|((actor, npc, at, health, needs, personality, this_tick), (memory, record, dead, hotbar, facing, drawn))| {
                 // What is in their hands, its layers, and the damage its
                 // hits land, worked out by the one place a hit reads it.
                 let weapon = hotbar.0.held_stack().map(|stack| {
@@ -497,6 +543,8 @@ pub fn publish(
                     "weapon": weapon,
                     // Where they face on the ground, in radians (0 along +x).
                     "facing": facing.0,
+                    // What their model shows (only with a window).
+                    "drawn": drawn.map(|d| json!({"layers": d.layers, "held": d.held, "walking": d.walking})),
                     "did": did,
                     "ate_what": ate_what,
                     // Every death in their memory: when, of what, by whom.
@@ -625,6 +673,12 @@ pub fn start() {
         "where the camera is and looks, how many meshes there are by material, and how many the camera sees",
         "",
         |_| Ok(VIEW.lock().map(|v| v.clone()).unwrap_or(Json::Null)),
+    ));
+    OP_REGISTRY.register(OpDef::new(
+        "items",
+        "every item lying in the world with layers: its layers, its reach, spread and delay from them, and the models it is drawn with",
+        "",
+        |_| Ok(ITEMS.lock().map(|v| v.clone()).unwrap_or(Json::Null)),
     ));
     OP_REGISTRY.register(OpDef::new(
         "screenshot",

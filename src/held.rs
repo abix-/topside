@@ -38,15 +38,7 @@ const KICK: f32 = 0.08;
 fn held_models(hotbar: &Hotbar, items: &ItemRegistryRes, layers: &LayerRegistryRes) -> Option<(String, Vec<String>)> {
     let stack = hotbar.0.held_stack()?;
     let base = items.0.def(&stack.item)?.picture.clone()?;
-    let mut models = vec![base.clone()];
-    models.extend(
-        stack
-            .layers
-            .iter()
-            .filter_map(|l| layers.0.def(l))
-            .filter_map(|l| l.picture.as_ref())
-            .map(|p| format!("{base} {p}")),
-    );
+    let models = crate::model::stacked(&base, stack, &layers.0);
     Some((models.join("|"), models))
 }
 
@@ -57,13 +49,13 @@ pub fn hold(
     mut commands: Commands,
     items: Res<ItemRegistryRes>,
     layers: Res<LayerRegistryRes>,
-    holders: Query<(Entity, &Hotbar, Has<Player>), Without<Dead>>,
+    mut holders: Query<(Entity, &Hotbar, Has<Player>, Option<&mut crate::people::Drawn>), Without<Dead>>,
     eyes: Query<(), With<Eyes>>,
     names: Query<&Name>,
     children: Query<&Children>,
     helds: Query<&Held>,
 ) {
-    for (holder, hotbar, is_player) in &holders {
+    for (holder, hotbar, is_player, drawn) in &mut holders {
         let hand = children.iter_descendants(holder).find(|e| {
             if is_player {
                 eyes.contains(*e)
@@ -75,6 +67,12 @@ pub fn hold(
             continue;
         };
         let wanted = held_models(hotbar, &items, &layers);
+        if let Some(mut drawn) = drawn {
+            let key = wanted.as_ref().map(|(key, _)| key.clone());
+            if drawn.held != key {
+                drawn.held = key;
+            }
+        }
         let shown = children
             .get(hand)
             .into_iter()

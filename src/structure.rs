@@ -171,7 +171,12 @@ pub fn spawn_structure(commands: &mut Commands, def: &StructureDef, at: Vec2, of
 
 /// The starting bunker at the world's bunker point, with its starting
 /// items and the note on the floor.
-pub fn spawn_bunker(mut commands: Commands, world: Res<WorldRes>, items: Res<ItemRegistryRes>) {
+pub fn spawn_bunker(
+    mut commands: Commands,
+    world: Res<WorldRes>,
+    items: Res<ItemRegistryRes>,
+    layers: Res<crate::content::LayerRegistryRes>,
+) {
     let at = world.bunker;
     spawn_structure(&mut commands, &starting_bunker(), at, false);
     let def = |name: &str| {
@@ -181,7 +186,10 @@ pub fn spawn_bunker(mut commands: Commands, world: Res<WorldRes>, items: Res<Ite
             .unwrap_or_else(|| panic!("item '{name}' is not registered"))
     };
     for (name, count, salt, [x, z], _) in STARTING_ITEMS {
-        spawn_item(&mut commands, def(name), create(def(name), count, &[], 0.0, salt), at + Vec2::new(x, z));
+        let on: Vec<String> = crate::content::starting_layers(name).iter().map(|l| l.to_string()).collect();
+        let stack = item::create_layered(def(name), &on, &layers.0, count, &[], 0.0, salt)
+            .unwrap_or_else(|e| panic!("starting item {name}: {e}"));
+        spawn_item(&mut commands, def(name), stack, at + Vec2::new(x, z));
     }
     // The crafting bench, where E opens its recipes.
     let [x, z] = BENCH_AT;

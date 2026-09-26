@@ -231,14 +231,17 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind) -> App {
                 spawn_camera,
                 input::cursor_grab,
                 people::draw_people,
+                model::draw_item_layers,
                 model::attach,
                 (model::tint, people::dress).before(model::cel_shade),
+                people::redress,
                 model::cel_shade,
                 people::animate,
                 held::hold,
                 held::swing,
                 control_plane::take_screenshot,
                 control_plane::publish_view,
+                control_plane::publish_items,
             ),
         );
         app.add_systems(

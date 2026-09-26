@@ -27,15 +27,33 @@ const WALK: &str = "Walk_Loop";
 /// How long one animation takes to blend into the next.
 const BLEND: Duration = Duration::from_millis(200);
 
-/// Where a person was last frame, to tell standing from walking.
+/// Where a person was last frame, and how long they have not moved, to
+/// tell standing from walking: people move in the fixed step, so a frame
+/// between two steps shows no movement.
 #[derive(Component, Default)]
-pub struct Stride(Vec3);
+pub struct Stride {
+    last: Vec3,
+    still: f32,
+}
+
+/// Seconds without moving before a person counts as standing (the 2D
+/// game's).
+const STILL: f32 = 0.1;
+
+/// What a person's model shows now, for the control plane: the layers
+/// shown, what is in their hand (its models), and whether the walk plays.
+#[derive(Component, Default, Debug)]
+pub struct Drawn {
+    pub layers: Vec<String>,
+    pub held: Option<String>,
+    pub walking: bool,
+}
 
 /// Every NPC's body: their body's model under them, feet on the ground,
 /// facing where they face (the model faces its +z; a person faces +x).
 pub fn draw_people(mut commands: Commands, people: Query<(Entity, &Look), (Added<Look>, Without<Player>)>) {
     for (person, look) in &people {
-        commands.entity(person).insert(Stride::default()).with_children(|c| {
+        commands.entity(person).insert((Stride::default(), Drawn::default())).with_children(|c| {
             c.spawn((
                 Model(format!("person {}", look.0.body)),
                 Transform::from_xyz(0.0, -BODY_CENTRE, 0.0).with_rotation(Quat::from_rotation_y(FRAC_PI_2)),
@@ -61,46 +79,66 @@ fn wears(items: &ItemRegistryRes, worn: &Equipment, layer: &str) -> bool {
         .any(|def| def.picture.as_deref() == Some(layer))
 }
 
+/// How a person shows one layer of their model: hidden (None), or shown
+/// with this tint (the body their skin, a piece of their look their
+/// hair, what they wear untinted).
+fn shows(layer: &str, look: &Look, worn: Option<&Equipment>, items: &ItemRegistryRes) -> Option<Option<[f32; 3]>> {
+    if layer == "body" {
+        Some(Some(look.0.skin))
+    } else if look.0.pieces.iter().any(|p| p == layer) {
+        Some(Some(look.0.hair))
+    } else if worn.is_some_and(|w| wears(items, w, layer)) {
+        Some(None)
+    } else {
+        None
+    }
+}
+
+/// The layer of a mesh of a person's model: its node's name (the mesh's
+/// parent), before any `.n`.
+fn mesh_layer(mesh: Entity, parents: &Query<&ChildOf>, names: &Query<&Name>) -> Option<String> {
+    let node = parents.get(mesh).ok()?.parent();
+    names.get(node).ok().map(|n| layer_of(n.as_str()).to_string())
+}
+
 /// The tick a mesh of a person's model appears: shown if it is one of
 /// their own layers (the body, a piece of their look, what they wear) and
-/// hidden if it is another; the body tinted their skin, a piece their
-/// hair. Every mesh of the model is one of these (the rig's bones have
-/// none).
+/// hidden if it is another, tinted as `shows` says. Every mesh of the
+/// model is one of these (the rig's bones have none).
 pub fn dress(
     items: Res<ItemRegistryRes>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut made: Local<HashMap<(AssetId<StandardMaterial>, [u8; 4]), Handle<StandardMaterial>>>,
     parents: Query<&ChildOf>,
     names: Query<&Name>,
-    people: Query<(&Look, Option<&Equipment>)>,
+    mut people: Query<(&Look, Option<&Equipment>, &mut Drawn)>,
+    helds: Query<(), With<crate::held::Held>>,
     mut loaded: Query<
         (Entity, &mut MeshMaterial3d<StandardMaterial>, &mut Visibility),
         Added<MeshMaterial3d<StandardMaterial>>,
     >,
 ) {
     for (mesh, mut material, mut visibility) in &mut loaded {
-        let Some((look, worn)) = parents.iter_ancestors(mesh).find_map(|a| people.get(a).ok()) else {
+        // What they hold hangs off their hand but is not their body.
+        if parents.iter_ancestors(mesh).any(|a| helds.contains(a)) {
+            continue;
+        }
+        let Some(person) = parents.iter_ancestors(mesh).find(|a| people.contains(*a)) else {
             continue;
         };
-        let Some(layer) = parents
-            .get(mesh)
-            .ok()
-            .and_then(|p| names.get(p.parent()).ok())
-            .map(|n| layer_of(n.as_str()).to_string())
-        else {
+        let Some(layer) = mesh_layer(mesh, &parents, &names) else {
             continue;
         };
-        let wearing = worn.is_some_and(|w| wears(&items, w, &layer));
-        let tint = if layer == "body" {
-            Some(look.0.skin)
-        } else if look.0.pieces.contains(&layer) {
-            Some(look.0.hair)
-        } else if wearing {
-            None
-        } else {
+        let Ok((look, worn, mut drawn)) = people.get_mut(person) else {
+            continue;
+        };
+        let Some(tint) = shows(&layer, look, worn, &items) else {
             *visibility = Visibility::Hidden;
             continue;
         };
+        if !drawn.layers.contains(&layer) {
+            drawn.layers.push(layer);
+        }
         let Some([r, g, b]) = tint else {
             continue;
         };
@@ -121,6 +159,46 @@ pub fn dress(
     }
 }
 
+/// Whenever what a person wears changes, their model's layers are shown
+/// or hidden again by the same rule (`shows`): a vest put on shows, one
+/// taken off hides.
+pub fn redress(
+    items: Res<ItemRegistryRes>,
+    parents: Query<&ChildOf>,
+    names: Query<&Name>,
+    children: Query<&Children>,
+    mut people: Query<(Entity, &Look, &Equipment, &mut Drawn), Changed<Equipment>>,
+    helds: Query<(), With<crate::held::Held>>,
+    mut meshes: Query<&mut Visibility, With<Mesh3d>>,
+) {
+    for (person, look, worn, mut drawn) in &mut people {
+        let mut shown = Vec::new();
+        for mesh in children.iter_descendants(person) {
+            // What they hold hangs off their hand but is not their body.
+            if parents.iter_ancestors(mesh).any(|a| helds.contains(a)) {
+                continue;
+            }
+            let Ok(mut visibility) = meshes.get_mut(mesh) else {
+                continue;
+            };
+            let Some(layer) = mesh_layer(mesh, &parents, &names) else {
+                continue;
+            };
+            if shows(&layer, look, Some(worn), &items).is_some() {
+                visibility.set_if_neq(Visibility::Inherited);
+                if !shown.contains(&layer) {
+                    shown.push(layer);
+                }
+            } else {
+                visibility.set_if_neq(Visibility::Hidden);
+            }
+        }
+        if !shown.is_empty() {
+            drawn.layers = shown;
+        }
+    }
+}
+
 /// Each body's model file, and once it has loaded, its animation graph
 /// with the idle and the walk.
 #[derive(Resource, Default)]
@@ -133,24 +211,31 @@ pub struct Animations {
 /// blending between them.
 pub fn animate(
     mut commands: Commands,
+    time: Res<Time>,
     assets: Res<AssetServer>,
     gltfs: Res<Assets<Gltf>>,
     mut graphs: ResMut<Assets<AnimationGraph>>,
     mut animations: ResMut<Animations>,
     parents: Query<&ChildOf>,
-    mut people: Query<(&Look, &Transform, &mut Stride)>,
+    mut people: Query<(&Look, &Transform, &mut Stride, &mut Drawn)>,
     mut rigs: Query<(Entity, &mut AnimationPlayer, Option<&mut AnimationTransitions>)>,
 ) {
     for (rig, mut player, transitions) in &mut rigs {
         let Some(person) = parents.iter_ancestors(rig).find(|a| people.contains(*a)) else {
             continue;
         };
-        let Ok((look, transform, mut stride)) = people.get_mut(person) else {
+        let Ok((look, transform, mut stride, mut drawn)) = people.get_mut(person) else {
             continue;
         };
         let body = look.0.body.clone();
-        let moving = transform.translation.distance(stride.0) > 0.001;
-        stride.0 = transform.translation;
+        if transform.translation.distance(stride.last) > 0.001 {
+            stride.still = 0.0;
+        } else {
+            stride.still += time.delta_secs();
+        }
+        stride.last = transform.translation;
+        let moving = stride.still < STILL;
+        drawn.walking = moving;
         // The graph for this body, made once its file has loaded.
         if !animations.graphs.contains_key(&body) {
             let file = animations
