@@ -372,34 +372,31 @@ pub fn settle(spawn: &mut SpawnActor, def: &ActorDef, stand: Vec2, known: &Memor
 
 /// The bunker people (design.md "Bunker people and topside people"):
 /// `BUNKER_PEOPLE` in every other bunker, through the one spawn path,
-/// of that bunker's faction, home at their spot in it, knowing its
-/// store and what is in it. Once: they persist, and respawn at home.
+/// of that bunker's faction, home at their spot in it, knowing only that
+/// (life.md "Learning to stay alive"). Once: they persist, and respawn
+/// at home.
 pub fn populate_bunkers(
     mut spawn: SpawnActor,
     registry: Res<ActorRegistryRes>,
     world: Res<WorldRes>,
-    tick: Res<SimTick>,
-    stores: Query<(Entity, &Transform, &WorldItem, &Container)>,
+    stores: Query<(Entity, &Transform), With<Container>>,
 ) {
     let def = registry.0.def("bunker person").expect("the bunker person is registered");
     for (i, &at) in world.bunkers.iter().enumerate() {
-        let mut known = modforge::memory::Memory::default();
         let [x, z] = BUNKER_STORE_AT;
         let store_at = at + Vec2::new(x, z);
-        let mut store = None;
-        for (entity, t, item, contents) in &stores {
-            let p = t.translation.truncate();
-            if p.distance(store_at) < 0.5 {
-                known.see(entity.to_bits(), &item.stack.item, Vec3::new(p.x, 0.0, p.y), tick.0);
-                known.checked(entity.to_bits(), held_in(&contents.0), tick.0);
-                store = Some(entity);
-            }
-        }
+        let store = stores
+            .iter()
+            .find(|(_, t, ..)| t.translation.truncate().distance(store_at) < 0.5)
+            .map(|(entity, ..)| entity);
         let faction = bunker_faction(i);
         for [x, z] in BUNKER_PEOPLE_AT {
             let stand = at + Vec2::new(x, z);
             if let Some(npc) = spawn_actor(&mut spawn, def, stand, Some(&faction)) {
-                spawn.commands.entity(npc).insert((Home(stand), Memory(known.clone())));
+                // They know one thing: this bunker is home (life.md
+                // "Learning to stay alive"). The store is theirs, but
+                // found, not known.
+                spawn.commands.entity(npc).insert(Home(stand));
                 if let Some(store) = store {
                     spawn.commands.entity(npc).insert(Store(store));
                 }

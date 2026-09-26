@@ -8,7 +8,8 @@
 
 use bevy::prelude::*;
 use modforge::actor::ActorId;
-use modforge::brain::{Activity, CombatState, Decision, Do, NEED_LINE, Perception, REACH, decide, reaction_ticks};
+use modforge::brain::{Activity, CombatState, Decision, Do, NEED_LINE, Perception, REACH, choose, reaction_ticks};
+use modforge::learn::alive_for;
 use modforge::hud::{Holder, SlotRef};
 use modforge::item::ItemRegistry;
 use modforge::memory::{Did, Known, food_worth, short_of};
@@ -250,6 +251,21 @@ pub fn think(
             })
             .unwrap_or_default();
         let bags_full = inventory.0.slots.iter().all(|s| s.is_some());
+        // How long they can stay alive from here (life.md "Learning to
+        // stay alive"): the change since they last thought scores the
+        // choices that led to it.
+        let mut carrying = bags.clone();
+        carrying.extend(held_in(&hotbar.0.slots));
+        let alive = alive_for(
+            &needs.0,
+            day.rates(),
+            health.0.fraction(),
+            &carrying,
+            store.map(|s| s.0.to_bits()),
+            &memory.0,
+            &items.0,
+        );
+        memory.0.learned.score(tick.0, alive);
         let perception = Perception {
             now: tick.0,
             position: ground(here),
@@ -278,12 +294,17 @@ pub fn think(
         // Decide: seeded by the tick and the person, so a replay
         // decides the same.
         let mut roll = Roll::new(tick.0 ^ actor.0.0.wrapping_mul(0x9E37_79B9_7F4A_7C15));
-        let Decision {
-            activity: next_activity,
-            combat: next_combat,
-            actions: decided,
-            do_now,
-        } = decide(&perception, &activity.0, &combat.0, &mut roll);
+        let (
+            Decision {
+                activity: next_activity,
+                combat: next_combat,
+                actions: decided,
+                do_now,
+            },
+            situation,
+            choice,
+        ) = choose(&perception, &activity.0, &combat.0, &mut roll);
+        memory.0.learned.chose(situation, choice);
 
         // Act.
         if matches!(next_combat, CombatState::Fighting { .. }) && !matches!(combat.0, CombatState::Fighting { .. }) {

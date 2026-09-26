@@ -114,6 +114,12 @@ pub fn answer_npc(view: PersonView, mut walk: ResMut<crate::nav::Walk>, tick: Re
                     "tiles": p.rows,
                 })
             };
+            let mut values: Vec<_> = memory.0.learned.values.iter().collect();
+            values.sort_by(|a, b| b.1.total_cmp(a.1));
+            let learned: Vec<Json> = values
+                .into_iter()
+                .map(|((s, c), v)| json!({"choice": format!("{c:?}"), "value": v, "situation": format!("{s:?}")}))
+                .collect();
             let picture = chunk(walk.0.picture(here, '@'));
             let goal_picture = way.planned_at.map(|_| chunk(walk.0.picture(way.goal, 'G')));
             json!({
@@ -151,12 +157,34 @@ pub fn answer_npc(view: PersonView, mut walk: ResMut<crate::nav::Walk>, tick: Re
                 "chunk": picture,
                 "goal_chunk": goal_picture,
                 "did": memory.0.done.iter().map(|(t, d)| json!({"tick": t, "did": d.words()})).collect::<Vec<_>>(),
+                // What they learned (life.md "Learning to stay alive"): how
+                // long they could stay alive at their last think, how long
+                // each life lasted, and each choice's value in each
+                // situation, best first.
+                "alive_for": memory.0.learned.last.map(|(_, secs)| secs),
+                "lives": lives(&memory.0),
+                "learned": learned,
             })
         }
     };
     if let Ok(mut slot) = NPC_ANSWER.lock() {
         *slot = Some((id, answer));
     }
+}
+
+/// How long each of a person's lives lasted, in seconds, from their
+/// memory: from the start of the game or their last death to each death.
+/// The life they are living is not in it.
+pub fn lives(memory: &modforge::memory::Memory) -> Vec<f32> {
+    let mut from = 0;
+    let mut out = Vec::new();
+    for (tick, did) in &memory.done {
+        if matches!(did, modforge::memory::Did::Died(..)) {
+            out.push(tick.saturating_sub(from) as f32 / 60.0);
+            from = *tick;
+        }
+    }
+    out
 }
 
 /// Once a second: the last searches that found no way, for the `ways`
@@ -323,6 +351,9 @@ pub fn publish(
                     "did": did,
                     "last_did": memory.0.done.last().map(|(t, d)| json!({"tick": t, "did": d.words()})),
                     "killed_by": memory.0.killed_by().map(|(by, of)| json!({"by": by.map(|a| a.0), "of": of})),
+                    "alive_for": memory.0.learned.last.map(|(_, secs)| secs),
+                    "lives": lives(&memory.0),
+                    "learned": memory.0.learned.values.len(),
                     "axes": personality.0.axes,
                     "actions": this_tick.0.iter().map(|s| format!("{:?}", s.action)).collect::<Vec<_>>(),
                 })

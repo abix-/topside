@@ -69,6 +69,9 @@ pub fn hit_actor(
         }
         if killed {
             memory.0.did(Did::Died(by, hit.def.name.clone()), now);
+            // The biggest blame, for what led here (life.md "Learning to
+            // stay alive").
+            memory.0.learned.died(now);
         }
     }
     (result, killed)

@@ -133,9 +133,10 @@ fn the_game_keeps_up_with_real_time_and_its_people_live() {
         const KINDS: [&str; 9] = ["ate", "slept", "took", "put in", "hit", "was hit", "killed", "died", "respawned"];
         rows.push(String::new());
         rows.push(format!(
-            "{:>5} {:<14} {:<17} {:>4} {:>4} {:>4} {:>4} {:>4}  {:<20} {}  killed by / last did",
+            "{:>5} {:<14} {:<17} {:>4} {:>4} {:>4} {:>4} {:>4}  {:<20} {}  {:>8} {:>7}  {:<24} killed by / last did",
             "id", "def", "faction", "dead", "hp", "hung", "thir", "rest", "doing",
-            KINDS.map(|k| format!("{k:>6}")).join("")
+            KINDS.map(|k| format!("{k:>6}")).join(""),
+            "alive s", "learned", "lives (s each)"
         ));
         let mut list: Vec<Json> = people["result"].as_array().cloned().unwrap_or_default();
         list.sort_by_key(|p| p["id"].as_u64().unwrap_or(0));
@@ -146,8 +147,14 @@ fn the_game_keeps_up_with_real_time_and_its_people_live() {
                 Json::Null => String::new(),
                 k => format!("{} by {} / ", k["of"].as_str().unwrap_or("?"), k["by"]),
             };
+            let lives: Vec<String> = p["lives"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .map(|s| format!("{:.0}", s.as_f64().unwrap_or(0.0)))
+                .collect();
             rows.push(format!(
-                "{:>5} {:<14} {:<17} {:>4} {:>4.0} {:>4.0} {:>4.0} {:>4.0}  {:<20} {}  {}{}",
+                "{:>5} {:<14} {:<17} {:>4} {:>4.0} {:>4.0} {:>4.0} {:>4.0}  {:<20} {}  {:>8.0} {:>7}  {:<24} {}{}",
                 p["id"],
                 p["def"].as_str().unwrap_or("?"),
                 p["faction"].as_str().unwrap_or("-"),
@@ -158,6 +165,9 @@ fn the_game_keeps_up_with_real_time_and_its_people_live() {
                 p["rest"].as_f64().unwrap_or(0.0),
                 doing,
                 KINDS.map(|k| format!("{:>6}", n(k))).join(""),
+                p["alive_for"].as_f64().unwrap_or(0.0),
+                p["learned"],
+                lives.join(" "),
                 killed_by,
                 p["last_did"]["did"].as_str().unwrap_or("")
             ));
