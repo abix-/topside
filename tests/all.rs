@@ -4,4 +4,5 @@
 mod chunks;
 mod control_plane;
 mod doorways;
+mod eating;
 mod game;
