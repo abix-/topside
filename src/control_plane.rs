@@ -29,6 +29,8 @@ static HUNGER_BITS: AtomicU32 = AtomicU32::new(0);
 static THIRST_BITS: AtomicU32 = AtomicU32::new(0);
 static X_BITS: AtomicU32 = AtomicU32::new(0);
 static Y_BITS: AtomicU32 = AtomicU32::new(0);
+/// How high the player's feet stand above the ground (a floor upstairs).
+static FEET_BITS: AtomicU32 = AtomicU32::new(0);
 static FPS_BITS: AtomicU32 = AtomicU32::new(0);
 /// How many times real time the game actually ran over the last second.
 static RUNS_AT_BITS: AtomicU32 = AtomicU32::new(0);
@@ -244,11 +246,15 @@ pub fn publish_view(
         Has<MeshMaterial3d<crate::model::Cel>>,
         &ViewVisibility,
     ), With<Mesh3d>>,
-    models: Query<(), With<crate::model::Model>>,
+    models: Query<(&crate::model::Model, &Transform)>,
 ) {
     if tick.0 % 60 != 0 {
         return;
     }
+    // Floor tiles standing above the ground (a building's upper
+    // storeys), and blocks standing above it (steps and landings).
+    let above = |name: &str| models.iter().filter(|(m, t)| m.0 == name && t.translation.y > 0.5).count();
+    let (floors_above, blocks_above) = (above("floor"), above("furniture"));
     let camera = cameras.iter().next().map(|c| {
         let (at, forward) = (c.translation(), c.forward());
         json!({"at": [at.x, at.y, at.z], "forward": [forward.x, forward.y, forward.z]})
@@ -268,6 +274,8 @@ pub fn publish_view(
             "cel": cel,
             "seen": seen,
             "models": models.iter().count(),
+            "floors_above": floors_above,
+            "blocks_above": blocks_above,
         });
     }
 }
@@ -482,8 +490,10 @@ pub fn publish(
         HEALTH_BITS.store(health.0.current.to_bits(), Ordering::Relaxed);
         HUNGER_BITS.store(needs.0.hunger.to_bits(), Ordering::Relaxed);
         THIRST_BITS.store(needs.0.thirst.to_bits(), Ordering::Relaxed);
+        // The ground point, and how high the player's feet are.
         X_BITS.store(at.translation.x.to_bits(), Ordering::Relaxed);
-        Y_BITS.store(at.translation.y.to_bits(), Ordering::Relaxed);
+        Y_BITS.store(at.translation.z.to_bits(), Ordering::Relaxed);
+        FEET_BITS.store((at.translation.y - crate::player::BODY_CENTRE).to_bits(), Ordering::Relaxed);
     }
     // Where the step's time goes, once a second: the whole step, every
     // part costliest first (a part named "steer: ..." is a piece inside
@@ -594,6 +604,7 @@ fn snapshot() -> Json {
         "tick": TICK.load(Ordering::Relaxed),
         "people": PEOPLE.load(Ordering::Relaxed),
         "player": [f(&X_BITS), f(&Y_BITS)],
+        "player_feet": f(&FEET_BITS),
         "health": f(&HEALTH_BITS),
         "hunger": f(&HUNGER_BITS),
         "thirst": f(&THIRST_BITS),

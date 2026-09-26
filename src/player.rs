@@ -48,6 +48,7 @@ pub fn body() -> Collider {
     Equipment,
     Firing,
     Rolling,
+    Fall,
     Transform,
     RigidBody = RigidBody::Kinematic,
     Collider = body()
@@ -141,10 +142,23 @@ pub fn aim(
     }
 }
 
-/// Every actor walks the way its move this tick says, at walking
-/// speed, along the ground, and slides along whatever stops it (Quake
-/// III's PM_SlideMove, as shipped by Avian). Diagonal is no faster than
-/// straight.
+/// How far up a body steps without climbing (a stair's step is 0.31 m).
+const CLIMB: f32 = 0.35;
+/// Metres per second, per second, down.
+const GRAVITY: f32 = 9.81;
+
+/// How fast a body is falling, metres per second down; zero standing on
+/// something (the 3D game's `Fall`).
+#[derive(Component, Default, Debug, Clone, Copy)]
+pub struct Fall(pub f32);
+
+/// Every actor walks the way its move this tick says, at walking speed,
+/// and slides along whatever stops it (Quake III's PM_SlideMove, as
+/// shipped by Avian); a move blocked flat is tried again raised by
+/// `CLIMB`, so steps are climbed (Quake's step slide move); then the body
+/// settles on whatever is under its feet, or falls. The ground itself is
+/// the lowest a body goes. Diagonal is no faster than straight. The 3D
+/// game's movement, for everyone.
 pub fn movement(
     time: Res<Time<Fixed>>,
     move_and_slide: MoveAndSlide,
@@ -157,44 +171,75 @@ pub fn movement(
             Option<&Firing>,
             Option<&Rolling>,
             &mut Transform,
+            &mut Fall,
         ),
         Without<Dead>,
     >,
 ) {
     let config = MoveAndSlideConfig::default();
-    for (entity, this_tick, shape, personality, firing, rolling, mut transform) in &mut actors {
-        // Committed to a swing: no walking until it ends.
-        if firing.is_some_and(|f| f.0.committed()) {
-            continue;
-        }
+    let dt = time.delta_secs();
+    for (entity, this_tick, shape, personality, firing, rolling, mut transform, mut fall) in &mut actors {
         // Swift people walk faster, slow ones slower.
         let speed = WALK_SPEED * personality.map_or(1.0, |p| p.0.speed_mult());
-        // Mid roll: faster, along the direction it started with.
-        let velocity = match rolling.filter(|r| r.0.rolling()) {
-            Some(r) => r.0.direction * speed * ROLL_SPEED_MULT,
-            None => {
-                let (x, y) = ActionQueue::movement(&this_tick.0);
-                Vec2::new(x, y).normalize_or_zero() * speed
+        // Mid roll: faster, along the direction it started with. Committed
+        // to a swing: no walking until it ends.
+        let velocity = if firing.is_some_and(|f| f.0.committed()) {
+            Vec2::ZERO
+        } else {
+            match rolling.filter(|r| r.0.rolling()) {
+                Some(r) => r.0.direction * speed * ROLL_SPEED_MULT,
+                None => {
+                    let (x, y) = ActionQueue::movement(&this_tick.0);
+                    Vec2::new(x, y).normalize_or_zero() * speed
+                }
             }
         };
-        if velocity == Vec2::ZERO {
+        // Standing still on something costs nothing.
+        if velocity == Vec2::ZERO && fall.0 == 0.0 {
             continue;
         }
         let filter = SpatialQueryFilter::from_excluded_entities([entity]);
-        let to = move_and_slide
-            .move_and_slide(
-                shape,
-                transform.translation,
-                Quat::IDENTITY,
-                on_ground(velocity, 0.0),
-                time.delta(),
-                &config,
-                &filter,
-                |_| MoveAndSlideHitResponse::Accept,
-            )
-            .position;
-        // Along the ground only: the body keeps its height.
-        transform.translation = on_ground(to.ground(), transform.translation.y);
+        let start = transform.translation;
+        let slide = |from: Vec3| {
+            move_and_slide
+                .move_and_slide(
+                    shape,
+                    from,
+                    Quat::IDENTITY,
+                    on_ground(velocity, 0.0),
+                    time.delta(),
+                    &config,
+                    &filter,
+                    |_| MoveAndSlideHitResponse::Accept,
+                )
+                .position
+        };
+        let mut centre = if velocity == Vec2::ZERO {
+            start
+        } else {
+            let flat = slide(start);
+            let raised = slide(start + Vec3::Y * CLIMB);
+            let progress = |p: Vec3| (p - start).with_y(0.0).length();
+            if progress(raised) > progress(flat) + 1e-4 { raised } else { flat }
+        };
+        // Fall this tick, then land on the first thing under the feet: on
+        // the ground the cast reaches a step down, in the air only as far
+        // as the fall.
+        let airborne = fall.0 > 0.0;
+        fall.0 += GRAVITY * dt;
+        let reach = if airborne { fall.0 * dt } else { CLIMB + (centre.y - start.y).max(0.0) + fall.0 * dt };
+        match move_and_slide.cast_move(shape, centre, Quat::IDENTITY, Vec3::NEG_Y * reach, 0.0, &filter) {
+            Some(hit) => {
+                centre.y -= hit.distance;
+                fall.0 = 0.0;
+            }
+            None => centre.y -= fall.0 * dt,
+        }
+        if centre.y <= BODY_CENTRE {
+            centre.y = BODY_CENTRE;
+            fall.0 = 0.0;
+        }
+        transform.translation = centre;
     }
 }
 

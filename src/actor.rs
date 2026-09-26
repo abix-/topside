@@ -202,6 +202,7 @@ pub fn spawn_person(
                 Equipment::default(),
                 Firing::default(),
                 Rolling::default(),
+                crate::player::Fall::default(),
             ),
             (
                 Survival::default(),

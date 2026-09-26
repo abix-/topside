@@ -8,7 +8,10 @@
 use avian3d::prelude::*;
 use bevy::prelude::*;
 use modforge::hud::InteractKind;
-use modforge::structure::{MonumentDef, StructureDef, TileKind, TileRun, tile_plan};
+use modforge::structure::{
+    MonumentDef, Part, PartKind, SLAB, StructureDef, TileKind, TileRun, levels_above_ground, parts_of, tile_plan,
+    tile_plan_at,
+};
 
 use modforge::crafting::StationKind;
 use modforge::ground::tile_hash;
@@ -34,14 +37,6 @@ pub const WALL_HEIGHT: f32 = 3.0;
 /// over.
 pub const FURNITURE_HEIGHT: f32 = 0.9;
 
-/// How tall a solid tile of this kind stands.
-fn height_of(kind: TileKind) -> f32 {
-    match kind {
-        TileKind::Furniture => FURNITURE_HEIGHT,
-        _ => WALL_HEIGHT,
-    }
-}
-
 /// A building's root: the body holding its one collider.
 #[derive(Component)]
 pub struct StructureRoot;
@@ -65,16 +60,18 @@ pub fn sheltered(shelters: &Query<&Shelter>, point: Vec2) -> bool {
     shelters.iter().any(|s| s.covers(point))
 }
 
-/// Spawn one building's ground floor at `at`, on the tile grid
-/// (docs/pathing.md "One grid"): the building snaps to whole tiles and
-/// comes from modforge's `tile_plan`, every run of tiles drawn, its wall
-/// and furniture runs as one compound collider on a static root, its
-/// floor as its `Shelter`, and a closed door on every door tile run. A
+/// Spawn one building at `at`, every level at and above the ground, on
+/// the tile grid (docs/pathing.md "One grid"): each level from modforge's
+/// `tile_plan_at`, standing at its floor's height, its walls as tall as
+/// the level, its furniture, a slab under every tile walked on above the
+/// ground, a closed door on every door tile run; the stair tower's steps
+/// and landings from `parts_of`. Everything solid is one compound
+/// collider on a static root; the ground floor is its `Shelter`. A
 /// building of this reality (`of_world`) is a `WorldPiece`, gone when
-/// the storm shifts the world; the bunker is not. Returns the root.
+/// the storm shifts the world; the bunker is not. Basements are not
+/// stood up yet. Returns the root.
 pub fn spawn_structure(commands: &mut Commands, def: &StructureDef, at: Vec2, of_world: bool) -> Entity {
     let at = at.round();
-    let runs = tile_plan(def);
     let rect = |r: &TileRun| {
         (
             Vec2::new(r.from as f32, r.row as f32),
@@ -82,7 +79,8 @@ pub fn spawn_structure(commands: &mut Commands, def: &StructureDef, at: Vec2, of
         )
     };
     let shelter = Shelter(
-        runs.iter()
+        tile_plan(def)
+            .iter()
             .filter(|r| matches!(r.kind, TileKind::Floor | TileKind::Furniture))
             .map(|r| {
                 let (min, max) = rect(r);
@@ -90,20 +88,65 @@ pub fn spawn_structure(commands: &mut Commands, def: &StructureDef, at: Vec2, of
             })
             .collect(),
     );
-    let shapes: Vec<(Vec3, Rotation, Collider)> = runs
-        .iter()
-        .filter(|r| r.kind.solid())
-        .map(|r| {
+    let mut shapes: Vec<(Vec3, Rotation, Collider)> = Vec::new();
+    let mut pieces: Vec<(Model, Tint, Transform)> = Vec::new();
+    let mut doors: Vec<(Vec2, Vec2, f32, f32)> = Vec::new();
+    for (y, height) in levels_above_ground(def) {
+        let runs = tile_plan_at(def, y);
+        for r in &runs {
             let (min, max) = rect(r);
             let size = max - min;
-            let height = height_of(r.kind);
-            (
-                on_ground((min + max) / 2.0, height / 2.0),
-                Rotation::IDENTITY,
-                Collider::cuboid(size.x, height, size.y),
-            )
-        })
-        .collect();
+            let centre = (min + max) / 2.0;
+            let tall = match r.kind {
+                TileKind::Wall => Some(height),
+                TileKind::Furniture => Some(FURNITURE_HEIGHT),
+                _ => None,
+            };
+            if let Some(tall) = tall {
+                shapes.push((on_ground(centre, y + tall / 2.0), Rotation::IDENTITY, Collider::cuboid(size.x, tall, size.y)));
+            }
+            // Above the ground, what is walked on stands on a slab.
+            if y > 0.5 && r.kind != TileKind::Wall {
+                shapes.push((on_ground(centre, y - SLAB / 2.0), Rotation::IDENTITY, Collider::cuboid(size.x, SLAB, size.y)));
+            }
+            match r.kind {
+                TileKind::Door => doors.push((at + centre, Vec2::X * size.x, y, height)),
+                kind => {
+                    let (model, scale) = match kind {
+                        TileKind::Floor => ("floor", Vec3::ONE),
+                        TileKind::Furniture => ("furniture", Vec3::ONE),
+                        _ => ("wall", Vec3::new(1.0, height / WALL_HEIGHT, 1.0)),
+                    };
+                    let tint = Tint(Color::srgb(r.color[0], r.color[1], r.color[2]));
+                    for x in r.from..r.to {
+                        let tile = at + Vec2::new(x as f32 + 0.5, r.row as f32 + 0.5);
+                        pieces.push((Model(model.to_string()), tint, Transform::from_translation(on_ground(tile, y)).with_scale(scale)));
+                    }
+                }
+            }
+        }
+    }
+    // The stair tower's steps and landings, and the slabs it is walked on
+    // at every level (modforge's parts), above the ground.
+    let walked = |p: &&Part| {
+        let thin_furniture = p.kind == PartKind::Furniture && p.size.y <= 2.0 * SLAB;
+        (matches!(p.kind, PartKind::Step | PartKind::Landing) || thin_furniture) && p.center.y - p.size.y / 2.0 > -0.5
+    };
+    for part in parts_of(def).iter().filter(walked) {
+        let local = Vec2::new(part.center.x, part.center.z);
+        shapes.push((
+            on_ground(local, part.center.y),
+            Rotation::IDENTITY,
+            Collider::cuboid(part.size.x, part.size.y, part.size.z),
+        ));
+        // Drawn as the furniture block, stretched to the part.
+        let scale = Vec3::new(part.size.x / 0.9, part.size.y / FURNITURE_HEIGHT, part.size.z / 0.9);
+        pieces.push((
+            Model("furniture".to_string()),
+            Tint(Color::srgb(part.color[0], part.color[1], part.color[2])),
+            Transform::from_translation(on_ground(at + local, part.center.y - part.size.y / 2.0)).with_scale(scale),
+        ));
+    }
     let mut root = commands.spawn((
         StructureRoot,
         shelter,
@@ -117,50 +160,33 @@ pub fn spawn_structure(commands: &mut Commands, def: &StructureDef, at: Vec2, of
         root.insert(WorldPiece);
     }
     let root = root.id();
-    // Every tile its model (scripts/models.py), tinted the run's colour,
-    // standing on the ground.
-    for r in runs.iter().filter(|r| r.kind != TileKind::Door) {
-        let model = match r.kind {
-            TileKind::Floor => "floor",
-            TileKind::Furniture => "furniture",
-            _ => "wall",
-        };
-        for x in r.from..r.to {
-            let centre = at + Vec2::new(x as f32 + 0.5, r.row as f32 + 0.5);
-            let mut piece = commands.spawn((
-                Model(model.to_string()),
-                Tint(Color::srgb(r.color[0], r.color[1], r.color[2])),
-                Transform::from_translation(on_ground(centre, 0.0)),
-            ));
-            if of_world {
-                piece.insert(WorldPiece);
-            }
+    for piece in pieces {
+        let mut piece = commands.spawn(piece);
+        if of_world {
+            piece.insert(WorldPiece);
         }
     }
-    for r in runs.iter().filter(|r| r.kind == TileKind::Door) {
-        let (min, max) = rect(r);
-        let size = max - min;
-        let centre = at + (min + max) / 2.0;
-        // The hinge is at one end of the door, along the run.
-        let along = Vec2::X * size.x;
+    for (centre, along, y, height) in doors {
         let mut door = commands.spawn((
             Door {
                 open: false,
                 closed_center: centre,
+                // The hinge is at one end of the door, along the run.
                 hinge: centre - along / 2.0,
             },
             Interactable {
                 kind: InteractKind::Door { open: false },
             },
             RigidBody::Static,
-            // Standing on the ground: the box raised by half its height.
+            // Standing on its floor: the box raised by half its height.
             Collider::compound(vec![(
-                Vec3::Y * WALL_HEIGHT / 2.0,
+                Vec3::Y * height / 2.0,
                 Rotation::IDENTITY,
-                Collider::cuboid(size.x, WALL_HEIGHT, size.y),
+                Collider::cuboid(along.x.max(1.0), height, 1.0),
             )]),
             Model("door".to_string()),
-            Transform::from_translation(on_ground(centre, 0.0)),
+            // Not scaled: Avian would scale its collider too.
+            Transform::from_translation(on_ground(centre, y)),
         ));
         if of_world {
             door.insert(WorldPiece);

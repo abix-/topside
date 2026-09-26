@@ -18,6 +18,7 @@ use bevy::prelude::*;
 use modforge::brain::REACH;
 use modforge::walk::{CHUNK, ChunkKey, Rect, WalkMap, cell_of};
 
+use crate::player::BODY_HEIGHT;
 use crate::{Ground, SimTick};
 use crate::actor::{Dead, Npc};
 use crate::input::{Action, ActionQueue, ThisTick};
@@ -89,9 +90,13 @@ pub struct NavPath {
 
 /// The rectangles a collider stands on, in world metres: a box, or a
 /// compound of boxes (a building, a chunk of water and trees), each by
-/// its footprint on the ground.
+/// its footprint on the ground. The walk grid is the ground's: a part of a
+/// compound counts only where it stands in a person's way on the ground,
+/// not a floor above (a storey's slab, its walls) and not a slab lying on
+/// the ground.
 fn rects_of(collider: &Collider, at: Vec2) -> Vec<Rect> {
     let footprint = |half: Vec3| Vec2::new(half.x, half.z) * 2.0;
+    let in_the_way = |centre: f32, half: f32| centre - half < BODY_HEIGHT && centre + half > 0.3;
     let shape = collider.shape_scaled();
     if let Some(cuboid) = shape.as_cuboid() {
         return vec![Rect::around(at, footprint(cuboid.half_extents))];
@@ -102,6 +107,7 @@ fn rects_of(collider: &Collider, at: Vec2) -> Vec<Rect> {
             compound
                 .shapes()
                 .iter()
+                .filter(|(pose, part)| part.as_cuboid().is_some_and(|c| in_the_way(pose.translation.y, c.half_extents.y)))
                 .filter_map(|(pose, part)| {
                     part.as_cuboid()
                         .map(|c| Rect::around(at + pose.translation.ground(), footprint(c.half_extents)))
@@ -145,7 +151,7 @@ fn chunk_at(p: Vec2) -> ChunkKey {
 /// Doors that appear are filed; doors that go are dropped.
 pub fn record_doors(
     mut index: ResMut<DoorIndex>,
-    added: Query<(Entity, &Door), Added<Door>>,
+    added: Query<(Entity, &Door, &Transform), Added<Door>>,
     mut gone: RemovedComponents<Door>,
 ) {
     for entity in gone.read() {
@@ -155,7 +161,8 @@ pub fn record_doors(
             doors.retain(|e| *e != entity);
         }
     }
-    for (entity, door) in &added {
+    // The ground's doors: a door upstairs is not on the ground's way.
+    for (entity, door, _) in added.iter().filter(|(_, _, t)| t.translation.y < 0.5) {
         let key = chunk_at(door.closed_center);
         index.by_chunk.entry(key).or_default().push(entity);
         index.chunk_of.insert(entity, key);
