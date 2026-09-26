@@ -292,7 +292,7 @@ fn draw(commands: &mut Commands, chunk: &GroundChunk, tileset: &Handle<Image>) {
 }
 
 /// The kinds of ground in the order scripts/models.py stacks their tiles
-/// into assets/pictures/ground.png (its GROUND_KINDS), each with
+/// into assets/ground.png (its GROUND_KINDS), each with
 /// GROUND_VARIANTS tiles; change both together.
 const GROUND_KINDS: [Ground; 9] = [
     Ground::Grass,
@@ -326,6 +326,8 @@ pub fn setup_ground_tiles(mut commands: Commands, assets: Res<AssetServer>) {
                 pixels: crate::picture::PIXELS_PER_METRE as u32,
             });
         })
-        .load("pictures/ground.png");
+        // Outside assets/pictures, so loading that folder never loads the
+        // strip as a plain picture.
+        .load("ground.png");
     commands.insert_resource(GroundTiles(tiles));
 }

@@ -11,6 +11,17 @@ use bevy::prelude::*;
 /// PIXELS_PER_METRE): a picture drawn at this scale is its model's size.
 pub const PIXELS_PER_METRE: f32 = 64.0;
 
+/// Every picture, loaded once at the start and kept for the whole game:
+/// holding the folder holds every picture in it, so showing one (a
+/// person's next walking frame) never loads or drops anything.
+#[derive(Resource)]
+pub struct Pictures(#[allow(dead_code)] Handle<bevy::asset::LoadedFolder>);
+
+/// Load every picture in assets/pictures, once.
+pub fn load_pictures(mut commands: Commands, assets: Res<AssetServer>) {
+    commands.insert_resource(Pictures(assets.load_folder("pictures")));
+}
+
 /// Draw this thing as the picture of this name (assets/pictures/<name>.png),
 /// its ground point at the picture's centre.
 #[derive(Component)]

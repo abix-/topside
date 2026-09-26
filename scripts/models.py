@@ -452,7 +452,8 @@ def parachute():
 # tiles have variations), near white with light and dark detail, which the
 # game tints with the kind's colour (content/src/lib.rs ground_color). They
 # are stacked kind by kind, variant by variant, into one strip,
-# assets/pictures/ground.png, the game's ground tileset: the kinds in this
+# assets/ground.png, the game's ground tileset (outside assets/pictures,
+# which the game loads as plain pictures): the kinds in this
 # order (src/terrain.rs GROUND_KINDS; change both together).
 GROUND_KINDS = ["grass", "dirt", "sand", "forest floor", "rubble", "road", "water", "cliff", "out of map"]
 GROUND_VARIANTS = 4
@@ -522,7 +523,7 @@ def ground_tile(kind, rng):
 
 
 def ground():
-    """render every ground tile and stack them into assets/pictures/ground.png."""
+    """render every ground tile and stack them into assets/ground.png."""
     import tempfile
 
     with tempfile.TemporaryDirectory() as tmp:
@@ -543,10 +544,11 @@ def ground():
             pixels.extend(tile.pixels[:])
         strip = bpy.data.images.new("ground", TILE_PIXELS, TILE_PIXELS * len(files), alpha=True)
         strip.pixels[:] = pixels
-        strip.filepath_raw = str(OUT / "ground.png")
+        out = OUT.parent / "ground.png"
+        strip.filepath_raw = str(out)
         strip.file_format = "PNG"
         strip.save()
-        print(f"ground: {len(files)} tiles, {TILE_PIXELS}x{TILE_PIXELS * len(files)} pixels -> {OUT / 'ground.png'}")
+        print(f"ground: {len(files)} tiles, {TILE_PIXELS}x{TILE_PIXELS * len(files)} pixels -> {out}")
 
 
 # -- buildings -----------------------------------------------------------------
