@@ -194,6 +194,84 @@ died, respawned. "in games like rust you know your enemy killer": a
 person who dies knows who killed them. The endpoint reads it; the same
 memory the brain reads, no second record.
 
+### Learning to stay alive (operator, 2026-09-25)
+
+Every person learns from what they live through (reinforcement
+learning): "the first life the npc doesnt know anyting and stumbles
+around. then it dies of hunger without doing anything. next time it
+opens the door and makes out and eats some food an lasts a bit longer.
+now it knows where food is near. each time it dies it REMEMGBERS it's
+dead and uses that knowledge to change its behavior. so that each NPC
+evolves based on its experience". "this is not a simple subject we need
+to think abou this and do it right."
+
+One goal: "all those 'instincts' can be boiled down to one thing - 'stay
+alive'". And everything is scored by it: "everything should be scored or
+else we wont do it then. stockpiling loot DOES have value in stay9ng
+alive. so does taking loot. its about SURVIAL and guarnateeing long term
+survival with maximums afety. all that is part of being 'alive'. i guess
+you could even says there's multiple stages of 'stay alive'".
+
+The stages of staying alive, by how far ahead they look:
+
+1. Right now: not dying in the next seconds. Run from or fight a
+   threat, get out of the storm.
+2. Today: the body does not fail. Eat, drink, rest, home before night
+   and before the storm.
+3. The days ahead: there will be food, water, and safety later. Take
+   loot, carry it home, stock the store, know where more is, a safe
+   bunker. Maximum safety lives here.
+
+One measure scores every stage: how long this person can stay alive
+from here. The days of food and water they can count on (carried, in
+their store, known in a box), shortened by low health and by threats
+near them. Eating adds hours; stocking the store adds days, for them and
+their bunker; finding a full box adds days before it is taken; running
+from a raider keeps all of it; dying loses all of it. A bunker being
+short (`BUNKER_SHORT_DAYS`) is the third stage, already measured. A
+choice is learned as good or bad by how much it changed this measure.
+The needs (hunger, thirst, rest, safety) are not separate goals: they are
+the body saying how close death is.
+
+How it is done, from those who did it:
+
+- Black & White (Lionhead 2001, Richard Evans): the creature keeps
+  learning episodes (what it did, the situation, a feedback number, from
+  its own experience as well as the player) and builds a decision tree
+  from them (Quinlan's ID3). Here: every choice goes into memory with its
+  situation, beside what the person did ("What a person did"), and the
+  change in how long they can stay alive is its feedback.
+- Creatures (Steve Grand 1996): norns were born with hardwired instincts
+  because a blank slate dies before it learns; a reward long after the
+  action is hard to learn from. Here: the brain's rules are what a person
+  is born with and propose the sensible choices; what they learned picks
+  among them. The needs give feedback at once, long before death. A death
+  blames the choices that led to it, the recent ones most (Sutton and
+  Barto: eligibility traces).
+- Model-Free Episodic Control (Blundell et al., DeepMind 2016): learns
+  from a handful of experiences, not millions, by remembering the best
+  outcome each choice got in each situation and using the most similar
+  remembered situation for a new one. A person has tens of lives, so
+  this is the way to learn.
+- Shadow of Mordor's Nemesis system (Monolith): enemies come back
+  remembering how they died or survived. What players remember.
+- GDC 2005 machine learning tutorial: learned behaviour is harder to
+  predict and control, can learn slowly or get stuck. Here: the rules
+  keep people from anything absurd, and everything learned is on the
+  endpoint.
+
+Proof on the small world: across a person's lives, each life lasts
+longer.
+
+Open, for the operator:
+
+- Do bunker people start knowing their store and bunker, or nothing?
+- Do topside people learn? They leave the world at death and every
+  storm.
+- Does a bunker share what its people learned ("Told"), or does each
+  person learn alone?
+- Genes (learning across generations) later on top?
+
 ### The map each person carries (operator, 2026-09-25)
 
 Every person, the player included, carries a map of where they have
