@@ -243,10 +243,22 @@ pub fn publish_world(
     items: Res<crate::content::ItemRegistryRes>,
     stores: Query<&crate::interact::Container>,
     people: Query<(&crate::actor::Store, &Npc, Has<crate::actor::Dead>, &Survival), With<crate::actor::Home>>,
+    chunks: Option<Res<crate::terrain::Chunks>>,
+    rolled: Option<Res<crate::terrain::WorldRes>>,
 ) {
     if tick.0 % 60 != 0 {
         return;
     }
+    // The chunks made, and for a world with an edge, how many of the
+    // chunks it is made whole with (the world and the ring past its
+    // edge, terrain::make_chunks) are still not made.
+    let made = chunks.as_ref().map_or(0, |c| c.made.len());
+    let missing = rolled.as_ref().and_then(|w| w.world.ground.chunk_range()).map(|(lo, hi)| {
+        (lo - 1..=hi)
+            .flat_map(|y| (lo - 1..=hi).map(move |x| (x, y)))
+            .filter(|key| !chunks.as_ref().is_some_and(|c| c.made.contains(key)))
+            .count()
+    });
     let mut bunkers: std::collections::BTreeMap<String, Json> = Default::default();
     for (store, npc, dead, needs) in &people {
         let name = npc.faction.clone().unwrap_or_default();
@@ -285,6 +297,7 @@ pub fn publish_world(
         "taken": life.taken,
         "stocked": life.stocked,
         "bunkers": bunkers,
+        "chunks": {"made": made, "missing": missing},
     });
     if let Ok(mut slot) = WORLD.lock() {
         *slot = world;
