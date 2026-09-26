@@ -13,23 +13,253 @@ Evidence date: 2026-08-19. Nothing is built. Every score below reflects that
 honestly. This doc exists BEFORE the code so the code never gets a chance to
 grow a second path.
 
-## Complete authority system map
+## How topside works: every system (2026-09-26)
 
-Ownership lives in ONE place: the numbered system table under "Current
-authority priorities" below (factoriobot's rule, factoriobot/docs/authority.md).
-Every row names the system by its code symbol and opens with **Authoritative
-for:** what that system alone decides, and what may never happen anywhere
-else. Its status names the evidence and every bypass still open. No other
-table in any doc repeats ownership.
+Every system in the game, documented once, so that whoever builds something
+uses the path written here and never makes a second one. The shape is
+Endless's Kubernetes architecture (endless/docs/k8s.md), which factoriobot's
+authority map also follows:
 
-Hard rules:
+- **Def** (the CRD): the shape of a kind of thing. Immutable, no runtime
+  state. Content in `content/src/lib.rs`, the struct in modforge.
+- **Registry** (etcd): every Def of that kind, stored once and looked up by
+  name; the source of truth for base values.
+- **Instance** (a CR): one thing in the game, a Bevy entity. All of its
+  runtime data lives on its components, each component one concern; no
+  parallel list, no second store. An index (the `ActorMap`) holds lookup
+  only, never gameplay data.
+- **Apply** (`kubectl apply`): the one function that makes an instance from a
+  Def. Nothing else makes one.
+- **Controllers**: the systems that read the Def and the instance and act.
+  They never keep a copy of Def fields on an instance, and they never keep
+  their own copy of an instance's data.
+- **Copies**: the control plane's published numbers, the HUD, and the
+  pictures read the owners and are never read back as the truth.
 
-1. Before writing code that touches a fact, find its row and use its system.
-2. A fact with no row: ask the operator, then add the row. Never invent an
-   owner.
-3. A second path, a second record, or a second answer is a failure even when
-   every test passes. Tests prove behaviour, not authority.
-4. A change that breaks a row is undone, not worked around.
+Rules:
+
+1. Before building anything, find its system below and use its Def,
+   Registry, Apply, and Controllers. Never a second path, a second record,
+   or a second answer, even when every test passes.
+2. Something with no system here: ask the operator, then add it here.
+3. A change that breaks a system here is undone, not worked around.
+4. Modforge holds every rule that needs no engine, with its test; topside
+   senses, acts, and holds content (topside skill: modforge first).
+
+### 1. People
+
+- **Def:** modforge `ActorDef`, one per kind of person (player, bunker
+  person, scavenger, raider, lookout, wanderer). **Registry:**
+  `ActorRegistryRes` (content `register_actors`).
+- **Instance:** one entity per person, the player included (everyone is
+  equal). Its data: `Actor` (the ActorId), `Npc` (def, faction), `Transform`,
+  `Facing`, `Health`, `Protection`, `Equipment`, `Inventory`, `Hotbar`,
+  `Survival`, `Memory`, `Personality`, `Home`, `Store`, `SpawnedAt`,
+  `ActorActivity`, `ActorCombat`, `ActorCondition`, `NextThink`, `Actions`,
+  `ThisTick`, `NavPath`, `Firing`, `Rolling`, `Hud`, `OpenContainer`,
+  `OpenStation`, and `Dead` while dead. **Index:** `ActorMapRes` (modforge
+  `ActorMap`): ActorId to entity, and the live count.
+- **Apply:** `actor::spawn_person`, reached by `player::spawn_player` and
+  `actor::populate_monuments`, `populate_topside_people`,
+  `populate_bunkers`, `spawn_door_enemy`.
+- **Controllers:** `ai::think` (NPCs), `input::read_input` (the player's
+  keys), `input::drain_actions`, `player::roll`, `player::aim`,
+  `player::movement`, `nav::steer`, `interact::interact_on_use`,
+  `combat::melee`, `combat::fire`, `survival::survival_tick`, `combat::die`,
+  `player::respawn`.
+- **Never:** a second spawn function; data about a person anywhere but their
+  components; a person deleted. A person who dies still exists, `Dead`, to
+  query, memory and all (life.md); a topside person never respawns.
+- **Status:** RED. `combat::leave` despawns a dead topside person, and the
+  storm's `shift_world` erases topside people through it.
+
+### 2. Memory
+
+- **Instance:** the `Memory` component on each person (modforge
+  `memory::Memory`): everything they saw (`Known`), who hurt them, their last
+  threat, what they did (`Did`: ate, slept, took, put in, hit, was hit,
+  killed, died, respawned, went through a doorway), and what they learned
+  (modforge `learn`). Each NPC has one memory and all of it goes there.
+- **Written by** the path that did the thing: `ai::think` (seeing, checking
+  a box, a threat), `combat::hit_actor` (hits and death), `hud` (eating,
+  taking, putting in), `nav::doorways`, `player::respawn`.
+- **Read by** modforge `brain::choose` (through `Perception`) and the control
+  plane.
+- **Never:** a log, list, or counter beside it as the truth.
+- **Status:** RED. `combat::Deaths` is a second record of deaths;
+  `ai::LifeStats` counts what people did beside memory.
+
+### 3. The brain
+
+- **Def:** the `ActorDef`'s behaviour and sight; `Personality` from the
+  genome. **Rules:** modforge `brain::choose` (the ordered rules and the
+  pick), `brain::reaction_ticks`, modforge `learn` (what was learned picks
+  among the choices).
+- **Instance:** `ActorActivity`, `ActorCombat`, `ActorCondition`,
+  `NextThink` on the person.
+- **Controller:** `ai::think` builds the `Perception` from the world (what
+  is in sight in the cone with a clear view, `sight`), calls `choose`, and
+  pushes the actions it returns. What a remembered thing is worth comes from
+  modforge `memory::food_worth` and the registries.
+- **Never:** a decision made in topside; the brain reading the world instead
+  of memory.
+
+### 4. Actions
+
+- **Def:** modforge `actions::Action`; the keys' bindings
+  (`input::BindingsRes`).
+- **Instance:** `Actions` (modforge `ActionQueue`) and `ThisTick` on each
+  person.
+- **Apply:** the keys through `input::read_input` (the one raw input
+  reader) and the brain through `ai::think` push the same actions.
+- **Controller:** `input::drain_actions` hands each tick's actions to the
+  systems that carry them out.
+- **Never:** moving or changing a person any other way.
+
+### 5. Needs and the day
+
+- **Rules:** modforge `survival` (`SurvivalStats`, the drain, `eat`,
+  `is_night`); the day's length `survival::Day`, the clock `SimTick`.
+- **Instance:** `Survival` on each person.
+- **Controllers:** `survival::survival_tick` (needs drain, night tires the
+  awake), `survival::waste` (starvation and dehydration hit through
+  `combat::hit_actor`).
+- **Eating and drinking:** only modforge `SurvivalStats::eat`, reached
+  through `hud::use_slot`, which also heals and goes into memory.
+- **Status:** RED. `interact::use_source` repeats eat, heal, and remember.
+
+### 6. Health, hits, and death
+
+- **Def:** modforge `DamageDef` (weapons, hunger, thirst, the storm).
+  **Registry:** `DamageRegistryRes`.
+- **Instance:** `Health`, `Protection`, `Equipment` on each person.
+- **Controllers:** every hit through `combat::hit_actor` (modforge
+  `resolve_hit`), from `combat::melee`, `combat::fire` and `combat::fly`,
+  `survival::waste`, and `storm::storm`; every death through `combat::die`
+  (the death box, `Dead`); `player::respawn` brings a person with a home
+  back.
+- **Never:** health changed anywhere else; a person deleted at death.
+- **Status:** RED. The respawn rule (half health, full food and water) is
+  written in topside `player::respawn`, not in modforge.
+
+### 7. Items and things in the world
+
+- **Def:** modforge `ItemDef` (kind: food, material, tool, weapon,
+  deployable, note, medicine, source). **Registry:** `ItemRegistryRes`
+  (content `register_items`).
+- **Instance:** an item held is a stack in `Inventory`, `Hotbar`,
+  `Equipment`, or a box's `Container`; an item in the world is an entity with
+  `WorldItem` (and `Container` for a box, `Interactable` to be used).
+- **Apply:** `interact::spawn_item`, the one way anything from the item
+  system enters the world: a dropped can, a death box, a loot box, a bench,
+  a well, a berry bush. Loot rolls through modforge `loot`.
+- **Never:** a second spawn function or a marker component for one kind of
+  item.
+- **Status:** RED. Wells and berry bushes spawn through
+  `interact::spawn_source` with a `Source` component.
+
+### 8. Using things
+
+- **Instance:** `Interactable` (modforge `hud::InteractKind`) on a thing;
+  `Door` on a door (indexed by chunk in `nav::DoorIndex`).
+- **Controller:** `interact::interact_on_use`: a person's Use reaches the
+  thing in reach nearest their aim, and modforge `hud::interact` decides
+  what happens.
+- **Never:** a second use path.
+
+### 9. Crafting
+
+- **Def:** modforge `RecipeDef`. **Registry:** `RecipeRegistryRes`.
+- **Instance:** a station is an `Interactable` from `interact::spawn_station`.
+- **Controller:** the Craft action in `hud`, through modforge
+  `crafting::craft`.
+
+### 10. The world and its ground
+
+- **Def:** modforge `GroundDef` (content `small_ground_def`, `ground_def`),
+  `BiomeDef` with its scatter. **Registry:** `BiomeRegistryRes`.
+- **Instance:** `terrain::WorldRes` (the rolled modforge `World2d`: ground,
+  sites, bunkers), `terrain::Chunks` (the chunks made, their sites, their
+  shores), and each chunk's entities (`WorldPiece`: its ground, its water
+  and solids, its things).
+- **Apply:** `terrain::roll` (from the seed, content `roll_world2d`), then
+  `terrain::make_chunks`.
+- **The ground of a tile:** only the made chunk, modforge `World2d::chunk`
+  (a site's and a bunker's ground cleared).
+- **Never:** asking `GroundGen::ground_at` outside world generation.
+- **Status:** RED. `interact::nearest_water` asks `GroundGen::ground_at`.
+
+### 11. Pathing
+
+- **Rules and data:** modforge `walk`: the walk grid (`WalkMap`, held in
+  `nav::Walk`), the search (`find_way`, by chunk then across chunks by
+  doorways), `standable`, and (by pathing.md) the one queue of plans with
+  its budget and the wait after a way not found.
+- **Instance:** `NavPath` on each walker (its way and goal).
+- **Controllers:** `nav::record_solids` paints the grid from every static
+  collider; `nav::steer` asks the queue for a way and steps each walker
+  along it.
+- **Never:** a search, a queue, a budget, or a reach check anywhere else.
+- **Status:** RED. The queue, budget, retry, and replanning live in topside
+  `nav.rs`, not modforge; `ai::think`'s `can_go` calls `find_way` outside
+  the queue.
+
+### 12. Monuments and buildings
+
+- **Def:** modforge `MonumentTypeDef`, `BuildingTypeDef`, `StructureDef`.
+  **Registry:** `MonumentRegistryRes`. The small world's sites: content
+  `SMALL_SITES`.
+- **Instance:** each building a `StructureRoot` entity with its pieces and
+  one compound collider, its doors, its `Shelter`; the monuments standing in
+  `structure::MonumentsRes`.
+- **Apply:** `structure::spawn_structure` (every building, the bunkers
+  included), `structure::spawn_sites` (each site world generation placed,
+  its boxes through `spawn_item`), `structure::spawn_bunker`,
+  `spawn_other_bunkers`.
+
+### 13. Factions
+
+- **Def:** modforge `FactionDef`. **Registry:** `FactionRegistryRes`
+  (content `register_factions`: the player's, the topside hostiles, one per
+  bunker).
+- **Instance:** a person's faction in `Npc`. Hostility is read from the
+  registry's table.
+
+### 14. The storm
+
+- **Def:** modforge `StormDef` (content `STORM`), its phase from the day.
+- **Instance:** `storm::StormRes` (how many shifts).
+- **Controllers:** `storm::storm` (in the open, hit through `hit_actor`;
+  under a `Shelter`, safe), `storm::shift_world` (the world goes and rolls
+  again from a new seed through `terrain::roll`; bunkers and bunker people
+  stay).
+- **Status:** RED through row 1: topside people are erased.
+
+### 15. Bunkers and their stores
+
+- **Instance:** a bunker is a building (row 12) with a `Shelter`; its store
+  is a box (row 7) that bunker people know through `Store`.
+- **Controllers:** the brain's supply rule (row 3) and the hud's take and
+  put in (row 7).
+
+### 16. Sight
+
+- **Controllers:** `sight` (`Sight`: what blocks a view, `BlocksSight`),
+  used by `ai::think` for the cone and by `sight::player_sight` for what the
+  player's person sees.
+
+### 17. Copies: the control plane, the HUD, pictures, timing
+
+- `control_plane.rs` publishes copies of the owners above (`status`,
+  `world`, `people`, `npc`, `ways`, `perf`) for tests and watching; the game
+  never reads them back. `speed` sets the game's speed.
+- The HUD (`hud.rs`) paints the player's own data; pictures (`picture.rs`)
+  draw; `profile::Laps` times each step. All copies, never the truth.
+
+### 18. Tests
+
+- `topside-tests` (`tests/`): every test tests the running game through the
+  control plane (operator, 2026-09-26); no headless tests.
 
 ## The one boundary: modforge owns the systems, topside uses them
 
@@ -333,30 +563,13 @@ Same rubric as factoriobot:
 Row order is build priority. "IN SURVIVALIST-MOD" means a game-specific
 implementation exists in modforge's survivalist-mod crate and the work is
 lifting its decisions into a game-agnostic modforge system behind a binder,
-not writing it from scratch. Rows 1 to 19 are the built game (audited
-2026-09-26 against the code); a score is left `-` where no caller audit has
-been done.
+not writing it from scratch. How the built game works, system by system, is
+"How topside works: every system" above; this table holds the systems still
+to build.
 
 | Priority | System | Lives in | Score | Authoritative for | Status |
 |---|---|---|---:|---|---|
-| 1 | `Memory` | modforge `memory`, topside component | 3 | **Authoritative for:** everything a person saw, did, and how they died: each NPC has one memory and all of it goes there, written by the path that did it (life.md "What a person did"). The endpoint reads memory. Never a log, list, or counter kept beside it as the truth. | RED. Bypasses: `combat::Deaths` is a second record of deaths; `ai::LifeStats` counts what people did beside memory. |
-| 2 | `combat::die` | topside | 3 | **Authoritative for:** every death, player and NPC alike: the death box, `Dead`, and a person who dies still existing to query, memory and all (life.md). Never despawning or erasing a person. | RED. Bypasses: `combat::leave` despawns a dead topside person; `storm::shift_world` erases topside people through it. |
-| 3 | `nav::steer` | topside, searching with modforge `WalkMap::find_way` | 3 | **Authoritative for:** every way from here to there: the one queue, its budget, and a way not found counting as blocked (pathing.md rules 4, 5). Never a search or a reach check outside the queue. | RED. Bypass: `ai::think`'s `can_go` calls `find_way` outside the queue. |
-| 4 | `interact::spawn_item` | topside | 4 | **Authoritative for:** every thing from the item system placed in the world (a dropped can, a box, a bench, a well, a berry bush) as a `WorldItem` (design.md "Items and inventory": one spawn path). Never a second spawn function or marker for a kind of item. | RED. Bypass: `interact::spawn_source` and the `Source` component for wells and berry bushes. |
-| 5 | `SurvivalStats::eat` | modforge `survival`, reached through `hud::use_slot` | 4 | **Authoritative for:** eating or drinking anything: what it fills, the heal, and the memory of it. Never a second eat path. | RED. Bypass: `interact::use_source` repeats eat, heal, and remember. |
-| 6 | `World2d::chunk` | modforge `world2d` | 5 | **Authoritative for:** what every tile's ground is in the world, sites and bunkers cleared. Never asking `GroundGen::ground_at` outside world generation. | RED. Bypass: `interact::nearest_water` asks `GroundGen::ground_at`. |
-| 7 | modforge rules | modforge | 4 | **Authoritative for:** every rule that needs no engine (what a respawn restores, what a source fills, how needs drain), each with a modforge test; topside only calls them (topside skill: modforge first). | RED. Bypass: the respawn rule (half health, full food and water) is written in topside `player::respawn`. |
-| 8 | `actor::spawn_person` | topside | - | **Authoritative for:** every person entering the world, player and NPC. Never a second spawn function. | Built. Not audited. |
-| 9 | `combat::hit_actor` | topside, deciding with modforge `resolve_hit` | - | **Authoritative for:** every hit on a person (weapons, starvation, the storm). Never changing health anywhere else. | Built. Not audited. |
-| 10 | `brain::choose` | modforge `brain` | - | **Authoritative for:** what every NPC decides, from a `Perception` topside builds in `ai::think`; things are worth what memory and the registry say (life.md). Never a decision made in topside. | Built. Not audited. |
-| 11 | The action queue | topside `input::drain_actions` | - | **Authoritative for:** what every person does: the keys (`input::read_input`, the one raw input reader) and the brain push the same actions. Never moving or changing a person directly. | Built. Not audited. |
-| 12 | `interact::interact_on_use` | topside, deciding with modforge `hud::interact` | - | **Authoritative for:** using any thing. Never a second use path. | Built. Not audited. |
-| 13 | `WalkMap::standable` | modforge `walk` | - | **Authoritative for:** where someone can stand. Never a second standable test. | Built. Not audited. |
-| 14 | `storm::storm` and `storm::shift_world` | topside, on modforge `storm` | - | **Authoritative for:** the storm's hurt in the open and the world shifting to a new one, bunkers and bunker people kept. | Built. Bypass named in row 2. The storm test passed on the running game 2026-09-26. |
-| 15 | `terrain::make_chunks`, `structure::spawn_sites`, `structure::spawn_structure` | topside | - | **Authoritative for:** making the world's chunks, its sites, and every building. | Built. Chunks and monuments tests pass on the running game. |
-| 16 | Control plane | topside `control_plane.rs` on modforge `ops` | - | **Authoritative for:** every number a test reads, read from the systems above. Never a test reading anything but the running game's endpoint. | Built. |
-| 17 | `topside-tests` | topside `tests/` | - | **Authoritative for:** proof: every test tests the running game over the control plane (operator, 2026-09-26); no headless tests. | Built: 13 tests. |
-| 18 | World | topside | - | The one simulation state. Every fact about what exists now. Scale target: 1000 persistent simulated NPCs (design.md). | Decided 2026-09-25: 2D (see Presentation below). |
+| 1 | World | topside | - | The one simulation state. Every fact about what exists now. Scale target: 1000 persistent simulated NPCs (design.md). | Decided 2026-09-25: 2D (see Presentation below). |
 | 2 | Binder traits | modforge | - | The contract between each system and any world. One trait per system; observe and act only. | UNBUILT. The shape exists as ueforge doctrine (ViewportBinder, DamageBinder). |
 | 3 | Storyteller | modforge | - | All dramatic pacing. Randy Random and Mario Kart, the dread loop, incursion scheduling. | IN SURVIVALIST-MOD (incursion.rs, stranger.rs; dread loop and signal payoff live-verified there 2026-07-07). |
 | 4 | The edge | modforge | - | The one faucet. What enters the world, carrying what, sent by whom. | IN SURVIVALIST-MOD (edge spawn + march, all arrival kinds). |
