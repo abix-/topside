@@ -383,8 +383,9 @@ pub fn think(
                 }
             }
             // At a river's shore: drink from the water in reach, a
-            // mouthful a think, until fed; no water there, forget it.
-            Some(Do::Eat { key }) if key & WATER_KEY != 0 => {
+            // mouthful a think, until the thirst is met; no water there,
+            // forget it.
+            Some(Do::Eat { key, .. }) if key & WATER_KEY != 0 => {
                 match world.as_ref().and_then(|w| crate::interact::nearest_water(w, here, here)) {
                     Some(water) => {
                         act(Action::Aim { x: water.x, y: water.y });
@@ -394,16 +395,16 @@ pub fn think(
                 }
             }
             // At a source (a well, a berry bush): use it where it stands,
-            // a mouthful a think, until fed.
-            Some(Do::Eat { key }) if source_at(key).is_some() => {
+            // a mouthful a think, until the need is met.
+            Some(Do::Eat { key, .. }) if source_at(key).is_some() => {
                 let at = source_at(key).expect("checked above");
                 act(Action::Aim { x: at.x, y: at.y });
                 act(Action::Use);
             }
             // At the box: open it, then eat or drink one thing out of it
-            // for the worse need, one a think, until fed. You eat what
-            // you need; nothing is carried off.
-            Some(Do::Eat { key }) => {
+            // for the need that sent them, one a think, until it is met.
+            // You eat what you need; nothing is carried off.
+            Some(Do::Eat { key, need }) => {
                 let Some(found) = the_box(key) else {
                     memory.0.gone(key);
                     continue;
@@ -413,12 +414,8 @@ pub fn think(
                     open_box(&mut act, open, found, where_is(found));
                     continue;
                 }
-                let need = if needs.0.hunger <= needs.0.thirst { Need::Hunger } else { Need::Thirst };
-                let other = if need == Need::Hunger { Need::Thirst } else { Need::Hunger };
                 let (_, container, _, _) = containers.get(found).expect("checked above");
-                let food = [need, other].into_iter().find_map(|n| {
-                    container.0.slots.iter().position(|s| s.as_ref().is_some_and(|s| answers(&items.0, &s.item, n)))
-                });
+                let food = container.0.slots.iter().position(|s| s.as_ref().is_some_and(|s| answers(&items.0, &s.item, need)));
                 if let Some(index) = food {
                     act(Action::UseSlot {
                         slot: SlotRef {
