@@ -185,6 +185,15 @@ from three places:
   camp now knows about the wreck on the ridge, with a delay and only
   within the faction. Neutrals share nothing.
 
+### What a person did (operator, 2026-09-25)
+
+"memory needs to be for all the things that the npc does. keep it
+simple". Memory also holds everything the person does, when: ate,
+drank, slept, took from a box, stocked the store, hit someone, was hit,
+died, respawned. "in games like rust you know your enemy killer": a
+person who dies knows who killed them. The endpoint reads it; the same
+memory the brain reads, no second record.
+
 ### The map each person carries (operator, 2026-09-25)
 
 Every person, the player included, carries a map of where they have
