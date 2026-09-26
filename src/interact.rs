@@ -10,7 +10,7 @@ use modforge::crafting::StationKind;
 use modforge::hud::{HudState, InteractKind, InteractResult, OpenPanel, interact};
 use modforge::item::{self, ItemDef, ItemKind, ItemStack};
 
-use modforge::walk::{cell_of, centre};
+use modforge::walk::centre;
 
 use crate::actor::{Dead, Inventory, Memory, Survival};
 use crate::combat::Health;
@@ -162,7 +162,7 @@ pub fn interact_on_use(
     mut commands: Commands,
     registry: Res<ItemRegistryRes>,
     tick: Res<crate::SimTick>,
-    world: Option<Res<crate::terrain::WorldRes>>,
+    chunks: Option<Res<crate::terrain::Chunks>>,
     mut people: Query<
         (
             (&Transform, &ThisTick, &mut Inventory, &mut Hud, &mut OpenContainer, &mut OpenStation),
@@ -193,7 +193,7 @@ pub fn interact_on_use(
         let Some(Ok((entity, thing, door, item, transform))) = nearest.map(|e| things.get_mut(e)) else {
             // Nothing to use in reach: a river's water pointed at is drunk
             // (design.md: rivers are drinkable).
-            if world.as_ref().is_some_and(|w| water_in_reach(w, at, pointed)) {
+            if chunks.as_ref().is_some_and(|c| nearest_water(c, at, pointed).is_some()) {
                 eat_from_source(WATER, &registry, &mut needs, &mut health, memory.as_deref_mut(), tick.0);
             }
             continue;
@@ -217,23 +217,17 @@ pub fn interact_on_use(
     }
 }
 
-/// Whether a water tile lies within reach of `at`, the one nearest
-/// `pointed` being checked: the tile under the point, or the nearest
-/// water tile beside the person.
-pub fn water_in_reach(world: &crate::terrain::WorldRes, at: Vec2, pointed: Vec2) -> bool {
-    nearest_water(world, at, pointed).is_some()
-}
-
-/// The water tile within reach of `at` nearest `pointed`, if any.
-pub fn nearest_water(world: &crate::terrain::WorldRes, at: Vec2, pointed: Vec2) -> Option<Vec2> {
-    let here = cell_of(at);
-    let r = REACH.ceil() as i32 + 1;
-    (-r..=r)
-        .flat_map(|dy| (-r..=r).map(move |dx| (here.0 + dx, here.1 + dy)))
-        .filter(|t| world.world.ground.ground_at(*t) == modforge::ground::Ground::Water)
-        .map(centre)
+/// The water tile within reach of `at` nearest `pointed`, if any, from
+/// the made chunks' shores (the one answer for what a tile is).
+pub fn nearest_water(chunks: &crate::terrain::Chunks, at: Vec2, pointed: Vec2) -> Option<Vec2> {
+    let c = crate::terrain::chunk_of(at);
+    (c.1 - 1..=c.1 + 1)
+        .flat_map(|y| (c.0 - 1..=c.0 + 1).map(move |x| (x, y)))
+        .filter_map(|k| chunks.shores.get(&k))
+        .flatten()
+        .map(|s| centre(s.water))
         // The edge of the water tile nearest the person is what they reach.
-        .filter(|c| (*c - at).abs().max_element() <= REACH + 0.5)
+        .filter(|w| (*w - at).abs().max_element() <= REACH + 0.5)
         .min_by(|a, b| a.distance(pointed).total_cmp(&b.distance(pointed)))
 }
 

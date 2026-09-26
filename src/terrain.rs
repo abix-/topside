@@ -49,30 +49,40 @@ pub struct BlocksSight;
 pub struct Chunks {
     pub made: HashSet<ChunkKey>,
     pub sites: HashSet<(i32, i32)>,
-    /// Per chunk made, its shore: the land tiles beside water, where a
-    /// person stands to drink from a river (design.md: rivers drinkable).
-    pub shores: std::collections::HashMap<ChunkKey, Vec<(i32, i32)>>,
+    /// Per chunk made, its shore, from the made chunk: each land tile
+    /// beside water with the water tile beside it, where a person stands
+    /// to drink from a river and what they drink (design.md: rivers
+    /// drinkable).
+    pub shores: std::collections::HashMap<ChunkKey, Vec<Shore>>,
     /// Road tiles in the chunks made, for the `world` op.
     pub roads: usize,
 }
 
-/// The land tiles of `chunk` with water beside them (in the chunk).
-fn shore_of(chunk: &GroundChunk) -> Vec<(i32, i32)> {
+/// A land tile beside water, and that water tile.
+#[derive(Clone, Copy, Debug)]
+pub struct Shore {
+    pub land: (i32, i32),
+    pub water: (i32, i32),
+}
+
+/// The land tiles of the made `chunk` with water beside them (in the
+/// chunk), each with its water tile.
+fn shore_of(chunk: &GroundChunk) -> Vec<Shore> {
     let f = chunk.first();
     let inside = |t: (i32, i32)| t.0 >= f.0 && t.0 < f.0 + CHUNK && t.1 >= f.1 && t.1 < f.1 + CHUNK;
     let mut out = Vec::new();
     for y in 0..CHUNK {
         for x in 0..CHUNK {
-            let t = (f.0 + x, f.1 + y);
-            if !chunk.ground_at(t).is_land() {
+            let land = (f.0 + x, f.1 + y);
+            if !chunk.ground_at(land).is_land() {
                 continue;
             }
-            let wet = [(1, 0), (-1, 0), (0, 1), (0, -1)]
+            let water = [(1, 0), (-1, 0), (0, 1), (0, -1)]
                 .into_iter()
-                .map(|(dx, dy)| (t.0 + dx, t.1 + dy))
-                .any(|n| inside(n) && chunk.ground_at(n) == Ground::Water);
-            if wet {
-                out.push(t);
+                .map(|(dx, dy)| (land.0 + dx, land.1 + dy))
+                .find(|n| inside(*n) && chunk.ground_at(*n) == Ground::Water);
+            if let Some(water) = water {
+                out.push(Shore { land, water });
             }
         }
     }

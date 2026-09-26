@@ -110,7 +110,6 @@ pub fn think(
     mut thinkers: Thinkers,
     containers: Query<(Entity, &Container, &Transform, &WorldItem)>,
     lying: Query<(Entity, &Transform, &WorldItem), Without<Container>>,
-    world: Option<Res<crate::terrain::WorldRes>>,
     chunks: Option<Res<crate::terrain::Chunks>>,
 ) {
     // What a remembered thing is worth for a need, the RimWorld way: for
@@ -248,7 +247,7 @@ pub fn think(
                 .flat_map(|y| (c.0 - 1..=c.0 + 1).map(move |x| (x, y)))
                 .filter_map(|k| chunks.shores.get(&k))
                 .flatten()
-                .map(|t| modforge::walk::centre(*t))
+                .map(|s| modforge::walk::centre(s.land))
                 .filter(|p| p.distance(here) <= def.sight && in_cone(facing, here, *p))
                 .min_by(|a, b| a.distance(here).total_cmp(&b.distance(here)));
             if let Some(shore) = seen.filter(|p| sight.clear(here, *p)) {
@@ -386,7 +385,7 @@ pub fn think(
             // mouthful a think, until the thirst is met; no water there,
             // forget it.
             Some(Do::Eat { key, .. }) if key & WATER_KEY != 0 => {
-                match world.as_ref().and_then(|w| crate::interact::nearest_water(w, here, here)) {
+                match chunks.as_ref().and_then(|c| crate::interact::nearest_water(c, here, here)) {
                     Some(water) => {
                         act(Action::Aim { x: water.x, y: water.y });
                         act(Action::Use);
