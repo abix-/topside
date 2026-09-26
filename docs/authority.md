@@ -13,6 +13,54 @@ Evidence date: 2026-08-19. Nothing is built. Every score below reflects that
 honestly. This doc exists BEFORE the code so the code never gets a chance to
 grow a second path.
 
+## The contract: one owner for every fact (2026-09-26)
+
+Modelled on Endless's authority contract (endless/docs/authority.md): every
+fact and every decision in the game has exactly one owner. Written after a
+batch that broke six of these in one day while its tests passed (a death log
+beside memory, a way search outside the queue, a second spawn path, a second
+eating path, two answers for "is this water", a rule kept in topside).
+
+| Fact or decision | The one owner | Never |
+|---|---|---|
+| What a person saw, did, and how they died | Their one memory: the `Memory` component (modforge `memory::Memory`), written by the path that did it | A log, counter, or list kept beside it as the truth; the endpoint reads memory (life.md "What a person did") |
+| A person who died | The same entity, marked `Dead`, memory kept (life.md: a person who dies still exists) | Despawning a person; erasing a topside person |
+| Every person entering the world | topside `actor::spawn_person` | A second spawn function, or a test building a person by hand |
+| Every thing from the item system in the world (a dropped can, a box, a bench, a well, a berry bush) | topside `interact::spawn_item`, as a `WorldItem` | A second spawn function or marker component for a kind of item (design.md "Items and inventory") |
+| Eating or drinking anything | modforge `SurvivalStats::eat`, reached through `hud::use_slot` | A second eat path that repeats eat, heal, and remember |
+| Every hit, and every death | topside `combat::hit_actor`, then `combat::die` | Changing health anywhere else (starvation and the storm hit through `hit_actor`) |
+| A way from here to there | The one queue, topside `nav::steer`, searching with modforge `WalkMap::find_way` | Calling `find_way` or any search outside `steer`; a shortcut check beside it (pathing.md rules 4, 5) |
+| Where someone can stand | modforge `WalkMap::standable` | A second standable test |
+| What a tile's ground is | The made chunk: modforge `World2d::chunk` (sites and bunkers cleared) | Asking `GroundGen::ground_at` outside world generation |
+| What a person decides | modforge `brain::choose`, from `Perception` built in topside `ai::think` | A decision made in topside (authority.md: no consumer reimplements a system's decision) |
+| What a person does | Their action queue, drained by topside `input::drain_actions`; the keys (`input::read_input`) and the brain push the same actions | Moving or changing a person directly |
+| Using a thing | topside `interact::interact_on_use`, decided by modforge `hud::interact` | A second use path |
+| Any rule that needs no engine (how much a respawn restores, what a source fills, how needs drain) | modforge, with a modforge test; topside only calls it | Writing the rule in topside (topside skill: modforge first) |
+| Every number a test reads | The control plane (`control_plane.rs`), reading the owners above | A test reading anything but the running game's endpoint |
+
+### Hard rules
+
+1. Before writing code that touches a fact, find its row. Use its owner.
+2. A fact with no row: ask the operator, then add the row. Never invent an owner.
+3. A second path, a second record, or a second answer is a failure even when
+   every test passes. Tests prove behaviour, not authority.
+4. A change that breaks a row is undone, not worked around.
+
+### Known breaks (open, in docs/todo.md)
+
+- The death log `combat::Deaths` is a second record beside memory, and dead
+  topside people are despawned (todo: a person who dies still exists; remove
+  the death log).
+- `ai::think` calls `find_way` outside the queue (todo: no way searched
+  outside the one queue).
+- Wells and berry bushes spawn through `interact::spawn_source` with a
+  `Source` component, not as WorldItems through `spawn_item`.
+- `interact::use_source` repeats eat, heal, and remember beside `use_slot`.
+- `interact::nearest_water` asks `GroundGen::ground_at`, not the made chunk.
+- The respawn rule (half health, full food and water) is written in topside
+  `player::respawn`, not in modforge.
+- `ai::LifeStats` counts what people did beside their memory.
+
 ## The one boundary: modforge owns the systems, topside uses them
 
 ALL game systems live in modforge. Topside is a consumer of modforge exactly
