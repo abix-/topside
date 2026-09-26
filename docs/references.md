@@ -117,6 +117,20 @@ At run time:
   render layer exists (lua-api). How the darkening is done was not
   checked.
 
+People, built from pieces (2026-09-26, not read from source, from what
+the games are known to do):
+
+- Factorio's character is not built from pieces: each armour tier swaps
+  the whole picture set, and one mask is tinted with the player's colour.
+- RimWorld draws a pawn per facing (south, east, north; west is east
+  mirrored) as layers: body by body type, head, hair, then apparel in
+  layer order (on skin, middle, shell, headgear). Each apparel def names
+  its pictures; skin and hair come from grey pictures tinted in the game.
+  The weapon is one picture drawn at the pawn, turned to the aim angle.
+- Diablo 2 built its units from pieces (head, torso, legs, arms, weapon,
+  shield), each rendered per direction and per animation frame, with a
+  per-direction table of which piece draws over which.
+
 What topside has today: the ground as `TilemapChunk`, actors and
 buildings as sprites. Missing: the rendered pictures, one camera angle and
 light, ground variations and edge pictures, the render layers, the night

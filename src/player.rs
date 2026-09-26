@@ -54,15 +54,13 @@ pub fn wake_point(world: &WorldRes) -> Vec3 {
 pub fn spawn_player(mut spawn: SpawnActor, registry: Res<ActorRegistryRes>, world: Res<WorldRes>) {
     let def = registry.0.def("player").expect("the player is registered");
     let at = wake_point(&world);
-    let person = spawn_person(&mut spawn, def, at.truncate(), def.faction.as_deref(), PLAYER_COLOR, NOSE_COLOR)
+    let person = spawn_person(&mut spawn, def, at.truncate(), def.faction.as_deref(), PLAYER_COLOR)
         .expect("the actor map has room for the player");
     spawn
         .commands
         .entity(person)
         .insert((Player, Transform::from_translation(at)));
 }
-
-const NOSE_COLOR: Color = Color::srgb(0.25, 0.2, 0.1);
 
 /// Every actor's roll this tick (combat.md "The roll"): Roll starts one
 /// along the move held, or where the person faces with no move held,

@@ -200,8 +200,13 @@ def join(parts, name, size=None):
 # -- the picture -------------------------------------------------------------
 
 
-def picture(obj, out):
-    """render `obj` from the game's camera to `out`, its ground point at the centre."""
+def picture(obj, out, frame=None):
+    """render `obj` (one object or several) from the game's camera to `out`,
+    its ground point at the centre. The picture fits the model, or with
+    `frame`, is that many metres either side of the ground point (half
+    width, half height) as the camera sees it, so pictures that are drawn
+    over each other line up."""
+    objs = obj if isinstance(obj, list) else [obj]
     scene = bpy.context.scene
     cam = bpy.data.objects.new("camera", bpy.data.cameras.new("camera"))
     cam.data.type = "ORTHO"
@@ -216,10 +221,13 @@ def picture(obj, out):
     bpy.context.view_layer.update()
     # The picture's half width and half height: the furthest the model
     # reaches from the ground point, as the camera sees it.
-    view = cam.matrix_world.inverted()
-    seen = [view @ (obj.matrix_world @ v.co) for v in obj.data.vertices]
-    half_w = max(abs(p.x) for p in seen) + MARGIN
-    half_h = max(abs(p.y) for p in seen) + MARGIN
+    if frame is None:
+        view = cam.matrix_world.inverted()
+        seen = [view @ (o.matrix_world @ v.co) for o in objs for v in o.data.vertices]
+        half_w = max(abs(p.x) for p in seen) + MARGIN
+        half_h = max(abs(p.y) for p in seen) + MARGIN
+    else:
+        half_w, half_h = frame
     w = math.ceil(2 * half_w * PIXELS_PER_METRE)
     h = math.ceil(2 * half_h * PIXELS_PER_METRE)
     scene.render.resolution_x = w
@@ -230,7 +238,9 @@ def picture(obj, out):
     out.parent.mkdir(parents=True, exist_ok=True)
     scene.render.filepath = str(out)
     bpy.ops.render.render(write_still=True)
-    print(f"{obj.name}: {len(obj.data.polygons)} faces, {w}x{h} pixels -> {out}")
+    bpy.data.objects.remove(cam, do_unlink=True)
+    faces = sum(len(o.data.polygons) for o in objs)
+    print(f"{objs[0].name}: {faces} faces, {w}x{h} pixels -> {out}")
 
 
 # -- the models --------------------------------------------------------------
@@ -357,6 +367,71 @@ def road_sign_vest():
     return join(parts, "road sign vest", ITEM)
 
 
+# -- people ------------------------------------------------------------------
+#
+# People are built from pieces (design.md "What 2D changes"): each is layers
+# drawn per facing, every layer rendered on one rig and pose with the other
+# layers held out, so what one piece hides of another is already cut away.
+# The rig is Quaternius's Universal Base Characters (CC0,
+# scripts/quaternius-characters/License_Standard.txt), from
+# https://quaternius.itch.io/universal-base-characters.
+CHARACTERS = Path(__file__).resolve().parent / "quaternius-characters"
+# Facings, as the game picks them (src/actor.rs): 0 east, then a turn of
+# 45 degrees counter-clockwise each, so 2 is north, away from the camera.
+FACINGS = 8
+# Every person picture is this many metres either side of the ground point
+# (half width, half height), so all layers and facings line up.
+PERSON_FRAME = (0.6, 1.45)
+
+
+def person():
+    """the rig standing with its arms at its sides, and its layers: the
+    body (with eyes and brows) and one hairstyle, pinned to the head."""
+    own = {"MI_": (None, False)}
+    meshes = load(CHARACTERS / "Superhero_Male_FullBody.gltf", own)
+    # The file carries a loose helper ball; the body is what the rig holds.
+    for m in [m for m in meshes if m.parent is None]:
+        bpy.data.objects.remove(m, do_unlink=True)
+    body = [m for m in meshes if m.parent is not None]
+    rig = body[0].parent
+    bones = rig.pose.bones
+    for b in bones:
+        b.rotation_mode = "XYZ"
+    # Arms down from the T-pose: each upper arm turns down about its Z.
+    bones["upperarm_l"].rotation_euler = (0, 0, math.radians(-72))
+    bones["upperarm_r"].rotation_euler = (0, 0, math.radians(72))
+    hair = load(CHARACTERS / "Hair_SimpleParted.gltf", own)
+    for h in hair:
+        world = h.matrix_world.copy()
+        h.parent, h.parent_type, h.parent_bone = rig, "BONE", "Head"
+        h.matrix_world = world
+    bpy.context.view_layer.update()
+    return rig, {"body": body, "hair": hair}
+
+
+def people():
+    """render every layer of a person per facing: `person <layer> <facing>`."""
+    clear()
+    rig, layers = person()
+    # Which way the rig faces at rest: from its ankles to its toes.
+    bones, m = rig.pose.bones, rig.matrix_world
+    toes = (m @ bones["ball_l"].head + m @ bones["ball_r"].head) / 2
+    ankles = (m @ bones["foot_l"].head + m @ bones["foot_r"].head) / 2
+    rest = math.atan2(toes.y - ankles.y, toes.x - ankles.x)
+    for k in range(FACINGS):
+        rig.rotation_euler = (0, 0, math.radians(k * 360 / FACINGS) - rest)
+        bpy.context.view_layer.update()
+        for layer, meshes in layers.items():
+            for other, others in layers.items():
+                for o in others:
+                    o.is_holdout = other != layer
+            picture(meshes, OUT / f"person {layer} {k}.png", frame=PERSON_FRAME)
+
+
+# Models that render several pictures themselves.
+SETS = {"person": people}
+
+
 MODELS = {
     "tree": tree,
     "rock": rock,
@@ -378,11 +453,14 @@ MODELS = {
 
 def main():
     args = sys.argv[sys.argv.index("--") + 1 :] if "--" in sys.argv else []
-    names = args or list(MODELS)
-    unknown = [n for n in names if n not in MODELS]
+    names = args or list(MODELS) + list(SETS)
+    unknown = [n for n in names if n not in MODELS and n not in SETS]
     if unknown:
-        sys.exit(f"ERROR: no model named {', '.join(unknown)}; models: {', '.join(MODELS)}")
+        sys.exit(f"ERROR: no model named {', '.join(unknown)}; models: {', '.join(list(MODELS) + list(SETS))}")
     for name in names:
+        if name in SETS:
+            SETS[name]()
+            continue
         clear()
         picture(MODELS[name](), OUT / f"{name}.png")
 

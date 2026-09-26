@@ -1362,6 +1362,16 @@ view.
   pictures need; then the steps are automated so every later model is
   easier. How Factorio does its pictures is in docs/references.md.
 - No shadows (2026-09-26). The operator does not like them.
+- People are built from shared pieces (operator, 2026-09-26: people are
+  made a lot and must not all look the same; the body is built from DRY
+  pieces, equipment and weapon included). As RimWorld does it: each
+  person is layers drawn per facing (8): a body, a head and hair, then
+  every worn item's layer, each piece rendered once on one rig and pose;
+  skin and hair tinted in the game; a worn item's definition names its
+  worn pictures; the weapon is one picture at the hand, turned to where
+  the person aims. Each layer is rendered with the other pieces held out
+  (Blender's holdout), so what one piece hides of another is already cut
+  away. How RimWorld and Diablo 2 do it is in docs/references.md.
 
 ## Future goals (not v1)
 
