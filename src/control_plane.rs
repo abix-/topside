@@ -76,6 +76,20 @@ pub struct PersonView<'w, 's> {
             Has<crate::terrain::WorldPiece>,
         ),
     >,
+    /// What a person could use, to name what is in their reach.
+    usable: Query<
+        'w,
+        's,
+        (
+            &'static crate::interact::Interactable,
+            Option<&'static crate::interact::Door>,
+            Option<&'static crate::interact::WorldItem>,
+            &'static Transform,
+        ),
+    >,
+    /// What they do this tick.
+    this_tick: Query<'w, 's, (&'static Actor, &'static crate::input::ThisTick)>,
+    chunks: Option<Res<'w, crate::terrain::Chunks>>,
 }
 
 /// Answer the `npc` op's question, if one is waiting: everything the game
@@ -129,6 +143,21 @@ pub fn answer_npc(
                 .into_iter()
                 .map(|((s, c), v)| json!({"choice": format!("{c:?}"), "value": v, "situation": format!("{s:?}")}))
                 .collect();
+            // What Use would reach where they stand (interact_on_use): the
+            // things within reach, and a river's water.
+            let in_reach: Vec<String> = view
+                .usable
+                .iter()
+                .filter(|(_, door, _, t)| crate::interact::use_point(*door, t).distance(here) <= crate::interact::REACH)
+                .map(|(thing, _, item, _)| format!("{:?} {}", thing.kind, item.map_or("", |i| i.stack.item.as_str())))
+                .collect();
+            let water_in_reach = view.chunks.as_ref().and_then(|c| crate::interact::nearest_water(c, here, here));
+            let acting: Vec<String> = view
+                .this_tick
+                .iter()
+                .find(|(a, _)| a.0.0 == id)
+                .map(|(_, t)| t.0.iter().map(|s| format!("{:?}", s.action)).collect())
+                .unwrap_or_default();
             let picture = chunk(walk.0.picture(here, '@'));
             let goal_picture = way.planned_at.map(|_| chunk(walk.0.picture(way.goal, 'G')));
             json!({
@@ -140,6 +169,9 @@ pub fn answer_npc(
                 "at": [here.x, here.y],
                 "spawned_at": spawned.map(|s| [s.0.x, s.0.y]),
                 "standing_on": standing_on,
+                "in_reach": in_reach,
+                "water_in_reach": water_in_reach.map(|w| [w.x, w.y]),
+                "this_tick": acting,
                 "health": health.0.current,
                 "needs": {"hunger": needs.0.hunger, "thirst": needs.0.thirst, "rest": needs.0.rest, "safety": needs.0.safety},
                 "doing": doing_name(&tree, &record.0),

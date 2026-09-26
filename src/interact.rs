@@ -152,7 +152,7 @@ impl Default for Hud {
 }
 
 /// Where a thing is used from: a door from where it stands closed.
-fn use_point(door: Option<&Door>, transform: &Transform) -> Vec2 {
+pub(crate) fn use_point(door: Option<&Door>, transform: &Transform) -> Vec2 {
     door.map_or(transform.translation.ground(), |d| d.closed_center)
 }
 
@@ -222,16 +222,19 @@ pub fn interact_on_use(
 }
 
 /// The water tile within reach of `at` nearest `pointed`, if any, from
-/// the made chunks' shores (the one answer for what a tile is).
+/// the made chunks' shores (the one answer for what a tile is). Someone
+/// standing at a shore reaches its water: the shore's land tile within
+/// reach, the tile a person drinking is sent to stand on (a river's
+/// remembered spot).
 pub fn nearest_water(chunks: &crate::terrain::Chunks, at: Vec2, pointed: Vec2) -> Option<Vec2> {
     let c = crate::terrain::chunk_of(at);
     (c.1 - 1..=c.1 + 1)
         .flat_map(|y| (c.0 - 1..=c.0 + 1).map(move |x| (x, y)))
         .filter_map(|k| chunks.shores.get(&k))
         .flatten()
+        // The edge of the land tile nearest the person is what they reach.
+        .filter(|s| (centre(s.land) - at).abs().max_element() <= REACH + 0.5)
         .map(|s| centre(s.water))
-        // The edge of the water tile nearest the person is what they reach.
-        .filter(|w| (*w - at).abs().max_element() <= REACH + 0.5)
         .min_by(|a, b| a.distance(pointed).total_cmp(&b.distance(pointed)))
 }
 

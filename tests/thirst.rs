@@ -105,7 +105,10 @@ fn thirsty_topside_people_see_to_their_thirst() {
             .map(|l| format!("{} {:.2} in {}", l["choice"], l["value"].as_f64().unwrap_or(0.0), l["situation"]))
             .collect();
         eprintln!("  alive for {}, lives {}, learned while thirsty: {learned:#?}", npc["alive_for"], npc["lives"]);
-        if !npc["about"].as_str().is_some_and(|a| a.contains("Thirst")) {
+        eprintln!("  in reach {}; water in reach {}; this tick {}", npc["in_reach"], npc["water_in_reach"], npc["this_tick"]);
+        // Knowing no water, they head out to look (life.md: nothing known
+        // answers a need); knowing some, they go to it.
+        if !water.is_empty() && !npc["about"].as_str().is_some_and(|a| a.contains("Thirst")) {
             neglected.push(format!("{} {} doing {doing}", npc["id"], npc["def"]));
         }
     }
