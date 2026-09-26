@@ -5,9 +5,9 @@
 //! queue and never knows what a key is; an NPC's AI will push the same
 //! actions.
 
-use bevy::input::mouse::{AccumulatedMouseScroll, MouseScrollUnit};
+use bevy::input::mouse::AccumulatedMouseMotion;
 use bevy::prelude::*;
-use bevy::window::PrimaryWindow;
+use bevy::window::{CursorGrabMode, CursorOptions, PrimaryWindow};
 use modforge::hud::OpenPanel;
 pub use modforge::actions::{Action, ActionQueue, Bindings, Key, Stamped};
 
@@ -67,57 +67,40 @@ fn key_of(code: KeyCode) -> Option<Key> {
     })
 }
 
-/// How much one wheel notch zooms. Tuning.
-const ZOOM_PER_NOTCH: f32 = 1.15;
-/// The closest and the farthest zoom, times the normal view (34 m tall):
-/// 17 m, and about 1090 m, the whole small world.
-const ZOOM_IN: f32 = 0.5;
-const ZOOM_OUT: f32 = 32.0;
-/// A touchpad's pixels that count as one wheel notch.
-const PIXELS_PER_NOTCH: f32 = 40.0;
+/// Radians turned per pixel the mouse moves. Tuning.
+const LOOK_PER_PIXEL: f32 = 0.0025;
 
 /// Read the keys and the mouse once per frame and push the player's
-/// actions for the next fixed tick: movement, use, attack, the point
-/// under the cursor to face, and the panel and hotbar keys. While a
-/// panel is open only the panel keys, the hotbar, and use get through
-/// (the 3D game's rule): no walking, aiming, or swinging. The wheel
-/// zooms the camera.
+/// actions for the next fixed tick: movement, use, attack, where they
+/// look, and the panel and hotbar keys. While a panel is open only the
+/// panel keys, the hotbar, and use get through (the 3D game's rule): no
+/// walking, looking, or swinging. WASD is read relative to where the
+/// player faces (W forward) and pushed as a direction on the ground, the
+/// same `Move` every NPC's brain pushes.
 pub fn read_input(
     keys: Res<ButtonInput<KeyCode>>,
     buttons: Res<ButtonInput<MouseButton>>,
     bindings: Res<BindingsRes>,
     tick: Res<SimTick>,
     hovered: Res<HoveredSlot>,
-    windows: Query<&Window, With<PrimaryWindow>>,
-    cameras: Query<(&Camera, &GlobalTransform)>,
-    scroll: Res<AccumulatedMouseScroll>,
-    mut projections: Query<&mut Projection, With<Camera2d>>,
-    mut players: Query<(&mut Actions, &Hud), With<Player>>,
+    motion: Res<AccumulatedMouseMotion>,
+    cursors: Query<&CursorOptions, With<PrimaryWindow>>,
+    mut players: Query<(&mut Actions, &Hud, &crate::actor::Facing), With<Player>>,
 ) {
-    let Ok((mut actions, hud)) = players.single_mut() else {
+    let Ok((mut actions, hud, facing)) = players.single_mut() else {
         return;
     };
     let in_world = hud.0.open_panel == OpenPanel::None;
-    // The wheel zooms the camera, as in Factorio: out to the whole small
-    // world, in to half the normal view. Only the view changes, never
-    // what the person does.
-    if in_world && scroll.delta.y != 0.0 {
-        let notches = match scroll.unit {
-            MouseScrollUnit::Line => scroll.delta.y,
-            MouseScrollUnit::Pixel => scroll.delta.y / PIXELS_PER_NOTCH,
-        };
-        for mut projection in &mut projections {
-            if let Projection::Orthographic(view) = projection.as_mut() {
-                view.scale = (view.scale * ZOOM_PER_NOTCH.powf(-notches)).clamp(ZOOM_IN, ZOOM_OUT);
-            }
-        }
-    }
-    if in_world
-        && let (Ok(window), Ok((camera, camera_at))) = (windows.single(), cameras.single())
-        && let Some(cursor) = window.cursor_position()
-        && let Ok(point) = camera.viewport_to_world_2d(camera_at, cursor)
-    {
-        actions.0.push(tick.0 + 1, Action::Aim { x: point.x, y: point.y });
+    // The mouse looks only while the cursor is held by the game.
+    let grabbed = cursors.single().is_ok_and(|c| c.grab_mode != CursorGrabMode::None);
+    if in_world && grabbed && motion.delta != Vec2::ZERO {
+        actions.0.push(
+            tick.0 + 1,
+            Action::Look {
+                yaw: motion.delta.x * LOOK_PER_PIXEL,
+                pitch: -motion.delta.y * LOOK_PER_PIXEL,
+            },
+        );
     }
     let pressed: Vec<Key> = keys
         .get_pressed()
@@ -139,6 +122,18 @@ pub fn read_input(
                 Some(slot) => Action::Transfer { half, slot: Some(slot) },
                 None => continue,
             },
+            // W forward, D to the right of where the player faces, turned
+            // into a direction on the ground (the camera's right is the
+            // facing turned a quarter counter-clockwise on the ground).
+            Action::Move { x, y } => {
+                let forward = facing.direction();
+                let right = forward.perp();
+                let on_ground = forward * y + right * x;
+                Action::Move {
+                    x: on_ground.x,
+                    y: on_ground.y,
+                }
+            }
             other => other,
         };
         let allowed = match action {
@@ -162,6 +157,28 @@ pub fn read_input(
     // key stops the body.
     if !moved {
         actions.0.push(next, Action::Move { x: 0.0, y: 0.0 });
+    }
+}
+
+/// The cursor is the one raw-input rule that is not a game action (the 3D
+/// game's): a click in the world grabs it so the mouse looks; Escape, or
+/// a panel opening, frees it for the panel.
+pub fn cursor_grab(
+    keys: Res<ButtonInput<KeyCode>>,
+    buttons: Res<ButtonInput<MouseButton>>,
+    mut cursors: Query<&mut CursorOptions, With<PrimaryWindow>>,
+    players: Query<&Hud, With<Player>>,
+) {
+    let Ok(mut cursor) = cursors.single_mut() else {
+        return;
+    };
+    let panel_open = players.single().is_ok_and(|hud| hud.0.open_panel != OpenPanel::None);
+    if panel_open || keys.just_pressed(KeyCode::Escape) {
+        cursor.grab_mode = CursorGrabMode::None;
+        cursor.visible = true;
+    } else if buttons.just_pressed(MouseButton::Left) {
+        cursor.grab_mode = CursorGrabMode::Locked;
+        cursor.visible = false;
     }
 }
 

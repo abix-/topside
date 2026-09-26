@@ -1,5 +1,5 @@
-//! topside: the 2D game (docs/design.md "What 2D changes") on Bevy,
-//! consuming the modforge crate and the content both games share.
+//! topside: one 3D world played in first person (docs/authority.md
+//! "Presentation") on Bevy, consuming the modforge crate and the content.
 //! Ownership map: docs/authority.md.
 
 pub mod actor;
@@ -9,8 +9,9 @@ pub mod control_plane;
 pub mod hud;
 pub mod input;
 pub mod interact;
+pub mod model;
 pub mod nav;
-pub mod picture;
+pub mod people;
 pub mod player;
 pub mod profile;
 pub mod sight;
@@ -21,11 +22,36 @@ pub mod terrain;
 
 pub use topside_content as content;
 
-use bevy::camera::ScalingMode;
 use bevy::prelude::*;
 
-/// Metres across the screen's height, close to Factorio's default zoom.
-pub const VIEW_METRES: f32 = 34.0;
+/// A place in the world seen from above, and where it stands in 3D. The
+/// simulation reasons on the ground (x, y), as modforge does; in 3D, Bevy's
+/// y is up, so a ground point (x, y) stands at (x, height, y), the same
+/// way modforge's memory keeps places (`Vec3::new(x, 0.0, y)`).
+pub trait Ground {
+    /// The ground point under this 3D position.
+    fn ground(self) -> Vec2;
+}
+
+impl Ground for Vec3 {
+    fn ground(self) -> Vec2 {
+        Vec2::new(self.x, self.z)
+    }
+}
+
+/// The 3D position `height` metres above the ground point `g`.
+pub fn on_ground(g: Vec2, height: f32) -> Vec3 {
+    Vec3::new(g.x, height, g.y)
+}
+
+/// The turn about the upright that points a thing's +x along the ground
+/// direction at `angle` (radians, 0 along +x, a quarter turn along +y).
+pub fn turned(angle: f32) -> Quat {
+    Quat::from_rotation_y(-angle)
+}
+
+/// Where a person's eyes are, above their feet (the first person camera).
+pub const EYE_HEIGHT: f32 = 1.6;
 
 /// Simulation tick counter. FixedUpdate runs at a locked 60 UPS; this
 /// counts those ticks, independent of the frame rate.
@@ -71,11 +97,11 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind) -> App {
                 }),
         );
     }
-    // Avian 2D is the one physics system. Seen from above, nothing
-    // falls.
-    app.add_plugins(avian2d::prelude::PhysicsPlugins::default());
+    // Avian 3D is the one physics system. Bodies are kinematic and walk
+    // the ground; nothing falls yet (one floor, flat ground).
+    app.add_plugins(avian3d::prelude::PhysicsPlugins::default());
     app.add_plugins(profile::ProfilePlugin);
-    app.insert_resource(avian2d::prelude::Gravity(Vec2::ZERO));
+    app.insert_resource(avian3d::prelude::Gravity(Vec3::ZERO));
     if headless {
         // Headless callers drive `update()` themselves and never
         // `run()`, so finish plugin setup here (Avian creates its
@@ -158,6 +184,7 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind) -> App {
                 lap("storm"),
                 hud::hud_keys,
                 player::roll,
+                player::look,
                 player::aim,
                 lap("keys_roll_aim"),
             )
@@ -187,29 +214,30 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind) -> App {
         )
             .chain(),
     );
-    // What the player's person can see, every frame.
-    app.add_systems(Update, (profile::start, sight::player_sight, lap("player_sight")).chain());
+    app.add_systems(Update, profile::start);
     if !headless {
         app.insert_resource(storm::Windowed);
         app.add_plugins(bevy::diagnostic::FrameTimeDiagnosticsPlugin::default());
         control_plane::start();
-        app.add_systems(Startup, terrain::setup_ground_tiles.before(terrain::make_chunks));
-        app.add_systems(Startup, picture::load_pictures);
+        app.add_systems(Startup, terrain::setup_ground.before(terrain::make_chunks));
+        app.init_resource::<model::Tinted>();
+        app.init_resource::<people::Animations>();
         app.add_systems(
             Update,
             (
-                picture::draw_pictures,
-                picture::draw_people,
-                picture::dress_people,
-                picture::turn_people,
-                picture::draw_held,
-                picture::draw_doors,
+                spawn_camera,
+                input::cursor_grab,
+                people::draw_people,
+                model::attach,
+                model::tint,
+                people::dress,
+                people::animate,
             ),
         );
         app.add_systems(
             Startup,
             (
-                spawn_camera,
+                spawn_sun,
                 hud::setup,
                 hud::setup_death,
                 hud::setup_vitals,
@@ -225,7 +253,6 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind) -> App {
             (
                 control_plane::apply_speed,
                 input::read_input,
-                player::camera_follow,
                 hud::render,
                 hud::render_death,
                 hud::render_vitals,
@@ -241,17 +268,34 @@ fn tick_system(mut tick: ResMut<SimTick>) {
     tick.0 += 1;
 }
 
-/// The camera looks straight down, like Factorio's, starting at the
-/// bunker.
-fn spawn_camera(mut commands: Commands, world: Res<terrain::WorldRes>) {
+/// The sun: from the left at 45 degrees (scripts/models.py's), no shadows
+/// (design.md), and a soft light everywhere so nothing is black.
+fn spawn_sun(mut commands: Commands) {
     commands.spawn((
-        Camera2d,
-        Projection::Orthographic(OrthographicProjection {
-            scaling_mode: ScalingMode::FixedVertical {
-                viewport_height: VIEW_METRES,
-            },
-            ..OrthographicProjection::default_2d()
-        }),
-        Transform::from_translation(world.bunker.extend(0.0)),
+        DirectionalLight {
+            illuminance: 10_000.0,
+            shadow_maps_enabled: false,
+            ..default()
+        },
+        Transform::from_rotation(Quat::from_euler(EulerRot::YXZ, -std::f32::consts::FRAC_PI_2, -std::f32::consts::FRAC_PI_4, 0.0)),
     ));
+    commands.insert_resource(GlobalAmbientLight {
+        brightness: 400.0,
+        ..default()
+    });
+}
+
+/// The first person camera: at the player's eyes, looking where they face
+/// (the camera looks along its -z; the player's +x is where they face).
+fn spawn_camera(mut commands: Commands, players: Query<Entity, Added<player::Player>>) {
+    for player in &players {
+        commands.entity(player).with_children(|c| {
+            c.spawn((
+                Camera3d::default(),
+                player::Eyes::default(),
+                Transform::from_xyz(0.0, EYE_HEIGHT - player::BODY_CENTRE, 0.0)
+                    .with_rotation(Quat::from_rotation_y(-std::f32::consts::FRAC_PI_2)),
+            ));
+        });
+    }
 }

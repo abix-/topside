@@ -1,12 +1,11 @@
-//! Buildings seen from above, one floor at a time (design.md "What 2D
-//! changes"), on the tile grid (pathing.md "One grid"): modforge turns
-//! a `StructureDef` into runs of tiles (`tile_plan`: floor, wall, door,
-//! furniture); topside only draws the runs and gives the solid ones one
-//! static collider per building (the 3D game's rule, one collider per
-//! building). Structure-local x and z are the screen's x and y, the
-//! same as the world's.
+//! Buildings on the tile grid (pathing.md "One grid"): modforge turns a
+//! `StructureDef` into runs of tiles (`tile_plan`: floor, wall, door,
+//! furniture); topside stands each run up to its height, draws it, and
+//! gives the solid ones one static collider per building (the 3D game's
+//! rule, one collider per building). Structure-local x and z are the
+//! world's ground x and y. The ground floor only, as before.
 
-use avian2d::prelude::*;
+use avian3d::prelude::*;
 use bevy::prelude::*;
 use modforge::hud::InteractKind;
 use modforge::structure::{MonumentDef, StructureDef, TileKind, TileRun, tile_plan};
@@ -24,12 +23,24 @@ use crate::content::{
     starting_bunker, starting_note,
 };
 use crate::interact::{Container, Door, Interactable, spawn_item, spawn_station};
+use crate::model::{Model, Tint};
+use crate::on_ground;
 use crate::terrain::{NewSites, WorldPiece, WorldRes};
 
-/// Drawing order: floors under walls and furniture, doors on top.
-const FLOOR_Z: f32 = 0.2;
-const SOLID_Z: f32 = 0.6;
-const DOOR_Z: f32 = 0.7;
+/// How tall a wall and a door stand, in metres (a room's height in
+/// modforge's starting bunker).
+pub const WALL_HEIGHT: f32 = 3.0;
+/// How tall furniture stands, in metres: under the eyes, so it is seen
+/// over.
+pub const FURNITURE_HEIGHT: f32 = 0.9;
+
+/// How tall a solid tile of this kind stands.
+fn height_of(kind: TileKind) -> f32 {
+    match kind {
+        TileKind::Furniture => FURNITURE_HEIGHT,
+        _ => WALL_HEIGHT,
+    }
+}
 
 /// A building's root: the body holding its one collider.
 #[derive(Component)]
@@ -79,20 +90,25 @@ pub fn spawn_structure(commands: &mut Commands, def: &StructureDef, at: Vec2, of
             })
             .collect(),
     );
-    let shapes: Vec<(Vec2, Rotation, Collider)> = runs
+    let shapes: Vec<(Vec3, Rotation, Collider)> = runs
         .iter()
         .filter(|r| r.kind.solid())
         .map(|r| {
             let (min, max) = rect(r);
             let size = max - min;
-            ((min + max) / 2.0, Rotation::IDENTITY, Collider::rectangle(size.x, size.y))
+            let height = height_of(r.kind);
+            (
+                on_ground((min + max) / 2.0, height / 2.0),
+                Rotation::IDENTITY,
+                Collider::cuboid(size.x, height, size.y),
+            )
         })
         .collect();
     let mut root = commands.spawn((
         StructureRoot,
         shelter,
         RigidBody::Static,
-        Transform::from_translation(at.extend(0.0)),
+        Transform::from_translation(on_ground(at, 0.0)),
     ));
     if !shapes.is_empty() {
         root.insert(Collider::compound(shapes));
@@ -101,21 +117,20 @@ pub fn spawn_structure(commands: &mut Commands, def: &StructureDef, at: Vec2, of
         root.insert(WorldPiece);
     }
     let root = root.id();
-    // Every tile its picture (scripts/models.py), tinted the run's colour,
-    // as Factorio draws a wall a tile at a time: lower on the screen draws
-    // in front, so a wall's face shows whichever way it runs.
+    // Every tile its model (scripts/models.py), tinted the run's colour,
+    // standing on the ground.
     for r in runs.iter().filter(|r| r.kind != TileKind::Door) {
-        let (picture, z) = match r.kind {
-            TileKind::Floor => ("floor", FLOOR_Z),
-            TileKind::Furniture => ("furniture", SOLID_Z),
-            _ => ("wall", SOLID_Z),
+        let model = match r.kind {
+            TileKind::Floor => "floor",
+            TileKind::Furniture => "furniture",
+            _ => "wall",
         };
         for x in r.from..r.to {
             let centre = at + Vec2::new(x as f32 + 0.5, r.row as f32 + 0.5);
             let mut piece = commands.spawn((
-                crate::picture::Picture(picture.to_string()),
-                crate::picture::Tint(Color::srgb(r.color[0], r.color[1], r.color[2])),
-                Transform::from_translation(centre.extend(z - centre.y * 1e-6)),
+                Model(model.to_string()),
+                Tint(Color::srgb(r.color[0], r.color[1], r.color[2])),
+                Transform::from_translation(on_ground(centre, 0.0)),
             ));
             if of_world {
                 piece.insert(WorldPiece);
@@ -138,9 +153,14 @@ pub fn spawn_structure(commands: &mut Commands, def: &StructureDef, at: Vec2, of
                 kind: InteractKind::Door { open: false },
             },
             RigidBody::Static,
-            Collider::rectangle(size.x, size.y),
-            crate::picture::Picture("door".to_string()),
-            Transform::from_translation(centre.extend(DOOR_Z)),
+            // Standing on the ground: the box raised by half its height.
+            Collider::compound(vec![(
+                Vec3::Y * WALL_HEIGHT / 2.0,
+                Rotation::IDENTITY,
+                Collider::cuboid(size.x, WALL_HEIGHT, size.y),
+            )]),
+            Model("door".to_string()),
+            Transform::from_translation(on_ground(centre, 0.0)),
         ));
         if of_world {
             door.insert(WorldPiece);
@@ -226,14 +246,14 @@ pub fn spawn_sites(
             spawn_structure(&mut commands, &member.structure, at, true);
         }
         if !monument.props.is_empty() {
-            let shapes: Vec<(Vec2, Rotation, Collider)> = monument
+            let shapes: Vec<(Vec3, Rotation, Collider)> = monument
                 .props
                 .iter()
                 .map(|p| {
                     (
-                        Vec2::new(p.position.x, p.position.z),
+                        on_ground(Vec2::new(p.position.x, p.position.z), p.size.y / 2.0),
                         Rotation::IDENTITY,
-                        Collider::rectangle(p.size.x, p.size.z),
+                        Collider::cuboid(p.size.x, p.size.y, p.size.z),
                     )
                 })
                 .collect();
@@ -241,17 +261,17 @@ pub fn spawn_sites(
                 WorldPiece,
                 RigidBody::Static,
                 Collider::compound(shapes),
-                Transform::from_translation(site.position.extend(0.0)),
+                Transform::from_translation(on_ground(site.position, 0.0)),
             ));
             for p in &monument.props {
                 let centre = site.position + Vec2::new(p.position.x, p.position.z);
-                let at = Transform::from_translation(centre.extend(SOLID_Z));
-                // Its picture; never a box (design.md: no coloured boxes).
+                let at = Transform::from_translation(on_ground(centre, 0.0));
+                // Its model; never a box (design.md: no coloured boxes).
                 match &p.picture {
                     Some(name) => {
-                        commands.spawn((WorldPiece, crate::picture::Picture(name.clone()), at));
+                        commands.spawn((WorldPiece, Model(name.clone()), at));
                     }
-                    None => warn!("a prop of {} has no picture", monument.name),
+                    None => warn!("a prop of {} has no model", monument.name),
                 }
             }
         }

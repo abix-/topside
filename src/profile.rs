@@ -110,7 +110,7 @@ impl Plugin for ProfilePlugin {
         app.init_resource::<Laps>();
         app.add_systems(
             FixedPostUpdate,
-            physics_start.before(avian2d::schedule::PhysicsSystems::First),
+            physics_start.before(avian3d::schedule::PhysicsSystems::First),
         );
         app.add_systems(FixedLast, (physics_end, finish_step).chain());
     }

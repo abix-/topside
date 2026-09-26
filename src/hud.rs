@@ -9,6 +9,7 @@ use modforge::hud::{
     transfer_slot, use_slot, HOTBAR_SLOTS,
 };
 
+use crate::Ground;
 use crate::actor::{Dead, Hotbar, Inventory, INVENTORY_SLOTS, Survival};
 use modforge::memory::Did;
 use crate::combat::Equipment;
@@ -519,7 +520,7 @@ pub fn hud_keys(
                         continue;
                     };
                     if let Some(left) = inventory.0.add(made, def.max_stack) {
-                        crate::interact::spawn_item(&mut commands, def, left, at.translation.truncate());
+                        crate::interact::spawn_item(&mut commands, def, left, at.translation.ground());
                     }
                 }
                 _ => {}

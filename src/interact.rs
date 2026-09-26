@@ -4,7 +4,7 @@
 
 use std::f32::consts::FRAC_PI_2;
 
-use avian2d::prelude::*;
+use avian3d::prelude::*;
 use bevy::prelude::*;
 use modforge::crafting::StationKind;
 use modforge::hud::{HudState, InteractKind, InteractResult, OpenPanel, interact};
@@ -12,7 +12,9 @@ use modforge::item::{self, ItemDef, ItemKind, ItemStack};
 
 use modforge::walk::centre;
 
-use crate::actor::{Dead, Inventory, Memory, Survival};
+use crate::actor::{Dead, Facing, Inventory, Memory, Survival};
+use crate::model::Model;
+use crate::{Ground, on_ground, turned};
 use crate::combat::Health;
 use crate::content::ItemRegistryRes;
 use crate::input::{Action, ActionQueue, ThisTick};
@@ -84,18 +86,16 @@ pub fn spawn_station(commands: &mut Commands, kind: StationKind, at: Vec2) -> En
             Interactable {
                 kind: InteractKind::Station(kind),
             },
-            Transform::from_translation(at.extend(0.0)),
+            Transform::from_translation(on_ground(at, 0.0)),
         ))
         .id()
 }
 
-/// A small item's square and a deployable's, in metres; scripts/models.py
-/// renders item pictures to these sizes (ITEM, DEPLOYABLE), change both
+/// A small item's size and a deployable's, in metres; scripts/models.py
+/// makes item models to these sizes (ITEM, DEPLOYABLE), change both
 /// together.
 const ITEM_SIZE: f32 = 0.35;
 const DEPLOYABLE_SIZE: f32 = 0.7;
-/// Above floors and furniture, under people.
-const ITEM_Z: f32 = 0.8;
 
 /// The ONE path from an item stack to a WorldItem in the world. A
 /// small item is a sensor people walk over and E picks up; a
@@ -118,16 +118,17 @@ pub fn spawn_item(commands: &mut Commands, def: &ItemDef, stack: ItemStack, at: 
         Interactable { kind },
         WorldItem { stack },
         RigidBody::Static,
-        Collider::rectangle(size, size),
-        Transform::from_translation(at.extend(ITEM_Z)),
+        // Resting on the ground: the box raised by half its height.
+        Collider::compound(vec![(Vec3::Y * size / 2.0, Rotation::IDENTITY, Collider::cuboid(size, size, size))]),
+        Transform::from_translation(on_ground(at, 0.0)),
     ));
-    // Its picture, rendered to this size by scripts/models.py; never a box
+    // Its model, made to this size by scripts/models.py; never a box
     // (design.md: no coloured boxes).
     match &def.picture {
         Some(name) => {
-            entity.insert(crate::picture::Picture(name.clone()));
+            entity.insert(Model(name.clone()));
         }
-        None => warn!("item {} has no picture", def.name),
+        None => warn!("item {} has no model", def.name),
     }
     if !deployable {
         entity.insert(Sensor);
@@ -152,7 +153,7 @@ impl Default for Hud {
 
 /// Where a thing is used from: a door from where it stands closed.
 fn use_point(door: Option<&Door>, transform: &Transform) -> Vec2 {
-    door.map_or(transform.translation.truncate(), |d| d.closed_center)
+    door.map_or(transform.translation.ground(), |d| d.closed_center)
 }
 
 /// Every person's Use this tick, the player's E and the brain's alike,
@@ -166,7 +167,7 @@ pub fn interact_on_use(
     mut people: Query<
         (
             (&Transform, &ThisTick, &mut Inventory, &mut Hud, &mut OpenContainer, &mut OpenStation),
-            (&mut Survival, &mut Health, Option<&mut Memory>),
+            (&mut Survival, &mut Health, Option<&mut Memory>, &Facing),
         ),
         Without<Dead>,
     >,
@@ -175,15 +176,18 @@ pub fn interact_on_use(
         Without<ThisTick>,
     >,
 ) {
-    for ((person, this_tick, mut inventory, mut hud, mut open, mut station), (mut needs, mut health, mut memory)) in &mut people {
+    for ((person, this_tick, mut inventory, mut hud, mut open, mut station), (mut needs, mut health, mut memory, facing)) in
+        &mut people
+    {
         if !this_tick.0.iter().any(|s| matches!(s.action, Action::Use)) {
             continue;
         }
-        // The thing pointed at, the Factorio way: within reach of the
-        // person, the one nearest the point they aim at (the mouse, or
-        // what the brain means to use); with no aim, the nearest.
-        let at = person.translation.truncate();
-        let pointed = ActionQueue::aim(&this_tick.0).map_or(at, |(x, y)| Vec2::new(x, y));
+        // The thing pointed at: within reach of the person, the one
+        // nearest the point they aim at (what the brain means to use);
+        // with no aim (the player, in first person), the point a step
+        // ahead of where they face.
+        let at = person.translation.ground();
+        let pointed = ActionQueue::aim(&this_tick.0).map_or(at + facing.direction(), |(x, y)| Vec2::new(x, y));
         let nearest = things
             .iter()
             .map(|(e, _, door, _, t)| (e, use_point(door, t)))
@@ -264,12 +268,11 @@ fn use_thing(
             };
             door.open = !door.open;
             thing.kind = InteractKind::Door { open: door.open };
+            // A quarter turn about the hinge, on the ground.
             let turn = if door.open { FRAC_PI_2 } else { 0.0 };
-            let rotation = Quat::from_rotation_z(turn);
-            let from_hinge = (door.closed_center - door.hinge).extend(0.0);
-            transform.translation =
-                (door.hinge.extend(0.0) + rotation * from_hinge).with_z(transform.translation.z);
-            transform.rotation = rotation;
+            let from_hinge = Vec2::from_angle(turn).rotate(door.closed_center - door.hinge);
+            transform.translation = on_ground(door.hinge + from_hinge, transform.translation.y);
+            transform.rotation = turned(turn);
             if door.open {
                 commands.entity(entity).insert(ColliderDisabled);
             } else {

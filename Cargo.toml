@@ -2,7 +2,8 @@
 members = ["3d", "content", "tests"]
 resolver = "3"
 
-# The 2D game (docs/design.md "What 2D changes").
+# The game: one 3D world played in first person (docs/authority.md
+# "Presentation").
 [package]
 name = "topside"
 version = "0.1.0"
@@ -12,7 +13,7 @@ publish = false
 autotests = false
 
 [dependencies]
-avian2d = { version = "0.7", default-features = false, features = ["2d", "f32", "parry-f32", "parallel"] }
+avian3d = { version = "0.7", default-features = false, features = ["3d", "f32", "parry-f32", "parallel"] }
 bevy = "0.19"
 modforge = { path = "../modforge/modforge" }
 serde_json = "1"

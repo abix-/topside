@@ -13,12 +13,12 @@
 use std::collections::VecDeque;
 use std::time::{Duration, Instant};
 
-use avian2d::prelude::*;
+use avian3d::prelude::*;
 use bevy::prelude::*;
 use modforge::brain::REACH;
 use modforge::walk::{CHUNK, ChunkKey, Rect, WalkMap, cell_of};
 
-use crate::SimTick;
+use crate::{Ground, SimTick};
 use crate::actor::{Dead, Npc};
 use crate::input::{Action, ActionQueue, ThisTick};
 use crate::interact::Door;
@@ -88,11 +88,13 @@ pub struct NavPath {
 }
 
 /// The rectangles a collider stands on, in world metres: a box, or a
-/// compound of boxes (a building, a chunk of water and trees).
+/// compound of boxes (a building, a chunk of water and trees), each by
+/// its footprint on the ground.
 fn rects_of(collider: &Collider, at: Vec2) -> Vec<Rect> {
+    let footprint = |half: Vec3| Vec2::new(half.x, half.z) * 2.0;
     let shape = collider.shape_scaled();
     if let Some(cuboid) = shape.as_cuboid() {
-        return vec![Rect::around(at, cuboid.half_extents * 2.0)];
+        return vec![Rect::around(at, footprint(cuboid.half_extents))];
     }
     shape
         .as_compound()
@@ -102,7 +104,7 @@ fn rects_of(collider: &Collider, at: Vec2) -> Vec<Rect> {
                 .iter()
                 .filter_map(|(pose, part)| {
                     part.as_cuboid()
-                        .map(|c| Rect::around(at + pose.translation, c.half_extents * 2.0))
+                        .map(|c| Rect::around(at + pose.translation.ground(), footprint(c.half_extents)))
                 })
                 .collect()
         })
@@ -121,7 +123,7 @@ pub fn record_solids(
     }
     for (entity, collider, body, transform) in &added {
         if *body == RigidBody::Static {
-            walk.0.add(entity.to_bits(), rects_of(collider, transform.translation.truncate()));
+            walk.0.add(entity.to_bits(), rects_of(collider, transform.translation.ground()));
         }
     }
 }
@@ -200,7 +202,7 @@ pub fn doorways(
     mut inside: Local<std::collections::HashMap<Entity, Entity>>,
 ) {
     for (person, at, mut memory) in &mut people {
-        match doorway_at(&index, &doors, at.translation.truncate()) {
+        match doorway_at(&index, &doors, at.translation.ground()) {
             Some(door) => {
                 if inside.insert(person, door) != Some(door) {
                     memory.0.did(modforge::memory::Did::Doorway, tick.0);
@@ -237,7 +239,7 @@ pub fn steer(
             continue;
         };
         walking += 1;
-        if path.queued || tick.0 < path.retry_at || transform.translation.truncate().distance(target) <= REACH {
+        if path.queued || tick.0 < path.retry_at || transform.translation.ground().distance(target) <= REACH {
             continue;
         }
         let age = path.planned_at.map_or(u64::MAX, |at| tick.0.saturating_sub(at));
@@ -264,7 +266,7 @@ pub fn steer(
             continue;
         };
         done += 1;
-        let here = transform.translation.truncate();
+        let here = transform.translation.ground();
         path.goal = target;
         path.planned_at = Some(tick.0);
         if walk.0.line_clear(here, target) {
@@ -318,7 +320,7 @@ pub fn steer(
         let Some(target) = walking_to(&this_tick) else {
             continue;
         };
-        let here = transform.translation.truncate();
+        let here = transform.translation.ground();
         // Arrived: stop here, not at the next decision.
         if here.distance(target) <= REACH {
             path.waypoints.clear();

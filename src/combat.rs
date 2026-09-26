@@ -4,7 +4,7 @@
 //! one total, no body parts); topside only finds who was hit and
 //! carries out death.
 
-use avian2d::prelude::*;
+use avian3d::prelude::*;
 use bevy::prelude::*;
 use modforge::combat::{
     BULLET_SPEED, FireTimer, Health as HealthStats, Hit, HitResult, MultiDamage, Protection as ProtectionStats,
@@ -17,6 +17,7 @@ use modforge::actor::ActorId;
 use modforge::item::numbers_of;
 
 use crate::actor::{Actor, ActorMapRes, Dead, Facing, Home, Hotbar, Inventory, Memory, Personality};
+use crate::{Ground, on_ground};
 use crate::content::{DamageRegistryRes, ItemRegistryRes, LayerRegistryRes};
 use crate::input::{Action, ActionQueue, ThisTick};
 use crate::interact::{Container, spawn_item};
@@ -191,21 +192,21 @@ pub fn melee(
             let to = move_and_slide
                 .move_and_slide(
                     shape,
-                    transform.translation.truncate(),
-                    0.0,
-                    facing.direction() * OVERHEAD_STEP / dt,
+                    transform.translation,
+                    Quat::IDENTITY,
+                    on_ground(facing.direction() * OVERHEAD_STEP / dt, 0.0),
                     time.delta(),
                     &MoveAndSlideConfig::default(),
                     &filter,
                     |_| MoveAndSlideHitResponse::Accept,
                 )
                 .position;
-            transform.translation = to.extend(transform.translation.z);
+            transform.translation = on_ground(to.ground(), transform.translation.y);
         }
         swings.push((
             entity,
             actor.map_or(ActorId(0), |a| a.0),
-            transform.translation.truncate(),
+            transform.translation.ground(),
             facing.direction(),
             swing,
             weapon.reach * personality.range_mult(),
@@ -222,7 +223,7 @@ pub fn melee(
             continue;
         };
         for (target, at, guard, rolling, own, target_worn, mut target_health, mut memory, target_id) in &mut actors.p1() {
-            let offset = at.translation.truncate() - here;
+            let offset = at.translation.ground() - here;
             if target == attacker
                 || !swing.covers(offset, facing, reach)
                 || guard.0.blocking()
@@ -293,7 +294,9 @@ pub struct Bullet {
     pub range: f32,
 }
 
-const BULLET_Z: f32 = 1.5;
+/// How high a bullet flies, in metres: chest height, flat (combat.md
+/// "Guns": no drop).
+const BULLET_HEIGHT: f32 = 1.3;
 
 /// Every actor with the trigger held and a gun in its hands fires
 /// through modforge's timer: a shot takes one round of the gun's ammo
@@ -351,7 +354,7 @@ pub fn fire(
         if let (Some(inv), Some(slot)) = (inventory.as_mut(), round) {
             inv.0.remove(slot, 1);
         }
-        let muzzle = transform.translation.truncate() + facing.direction() * (PLAYER_SIZE / 2.0 + 0.1);
+        let muzzle = transform.translation.ground() + facing.direction() * (PLAYER_SIZE / 2.0 + 0.1);
         let seed = tick.0 ^ entity.to_bits();
         for direction in pellet_directions_2d(facing.direction(), gun.spread_degrees, gun.pellets, seed) {
             commands.spawn((
@@ -362,8 +365,8 @@ pub fn fire(
                     travelled: 0.0,
                     range: gun.reach,
                 },
-                crate::picture::Picture("pellet".to_string()),
-                Transform::from_translation(muzzle.extend(BULLET_Z)),
+                crate::model::Model("pellet".to_string()),
+                Transform::from_translation(on_ground(muzzle, BULLET_HEIGHT)),
             ));
         }
     }
@@ -392,15 +395,15 @@ pub fn fly(
     // (shooter, damage def, pellets summed per target) this step.
     let mut landed: Vec<(Entity, String, MultiDamage<Entity>)> = Vec::new();
     for (entity, mut bullet, mut transform) in &mut bullets {
-        let from = transform.translation.truncate();
+        let from = transform.translation.ground();
         let reach = step.min(bullet.range - bullet.travelled);
         let filter = SpatialQueryFilter::from_excluded_entities([bullet.shooter]);
         // Items lying about and anyone in the safe half of a roll let a
         // bullet through.
         let passes = |e: Entity| sensors.contains(e) || Rolling::safe(rollers.get(e).ok());
-        let hit = Dir2::new(bullet.direction)
-            .ok()
-            .and_then(|dir| spatial.cast_ray_predicate(from, dir, reach, true, &filter, &|e| !passes(e)));
+        let hit = Dir3::new(on_ground(bullet.direction, 0.0)).ok().and_then(|dir| {
+            spatial.cast_ray_predicate(on_ground(from, transform.translation.y), dir, reach, true, &filter, &|e| !passes(e))
+        });
         if let Some(hit) = hit {
             if targets.contains(hit.entity) {
                 let at = bullet.travelled + hit.distance;
@@ -420,7 +423,7 @@ pub fn fly(
             continue;
         }
         bullet.travelled += reach;
-        transform.translation = (from + bullet.direction * reach).extend(transform.translation.z);
+        transform.translation = on_ground(from + bullet.direction * reach, transform.translation.y);
         if bullet.travelled >= bullet.range - 1e-4 {
             commands.entity(entity).despawn();
         }
@@ -431,7 +434,7 @@ pub fn fly(
         };
         let (from, by) = shooters
             .get(shooter)
-            .map_or((Vec2::ZERO, ActorId(0)), |(t, a)| (t.translation.truncate(), a.map_or(ActorId(0), |a| a.0)));
+            .map_or((Vec2::ZERO, ActorId(0)), |(t, a)| (t.translation.ground(), a.map_or(ActorId(0), |a| a.0)));
         for (target, pellets, distance) in multi.drain() {
             let Ok((own, worn, mut health, mut memory, target_id)) = targets.get_mut(target) else {
                 continue;
@@ -501,7 +504,7 @@ pub fn die(
                     &mut commands,
                     box_def,
                     item::create(box_def, 1, &[], tick.0 as f32, salt),
-                    transform.translation.truncate(),
+                    transform.translation.ground(),
                 );
                 commands.entity(dropped).insert(Container(contents));
             }

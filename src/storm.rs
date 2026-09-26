@@ -11,6 +11,7 @@ use bevy::prelude::*;
 use modforge::combat::Hit;
 use modforge::storm::StormPhase;
 
+use crate::Ground;
 use crate::actor::{Actor, ActorMapRes, Dead, Home, Memory, Npc};
 use crate::combat::leave;
 use crate::combat::{Equipment, Health, Protection, hit_actor};
@@ -55,7 +56,7 @@ pub fn storm(
         && let Some(def) = damage.0.def("storm")
     {
         for (at, own, worn, mut health, mut memory) in &mut actors {
-            if sheltered(&shelters, at.translation.truncate()) {
+            if sheltered(&shelters, at.translation.ground()) {
                 continue;
             }
             let hit = Hit {
@@ -103,7 +104,7 @@ pub fn shift_world(
         leave(&mut commands, &mut map, entity, actor);
     }
     for (entity, at) in &lying {
-        let point = at.translation.truncate();
+        let point = at.translation.ground();
         if !bunker.iter().any(|s| s.covers(point)) {
             commands.entity(entity).despawn();
         }

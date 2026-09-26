@@ -10,7 +10,6 @@ mod doorways;
 mod eating;
 mod game;
 mod hauling;
-mod mirroring;
 mod monuments;
 mod night;
 mod respawn;

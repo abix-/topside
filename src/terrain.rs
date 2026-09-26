@@ -1,25 +1,33 @@
-//! The 2D world, made and drawn chunk by chunk (design.md "2D world
+//! The world, made and drawn chunk by chunk (design.md "2D world
 //! generation", the Factorio way): modforge's `World2d` decides every
-//! chunk from the seed; this makes the chunks the world needs now, around
-//! the player, around every person, and at the bunkers, as Factorio makes
-//! the chunks around its players. A chunk is two static bodies (water,
-//! which stops a body; cliffs, trees, and rocks, which stop a body and
-//! sight), its ground drawn per tile with a window, and the sites that
-//! stand in it queued to be spawned. Nothing of a chunk is made twice.
+//! chunk's ground from the seed; this makes the chunks the world needs
+//! now, around the player, around every person, and at the bunkers, as
+//! Factorio makes the chunks around its players. A chunk is two static
+//! bodies (water, which stops a body and is seen over; cliffs, trees, and
+//! rocks, which stop a body and sight), its ground drawn as one mesh with
+//! a window, and the sites that stand in it queued to be spawned. Nothing
+//! of a chunk is made twice.
 
 use std::collections::HashSet;
 
-use avian2d::prelude::*;
-use bevy::image::{ImageArrayLayout, ImageLoaderSettings};
+use avian3d::prelude::*;
+use bevy::asset::RenderAssetUsages;
+use bevy::mesh::{Indices, PrimitiveTopology};
 use bevy::prelude::*;
-use bevy::sprite_render::{TileData, TilemapChunk, TilemapChunkTileData};
 use modforge::ground::{Ground, GroundChunk};
 use modforge::places::Place;
 use modforge::walk::{CHUNK, ChunkKey, Rect, TILE, cell_of};
 use modforge::world2d::{Registries, World2d};
 
-use crate::WorldSeed;
 use crate::content::{BUNKER_AT, BiomeRegistryRes, MonumentRegistryRes, WorldKind, ground_color, roll_world2d};
+use crate::model::Model;
+use crate::{Ground as _, WorldSeed, on_ground};
+
+/// How tall water stands as a body: it stops a person, and is seen over.
+const WATER_HEIGHT: f32 = 1.0;
+/// How tall cliffs, trees, and rocks stand as a body: over the eyes, so
+/// they hide what is past them.
+const SOLID_HEIGHT: f32 = 4.0;
 
 /// The world: its ground, sites, and roads (modforge), the player's
 /// bunker, the other bunkers, and the seed it was rolled from.
@@ -93,9 +101,20 @@ fn shore_of(chunk: &GroundChunk) -> Vec<Shore> {
 #[derive(Resource, Default)]
 pub struct NewSites(pub Vec<Place>);
 
-/// The one white tile the ground is drawn with, tinted per tile.
+/// With a window: the one material every chunk's ground mesh is drawn
+/// with, its colour from each tile's corners (the ground kind's colour).
 #[derive(Resource)]
-pub struct GroundTiles(Handle<Image>);
+pub struct GroundMaterial(Handle<StandardMaterial>);
+
+/// With a window: the ground's material, made once.
+pub fn setup_ground(mut commands: Commands, mut materials: ResMut<Assets<StandardMaterial>>) {
+    let material = materials.add(StandardMaterial {
+        base_color: Color::WHITE,
+        perceptual_roughness: 1.0,
+        ..default()
+    });
+    commands.insert_resource(GroundMaterial(material));
+}
 
 /// Chunks made round the player (drawn and solid), in chunks each way.
 const AROUND_PLAYER: i32 = 3;
@@ -155,15 +174,20 @@ fn runs_of(chunk: &GroundChunk, of: impl Fn(Ground) -> bool) -> Vec<Rect> {
     out
 }
 
-fn body(commands: &mut Commands, rects: &[Rect], sight: bool) {
+/// One static body of `rects`, each standing `height` tall on the ground.
+fn body(commands: &mut Commands, rects: &[Rect], height: f32, sight: bool) {
     if rects.is_empty() {
         return;
     }
-    let shapes: Vec<(Vec2, Rotation, Collider)> = rects
+    let shapes: Vec<(Vec3, Rotation, Collider)> = rects
         .iter()
         .map(|r| {
             let size = r.max - r.min;
-            ((r.min + r.max) / 2.0, Rotation::IDENTITY, Collider::rectangle(size.x, size.y))
+            (
+                on_ground((r.min + r.max) / 2.0, height / 2.0),
+                Rotation::IDENTITY,
+                Collider::cuboid(size.x, height, size.y),
+            )
         })
         .collect();
     let mut e = commands.spawn((WorldPiece, RigidBody::Static, Collider::compound(shapes), Transform::default()));
@@ -171,9 +195,6 @@ fn body(commands: &mut Commands, rects: &[Rect], sight: bool) {
         e.insert(BlocksSight);
     }
 }
-
-/// Above the ground, under people.
-const THING_Z: f32 = 0.5;
 
 /// Make every chunk the world needs now and has not made: round the
 /// player, round every person, and at the bunkers.
@@ -185,7 +206,8 @@ pub fn make_chunks(
     biomes: Res<BiomeRegistryRes>,
     monuments: Res<MonumentRegistryRes>,
     items: Res<crate::content::ItemRegistryRes>,
-    tiles: Option<Res<GroundTiles>>,
+    ground: Option<Res<GroundMaterial>>,
+    mut meshes: Option<ResMut<Assets<Mesh>>>,
     players: Query<&Transform, With<crate::player::Player>>,
     people: Query<&Transform, (With<crate::actor::Npc>, Without<crate::player::Player>)>,
 ) {
@@ -199,10 +221,10 @@ pub fn make_chunks(
         }
     };
     for t in &players {
-        around(t.translation.truncate(), AROUND_PLAYER);
+        around(t.translation.ground(), AROUND_PLAYER);
     }
     for t in &people {
-        around(t.translation.truncate(), AROUND_PERSON);
+        around(t.translation.ground(), AROUND_PERSON);
     }
     around(world.bunker, 2);
     for b in world.bunkers.clone() {
@@ -228,10 +250,10 @@ pub fn make_chunks(
         }
         let chunk = world.world.chunk(r, key);
         chunks.roads += chunk.ground.iter().filter(|g| **g == Ground::Road).count();
-        body(&mut commands, &runs_of(&chunk, |g| g == Ground::Water), false);
+        body(&mut commands, &runs_of(&chunk, |g| g == Ground::Water), WATER_HEIGHT, false);
         let mut solid = runs_of(&chunk, |g| matches!(g, Ground::Cliff | Ground::OutOfMap));
         solid.extend(chunk.things.iter().filter(|t| t.source.is_none()).map(|t| t.rect()));
-        body(&mut commands, &solid, true);
+        body(&mut commands, &solid, SOLID_HEIGHT, true);
         let shore = shore_of(&chunk);
         if !shore.is_empty() {
             chunks.shores.insert(key, shore);
@@ -246,8 +268,8 @@ pub fn make_chunks(
                 commands.entity(found).insert(WorldPiece);
             }
         }
-        if let Some(tiles) = tiles.as_ref() {
-            draw(&mut commands, &chunk, &tiles.0);
+        if let (Some(ground), Some(meshes)) = (ground.as_ref(), meshes.as_mut()) {
+            draw(&mut commands, &chunk, meshes, &ground.0);
         }
         // The sites standing in this chunk, once each.
         let lo = Vec2::new((key.0 * CHUNK) as f32, (key.1 * CHUNK) as f32) * TILE;
@@ -260,91 +282,46 @@ pub fn make_chunks(
     }
 }
 
-/// Draw one chunk: its ground as one tilemap, a tile each, and every
-/// thing on it as its picture.
-fn draw(commands: &mut Commands, chunk: &GroundChunk, tileset: &Handle<Image>) {
+/// Draw one chunk: its ground as one flat mesh, a square a tile in its
+/// kind's colour, and every thing on it as its model.
+fn draw(commands: &mut Commands, chunk: &GroundChunk, meshes: &mut Assets<Mesh>, material: &Handle<StandardMaterial>) {
     let first = chunk.first();
-    let centre = Vec2::new(first.0 as f32, first.1 as f32) * TILE + Vec2::splat(CHUNK as f32 * TILE / 2.0);
+    let tiles = (CHUNK * CHUNK) as usize;
+    let mut positions: Vec<[f32; 3]> = Vec::with_capacity(tiles * 4);
+    let mut colors: Vec<[f32; 4]> = Vec::with_capacity(tiles * 4);
+    let mut indices: Vec<u32> = Vec::with_capacity(tiles * 6);
+    for (i, g) in chunk.ground.iter().enumerate() {
+        let x = (first.0 + i as i32 % CHUNK) as f32 * TILE;
+        let y = (first.1 + i as i32 / CHUNK) as f32 * TILE;
+        let [r, gr, b] = ground_color(*g);
+        let colour = Color::srgb(r, gr, b).to_linear().to_f32_array();
+        let base = positions.len() as u32;
+        // The corners a, b, c, d; each triangle wound so its face points up.
+        positions.extend([[x, 0.0, y], [x + TILE, 0.0, y], [x + TILE, 0.0, y + TILE], [x, 0.0, y + TILE]]);
+        colors.extend([colour; 4]);
+        indices.extend([base, base + 3, base + 1, base + 1, base + 3, base + 2]);
+    }
+    let normals = vec![[0.0, 1.0, 0.0]; positions.len()];
+    let mesh = Mesh::new(PrimitiveTopology::TriangleList, RenderAssetUsages::RENDER_WORLD)
+        .with_inserted_attribute(Mesh::ATTRIBUTE_POSITION, positions)
+        .with_inserted_attribute(Mesh::ATTRIBUTE_NORMAL, normals)
+        .with_inserted_attribute(Mesh::ATTRIBUTE_COLOR, colors)
+        .with_inserted_indices(Indices::U32(indices));
     commands.spawn((
         WorldPiece,
-        TilemapChunk {
-            chunk_size: UVec2::splat(CHUNK as u32),
-            tile_display_size: UVec2::ONE,
-            tileset: tileset.clone(),
-            ..default()
-        },
-        TilemapChunkTileData(
-            chunk
-                .ground
-                .iter()
-                .enumerate()
-                .map(|(i, g)| {
-                    let rgb = ground_color(*g);
-                    let tile = (first.0 + i as i32 % CHUNK, first.1 + i as i32 / CHUNK);
-                    Some(TileData {
-                        tileset_index: ground_layer(*g, tile),
-                        color: Color::srgb(rgb[0], rgb[1], rgb[2]),
-                        ..default()
-                    })
-                })
-                .collect(),
-        ),
-        Transform::from_translation(centre.extend(0.0)).with_scale(Vec3::new(TILE, TILE, 1.0)),
+        Mesh3d(meshes.add(mesh)),
+        MeshMaterial3d(material.clone()),
+        Transform::default(),
     ));
     for thing in &chunk.things {
         let r = thing.rect();
-        let centre = (r.min + r.max) / 2.0;
-        // Lower on the screen draws in front, so a forest's crowns overlap
-        // the right way (still under people: a kilometre of y moves this
-        // a thousandth).
-        let at = Transform::from_translation(centre.extend(THING_Z - centre.y * 1e-6));
-        // Its picture; never a box (design.md: no coloured boxes).
+        let at = Transform::from_translation(on_ground((r.min + r.max) / 2.0, 0.0));
+        // Its model; never a box (design.md: no coloured boxes).
         match &thing.picture {
             Some(name) => {
-                commands.spawn((WorldPiece, crate::picture::Picture(name.clone()), at));
+                commands.spawn((WorldPiece, Model(name.clone()), at));
             }
-            None => warn!("a thing at {:?} has no picture", thing.tile),
+            None => warn!("a thing at {:?} has no model", thing.tile),
         }
     }
-}
-
-/// The kinds of ground in the order scripts/models.py stacks their tiles
-/// into assets/ground.png (its GROUND_KINDS), each with
-/// GROUND_VARIANTS tiles; change both together.
-const GROUND_KINDS: [Ground; 9] = [
-    Ground::Grass,
-    Ground::Dirt,
-    Ground::Sand,
-    Ground::ForestFloor,
-    Ground::Rubble,
-    Ground::Road,
-    Ground::Water,
-    Ground::Cliff,
-    Ground::OutOfMap,
-];
-const GROUND_VARIANTS: u16 = 4;
-
-/// Which ground tile picture a tile shows: its kind's, in a variant picked
-/// by where it is (as Factorio picks a tile's variation), so the ground
-/// does not repeat and a tile always looks the same.
-fn ground_layer(ground: Ground, tile: (i32, i32)) -> u16 {
-    let kind = GROUND_KINDS.iter().position(|g| *g == ground).unwrap_or(0) as u16;
-    let hash = (tile.0 as u32).wrapping_mul(73_856_093) ^ (tile.1 as u32).wrapping_mul(19_349_663);
-    kind * GROUND_VARIANTS + (hash.wrapping_mul(2_654_435_761) >> 30) as u16 % GROUND_VARIANTS
-}
-
-/// With a window: the ground tiles (scripts/models.py renders them), one
-/// picture a tile tall each, stacked into one strip read as a tileset.
-pub fn setup_ground_tiles(mut commands: Commands, assets: Res<AssetServer>) {
-    let tiles = assets
-        .load_builder()
-        .with_settings(|s: &mut ImageLoaderSettings| {
-            s.array_layout = Some(ImageArrayLayout::RowHeight {
-                pixels: crate::picture::PIXELS_PER_METRE as u32,
-            });
-        })
-        // Outside assets/pictures, so loading that folder never loads the
-        // strip as a plain picture.
-        .load("ground.png");
-    commands.insert_resource(GroundTiles(tiles));
 }

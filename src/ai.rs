@@ -16,7 +16,7 @@ use modforge::memory::{Did, Known, food_worth, short_of};
 use modforge::monument::Roll;
 use modforge::survival::Need;
 
-use crate::SimTick;
+use crate::{Ground, SimTick};
 use crate::actor::{
     Actor, ActorCondition, ActorRecord, Dead, Facing, Home, Hotbar, Inventory, Memory, NextThink,
     Npc, PLACE_KEY, Personality, Store, Survival, held_in,
@@ -127,14 +127,14 @@ pub fn think(
     // Every box once: where, what kind, for looking round.
     let boxes: Vec<(Entity, Vec2, String)> = containers
         .iter()
-        .map(|(e, _, t, w)| (e, t.translation.truncate(), w.stack.item.clone()))
+        .map(|(e, _, t, w)| (e, t.translation.ground(), w.stack.item.clone()))
         .collect();
     // Every source once (a well, a berry bush: an item of kind `Source`):
     // where, what kind.
     let sources_at: Vec<(Entity, Vec2, String)> = lying
         .iter()
         .filter(|(_, _, w)| items.0.def(&w.stack.item).is_some_and(|d| d.kind == modforge::item::ItemKind::Source))
-        .map(|(e, t, w)| (e, t.translation.truncate(), w.stack.item.clone()))
+        .map(|(e, t, w)| (e, t.translation.ground(), w.stack.item.clone()))
         .collect();
     let source_at = |key: u64| {
         sources_at
@@ -163,7 +163,7 @@ pub fn think(
                 Some(n) => n.faction.clone(),
                 None => Some(PLAYER_FACTION.to_string()),
             };
-            (e, actor.map_or(ActorId(0), |a| a.0), t.translation.truncate(), faction)
+            (e, actor.map_or(ActorId(0), |a| a.0), t.translation.ground(), faction)
         })
         .collect();
     for (
@@ -199,7 +199,7 @@ pub fn think(
         let Some(def) = registry.0.def(&npc.def) else {
             continue;
         };
-        let here = transform.translation.truncate();
+        let here = transform.translation.ground();
         // Sense: the nearest hostile by the faction table within the
         // def's sight, inside the cone ahead, with nothing blocking the
         // view (sight.rs).
@@ -340,7 +340,7 @@ pub fn think(
         // UseSlot eats or drinks, Cancel closes the box.
         let mut act = |action: Action| actions.0.push(tick.0, action);
         let the_box = |key: u64| Entity::try_from_bits(key).filter(|e| containers.contains(*e));
-        let where_is = |e: Entity| containers.get(e).map_or(here, |(_, _, t, _)| t.translation.truncate());
+        let where_is = |e: Entity| containers.get(e).map_or(here, |(_, _, t, _)| t.translation.ground());
         let mut keep_open = None;
         match do_now {
             None => {}

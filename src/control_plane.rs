@@ -12,6 +12,7 @@ use modforge::envelope::OpResponse;
 use modforge::ops::{OP_REGISTRY, OpDef};
 use serde_json::{Value as Json, json};
 
+use crate::Ground;
 use crate::actor::{Actor, ActorMapRes, Npc, Personality, Survival};
 use crate::combat::Health;
 use crate::input::ThisTick;
@@ -90,7 +91,7 @@ pub fn answer_npc(
     let answer = match found {
         None => json!({"id": id, "error": "no NPC with that id"}),
         Some(((_, npc, at, health, needs), (record, memory, inventory, hotbar), (way, home, store, dead, spawned))) => {
-            let here = at.translation.truncate();
+            let here = at.translation.ground();
             // What blocks the tile they stand on, if anything.
             let standing_on: Vec<Json> = walk
                 .0
@@ -294,7 +295,7 @@ pub fn publish_world(
         if !dead {
             add(entry, "alive", 1);
             // Home, as the brain counts it.
-            if at.translation.truncate().distance(home.0) <= crate::ai::HOME_REACH {
+            if at.translation.ground().distance(home.0) <= crate::ai::HOME_REACH {
                 add(entry, "at_home", 1);
             }
             if condition.0.asleep {
@@ -359,9 +360,8 @@ pub fn publish(
     players: Query<(&Transform, &Health, &Survival), With<Player>>,
     npcs: Query<(
         (&Actor, &Npc, &Transform, &Health, &Survival, &Personality, &ThisTick),
-        (&crate::actor::Memory, &crate::actor::ActorRecord, Has<crate::actor::Dead>, &crate::actor::Hotbar, Option<&Children>, &crate::actor::Facing),
+        (&crate::actor::Memory, &crate::actor::ActorRecord, Has<crate::actor::Dead>, &crate::actor::Hotbar, &crate::actor::Facing),
     )>,
-    drawn: Query<(&crate::picture::Layer, &Sprite)>,
 ) {
     TICK.store(tick.0, Ordering::Relaxed);
     PEOPLE.store(actors.0.live_count(), Ordering::Relaxed);
@@ -405,15 +405,7 @@ pub fn publish(
     if tick.0 % 60 == 0 {
         let list: Vec<Json> = npcs
             .iter()
-            .map(|((actor, npc, at, health, needs, personality, this_tick), (memory, record, dead, hotbar, children, facing))| {
-                // The pictures their layers show now, and whether each is
-                // drawn flipped (only with a window; none headless).
-                let pictures: Vec<Json> = children
-                    .into_iter()
-                    .flat_map(|c| c.iter())
-                    .filter_map(|c| drawn.get(c).ok())
-                    .map(|(layer, sprite)| json!({"picture": layer.shows, "flipped": sprite.flip_x}))
-                    .collect();
+            .map(|((actor, npc, at, health, needs, personality, this_tick), (memory, record, dead, hotbar, facing))| {
                 // What is in their hands, its layers, and the damage its
                 // hits land, worked out by the one place a hit reads it.
                 let weapon = hotbar.0.held_stack().map(|stack| {
@@ -449,8 +441,8 @@ pub fn publish(
                     "rest": needs.0.rest,
                     "doing": doing_name(&tree, &record.0),
                     "weapon": weapon,
-                    "facing": crate::picture::facing_index(facing.0),
-                    "pictures": pictures,
+                    // Where they face on the ground, in radians (0 along +x).
+                    "facing": facing.0,
                     "did": did,
                     "ate_what": ate_what,
                     // Every death in their memory: when, of what, by whom.

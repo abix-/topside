@@ -1,25 +1,37 @@
-//! The player and movement. The player is one picture (a coloured
-//! square until pictures exist) at the bunker. Movement reads each
-//! actor's drained actions, never keys, so the player and every NPC
-//! walk through the same system. WASD moves on the screen: W is up.
+//! The player and movement. The player is a person like any NPC, seen
+//! through their own eyes (authority.md "Presentation": first person).
+//! Movement reads each actor's drained actions, never keys, so the player
+//! and every NPC walk through the same system; `Move` is a direction on
+//! the ground for everyone (input.rs turns WASD into one).
 
-use avian2d::prelude::*;
+use avian3d::prelude::*;
 use bevy::prelude::*;
 
 use crate::actor::{Dead, Facing, Home, Hotbar, Inventory, Personality, SpawnActor, Survival, spawn_person};
-use crate::content::ActorRegistryRes;
 use crate::combat::{Equipment, Firing, Health, Protection, Rolling};
-use modforge::combat::ROLL_SPEED_MULT;
+use crate::content::ActorRegistryRes;
 use crate::input::{Action, ActionQueue, Actions, ThisTick};
 use crate::terrain::WorldRes;
+use crate::{Ground, on_ground, turned};
+use modforge::combat::ROLL_SPEED_MULT;
 
 /// Metres per second on foot: three times the 3D game's 5 (design.md
 /// "What 2D changes").
 pub const WALK_SPEED: f32 = 15.0;
 /// A person's body across, in metres: what stops them.
 pub const PLAYER_SIZE: f32 = 0.8;
-/// Above the ground.
-const PLAYER_Z: f32 = 1.0;
+/// A person's height, feet to crown, in metres.
+pub const BODY_HEIGHT: f32 = 1.8;
+/// A person stands with the middle of their body this high: where their
+/// `Transform` is, the middle of the body that walls stop.
+pub const BODY_CENTRE: f32 = BODY_HEIGHT / 2.0;
+/// How far up and down the player can look, in radians.
+const PITCH_LIMIT: f32 = 1.54;
+
+/// A person's body: upright, `PLAYER_SIZE` across and `BODY_HEIGHT` tall.
+pub fn body() -> Collider {
+    Collider::capsule(PLAYER_SIZE / 2.0, BODY_HEIGHT - PLAYER_SIZE)
+}
 
 /// The one player. Carries everything an actor needs to be told what
 /// to do, and a body that walls stop.
@@ -38,14 +50,21 @@ const PLAYER_Z: f32 = 1.0;
     Rolling,
     Transform,
     RigidBody = RigidBody::Kinematic,
-    Collider = Collider::circle(PLAYER_SIZE / 2.0)
+    Collider = body()
 )]
 pub struct Player;
+
+/// The player's eyes (the first person camera): how far they look up or
+/// down. Where they face on the ground is their `Facing`.
+#[derive(Component, Default)]
+pub struct Eyes {
+    pub pitch: f32,
+}
 
 /// Where the player wakes: the bunker, at the start and after every
 /// death.
 pub fn wake_point(world: &WorldRes) -> Vec3 {
-    world.bunker.extend(PLAYER_Z)
+    on_ground(world.bunker, BODY_CENTRE)
 }
 
 /// The one place the player enters the world: at the bunker, a person
@@ -53,7 +72,7 @@ pub fn wake_point(world: &WorldRes) -> Vec3 {
 pub fn spawn_player(mut spawn: SpawnActor, registry: Res<ActorRegistryRes>, world: Res<WorldRes>) {
     let def = registry.0.def("player").expect("the player is registered");
     let at = wake_point(&world);
-    let person = spawn_person(&mut spawn, def, at.truncate(), def.faction.as_deref())
+    let person = spawn_person(&mut spawn, def, at.ground(), def.faction.as_deref())
         .expect("the actor map has room for the player");
     spawn
         .commands
@@ -79,8 +98,30 @@ pub fn roll(
     }
 }
 
-/// Every actor faces the point it aims at this tick, and its picture
-/// turns with it.
+/// Every actor turns by this tick's look (the player's mouse): the yaw
+/// turns where they face on the ground, the pitch tilts their eyes.
+pub fn look(
+    mut actors: Query<(&ThisTick, &mut Facing, &mut Transform, Option<&Children>), Without<Dead>>,
+    mut eyes: Query<(&mut Eyes, &mut Transform), Without<Facing>>,
+) {
+    for (this_tick, mut facing, mut transform, children) in &mut actors {
+        let (yaw, pitch) = ActionQueue::look(&this_tick.0);
+        if yaw == 0.0 && pitch == 0.0 {
+            continue;
+        }
+        facing.0 += yaw;
+        transform.rotation = turned(facing.0);
+        for child in children.into_iter().flat_map(|c| c.iter()) {
+            if let Ok((mut eye, mut at)) = eyes.get_mut(child) {
+                eye.pitch = (eye.pitch + pitch).clamp(-PITCH_LIMIT, PITCH_LIMIT);
+                at.rotation = Quat::from_rotation_y(-std::f32::consts::FRAC_PI_2) * Quat::from_rotation_x(eye.pitch);
+            }
+        }
+    }
+}
+
+/// Every actor faces the ground point it aims at this tick (an NPC's
+/// brain), and its body turns with it.
 pub fn aim(
     mut actors: Query<(&ThisTick, Option<&Firing>, Option<&Rolling>, &mut Facing, &mut Transform), Without<Dead>>,
 ) {
@@ -92,17 +133,17 @@ pub fn aim(
         let Some((x, y)) = ActionQueue::aim(&this_tick.0) else {
             continue;
         };
-        let to = Vec2::new(x, y) - transform.translation.truncate();
+        let to = Vec2::new(x, y) - transform.translation.ground();
         if to != Vec2::ZERO {
             facing.0 = to.to_angle();
-            transform.rotation = Quat::from_rotation_z(facing.0);
+            transform.rotation = turned(facing.0);
         }
     }
 }
 
 /// Every actor walks the way its move this tick says, at walking
-/// speed, and slides along whatever stops it (Quake III's
-/// PM_SlideMove, as shipped by Avian). Diagonal is no faster than
+/// speed, along the ground, and slides along whatever stops it (Quake
+/// III's PM_SlideMove, as shipped by Avian). Diagonal is no faster than
 /// straight.
 pub fn movement(
     time: Res<Time<Fixed>>,
@@ -143,16 +184,17 @@ pub fn movement(
         let to = move_and_slide
             .move_and_slide(
                 shape,
-                transform.translation.truncate(),
-                0.0,
-                velocity,
+                transform.translation,
+                Quat::IDENTITY,
+                on_ground(velocity, 0.0),
                 time.delta(),
                 &config,
                 &filter,
                 |_| MoveAndSlideHitResponse::Accept,
             )
             .position;
-        transform.translation = to.extend(transform.translation.z);
+        // Along the ground only: the body keeps its height.
+        transform.translation = on_ground(to.ground(), transform.translation.y);
     }
 }
 
@@ -178,26 +220,12 @@ pub fn respawn(
             memory.0.did(modforge::memory::Did::Respawned, tick.0);
         }
         transform.translation = match home {
-            Some(home) => home.0.extend(transform.translation.z),
+            Some(home) => on_ground(home.0, BODY_CENTRE),
             None => wake_point(&world),
         };
         commands
             .entity(entity)
             .remove::<(Dead, ColliderDisabled)>()
             .insert(Visibility::Inherited);
-    }
-}
-
-/// The camera stays on the player.
-pub fn camera_follow(
-    player: Query<&Transform, (With<Player>, Without<Camera2d>)>,
-    mut cameras: Query<&mut Transform, With<Camera2d>>,
-) {
-    let Ok(player) = player.single() else {
-        return;
-    };
-    for mut camera in &mut cameras {
-        camera.translation.x = player.translation.x;
-        camera.translation.y = player.translation.y;
     }
 }

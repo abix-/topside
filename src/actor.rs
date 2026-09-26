@@ -3,7 +3,7 @@
 //! path every NPC enters through. These are Bevy components wrapping
 //! modforge's engine-agnostic types; modforge owns the rules.
 
-use avian2d::prelude::*;
+use avian3d::prelude::*;
 use bevy::prelude::*;
 use modforge::actor::{ActorDef, ActorId, ActorMap};
 use modforge::brain::AWAKE_REACTION;
@@ -19,9 +19,9 @@ use crate::content::{
 use crate::terrain::WorldRes;
 use crate::input::{Actions, ThisTick};
 use crate::interact::{Container, Hud, OpenContainer, OpenStation, WorldItem};
-use crate::player::PLAYER_SIZE;
+use crate::player::{BODY_CENTRE, body};
 use crate::structure::MonumentsRes;
-use crate::{SimTick, WorldSeed};
+use crate::{Ground, SimTick, WorldSeed, on_ground};
 
 /// Slots in a person's inventory (the 3D game's number).
 pub const INVENTORY_SLOTS: usize = 20;
@@ -30,11 +30,13 @@ pub const INVENTORY_SLOTS: usize = 20;
 /// animals and headroom (the 3D game's number).
 pub const MAX_ACTORS: usize = 8192;
 
-/// Above the ground and the buildings.
-const NPC_Z: f32 = 0.9;
+/// What a person looks like (modforge's `Look`: their body, the piece in
+/// each of its slots, their skin and hair), rolled from who they are.
+#[derive(Component, Clone, Debug, PartialEq)]
+pub struct Look(pub modforge::actor::Look);
 
-/// Which way a person faces, in radians: 0 is along +x, a quarter turn
-/// is +y (up the screen).
+/// Which way a person faces on the ground, in radians: 0 is along +x, a
+/// quarter turn is along +y.
 #[derive(Component, Default, Clone, Copy, Debug, PartialEq)]
 pub struct Facing(pub f32);
 
@@ -192,7 +194,7 @@ pub fn spawn_person(
     let entity = spawn
         .commands
         .spawn((
-            Transform::from_translation(at.extend(NPC_Z)),
+            Transform::from_translation(on_ground(at, BODY_CENTRE)),
             (
                 Facing::default(),
                 Inventory::default(),
@@ -212,8 +214,7 @@ pub fn spawn_person(
             Actions::default(),
             ThisTick::default(),
             RigidBody::Kinematic,
-            Collider::circle(PLAYER_SIZE / 2.0),
-            // Drawn from their pieces (picture::Person), no box.
+            body(),
             Visibility::default(),
         ))
         .id();
@@ -222,9 +223,9 @@ pub fn spawn_person(
         return None;
     };
     let personality = modforge::actor::Personality::seed(id, spawn.seed.0);
-    // What they look like, rolled from who they are, drawn over the marker.
+    // What they look like, rolled from who they are.
     let look = modforge::actor::Look::roll(id, spawn.seed.0, &crate::content::look_def());
-    spawn.commands.entity(entity).insert(crate::picture::Person::of(&look));
+    spawn.commands.entity(entity).insert(Look(look));
     let mut health = def.health();
     health.max *= personality.health_mult();
     health.current = health.max;
@@ -321,7 +322,7 @@ pub fn home_knowledge(
     let mut known = modforge::memory::Memory::default();
     known.see(PLACE_KEY | i as u64, kind, Vec3::new(at.x, 0.0, at.y), now);
     for (entity, t, item) in boxes {
-        let p = t.translation.truncate();
+        let p = t.translation.ground();
         if p.distance(at) <= HOME_BOXES_WITHIN {
             known.see(entity.to_bits(), &item.stack.item, Vec3::new(p.x, 0.0, p.y), now);
         }
@@ -366,7 +367,7 @@ pub fn populate_bunkers(
         let store_at = at + Vec2::new(x, z);
         let store = stores
             .iter()
-            .find(|(_, t, ..)| t.translation.truncate().distance(store_at) < 0.5)
+            .find(|(_, t, ..)| t.translation.ground().distance(store_at) < 0.5)
             .map(|(entity, ..)| entity);
         let faction = bunker_faction(i);
         for [x, z] in BUNKER_PEOPLE_AT {

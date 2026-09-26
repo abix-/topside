@@ -1,14 +1,14 @@
-"""every model in the game, built in blender and rendered to a picture.
+"""every model in the game, built in blender and exported for the game.
 
-The Factorio way (docs/references.md "Graphics, how Factorio does it"):
-each model is rendered ahead of time from the game's one camera, an
-orthographic camera 45 degrees down looking north, lit by one sun from the
-left at 45 degrees, with the cel shade baked in (design.md: a base colour
-cut into hard light bands). The game draws only the pictures.
+Each model is exported as glTF (assets/models/<name>.glb) and drawn live
+by the game in 3D (authority.md "Presentation"), which adds the cel shade
+(design.md: a base colour cut into hard light bands). A model here carries
+only its colours: a flat colour per material, or a palette picture (a
+Kenney model's), with see-through parts kept for leaf cards.
 
-Units are metres, Blender is Z up. Every model rests on the ground (its
-lowest point at z = 0) and its ground point (x = 0, y = 0) is the centre
-of its picture.
+Units are metres, Blender is Z up (the exporter turns it Y up). Every model
+rests on the ground (its lowest point at z = 0) with its ground point at
+x = 0, y = 0.
 
 Usage:
     blender -b --python scripts/models.py              # every model
@@ -16,53 +16,21 @@ Usage:
 """
 
 import math
-import random
 import sys
 from pathlib import Path
 
 import bpy
-from mathutils import Vector
 
 ROOT = Path(__file__).resolve().parent.parent
-OUT = ROOT / "assets" / "pictures"
-
-# Factorio's high resolution: 64 pixels to a tile, and a tile is a metre.
-# The game draws the pictures at this scale (src/picture.rs
-# PIXELS_PER_METRE); change both together.
-PIXELS_PER_METRE = 64
-# The camera: 45 degrees down (FFF 269), looking north (+Y).
-CAMERA_DOWN = math.radians(45)
-# The sun: from the left at 45 degrees, so shadows fall to the right.
-SUN_DOWN = math.radians(45)
-# Space left around the model in the picture, in metres.
-MARGIN = 0.1
-# The cel shade: (light above this, brightness), hard steps, no blending.
-BANDS = [(0.0, 0.45), (0.25, 0.75), (0.6, 1.0)]
+OUT = ROOT / "assets" / "models"
 
 
 # -- the scene ---------------------------------------------------------------
 
 
 def clear():
-    """empty the scene and set the renderer, colours and light."""
+    """empty the scene."""
     bpy.ops.wm.read_factory_settings(use_empty=True)
-    scene = bpy.context.scene
-    try:
-        scene.render.engine = "BLENDER_EEVEE"
-    except TypeError as e:
-        sys.exit(f"ERROR: no eevee renderer: {e}")
-    # AgX, Blender's default, shifts colours; Standard keeps them as set.
-    scene.view_settings.view_transform = "Standard"
-    scene.render.film_transparent = True
-    scene.render.image_settings.file_format = "PNG"
-    scene.render.image_settings.color_mode = "RGBA"
-    sun = bpy.data.objects.new("sun", bpy.data.lights.new("sun", type="SUN"))
-    sun.data.energy = 3.0
-    # No shadows (design.md): the light still bands each face, but nothing
-    # casts a shadow, not even one part of a model onto another.
-    sun.data.use_shadow = False
-    sun.rotation_euler = (0.0, -SUN_DOWN, 0.0)
-    scene.collection.objects.link(sun)
 
 
 def linear(c):
@@ -71,58 +39,32 @@ def linear(c):
 
 
 def material(name, rgb, cutout=None):
-    """the cel shade: diffuse light cut into BANDS, times the colour. `rgb`
-    is the game's sRGB numbers, or a picture the model takes each face's
-    flat colour from (a Kenney model's palette). With a `cutout` picture,
-    its see-through parts stay see-through (leaf cards); none of its
-    colour is used."""
+    """a flat material the exporter carries to the game: `rgb` is the
+    game's sRGB numbers, or a picture the model takes each face's flat
+    colour from (a Kenney model's palette). With a `cutout` picture, its
+    see-through parts stay see-through (leaf cards), hard edged; none of
+    its colour is used. No shine: the game's cel shade does the light."""
     mat = bpy.data.materials.new(name)
     mat.use_nodes = True
     t = mat.node_tree
-    t.nodes.clear()
-    out = t.nodes.new("ShaderNodeOutputMaterial")
-    diffuse = t.nodes.new("ShaderNodeBsdfDiffuse")
-    to_rgb = t.nodes.new("ShaderNodeShaderToRGB")
-    ramp = t.nodes.new("ShaderNodeValToRGB")
-    ramp.color_ramp.interpolation = "CONSTANT"
-    steps = ramp.color_ramp.elements
-    while len(steps) < len(BANDS):
-        steps.new(0.5)
-    for step, (at, v) in zip(steps, BANDS):
-        step.position = at
-        step.color = (v, v, v, 1.0)
-    mix = t.nodes.new("ShaderNodeMix")
-    mix.data_type = "RGBA"
-    mix.blend_type = "MULTIPLY"
-    mix.inputs[0].default_value = 1.0  # factor
+    bsdf = next(n for n in t.nodes if n.type == "BSDF_PRINCIPLED")
+    bsdf.inputs["Roughness"].default_value = 1.0
     if isinstance(rgb, bpy.types.Image):
         palette = t.nodes.new("ShaderNodeTexImage")
         palette.image = rgb
         palette.interpolation = "Closest"  # swatches stay flat
-        t.links.new(palette.outputs["Color"], mix.inputs[7])  # B colour
+        t.links.new(palette.outputs["Color"], bsdf.inputs["Base Color"])
     else:
-        mix.inputs[7].default_value = (*(linear(c) for c in rgb), 1.0)  # B colour
-    emit = t.nodes.new("ShaderNodeEmission")
-    t.links.new(diffuse.outputs[0], to_rgb.inputs[0])
-    t.links.new(to_rgb.outputs[0], ramp.inputs[0])
-    t.links.new(ramp.outputs[0], mix.inputs[6])  # A colour
-    t.links.new(mix.outputs[2], emit.inputs[0])  # colour result
-    if cutout is None:
-        t.links.new(emit.outputs[0], out.inputs[0])
-        return mat
-    # Hard edged: a pixel is either leaf or nothing, like the cel bands.
-    picture = t.nodes.new("ShaderNodeTexImage")
-    picture.image = cutout
-    solid = t.nodes.new("ShaderNodeMath")
-    solid.operation = "GREATER_THAN"
-    solid.inputs[1].default_value = 0.5
-    clear_through = t.nodes.new("ShaderNodeBsdfTransparent")
-    either = t.nodes.new("ShaderNodeMixShader")
-    t.links.new(picture.outputs["Alpha"], solid.inputs[0])
-    t.links.new(solid.outputs[0], either.inputs[0])  # factor
-    t.links.new(clear_through.outputs[0], either.inputs[1])
-    t.links.new(emit.outputs[0], either.inputs[2])
-    t.links.new(either.outputs[0], out.inputs[0])
+        bsdf.inputs["Base Color"].default_value = (*(linear(c) for c in rgb), 1.0)
+    if cutout is not None:
+        leaf = t.nodes.new("ShaderNodeTexImage")
+        leaf.image = cutout
+        # Hard edged: a pixel is either leaf or nothing. The exporter reads
+        # a Round on the alpha as glTF's alpha mask at one half.
+        solid = t.nodes.new("ShaderNodeMath")
+        solid.operation = "ROUND"
+        t.links.new(leaf.outputs["Alpha"], solid.inputs[0])
+        t.links.new(solid.outputs[0], bsdf.inputs["Alpha"])
     return mat
 
 
@@ -212,65 +154,23 @@ def join(parts, name, size=None, turn=0):
     return obj
 
 
-# -- the picture -------------------------------------------------------------
+# -- the export ----------------------------------------------------------------
 
 
-def picture(obj, out, frame=None, fit=None):
-    """render `obj` (one object or several) from the game's camera to `out`,
-    its ground point at the centre. The picture fits the model, or the
-    objects in `fit` (so pictures of pieces drawn over each other share one
-    frame), or with `frame`, is that many metres either side of the ground
-    point (half width, half height) as the camera sees it, so pictures that
-    are drawn over each other line up."""
+def export(obj, name):
+    """export `obj` (one object or several, with what hangs off them) and
+    nothing else as assets/models/<name>.glb, Y up as the game is."""
     objs = obj if isinstance(obj, list) else [obj]
-    fit = fit or objs
-    scene = bpy.context.scene
-    # Square tiles (FFF 269: the camera is 45 degrees down, "but in Factorio
-    # ... our tiles being square"): the scene is stretched along the ground
-    # away from the camera by 1/cos(45), so a metre of ground is a metre
-    # on screen both ways, while heights still show as the camera sees them.
-    stretch = bpy.data.objects.get("square tiles")
-    if stretch is None:
-        stretch = bpy.data.objects.new("square tiles", None)
-        stretch.scale = (1.0, 1.0 / math.cos(CAMERA_DOWN), 1.0)
-        scene.collection.objects.link(stretch)
-    for o in scene.objects:
-        if o.parent is None and o is not stretch and o.type in {"MESH", "ARMATURE"}:
-            o.parent = stretch
-    bpy.context.view_layer.update()
-    cam = bpy.data.objects.new("camera", bpy.data.cameras.new("camera"))
-    cam.data.type = "ORTHO"
-    scene.collection.objects.link(cam)
-    scene.camera = cam
-    # Back the camera away from the ground point along its view; with an
-    # orthographic camera the distance changes nothing but the clipping.
-    back = Vector((0.0, -math.sin(CAMERA_DOWN), math.cos(CAMERA_DOWN)))
-    cam.location = back * 100.0
-    cam.rotation_euler = (CAMERA_DOWN, 0.0, 0.0)
-    cam.data.clip_end = 300.0
-    bpy.context.view_layer.update()
-    # The picture's half width and half height: the furthest the model
-    # reaches from the ground point, as the camera sees it.
-    if frame is None:
-        view = cam.matrix_world.inverted()
-        seen = [view @ (o.matrix_world @ v.co) for o in fit for v in o.data.vertices]
-        half_w = max(abs(p.x) for p in seen) + MARGIN
-        half_h = max(abs(p.y) for p in seen) + MARGIN
-    else:
-        half_w, half_h = frame
-    w = math.ceil(2 * half_w * PIXELS_PER_METRE)
-    h = math.ceil(2 * half_h * PIXELS_PER_METRE)
-    scene.render.resolution_x = w
-    scene.render.resolution_y = h
-    scene.render.resolution_percentage = 100
-    cam.data.sensor_fit = "HORIZONTAL"
-    cam.data.ortho_scale = w / PIXELS_PER_METRE
+    bpy.ops.object.select_all(action="DESELECT")
+    for o in objs:
+        o.select_set(True)
+        for child in o.children_recursive:
+            child.select_set(True)
+    out = OUT / f"{name}.glb"
     out.parent.mkdir(parents=True, exist_ok=True)
-    scene.render.filepath = str(out)
-    bpy.ops.render.render(write_still=True)
-    bpy.data.objects.remove(cam, do_unlink=True)
-    faces = sum(len(o.data.polygons) for o in objs)
-    print(f"{objs[0].name}: {faces} faces, {w}x{h} pixels -> {out}")
+    bpy.ops.export_scene.gltf(filepath=str(out), export_format="GLB", use_selection=True, export_yup=True)
+    faces = sum(len(o.data.polygons) for o in objs if o.type == "MESH")
+    print(f"{name}: {faces} faces -> {out}")
 
 
 # -- the models --------------------------------------------------------------
@@ -322,12 +222,11 @@ def kenney(kit, model, name, size=ITEM, rgb=None, turn=0):
 # handle is built lying along x, its grip at x = 0 and its tip at x = its
 # length, its middle at the height of its radius, so it rests on the ground;
 # every head is built on that tip. Handles differ in length, so each head is
-# rendered once per handle, as each hair is once per body: the handle alone
-# is `<handle>` (the item's own picture) and each head alone on it is
-# `<handle> <head>`, all of one handle's pictures in one frame, so they stack.
-# Every weapon is drawn at WEAPON_SCALE, so a metre-long pipe lies ITEM long
-# and a head is the same size on every handle.
-WEAPON_SCALE = ITEM
+# exported once per handle, as each hair is once per body: the handle alone
+# is `<handle>` (the item's own model) and each head alone on it is
+# `<handle> <head>`, all of one handle's models in one frame, so they stack.
+# Weapons are their real size, and a head the same size on every handle.
+WEAPON_SCALE = 1.0
 
 
 def pipe_handle():
@@ -469,10 +368,11 @@ def merge(parts, name):
 
 
 def layered(base, parts, layers, middle):
-    """render `base` alone as `<base>`, and each of its layers alone on it as
-    `<base> <layer>`, in one frame fitted to all of them, at WEAPON_SCALE,
-    `middle` (metres along x) at the ground point and the lowest point of any
-    of them on the ground. `layers` maps each layer's name to its parts."""
+    """export `base` alone as `<base>`, and each of its layers alone on it as
+    `<base> <layer>`, all in one frame at WEAPON_SCALE, `middle` (metres
+    along x) at the ground point and the lowest point of any of them on the
+    ground, so drawn at one place they stack. `layers` maps each layer's
+    name to its parts."""
     objs = {base: merge(parts, base)}
     for name, layer_parts in layers.items():
         objs[f"{base} {name}"] = merge(layer_parts, name)
@@ -483,9 +383,7 @@ def layered(base, parts, layers, middle):
         obj.location = (-middle * WEAPON_SCALE, 0.0, -low * WEAPON_SCALE)
     bpy.context.view_layer.update()
     for name, obj in objs.items():
-        for other in every:
-            other.hide_render = other is not obj
-        picture(obj, OUT / f"{name}.png", fit=every)
+        export(obj, name)
 
 
 # -- the pipe shotgun, in layers -----------------------------------------------
@@ -666,118 +564,14 @@ def parachute():
     return join(parts, "parachute", 3.0)
 
 
-# -- the ground ------------------------------------------------------------------
-#
-# Every kind of ground gets GROUND_VARIANTS tile pictures (as Factorio's
-# tiles have variations), near white with light and dark detail, which the
-# game tints with the kind's colour (content/src/lib.rs ground_color). They
-# are stacked kind by kind, variant by variant, into one strip,
-# assets/ground.png, the game's ground tileset (outside assets/pictures,
-# which the game loads as plain pictures): the kinds in this
-# order (src/terrain.rs GROUND_KINDS; change both together).
-GROUND_KINDS = ["grass", "dirt", "sand", "forest floor", "rubble", "road", "water", "cliff", "out of map"]
-GROUND_VARIANTS = 4
-TILE_PIXELS = PIXELS_PER_METRE  # a tile is a metre
-
-
-def ground_tile(kind, rng):
-    """one tile of `kind`: a near-white tile with its detail, kept off the
-    tile's edges so neighbouring tiles join."""
-    base = material("ground", (0.85, 0.85, 0.85))
-    light = material("light", (1.0, 1.0, 1.0))
-    dark = material("dark", (0.65, 0.65, 0.65))
-    shade = lambda: light if rng.random() < 0.5 else dark
-    spot = lambda edge=0.38: (rng.uniform(-edge, edge), rng.uniform(-edge, edge))
-    parts = [box("tile", (1.0, 1.0, 0.01), at=(0, 0, -0.005), mat=base)]
-
-    def flat(name, r, mat, sides=6):
-        x, y = spot()
-        parts.append(cylinder(name, r, 0.004, sides=sides, at=(x, y, 0.002), mat=mat))
-
-    def stroke(name, length, width, mat, height=0.004):
-        x, y = spot(0.3)
-        parts.append(box(name, (length, width, height), at=(x, y, height / 2), rotation=(0, 0, rng.uniform(0, math.pi)), mat=mat))
-
-    if kind == "grass":
-        for i in range(12):
-            x, y = spot()
-            m = shade()
-            for j in range(3):
-                h = rng.uniform(0.05, 0.09)
-                bpy.ops.mesh.primitive_cone_add(vertices=4, radius1=0.012, radius2=0, depth=h, location=(x + (j - 1) * 0.012, y, h / 2), rotation=(rng.uniform(-0.3, 0.3), rng.uniform(-0.3, 0.3), 0))
-                parts.append(_named(f"blade_{i}_{j}", m))
-    elif kind == "forest floor":
-        for i in range(10):
-            flat(f"leaf_{i}", rng.uniform(0.03, 0.05), shade(), sides=5)
-        for i in range(2):
-            stroke(f"twig_{i}", rng.uniform(0.12, 0.2), 0.012, dark, 0.01)
-    elif kind == "dirt":
-        for i in range(3):
-            flat(f"patch_{i}", rng.uniform(0.08, 0.14), dark, sides=7)
-        for i in range(8):
-            bpy.ops.mesh.primitive_ico_sphere_add(subdivisions=1, radius=rng.uniform(0.015, 0.035), location=(*spot(), 0.01))
-            parts.append(_named(f"pebble_{i}", shade()))
-    elif kind == "sand":
-        for i in range(5):
-            stroke(f"ripple_{i}", rng.uniform(0.3, 0.5), 0.015, shade())
-    elif kind == "rubble":
-        for i in range(10):
-            s = rng.uniform(0.04, 0.12)
-            x, y = spot()
-            parts.append(box(f"chunk_{i}", (s, s * rng.uniform(0.5, 1.0), s * 0.5), at=(x, y, s * 0.25), rotation=(0, 0, rng.uniform(0, math.pi)), mat=shade()))
-    elif kind == "road":
-        for i in range(3):
-            stroke(f"crack_{i}", rng.uniform(0.15, 0.35), 0.008, dark, 0.002)
-        flat("patch", rng.uniform(0.06, 0.1), dark)
-    elif kind == "water":
-        for i in range(4):
-            stroke(f"ripple_{i}", rng.uniform(0.2, 0.35), 0.01, light, 0.002)
-    elif kind == "cliff":
-        for i in range(3):
-            x, y = spot(0.25)
-            bpy.ops.mesh.primitive_ico_sphere_add(subdivisions=1, radius=rng.uniform(0.15, 0.22), location=(x, y, 0))
-            rock = _named(f"rock_{i}", shade())
-            rock.scale.z = 0.35
-            parts.append(rock)
-    return parts
-
-
-def ground():
-    """render every ground tile and stack them into assets/ground.png."""
-    import tempfile
-
-    with tempfile.TemporaryDirectory() as tmp:
-        files = []
-        for k, kind in enumerate(GROUND_KINDS):
-            for v in range(GROUND_VARIANTS):
-                clear()
-                parts = ground_tile(kind, random.Random(k * 100 + v))
-                files.append(Path(tmp) / f"{kind} {v}.png")
-                picture(parts, files[-1], frame=(0.5, 0.5))
-        # Blender keeps an image's rows bottom first, and the game reads the
-        # strip's first tile at the top: stack the last tile at the bottom.
-        pixels = []
-        for f in reversed(files):
-            tile = bpy.data.images.load(str(f))
-            if tuple(tile.size) != (TILE_PIXELS, TILE_PIXELS):
-                sys.exit(f"ERROR: ground tile {f.name} is {tuple(tile.size)}, not {TILE_PIXELS} square")
-            pixels.extend(tile.pixels[:])
-        strip = bpy.data.images.new("ground", TILE_PIXELS, TILE_PIXELS * len(files), alpha=True)
-        strip.pixels[:] = pixels
-        out = OUT.parent / "ground.png"
-        strip.filepath_raw = str(out)
-        strip.file_format = "PNG"
-        strip.save()
-        print(f"ground: {len(files)} tiles, {TILE_PIXELS}x{TILE_PIXELS * len(files)} pixels -> {out}")
-
-
 # -- buildings -----------------------------------------------------------------
 #
-# A building is drawn a tile at a time, as Factorio draws its walls
-# (src/structure.rs): every piece is one tile (a metre) across, near white,
-# and the game tints it the building's colour. Walls are drawn 1 m tall, so
-# a wall seen from the camera does not hide the room behind it.
-WALL_HEIGHT = 1.0
+# A building is drawn a tile at a time (src/structure.rs): every piece is
+# one tile (a metre) across, near white, and the game tints it the
+# building's colour. Heights as src/structure.rs stands them (WALL_HEIGHT,
+# FURNITURE_HEIGHT); change both together.
+WALL_HEIGHT = 3.0
+FURNITURE_HEIGHT = 0.9
 LIGHT = (0.92, 0.92, 0.92)
 
 
@@ -789,7 +583,7 @@ def wall():
 def furniture():
     """one tile of furniture (shelves, a counter): a block a little smaller
     than its tile."""
-    return join([box("block", (0.9, 0.9, 0.7), mat=material("furniture", LIGHT))], "furniture")
+    return join([box("block", (0.9, 0.9, FURNITURE_HEIGHT), mat=material("furniture", LIGHT))], "furniture")
 
 
 DOOR = (0.35, 0.25, 0.15)  # modforge structure.rs DOOR_COLOR
@@ -808,12 +602,6 @@ def door():
     return join(parts, "door")
 
 
-def door_open():
-    """one tile of an open door: the same panel swung a quarter turn, seen
-    edge on along its hinge side."""
-    return join([door()], "door open", turn=90)
-
-
 def floor():
     """one tile of floor, with darker seams along its edges so the tiles
     show."""
@@ -827,23 +615,16 @@ def floor():
 
 # -- people ------------------------------------------------------------------
 #
-# People are built from pieces (design.md "What 2D changes"): each is layers
-# drawn per facing, every layer rendered on one rig and pose with the other
-# layers held out, so what one piece hides of another is already cut away.
+# People are built from pieces (design.md "What 2D changes"): one model per
+# body, `person <body>`, holding its rig, its animations, and every piece
+# that fits it (the body, each hairstyle, the beard, what can be worn), each
+# a mesh named after its layer (`body`, `buzzed`, `road sign vest`; a piece
+# of several meshes `buzzed.1` and on). The game shows a person's own pieces
+# and hides the rest, and plays the animations live.
 # The rig is Quaternius's Universal Base Characters (CC0,
 # scripts/quaternius-characters/License_Standard.txt), from
 # https://quaternius.itch.io/universal-base-characters.
 CHARACTERS = Path(__file__).resolve().parent / "quaternius-characters"
-# Facings, as the game picks them (src/actor.rs): 0 east, then a turn of
-# 45 degrees counter-clockwise each, so 2 is north, away from the camera.
-FACINGS = 8
-# The facings rendered. The left side (3, 4, 5) is the right side flipped,
-# as RimWorld draws west as east flipped: the game draws 3, 4 and 5 as 1,
-# 0 and 7 mirrored (src/picture.rs; change both together).
-RENDERED_FACINGS = [0, 1, 2, 6, 7]
-# Every person picture is this many metres either side of the ground point
-# (half width, half height), so all layers and facings line up.
-PERSON_FRAME = (0.6, 1.45)
 # The bodies, each with its light skin (the game tints it darker) and the
 # pieces that fit its head: hairstyles, and the beard.
 BODIES = {
@@ -856,31 +637,31 @@ BODIES = {
 # scripts/quaternius-animations/License.txt), from
 # https://quaternius.itch.io/universal-animation-library, made for this rig.
 ANIMATIONS = Path(__file__).resolve().parent / "quaternius-animations" / "UAL1_Standard.glb"
-# The poses a person is rendered in: standing (one frame of the idle), and
-# walking (WALK_FRAMES frames spread over one loop of the walk).
-STAND = ("Idle_Loop", 0)
-WALK = "Walk_Loop"
-WALK_FRAMES = 8
+# The animations a person plays (src/people.rs names them the same):
+# standing and walking.
+KEPT_ANIMATIONS = ["Idle_Loop", "Walk_Loop"]
 
 
-def animations():
-    """bring in the animation library's actions, and nothing of its own
-    mannequin."""
+def animations(rig):
+    """bring in the library's animations the game plays, on `rig`, and
+    nothing else of the library (not its mannequin, not the rest)."""
     before = set(bpy.data.objects)
     bpy.ops.import_scene.gltf(filepath=str(ANIMATIONS))
     for o in set(bpy.data.objects) - before:
         bpy.data.objects.remove(o, do_unlink=True)
-
-
-def pose(rig, action, frame):
-    """put the rig in one frame of one of the library's actions."""
-    act = bpy.data.actions[action]
+    for act in list(bpy.data.actions):
+        if act.name not in KEPT_ANIMATIONS:
+            bpy.data.actions.remove(act)
+    # Each kept animation on its own track of the rig, so the exporter
+    # writes every one of them.
     rig.animation_data_create()
-    rig.animation_data.action = act
-    if act.slots:
-        rig.animation_data.action_slot = act.slots[0]
-    bpy.context.scene.frame_set(frame)
-    bpy.context.view_layer.update()
+    for name in KEPT_ANIMATIONS:
+        act = bpy.data.actions[name]
+        track = rig.animation_data.nla_tracks.new()
+        track.name = name
+        strip = track.strips.new(name, int(act.frame_range[0]), act)
+        if act.slots:
+            strip.action_slot = act.slots[0]
 
 
 def person(file, skin):
@@ -938,48 +719,22 @@ WORN = {"road sign vest": vest}
 
 
 def people():
-    """render every body and every piece that fits it, per facing, standing
-    and in each walking frame: `person <body> <layer> <facing>` and
-    `person <body> <layer> <facing> walk <frame>`, the layer being `body`
-    or a piece. A piece is rendered with the body held out, so whatever of
-    it is behind the body is cut away and any piece draws over the body;
-    the body is rendered whole, so every piece fits it."""
+    """export every body as `person <body>`: its rig with the animations,
+    and every piece that fits it, each mesh named after its layer."""
     for body_name, (file, skin, names) in BODIES.items():
         clear()
-        animations()
         rig, body = person(file, skin)
-        rig.rotation_mode = "XYZ"
+        animations(rig)
         pieces = {n.lower(): piece(n, rig) for n in names}
         worn = {item: build(rig, body) for item, build in WORN.items()}
-        layers = {"body": body, **pieces, **worn}
-        pose(rig, *STAND)
-        # Which way the rig faces standing: from its ankles to its toes.
-        bones, m = rig.pose.bones, rig.matrix_world
-        toes = (m @ bones["ball_l"].head + m @ bones["ball_r"].head) / 2
-        ankles = (m @ bones["foot_l"].head + m @ bones["foot_r"].head) / 2
-        rest = math.atan2(toes.y - ankles.y, toes.x - ankles.x)
-
-        def render(suffix):
-            for name, meshes in layers.items():
-                held_out = body if name != "body" else []
-                for other in layers.values():
-                    for o in other:
-                        o.hide_render = o not in meshes and o not in held_out
-                        o.is_holdout = o in held_out
-                picture(meshes, OUT / f"person {body_name} {name} {suffix}.png", frame=PERSON_FRAME)
-
-        length = int(bpy.data.actions[WALK].frame_range[1])
-        for k in RENDERED_FACINGS:
-            rig.rotation_euler = (0, 0, math.radians(k * 360 / FACINGS) - rest)
-            pose(rig, *STAND)
-            render(f"{k}")
-            for f in range(WALK_FRAMES):
-                pose(rig, WALK, f * length // WALK_FRAMES)
-                render(f"{k} walk {f}")
+        for layer, meshes in {"body": body, **pieces, **worn}.items():
+            for i, mesh in enumerate(meshes):
+                mesh.name = layer if i == 0 else f"{layer}.{i}"
+        export(rig, f"person {body_name}")
 
 
-# Models that render several pictures themselves.
-SETS = {"person": people, "ground": ground, "weapons": weapons}
+# Models that export several models themselves.
+SETS = {"person": people, "weapons": weapons}
 
 
 MODELS = {
@@ -1009,7 +764,6 @@ MODELS = {
     "furniture": furniture,
     "floor": floor,
     "door": door,
-    "door open": door_open,
     # The minor sites' props, named as in content/src/lib.rs.
     # A wrecked car: Kenney's sedan all in rust, lying along x (4.2 m long).
     "car wreck": lambda: kenney("car", "sedan", "car wreck", 4.2, rgb=(0.45, 0.2, 0.15), turn=90),
@@ -1035,7 +789,7 @@ def main():
             SETS[name]()
             continue
         clear()
-        picture(MODELS[name](), OUT / f"{name}.png")
+        export(MODELS[name](), name)
 
 
 main()
