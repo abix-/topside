@@ -6,13 +6,14 @@ mod common;
 use avian2d::prelude::*;
 use bevy::ecs::system::RunSystemOnce;
 use bevy::prelude::*;
-use common::game;
+use common::{at_a_site, game};
 use modforge::structure::tile_plan;
 use topside::structure::{MonumentsRes, StructureRoot};
 
 #[test]
 fn every_loot_spot_has_a_box_with_something_in_it() {
-    let (mut app, _) = game();
+    let (mut app, player) = game();
+    at_a_site(&mut app, player);
     let spots: usize = app
         .world()
         .resource::<MonumentsRes>()
@@ -33,9 +34,8 @@ fn every_loot_spot_has_a_box_with_something_in_it() {
 
 #[test]
 fn every_building_stands_and_its_walls_are_solid() {
-    let (mut app, _) = game();
-    // One more step so the physics world has every collider.
-    app.update();
+    let (mut app, player) = game();
+    at_a_site(&mut app, player);
     let world = app.world_mut();
     // Each solid run of every building's tile plan, where the building
     // snapped to the tiles.

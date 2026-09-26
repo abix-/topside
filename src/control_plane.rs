@@ -58,7 +58,18 @@ pub struct PersonView<'w, 's> {
                 Option<&'static crate::actor::Home>,
                 Option<&'static crate::actor::Store>,
                 Has<crate::actor::Dead>,
+                Option<&'static crate::actor::SpawnedAt>,
             ),
+        ),
+    >,
+    /// What a solid thing is, to name what blocks a tile.
+    things: Query<
+        'w,
+        's,
+        (
+            Option<&'static crate::structure::StructureRoot>,
+            Option<&'static crate::interact::WorldItem>,
+            Has<crate::terrain::WorldPiece>,
         ),
     >,
 }
@@ -72,8 +83,25 @@ pub fn answer_npc(view: PersonView, mut walk: ResMut<crate::nav::Walk>, tick: Re
     let found = view.people.iter().find(|((actor, ..), _, _)| actor.0.0 == id);
     let answer = match found {
         None => json!({"id": id, "error": "no NPC with that id"}),
-        Some(((_, npc, at, health, needs), (doing, fight, memory, inventory, hotbar), (way, home, store, dead))) => {
+        Some(((_, npc, at, health, needs), (doing, fight, memory, inventory, hotbar), (way, home, store, dead, spawned))) => {
             let here = at.translation.truncate();
+            // What blocks the tile they stand on, if anything.
+            let standing_on: Vec<Json> = walk
+                .0
+                .solids_on(here)
+                .into_iter()
+                .map(|(key, r)| {
+                    let what = Entity::try_from_bits(key)
+                        .and_then(|e| view.things.get(e).ok())
+                        .map_or("gone".to_string(), |(building, item, piece)| match (building, item) {
+                            (Some(_), _) => "a building (wall or furniture)".to_string(),
+                            (_, Some(item)) => format!("an item: {}", item.stack.item),
+                            _ if piece => "the ground (water, trees, rocks) or a monument's props".to_string(),
+                            _ => "something else".to_string(),
+                        });
+                    json!({"what": what, "min": [r.min.x, r.min.y], "max": [r.max.x, r.max.y]})
+                })
+                .collect();
             let stacks = |held: &modforge::item::Inventory| -> Vec<Json> {
                 held.slots.iter().flatten().map(|s| json!({"item": s.item, "count": s.count})).collect()
             };
@@ -95,6 +123,8 @@ pub fn answer_npc(view: PersonView, mut walk: ResMut<crate::nav::Walk>, tick: Re
                 "faction": npc.faction,
                 "dead": dead,
                 "at": [here.x, here.y],
+                "spawned_at": spawned.map(|s| [s.0.x, s.0.y]),
+                "standing_on": standing_on,
                 "health": health.0.current,
                 "needs": {"hunger": needs.0.hunger, "thirst": needs.0.thirst, "rest": needs.0.rest, "safety": needs.0.safety},
                 "doing": format!("{:?}", doing.0),

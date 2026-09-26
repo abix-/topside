@@ -44,7 +44,7 @@ fn slot_of(app: &App, player: Entity, item: &str) -> SlotRef {
 fn e_at_the_bench_opens_it_and_cloth_becomes_a_bandage() {
     let (mut app, player) = game();
     alone(&mut app);
-    let bunker = app.world().resource::<WorldRes>().0.def.bunker;
+    let bunker = app.world().resource::<WorldRes>().bunker;
     let [x, z] = BENCH_AT;
     let mut t = app.world_mut().get_mut::<Transform>(player).unwrap();
     t.translation = (bunker + Vec2::new(x, z - 0.6)).extend(t.translation.z);

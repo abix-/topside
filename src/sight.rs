@@ -20,7 +20,7 @@ pub const VIEW_DISTANCE: f32 = 60.0;
 #[derive(SystemParam)]
 pub struct Sight<'w, 's> {
     spatial: SpatialQuery<'w, 's>,
-    blockers: Query<'w, 's, (), Or<(With<StructureRoot>, With<Door>)>>,
+    blockers: Query<'w, 's, (), Or<(With<StructureRoot>, With<Door>, With<crate::terrain::BlocksSight>)>>,
 }
 
 impl Sight<'_, '_> {

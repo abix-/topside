@@ -5,6 +5,9 @@
 use bevy::math::{Vec2, Vec3};
 use bevy::prelude::Resource;
 use modforge::worldgen::{BiomeRule, Generator, WorldDef};
+use modforge::ground::{ClimateRule, Ground, GroundDef, GroundGen};
+use modforge::places::{Places, SiteKind};
+use modforge::world2d::{Clearing, World2d};
 use modforge::actor::{ActorDef, ActorRegistry, Behaviour};
 use modforge::biome::{BiomeDef, BiomeRegistry, ScatterDef};
 use modforge::combat::{DamageDef, DamageRegistry, DamageType, Falloff};
@@ -327,6 +330,98 @@ pub fn topside_def() -> WorldDef {
         bunker_clear: 50.0,
         bunkers: OTHER_BUNKERS.to_vec(),
     }
+}
+
+/// The flat ground of the 2D world (design.md "2D world generation"):
+/// lakes from a hidden elevation, cliff lines with gaps along its
+/// contours, beaches next to water, and three biomes by climate: forest
+/// where it is wet, ruins where it is dry and warm, wasteland elsewhere.
+/// Tuning.
+pub fn ground_def() -> GroundDef {
+    GroundDef {
+        feature_size: 500.0,
+        water_level: -0.45,
+        cliff_every: 0.3,
+        cliff_gaps: 0.35,
+        climate_size: 900.0,
+        climate: vec![
+            ClimateRule {
+                biome: "forest".to_string(),
+                moisture: (0.55, 1.0),
+                temperature: (0.0, 1.0),
+                land: Ground::ForestFloor,
+                patches: Ground::Grass,
+            },
+            ClimateRule {
+                biome: "ruins".to_string(),
+                moisture: (0.0, 0.55),
+                temperature: (0.6, 1.0),
+                land: Ground::Rubble,
+                patches: Ground::Dirt,
+            },
+            ClimateRule {
+                biome: "wasteland".to_string(),
+                moisture: (0.0, 1.0),
+                temperature: (0.0, 1.0),
+                land: Ground::Dirt,
+                patches: Ground::Grass,
+            },
+        ],
+        beach: 0.04,
+        patch_size: 80.0,
+    }
+}
+
+/// How each ground kind is drawn. Tuning.
+pub fn ground_color(ground: Ground) -> Rgb {
+    match ground {
+        Ground::Grass => [0.30, 0.42, 0.22],
+        Ground::Dirt => [0.50, 0.42, 0.30],
+        Ground::Sand => [0.72, 0.66, 0.48],
+        Ground::ForestFloor => [0.20, 0.32, 0.16],
+        Ground::Rubble => [0.42, 0.41, 0.40],
+        Ground::Road => [0.22, 0.21, 0.20],
+        Ground::Water => [0.20, 0.30, 0.45],
+        Ground::Cliff => [0.28, 0.26, 0.24],
+    }
+}
+
+/// How far round a bunker the ground is cleared (design.md "A valid
+/// world": every bunker stands on land). Tuning.
+pub const BUNKER_CLEAR: f32 = 50.0;
+
+/// The kinds of site in the 2D world, biggest first (an earlier kind keeps
+/// a later one away), each as common as the old world's count for its
+/// 3500 m square: the chance a cell of its spacing holds one.
+pub fn site_kinds(monuments: &MonumentRegistry) -> Vec<SiteKind> {
+    let area = 3500.0f32 * 3500.0;
+    let mut kinds: Vec<(f32, SiteKind)> = topside_def()
+        .monuments
+        .into_iter()
+        .filter_map(|(name, count)| {
+            let spacing = monuments.def(&name)?.spacing;
+            let chance = (count as f32 * spacing * spacing / area).min(1.0);
+            Some((spacing, SiteKind { monument: name, chance }))
+        })
+        .collect();
+    kinds.sort_by(|a, b| b.0.total_cmp(&a.0));
+    kinds.into_iter().map(|(_, k)| k).collect()
+}
+
+/// Where the player's bunker stands.
+pub const BUNKER_AT: Vec2 = Vec2::ZERO;
+
+/// The world a seed gives (design.md "2D world generation"): the ground,
+/// the site kinds, and every bunker on its cleared ground. The one way a
+/// world is made, for the game and for the tests.
+pub fn roll_world2d(seed: u64, biomes: &BiomeRegistry, monuments: &MonumentRegistry) -> Result<World2d, String> {
+    let ground = GroundGen::new(ground_def(), seed, biomes)?;
+    let clearings: Vec<Clearing> = std::iter::once(BUNKER_AT)
+        .chain(OTHER_BUNKERS)
+        .map(|at| Clearing { at, radius: BUNKER_CLEAR })
+        .collect();
+    let places = Places::new(site_kinds(monuments), clearings.iter().map(|c| (c.at, c.radius)).collect());
+    Ok(World2d::new(ground, places, clearings))
 }
 
 /// The actor registry as an app resource: every NPC spawned through
@@ -1248,7 +1343,7 @@ mod tests {
         let biomes = BiomeRegistryRes::default();
         let monuments = MonumentRegistryRes::default();
         for seed in [1u64, 2, 3] {
-            let world = modforge::worldgen::roll_world(&topside_def(), seed, &biomes.0, &monuments.monuments)
+            let world = modforge::worldgen::roll_world(&topside_def(), seed, &biomes.0, &monuments.monuments, &monuments.buildings)
                 .unwrap_or_else(|e| panic!("seed {seed}: {e}"));
             assert_eq!(world.sites.len(), 414);
             assert_eq!(world.roads.len(), 38, "roads join the 39 built monuments, none to the bunker");
@@ -1287,9 +1382,49 @@ mod tests {
         let biomes = BiomeRegistryRes::default();
         let monuments = MonumentRegistryRes::default();
         for seed in 100..140u64 {
-            modforge::worldgen::roll_world(&topside_def(), seed, &biomes.0, &monuments.monuments)
+            modforge::worldgen::roll_world(&topside_def(), seed, &biomes.0, &monuments.monuments, &monuments.buildings)
                 .unwrap_or_else(|e| panic!("seed {seed}: {e}"));
         }
+    }
+
+    /// Every rolled world is valid (design.md "A valid world"): modforge's
+    /// check floods the walk grid from the player's bunker door, and every
+    /// building door and room, every spot for a person or a box, and every
+    /// other bunker's door must be standable and reached. Each seed's
+    /// problems, by name, go to logs/valid.txt.
+    #[test]
+    fn the_rolled_worlds_are_valid() {
+        let biomes = BiomeRegistryRes::default();
+        let monuments = MonumentRegistryRes::default();
+        let bunker = starting_bunker();
+        let mut report = Vec::new();
+        let mut total = 0;
+        let r = modforge::world2d::Registries {
+            biomes: &biomes.0,
+            monuments: &monuments.monuments,
+            buildings: &monuments.buildings,
+        };
+        let mut bunkers = vec![modforge::valid::Bunker {
+            name: "the player's bunker".to_string(),
+            at: BUNKER_AT,
+            def: &bunker,
+        }];
+        for (i, at) in OTHER_BUNKERS.iter().enumerate() {
+            bunkers.push(modforge::valid::Bunker { name: bunker_faction(i), at: *at, def: &bunker });
+        }
+        // Every bunker and the ground round them.
+        let far = OTHER_BUNKERS.iter().fold(0.0f32, |m, b| m.max(b.x.abs()).max(b.y.abs())) + 2.0 * BUNKER_CLEAR;
+        for seed in 100..140u64 {
+            let mut world = roll_world2d(seed, &biomes.0, &monuments.monuments).unwrap_or_else(|e| panic!("seed {seed}: {e}"));
+            let problems = modforge::valid::problems(&mut world, r, Vec2::splat(-far), Vec2::splat(far), &bunkers);
+            total += problems.len();
+            report.push(format!("seed {seed}: {} problems", problems.len()));
+            report.extend(problems.iter().take(40).map(|p| format!("  {p}")));
+        }
+        let report = report.join("\n");
+        let _ = std::fs::create_dir_all("../logs");
+        let _ = std::fs::write("../logs/valid.txt", &report);
+        assert_eq!(total, 0, "{report}");
     }
 
     #[test]
@@ -1298,10 +1433,10 @@ mod tests {
         let monuments = MonumentRegistryRes::default();
         for name in WORLDS {
             let def = world_def(name).unwrap();
-            modforge::worldgen::roll_world(&def, 2, &biomes.0, &monuments.monuments)
+            modforge::worldgen::roll_world(&def, 2, &biomes.0, &monuments.monuments, &monuments.buildings)
                 .unwrap_or_else(|e| panic!("{name}: {e}"));
         }
-        let labyrinth = modforge::worldgen::roll_world(&labyrinth_def(), 2, &biomes.0, &monuments.monuments).unwrap();
+        let labyrinth = modforge::worldgen::roll_world(&labyrinth_def(), 2, &biomes.0, &monuments.monuments, &monuments.buildings).unwrap();
         assert!(labyrinth.walls.len() > 1000, "{} wall runs", labyrinth.walls.len());
         assert_eq!(labyrinth.sites.len(), 375);
         assert!(world_def("backrooms").is_err());

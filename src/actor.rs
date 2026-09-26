@@ -108,6 +108,11 @@ pub struct Memory(pub modforge::memory::Memory);
 #[derive(Component, Debug, Clone, Copy, PartialEq)]
 pub struct Home(pub Vec2);
 
+/// Where this person was spawned, for the control plane: whether they
+/// started somewhere or walked there.
+#[derive(Component, Debug, Clone, Copy, PartialEq)]
+pub struct SpawnedAt(pub Vec2);
+
 /// Their bunker's store (design.md "Factions have real stores"): the box
 /// they eat from and bring loot home to.
 #[derive(Component, Debug, Clone, Copy, PartialEq)]
@@ -173,7 +178,9 @@ pub fn spawn_actor(spawn: &mut SpawnActor, def: &ActorDef, at: Vec2, faction: Op
 /// bunker person and the player but AI against human control): what
 /// every person has, a body, an `ActorId` from the one map, who they are
 /// from the genome. `spawn_actor` adds the brain, `spawn_player` the
-/// human. None when the map is full or the faction is not registered.
+/// human. Spots are standable because world generation places them so
+/// (design.md "A valid world"). None when the map is full or the faction
+/// is not registered.
 pub fn spawn_person(
     spawn: &mut SpawnActor,
     def: &ActorDef,
@@ -250,6 +257,7 @@ pub fn spawn_person(
         Personality(personality),
         Health(health),
         NextThink(first_think),
+        SpawnedAt(at),
     ));
     Some(entity)
 }
@@ -258,7 +266,7 @@ pub fn spawn_person(
 pub fn spawn_door_enemy(mut spawn: SpawnActor, registry: Res<ActorRegistryRes>, world: Res<WorldRes>) {
     let (name, [x, z]) = DOOR_ENEMY;
     let def = registry.0.def(name).expect("the door enemy is registered");
-    spawn_actor(&mut spawn, def, world.0.def.bunker + Vec2::new(x, z), None);
+    spawn_actor(&mut spawn, def, world.bunker + Vec2::new(x, z), None);
 }
 
 /// The top bit of a remembered key marks a place (a monument, by its
@@ -272,15 +280,17 @@ const HOME_BOXES_WITHIN: f32 = 60.0;
 /// Fill every monument's NPC spots through `spawn_actor`. These are
 /// topside people: found there and knowing the place, but with no home;
 /// the storm kills them with their world (design.md "Bunker people and
-/// topside people"). Runs for every world the storm rolls.
+/// topside people"). Each monument once, as its chunk is made.
 pub fn populate_monuments(
     mut spawn: SpawnActor,
     registry: Res<ActorRegistryRes>,
-    monuments: Res<MonumentsRes>,
+    mut monuments: ResMut<MonumentsRes>,
     tick: Res<SimTick>,
     boxes: Query<(Entity, &Transform, &WorldItem), With<Container>>,
 ) {
-    for (i, (at, monument)) in monuments.0.iter().enumerate() {
+    let from = monuments.1;
+    monuments.1 = monuments.0.len();
+    for (i, (at, monument)) in monuments.0.iter().enumerate().skip(from) {
         let known = home_knowledge(i, *at, &monument.kind, &boxes, tick.0);
         for spot in &monument.npc_spots {
             let Some(def) = registry.0.def(def_for_danger(spot.danger)) else {
@@ -345,7 +355,7 @@ pub fn populate_bunkers(
     stores: Query<(Entity, &Transform, &WorldItem, &Container)>,
 ) {
     let def = registry.0.def("bunker person").expect("the bunker person is registered");
-    for (i, &at) in world.0.def.bunkers.iter().enumerate() {
+    for (i, &at) in world.bunkers.iter().enumerate() {
         let mut known = modforge::memory::Memory::default();
         let [x, z] = BUNKER_STORE_AT;
         let store_at = at + Vec2::new(x, z);

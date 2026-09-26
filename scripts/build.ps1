@@ -122,7 +122,9 @@ switch ($Action) {
         # builds with the same arguments, so --no-fail-fast cannot go
         # through it).
         # The content crate's tests too: its world defs must roll.
-        $targets = if ($Name) {
+        $targets = if ($Name -eq 'content') {
+            @('-p topside-content')
+        } elseif ($Name) {
             @("-p topside --test $Name")
         } else {
             @('-p topside-content', '-p topside --lib') +

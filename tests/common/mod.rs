@@ -42,6 +42,34 @@ pub fn out_in_the_open(app: &mut App, player: Entity) {
     app.update();
 }
 
+/// Take the player to the nearest site with buildings and step, so its
+/// chunk is made and the site spawned with its boxes and people, as in
+/// the game. Returns where the site stands.
+pub fn at_a_site(app: &mut App, player: Entity) -> Vec2 {
+    let world = app.world_mut();
+    let site = world.resource_scope(|world, mut res: Mut<topside::terrain::WorldRes>| {
+        let biomes = world.resource::<topside::content::BiomeRegistryRes>();
+        let monuments = world.resource::<topside::content::MonumentRegistryRes>();
+        let r = modforge::world2d::Registries {
+            biomes: &biomes.0,
+            monuments: &monuments.monuments,
+            buildings: &monuments.buildings,
+        };
+        let far = Vec2::splat(2000.0);
+        let mut sites = res.world.sites_in(r, -far, far);
+        sites.retain(|s| !s.rolled.members.is_empty());
+        sites.sort_by(|a, b| a.position.length().total_cmp(&b.position.length()));
+        sites.first().expect("a site with buildings within 2000 m").position
+    });
+    let mut t = world.get_mut::<Transform>(player).unwrap();
+    t.translation.x = site.x;
+    t.translation.y = site.y;
+    // Chunks and sites, then the physics world has their colliders.
+    app.update();
+    app.update();
+    site
+}
+
 /// Push `action` for each of the next `steps` fixed ticks.
 pub fn hold(app: &mut App, player: Entity, action: Action, steps: usize) {
     for _ in 0..steps {

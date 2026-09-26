@@ -6,7 +6,7 @@
 mod common;
 
 use bevy::prelude::*;
-use common::game;
+use common::{at_a_site, game};
 use modforge::actor::Behaviour;
 use topside::actor::{Home, Npc};
 use topside::content::{
@@ -17,7 +17,8 @@ use topside::structure::MonumentsRes;
 
 #[test]
 fn every_npc_spot_gets_its_person() {
-    let (mut app, _) = game();
+    let (mut app, player) = game();
+    at_a_site(&mut app, player);
     let spots: usize = app
         .world()
         .resource::<MonumentsRes>()
@@ -60,7 +61,7 @@ fn every_other_bunker_has_its_people() {
 fn a_scavenger_waits_outside_the_bunker_door() {
     let (mut app, _) = game();
     let (name, [x, z]) = topside::content::DOOR_ENEMY;
-    let bunker = app.world().resource::<topside::terrain::WorldRes>().0.def.bunker;
+    let bunker = app.world().resource::<topside::terrain::WorldRes>().bunker;
     let spot = bunker + Vec2::new(x, z);
     let world = app.world_mut();
     let found = world
@@ -95,7 +96,7 @@ fn a_hostile_hunter_walks_toward_the_player_it_sees() {
         .map(|(e, _)| e)
         .expect("one stands at some monument");
     // Both on open ground by the bunker, 8 m apart.
-    let bunker = app.world().resource::<topside::terrain::WorldRes>().0.def.bunker;
+    let bunker = app.world().resource::<topside::terrain::WorldRes>().bunker;
     let start = bunker + Vec2::new(20.0, 0.0);
     app.world_mut().get_mut::<Transform>(hunter).unwrap().translation = start.extend(0.9);
     app.world_mut().get_mut::<Transform>(player).unwrap().translation = (start + Vec2::new(8.0, 0.0)).extend(1.0);

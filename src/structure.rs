@@ -12,17 +12,19 @@ use modforge::hud::InteractKind;
 use modforge::structure::{MonumentDef, Rgb, StructureDef, TileKind, TileRun, tile_plan};
 
 use modforge::crafting::StationKind;
+use modforge::ground::tile_hash;
 use modforge::item::{self, create, write};
 use modforge::loot::roll_loot;
 use modforge::monument::Roll;
+use modforge::walk::cell_of;
 
 use crate::content::{
-    BENCH_AT, BUNKER_STORE, BUNKER_STORE_AT, ItemRegistryRes, MonumentRegistryRes, STARTING_ITEMS,
+    BENCH_AT, BUNKER_STORE, BUNKER_STORE_AT, ItemRegistryRes, STARTING_ITEMS,
     STARTING_NOTE_AT, loot_table,
     starting_bunker, starting_note,
 };
 use crate::interact::{Container, Door, Interactable, spawn_item, spawn_station};
-use crate::terrain::{WorldPiece, WorldRes};
+use crate::terrain::{NewSites, WorldPiece, WorldRes};
 
 /// Drawing order: floors under walls and furniture, doors on top.
 const FLOOR_Z: f32 = 0.2;
@@ -149,7 +151,7 @@ pub fn spawn_structure(commands: &mut Commands, def: &StructureDef, at: Vec2, of
 /// The starting bunker at the world's bunker point, with its starting
 /// items and the note on the floor.
 pub fn spawn_bunker(mut commands: Commands, world: Res<WorldRes>, items: Res<ItemRegistryRes>) {
-    let at = world.0.def.bunker;
+    let at = world.bunker;
     spawn_structure(&mut commands, &starting_bunker(), at, false);
     let def = |name: &str| {
         items
@@ -174,7 +176,7 @@ pub fn spawn_bunker(mut commands: Commands, world: Res<WorldRes>, items: Res<Ite
     spawn_item(
         &mut commands,
         def("note"),
-        write(def("note"), starting_note(world.0.seed), 0.0, 13).expect("the note def is a note"),
+        write(def("note"), starting_note(world.seed), 0.0, 13).expect("the note def is a note"),
         at + Vec2::new(x, z),
         NOTE_COLOR,
     );
@@ -187,7 +189,7 @@ const NOTE_COLOR: Rgb = [0.9, 0.88, 0.8];
 /// any one world, with its store: a box of food and water.
 pub fn spawn_other_bunkers(mut commands: Commands, world: Res<WorldRes>, items: Res<ItemRegistryRes>) {
     let box_def = items.0.def("storage box").expect("the storage box is registered");
-    for (i, &at) in world.0.def.bunkers.iter().enumerate() {
+    for (i, &at) in world.bunkers.iter().enumerate() {
         spawn_structure(&mut commands, &starting_bunker(), at, false);
         let mut contents = item::Inventory::new(box_def.storage.unwrap_or(12));
         for (name, count) in BUNKER_STORE {
@@ -207,28 +209,26 @@ pub fn spawn_other_bunkers(mut commands: Commands, world: Res<WorldRes>, items: 
     }
 }
 
-/// Every site's monument as modforge rolled it, and where it stands:
-/// rolled once, read by whatever needs its NPC spots or loot spots.
+/// Every spawned site's monument as modforge rolled it, and where it
+/// stands, read by whatever needs its NPC spots or loot spots; and how
+/// many of them have had their people put in.
 #[derive(Resource, Default)]
-pub struct MonumentsRes(pub Vec<(Vec2, MonumentDef)>);
+pub struct MonumentsRes(pub Vec<(Vec2, MonumentDef)>, pub usize);
 
-/// Roll the monument at every site (from the world's `site_seed`) and
-/// spawn it: each member building's ground floor through
-/// `spawn_structure`, and its props as one static collider.
-pub fn spawn_monuments(
+/// Spawn the sites of the chunks just made: each member building's ground
+/// floor through `spawn_structure`, and its props as one static collider.
+/// The monument is the one world generation rolled with its site
+/// (design.md "A valid world"), never rolled again here.
+pub fn spawn_sites(
     mut commands: Commands,
     world: Res<WorldRes>,
-    registries: Res<MonumentRegistryRes>,
+    mut new_sites: ResMut<NewSites>,
+    mut monuments: ResMut<MonumentsRes>,
     items: Res<ItemRegistryRes>,
 ) {
-    let world = &world.0;
     let table = loot_table();
-    let mut rolled = Vec::with_capacity(world.sites.len());
-    for (i, site) in world.sites.iter().enumerate() {
-        let monument = registries
-            .monuments
-            .roll(&site.monument, &registries.buildings, world.site_seed(i))
-            .expect("every site's monument type is registered");
+    for site in new_sites.0.drain(..) {
+        let monument = site.rolled.clone();
         for member in &monument.members {
             let at = site.position + Vec2::new(member.offset.x, member.offset.z);
             spawn_structure(&mut commands, &member.structure, at, true);
@@ -264,7 +264,7 @@ pub fn spawn_monuments(
         // one loot table (modforge's roll, seeded by the site).
         if let Some(box_def) = items.0.def("storage box") {
             for (k, spot) in monument.loot_spots.iter().enumerate() {
-                let mut roll = Roll::new(world.site_seed(i) ^ (k as u64 + 1).wrapping_mul(0xA24B_AED4_963E_E407));
+                let mut roll = Roll::new(tile_hash(world.seed, cell_of(site.position), k as u64));
                 let mut contents = item::Inventory::new(box_def.storage.unwrap_or(12));
                 for (name, count) in roll_loot(&table, spot.danger, &mut roll) {
                     if let Some(def) = items.0.def(&name) {
@@ -276,9 +276,8 @@ pub fn spawn_monuments(
                 commands.entity(found).insert((Container(contents), WorldPiece));
             }
         }
-        rolled.push((site.position, monument));
+        monuments.0.push((site.position, monument));
     }
-    commands.insert_resource(MonumentsRes(rolled));
 }
 
 const LOOT_BOX_COLOR: Rgb = [0.5, 0.4, 0.22];

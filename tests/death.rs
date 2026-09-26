@@ -60,7 +60,7 @@ fn the_player_drops_a_death_box_like_anyone_and_wakes_with_nothing() {
     // Respawn: in the bunker, whole, carrying nothing.
     act(&mut app, player, &[Action::Respawn]);
     assert!(app.world().get::<Dead>(player).is_none(), "back in the world");
-    let bunker = app.world().resource::<WorldRes>().0.def.bunker;
+    let bunker = app.world().resource::<WorldRes>().bunker;
     assert!(position(&app, player).distance(bunker) < 1.0, "respawned in the bunker");
     let health = &app.world().get::<Health>(player).unwrap().0;
     assert_eq!(health.current, health.max);

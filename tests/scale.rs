@@ -9,7 +9,7 @@ mod common;
 
 use bevy::ecs::system::RunSystemOnce;
 use bevy::prelude::*;
-use common::game;
+use common::{at_a_site, game};
 use topside::SimTick;
 use topside::actor::{Npc, SpawnActor, Survival, home_knowledge, settle};
 use topside::ai::LifeStats;
@@ -21,7 +21,8 @@ use topside::structure::MonumentsRes;
 /// The world filled to `total` people, run ten seconds: people, the
 /// step's cost in ms, its three costliest parts, what they did.
 fn run_with(total: usize) -> (usize, f64, String, LifeStats) {
-    let (mut app, _) = game();
+    let (mut app, player) = game();
+    at_a_site(&mut app, player);
     let world = app.world_mut();
     let have = world.query_filtered::<(), With<Npc>>().iter(world).count();
     let extra = total.saturating_sub(have);

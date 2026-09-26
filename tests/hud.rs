@@ -54,7 +54,7 @@ fn t_takes_a_dead_npcs_weapon_out_of_its_box() {
 fn the_pipe_dragged_to_the_hotbar_and_held_with_1_swings() {
     let (mut app, player) = game();
     alone(&mut app);
-    let bunker = app.world().resource::<WorldRes>().0.def.bunker;
+    let bunker = app.world().resource::<WorldRes>().bunker;
     // Pick the pipe up off the bunker floor.
     put(&mut app, player, bunker + Vec2::new(1.0, 3.2));
     act(&mut app, player, &[Action::Use]);

@@ -169,6 +169,7 @@ fn the_game_keeps_up_with_real_time_and_its_people_live() {
                 n["chunk"]["doorways"],
                 n["chunk"]["doorways_reachable"]
             ));
+            rows.push(format!("  spawned at {}, standing on {}", n["spawned_at"], n["standing_on"]));
             for line in n["chunk"]["tiles"].as_array().into_iter().flatten() {
                 rows.push(format!("    {}", line.as_str().unwrap_or("")));
             }

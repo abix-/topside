@@ -97,13 +97,11 @@ pub fn build_app(headless: bool, seed: u64) -> App {
         Startup,
         (
             terrain::roll,
-            (
-                terrain::spawn_solids,
-                structure::spawn_bunker,
-                structure::spawn_other_bunkers,
-                structure::spawn_monuments,
-                player::spawn_player,
-            ),
+            (structure::spawn_bunker, structure::spawn_other_bunkers, player::spawn_player),
+            terrain::make_chunks,
+            structure::spawn_sites,
+            // The walk grid knows the world before anyone is put in it.
+            nav::record_solids,
             (actor::populate_monuments, actor::populate_bunkers, actor::spawn_door_enemy),
         )
             .chain(),
@@ -118,6 +116,15 @@ pub fn build_app(headless: bool, seed: u64) -> App {
             (
                 profile::start_step,
                 tick_system,
+                // The chunks the world needs now, their sites, and the
+                // sites' people.
+                (
+                    terrain::make_chunks,
+                    structure::spawn_sites,
+                    actor::populate_monuments,
+                    lap("chunks"),
+                )
+                    .chain(),
                 ai::think,
                 lap("think"),
                 input::drain_actions,
@@ -165,10 +172,10 @@ pub fn build_app(headless: bool, seed: u64) -> App {
         app.insert_resource(storm::Windowed);
         app.add_plugins(bevy::diagnostic::FrameTimeDiagnosticsPlugin::default());
         control_plane::start();
+        app.add_systems(Startup, terrain::setup_ground_tiles.before(terrain::make_chunks));
         app.add_systems(
             Startup,
             (
-                terrain::spawn_ground,
                 spawn_camera,
                 hud::setup,
                 hud::setup_death,
@@ -212,6 +219,6 @@ fn spawn_camera(mut commands: Commands, world: Res<terrain::WorldRes>) {
             },
             ..OrthographicProjection::default_2d()
         }),
-        Transform::from_translation(world.0.def.bunker.extend(0.0)),
+        Transform::from_translation(world.bunker.extend(0.0)),
     ));
 }

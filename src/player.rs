@@ -46,7 +46,7 @@ pub struct Player;
 /// Where the player wakes: the bunker, at the start and after every
 /// death.
 pub fn wake_point(world: &WorldRes) -> Vec3 {
-    world.0.def.bunker.extend(PLAYER_Z)
+    world.bunker.extend(PLAYER_Z)
 }
 
 /// The one place the player enters the world: at the bunker, a person

@@ -82,7 +82,6 @@ pub fn shift_world(
     mut commands: Commands,
     state: Res<StormRes>,
     mut seed: ResMut<WorldSeed>,
-    windowed: Option<Res<Windowed>>,
     pieces: Query<Entity, With<WorldPiece>>,
     lying: Query<(Entity, &Transform), With<WorldItem>>,
     bunker: Query<&Shelter, Without<WorldPiece>>,
@@ -106,11 +105,7 @@ pub fn shift_world(
         }
     }
     seed.0 = seed.0.rotate_left(17) ^ (u64::from(state.shifts)).wrapping_mul(0x9E37_79B9_7F4A_7C15);
+    // The new world is made chunk by chunk from the next step on, as the
+    // first was.
     commands.run_system_cached(crate::terrain::roll);
-    commands.run_system_cached(crate::terrain::spawn_solids);
-    commands.run_system_cached(crate::structure::spawn_monuments);
-    commands.run_system_cached(crate::actor::populate_monuments);
-    if windowed.is_some() {
-        commands.run_system_cached(crate::terrain::spawn_ground);
-    }
 }

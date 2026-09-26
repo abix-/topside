@@ -18,7 +18,7 @@ use topside::terrain::WorldRes;
 /// A wanderer (no faction) standing on open ground east of the bunker,
 /// facing east, and the bunker point.
 fn wanderer(app: &mut App) -> (Entity, Vec2) {
-    let at = app.world().resource::<WorldRes>().0.def.bunker + Vec2::new(25.0, 0.0);
+    let at = app.world().resource::<WorldRes>().bunker + Vec2::new(25.0, 0.0);
     let npc = app
         .world_mut()
         .run_system_once(move |mut spawn: SpawnActor, registry: Res<ActorRegistryRes>| {

@@ -32,7 +32,7 @@ fn items_named(app: &mut App, name: &str) -> Vec<Entity> {
 #[test]
 fn e_picks_the_pipe_up_off_the_bunker_floor() {
     let (mut app, player) = game();
-    let bunker = app.world().resource::<WorldRes>().0.def.bunker;
+    let bunker = app.world().resource::<WorldRes>().bunker;
     assert_eq!(items_named(&mut app, "pipe").len(), 1, "the pipe lies in the bunker");
     // Beside the pipe, nearer it than anything else.
     put(&mut app, player, bunker + Vec2::new(1.0, 3.2));
@@ -44,7 +44,7 @@ fn e_picks_the_pipe_up_off_the_bunker_floor() {
 #[test]
 fn e_reads_the_note_where_it_lies() {
     let (mut app, player) = game();
-    let bunker = app.world().resource::<WorldRes>().0.def.bunker;
+    let bunker = app.world().resource::<WorldRes>().bunker;
     // In front of the note on the bench, nearer it than the vest or the
     // bench's own spot.
     put(&mut app, player, bunker + Vec2::new(2.2, 2.95));
