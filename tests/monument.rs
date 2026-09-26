@@ -1,7 +1,7 @@
 //! Every site's monument stands: each member building's ground floor
 //! walls are solid where modforge's tile plan puts them.
 
-mod common;
+use crate::common;
 
 use avian2d::prelude::*;
 use bevy::ecs::system::RunSystemOnce;

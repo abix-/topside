@@ -3,7 +3,7 @@
 //! the player walks toward it through the same action queue the
 //! player's keys fill.
 
-mod common;
+use crate::common;
 
 use bevy::prelude::*;
 use common::{at_a_site, game};

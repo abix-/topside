@@ -3,7 +3,7 @@
 //! second, or the game cannot keep 60 steps a second. The table of
 //! every part, costliest first, is in the message either way.
 
-mod common;
+use crate::common;
 
 use bevy::prelude::*;
 use common::game;
@@ -27,7 +27,7 @@ fn the_fixed_step_fits_its_budget() {
     let report = format!("{npcs} NPCs, fixed step {total:.3} ms of {BUDGET_MS:.3}\n{}", table.join("\n"));
     eprintln!("{report}");
     // Readable after a passing run too (build.ps1 shows only results).
-    let _ = std::fs::create_dir_all("logs");
-    let _ = std::fs::write("logs/perf.txt", &report);
+    let _ = std::fs::create_dir_all("../logs");
+    let _ = std::fs::write("../logs/perf.txt", &report);
     assert!(total < BUDGET_MS, "{report}");
 }

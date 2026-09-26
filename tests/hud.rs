@@ -2,7 +2,7 @@
 //! of an open box, a drag moves a stack into the hotbar, a number key
 //! holds it, and melee swings what is held.
 
-mod common;
+use crate::common;
 
 use bevy::ecs::system::RunSystemOnce;
 use bevy::prelude::*;

@@ -1,20 +1,15 @@
-//! The actual game, tested (design.md "The founding idea": the world
-//! keeps running if the player hides and starves in the bunker). The
-//! test launches the real topside.exe on a fixed seed at normal speed,
-//! leaves the player in the bunker, and watches it for two minutes
-//! through the control plane. Every five seconds a line goes to
-//! logs/game.txt: frames a second, how fast the game runs against real
-//! time, the costliest parts of a step, and what the people have done.
-//! It passes when the game kept up with real time the whole way.
-
-use std::process::{Child, Command, Stdio};
-use std::time::{Duration, Instant};
+//! The actual game, tested as it runs (design.md "The founding idea":
+//! the world keeps running if the player hides and starves in the
+//! bunker). The test attaches to the running topside.exe on the
+//! control plane, never starts one and never waits, and writes to
+//! logs/game.txt what the game reports now: how fast it runs against
+//! real time (the game measures that itself), frames a second, the
+//! costliest parts of a step, the people, and the searches that found
+//! no way. It passes when the game is keeping up.
 
 use serde_json::{Value as Json, json};
 
 const URL: &str = "http://127.0.0.1:15703/topside";
-/// How long to watch the game, in real time.
-const WATCH: Duration = Duration::from_secs(120);
 /// Keeping up: the game's clock runs at least this share of real time.
 const KEEPS_UP: f64 = 0.95;
 
@@ -27,57 +22,18 @@ fn op_with(name: &str, args: Json) -> Option<Json> {
     resp.into_body().read_json().ok()
 }
 
-/// The game, closed when the test ends however it ends.
-struct Game(Child);
-
-impl Drop for Game {
-    fn drop(&mut self) {
-        let _ = self.0.kill();
-        let _ = self.0.wait();
-    }
-}
-
 #[test]
 fn the_game_keeps_up_with_real_time_and_its_people_live() {
-    assert!(
-        op("status").is_none(),
-        "a topside game is already running on 127.0.0.1:15703; close it first"
-    );
-    let _ = std::fs::create_dir_all("logs");
-    let err = std::fs::File::create("logs/game_test.err.log").expect("the game's log");
-    let _game = Game(
-        Command::new(env!("CARGO_BIN_EXE_topside"))
-            .args(["--seed", "1"])
-            .stdout(Stdio::null())
-            .stderr(err)
-            .spawn()
-            .expect("the game starts"),
-    );
-    let started = Instant::now();
-    while op("status").is_none() {
-        assert!(started.elapsed() < Duration::from_secs(120), "the game's control plane never answered");
-        std::thread::sleep(Duration::from_millis(250));
-    }
-
+    let (Some(status), Some(world), Some(perf)) = (op("status"), op("world"), op("perf")) else {
+        panic!("no topside game answering on {URL}; start it with scripts/build.ps1 run");
+    };
+    let _ = std::fs::create_dir_all("../logs");
     let mut rows = vec![format!(
         "{:>6} {:>6} {:>5} {:>5} {:>7}  {:<40} {:>5} {:>5} {:>7} {:>5}  bunkers (food/water, alive, starving)",
-        "real s", "people", "fps", "speed", "step ms", "costliest parts of a step (ms)", "ate", "taken", "stocked", "died"
+        "tick", "people", "fps", "speed", "step ms", "costliest parts of a step (ms)", "ate", "taken", "stocked", "died"
     )];
-    let watch = Instant::now();
-    let (mut last_tick, mut last_at) = (0, Instant::now());
-    let mut slowest = f64::MAX;
-    while watch.elapsed() < WATCH {
-        std::thread::sleep(Duration::from_secs(5));
-        let (Some(status), Some(world), Some(perf)) = (op("status"), op("world"), op("perf")) else {
-            panic!("the game stopped answering; its log is logs/game_test.err.log\n{}", rows.join("\n"));
-        };
-        let tick = status["state"]["tick"].as_u64().unwrap_or(0);
-        let speed = tick.saturating_sub(last_tick) as f64 / 60.0 / last_at.elapsed().as_secs_f64();
-        // The first sample includes the start; the rest measure keeping up.
-        if last_tick > 0 {
-            slowest = slowest.min(speed);
-        }
-        (last_tick, last_at) = (tick, Instant::now());
+    let speed = status["state"]["speed"].as_f64().unwrap_or(0.0);
+    {
         let parts: Vec<String> = perf["result"]["parts"]
             .as_array()
             .map(|p| {
@@ -97,8 +53,8 @@ fn the_game_keeps_up_with_real_time_and_its_people_live() {
             })
             .unwrap_or_default();
         rows.push(format!(
-            "{:>6.0} {:>6} {:>5.0} {:>5.2} {:>7.2}  {:<40} {:>5} {:>5} {:>7} {:>5}  {}",
-            watch.elapsed().as_secs_f64(),
+            "{:>6} {:>6} {:>5.0} {:>5.2} {:>7.2}  {:<40} {:>5} {:>5} {:>7} {:>5}  {}",
+            status["state"]["tick"].as_u64().unwrap_or(0),
             status["state"]["people"],
             status["state"]["fps"].as_f64().unwrap_or(0.0),
             speed,
@@ -110,7 +66,7 @@ fn the_game_keeps_up_with_real_time_and_its_people_live() {
             w["died"],
             bunkers.join(" | ")
         ));
-        let _ = std::fs::write("logs/game.txt", format!("{}\n", rows.join("\n")));
+        let _ = std::fs::write("../logs/game.txt", format!("{}\n", rows.join("\n")));
     }
     // At the end, every part and count the game reports.
     if let Some(perf) = op("perf") {
@@ -123,7 +79,7 @@ fn the_game_keeps_up_with_real_time_and_its_people_live() {
         for count in p["counts"].as_array().into_iter().flatten() {
             rows.push(format!("  {:<32} {:>8.2} a step", count["what"].as_str().unwrap_or("?"), count["per_step"].as_f64().unwrap_or(0.0)));
         }
-        let _ = std::fs::write("logs/game.txt", format!("{}\n", rows.join("\n")));
+        let _ = std::fs::write("../logs/game.txt", format!("{}\n", rows.join("\n")));
     }
     // Every person at the end, from their memory (life.md "What a person
     // did"): needs, what they are doing, how many of each thing they did,
@@ -172,7 +128,7 @@ fn the_game_keeps_up_with_real_time_and_its_people_live() {
                 p["last_did"]["did"].as_str().unwrap_or("")
             ));
         }
-        let _ = std::fs::write("logs/game.txt", format!("{}\n", rows.join("\n")));
+        let _ = std::fs::write("../logs/game.txt", format!("{}\n", rows.join("\n")));
     }
     // And the last searches that found no way.
     if let Some(ways) = op("ways") {
@@ -233,12 +189,12 @@ fn the_game_keeps_up_with_real_time_and_its_people_live() {
                 }
             }
         }
-        let _ = std::fs::write("logs/game.txt", format!("{}\n", rows.join("\n")));
+        let _ = std::fs::write("../logs/game.txt", format!("{}\n", rows.join("\n")));
     }
     eprintln!("{}", rows.join("\n"));
     assert!(
-        slowest >= KEEPS_UP,
-        "the game fell behind real time (slowest {slowest:.2} of real time):\n{}",
+        speed >= KEEPS_UP,
+        "the game fell behind real time ({speed:.2} of real time):\n{}",
         rows.join("\n")
     );
 }

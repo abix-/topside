@@ -29,6 +29,8 @@ static THIRST_BITS: AtomicU32 = AtomicU32::new(0);
 static X_BITS: AtomicU32 = AtomicU32::new(0);
 static Y_BITS: AtomicU32 = AtomicU32::new(0);
 static FPS_BITS: AtomicU32 = AtomicU32::new(0);
+/// How many times real time the game actually ran over the last second.
+static RUNS_AT_BITS: AtomicU32 = AtomicU32::new(0);
 static DIAGNOSTICS: Mutex<Json> = Mutex::new(Json::Null);
 static PEOPLE_LIST: Mutex<Json> = Mutex::new(Json::Null);
 static PERF: Mutex<Json> = Mutex::new(Json::Null);
@@ -291,6 +293,8 @@ pub fn publish_world(
 
 pub fn publish(
     tick: Res<crate::SimTick>,
+    real: Res<Time<Real>>,
+    mut last_second: Local<Option<(u64, f64)>>,
     laps: Res<crate::profile::Laps>,
     actors: Res<ActorMapRes>,
     diagnostics: Option<Res<DiagnosticsStore>>,
@@ -302,6 +306,19 @@ pub fn publish(
 ) {
     TICK.store(tick.0, Ordering::Relaxed);
     PEOPLE.store(actors.0.live_count(), Ordering::Relaxed);
+    // How fast the game runs against real time, measured once a second:
+    // the game seconds its ticks covered over the real seconds that
+    // passed (1 is keeping up).
+    if tick.0 % 60 == 0 {
+        let now = real.elapsed_secs_f64();
+        if let Some((then_tick, then)) = *last_second
+            && now > then
+        {
+            let speed = (tick.0 - then_tick) as f64 / 60.0 / (now - then);
+            RUNS_AT_BITS.store((speed as f32).to_bits(), Ordering::Relaxed);
+        }
+        *last_second = Some((tick.0, now));
+    }
     if let Ok((at, health, needs)) = players.single() {
         HEALTH_BITS.store(health.0.current.to_bits(), Ordering::Relaxed);
         HUNGER_BITS.store(needs.0.hunger.to_bits(), Ordering::Relaxed);
@@ -395,6 +412,7 @@ fn snapshot() -> Json {
         "hunger": f(&HUNGER_BITS),
         "thirst": f(&THIRST_BITS),
         "fps": f(&FPS_BITS),
+        "speed": f(&RUNS_AT_BITS),
     })
 }
 

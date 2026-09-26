@@ -2,7 +2,7 @@
 //! shifts to another reality; the bunkers and the bunker people stay,
 //! the topside people die with their world.
 
-mod common;
+use crate::common;
 
 use bevy::prelude::*;
 use common::{alone, game, out_in_the_open};

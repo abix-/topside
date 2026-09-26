@@ -1,7 +1,7 @@
 //! The bunker's crafting bench (todo 10), healing from food and a
 //! bandage (todo 10ca), and night tiring the awake (todo 11e4).
 
-mod common;
+use crate::common;
 
 use bevy::prelude::*;
 use common::{act, alone, game};

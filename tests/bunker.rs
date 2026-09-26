@@ -1,7 +1,7 @@
 //! The starting bunker: its walls hold the player in, its closed door
 //! too, and Use opens the door to let the player out.
 
-mod common;
+use crate::common;
 
 use common::{alone, game, hold, position};
 use topside::input::Action;

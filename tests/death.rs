@@ -3,7 +3,7 @@
 //! they fell, exactly like an NPC's, and the world keeps running. For
 //! now the player then wakes in the bunker with nothing.
 
-mod common;
+use crate::common;
 
 use bevy::prelude::*;
 use common::{act, game, out_in_the_open, position};

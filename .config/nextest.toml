@@ -8,6 +8,8 @@
 dir = "logs/nextest"
 
 [profile.default]
+# One failure never hides another.
+fail-fast = false
 # Every test's result and time as it finishes; the summary repeats
 # only the slow and the failed.
 status-level = "all"
@@ -27,15 +29,10 @@ store-failure-output = true
 max-threads = 1
 
 [[profile.default.overrides]]
-filter = 'binary(game) | binary(control_plane)'
+filter = 'test(/^game::/) | test(/^control_plane::/)'
 test-group = "real-game"
-
-# The game test watches the real game for two minutes at 1x by design.
-[[profile.default.overrides]]
-filter = 'binary(game)'
-slow-timeout = { period = "60s", terminate-after = 5 }
 
 # The scale and perf tests run the game at many head counts.
 [[profile.default.overrides]]
-filter = 'binary(scale) | binary(perf)'
+filter = 'test(/^scale::/) | test(/^perf::/)'
 slow-timeout = { period = "60s", terminate-after = 10 }

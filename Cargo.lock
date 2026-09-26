@@ -6505,7 +6505,6 @@ dependencies = [
  "modforge",
  "serde_json",
  "topside-content",
- "ureq",
 ]
 
 [[package]]
@@ -6526,6 +6525,18 @@ version = "0.1.0"
 dependencies = [
  "bevy",
  "modforge",
+]
+
+[[package]]
+name = "topside-tests"
+version = "0.1.0"
+dependencies = [
+ "avian2d",
+ "bevy",
+ "modforge",
+ "serde_json",
+ "topside",
+ "ureq",
 ]
 
 [[package]]

@@ -2,7 +2,7 @@
 //! scavenger at the door neither fights nor shows while the player is
 //! shut in the bunker, and does both once the player stands before it.
 
-mod common;
+use crate::common;
 
 use bevy::prelude::*;
 use common::game;

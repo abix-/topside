@@ -2,7 +2,7 @@
 //! in and eats; a person struck from behind turns on the striker it
 //! never saw.
 
-mod common;
+use crate::common;
 
 use bevy::ecs::system::RunSystemOnce;
 use bevy::prelude::*;

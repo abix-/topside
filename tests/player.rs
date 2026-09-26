@@ -2,7 +2,7 @@
 //! its queue, drained each fixed tick, moved by `movement`, stopped by
 //! Avian colliders.
 
-mod common;
+use crate::common;
 
 use avian2d::prelude::*;
 use bevy::prelude::*;

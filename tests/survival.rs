@@ -1,7 +1,7 @@
 //! Hunger and thirst (modforge survival): they fall at their rates for
 //! everyone, and eating from the inventory raises them.
 
-mod common;
+use crate::common;
 
 use common::{act, alone, game};
 use modforge::hud::{Holder, SlotRef};

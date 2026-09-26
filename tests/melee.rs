@@ -3,7 +3,7 @@
 //! decides who is hit; a block stops it; the beat chains; a swing
 //! commits.
 
-mod common;
+use crate::common;
 
 use bevy::prelude::*;
 use common::{act, alone, game, out_in_the_open, position};

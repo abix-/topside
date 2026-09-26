@@ -3,7 +3,7 @@
 //! box with everything they carried, and the note is read where it
 //! lies.
 
-mod common;
+use crate::common;
 
 use bevy::prelude::*;
 use common::{act, game};

@@ -2,7 +2,7 @@
 //! over several ticks, falls off with distance, stops at its range, and
 //! uses a round.
 
-mod common;
+use crate::common;
 
 use avian2d::prelude::*;
 use bevy::prelude::*;

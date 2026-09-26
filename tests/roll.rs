@@ -1,7 +1,7 @@
 //! The roll (combat.md "The roll"): about 0.7 s, safe from damage for
 //! the first half, the direction locked once started.
 
-mod common;
+use crate::common;
 
 use bevy::prelude::*;
 use common::{act, alone, game, out_in_the_open, position};

@@ -5,7 +5,7 @@
 //! run; the fixed step's cost and what the people did are written to
 //! logs/scale.txt. People must eat at every size: proof they live.
 
-mod common;
+use crate::common;
 
 use bevy::ecs::system::RunSystemOnce;
 use bevy::prelude::*;
@@ -80,9 +80,9 @@ fn how_many_can_live() {
             life.ate, life.looked, life.slept, life.fights, life.died
         ));
         // Written after every size, so a slow run still leaves numbers.
-        let _ = std::fs::create_dir_all("logs");
+        let _ = std::fs::create_dir_all("../logs");
         let _ = std::fs::write(
-            "logs/scale.txt",
+            "../logs/scale.txt",
             format!("budget {:.2} ms a step\n{}\n", 1000.0 / 60.0, rows.join("\n")),
         );
     }

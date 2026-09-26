@@ -2,7 +2,7 @@
 //! (one total) takes its share, health takes the rest, and at zero the
 //! actor dies.
 
-mod common;
+use crate::common;
 
 use bevy::ecs::system::RunSystemOnce;
 use bevy::prelude::*;
