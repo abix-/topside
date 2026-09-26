@@ -1343,11 +1343,12 @@ The material lives in topside (it is Bevy-specific presentation).
 
 ## Decided elsewhere
 
-Presentation is decided in authority.md: one 3D world seen through two
-cameras (2026-09-26), top-down (Factorio's view) and first person, the low
-poly cel shaded models drawn live. It replaces 2D with pictures rendered
-ahead of time (2026-09-25); "What 2D changes" below holds what the top-down
-camera still keeps (one floor at a time, nobody sees behind walls).
+Presentation is decided in authority.md: one 3D world played in first
+person (2026-09-26), the low poly cel shaded models drawn live, with
+Diablo 2's automap on M showing only what the player has seen. It replaces
+2D with pictures rendered ahead of time (2026-09-25); "What 2D changes"
+below is kept for what still holds in 3D (nobody sees behind walls, people
+built from pieces, items in layers).
 
 ## What 2D changes (2026-09-25)
 
