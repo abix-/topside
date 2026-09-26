@@ -647,6 +647,7 @@ pub fn publish(
                         .collect::<Vec<_>>(),
                     // How many tiles are on the map they carry.
                     "map_tiles": map.map.tiles_seen(),
+                    "map_tiles_told": map.told,
                     // What their model shows (only with a window).
                     "drawn": drawn.map(|d| json!({"layers": d.layers, "held": d.held, "walking": d.walking})),
                     "did": did,

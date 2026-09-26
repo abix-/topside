@@ -213,6 +213,8 @@ mod tests {
             personality,
             worth: &worth,
             standable: &|_| true,
+            reachable: &Vec::new,
+            unknown: &|_| true,
         }
     }
 

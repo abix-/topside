@@ -46,6 +46,40 @@ pub fn look_around(
     laps.count("people looking around", looked);
 }
 
+/// Each bunker's map: what its people have told it (life.md "The map each
+/// person carries": what their bunker tells them).
+#[derive(Resource, Default)]
+pub struct BunkerMaps(pub std::collections::HashMap<String, modforge::map::Map>);
+
+/// Once a second, every bunker person at home tells their bunker what they
+/// saw and learns what the others did: their map joined into their
+/// bunker's, and their bunker's into theirs.
+pub fn share_maps(
+    tick: Res<crate::SimTick>,
+    mut bunkers: ResMut<BunkerMaps>,
+    mut people: Query<
+        (&Transform, &crate::actor::Npc, &crate::actor::Home, &mut crate::actor::Map),
+        Without<crate::actor::Dead>,
+    >,
+) {
+    if tick.0 % 60 != 0 {
+        return;
+    }
+    for (at, npc, home, mut map) in &mut people {
+        let Some(bunker) = npc.faction.as_ref().filter(|f| f.starts_with("bunker")) else {
+            continue;
+        };
+        if home.0.distance(crate::Ground::ground(at.translation)) > crate::ai::HOME_REACH {
+            continue;
+        }
+        let shared = bunkers.0.entry(bunker.clone()).or_default();
+        shared.join(&map.map);
+        let before = map.map.tiles_seen();
+        map.map.join(shared);
+        map.told += map.map.tiles_seen() - before;
+    }
+}
+
 /// The one line of sight check.
 #[derive(SystemParam)]
 pub struct Sight<'w, 's> {

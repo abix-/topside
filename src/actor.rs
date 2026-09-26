@@ -106,12 +106,14 @@ pub struct Personality(pub modforge::actor::Personality);
 pub struct Memory(pub modforge::memory::Memory);
 
 /// The map this person carries (modforge `map`, life.md "The map each
-/// person carries"): every tile they have seen; and the tile they last
-/// looked around from.
+/// person carries"): every tile they have seen; the tile they last looked
+/// around from; and how many tiles their bunker told them of that they
+/// had not seen themselves.
 #[derive(Component, Default, Debug, Clone)]
 pub struct Map {
     pub map: modforge::map::Map,
     pub looked_from: Option<(i32, i32)>,
+    pub told: usize,
 }
 
 /// Where this person lives and returns to.

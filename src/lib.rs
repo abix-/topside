@@ -128,6 +128,7 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind) -> App {
     app.init_resource::<input::BindingsRes>();
     app.init_resource::<hud::HoveredSlot>();
     app.init_resource::<nav::Walk>();
+    app.init_resource::<sight::BunkerMaps>();
     app.init_resource::<nav::PlanQueue>();
     app.init_resource::<nav::DoorIndex>();
     app.init_resource::<nav::FailedWays>();
@@ -194,7 +195,7 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind) -> App {
             (
                 interact::interact_on_use,
                 lap("interact"),
-                (player::movement, sight::look_around).chain(),
+                (player::movement, sight::look_around, sight::share_maps).chain(),
                 lap("movement"),
                 nav::doorways,
                 lap("doorways"),

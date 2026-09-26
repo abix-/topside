@@ -75,6 +75,8 @@ pub struct Thinkers<'w, 's> {
                 &'static mut NextThink,
                 Has<Dead>,
                 Option<&'static Store>,
+                Option<&'static crate::nav::NavPath>,
+                Option<&'static crate::actor::Map>,
             ),
         ),
     >,
@@ -142,15 +144,12 @@ pub fn think(
             .find(|(e, _, _)| e.to_bits() == key)
             .map(|(_, at, _)| *at)
     };
-    // Where someone can go from `here`: a tile they can stand on
-    // (pathing.md: never head for a place nobody can stand on) that the
-    // pathing finds a way to (life.md "Wander: random, reachable").
+    // Where someone can go: a tile they can stand on (pathing.md: never
+    // head for a place nobody can stand on). The way there is the one
+    // queue's to find (pathing.md rule 4); a way it cannot find drops the
+    // stroll or trip below.
     let walk = std::cell::RefCell::new(&mut walk.0);
-    let can_go = |here: Vec2, at: Vec3| {
-        let to = Vec2::new(at.x, at.z);
-        let mut walk = walk.borrow_mut();
-        walk.standable(to) && walk.find_way(here, to, crate::nav::PLAN_LIMIT).is_some()
-    };
+    let can_go = |at: Vec3| walk.borrow_mut().standable(Vec2::new(at.x, at.z));
     // The storm is the same for everyone: coming or here, hide.
     let storm_coming = crate::storm::phase(&tick, *day) != modforge::storm::StormPhase::Calm;
     // Everyone's position and faction first, so the pass below holds
@@ -179,7 +178,7 @@ pub fn think(
         mut memory,
         mut record,
         mut condition,
-        (mut actions, inventory, hotbar, open, mut next_think, dead, store),
+        (mut actions, inventory, hotbar, open, mut next_think, dead, store, way, map),
     ) in &mut thinkers.npcs
     {
         // Not their moment yet: they keep doing what they decided.
@@ -288,7 +287,9 @@ pub fn think(
             &items.0,
         );
         memory.0.learned.score(tick.0, alive);
-        let standable = |at: Vec3| can_go(here, at);
+        let standable = |at: Vec3| can_go(at);
+        let reachable = || walk.borrow_mut().reachable_in_chunk(here).into_iter().map(ground).collect();
+        let unknown = |at: Vec3| !map.is_some_and(|m| m.map.seen(modforge::walk::cell_of(Vec2::new(at.x, at.z))));
         let perception = Perception {
             now: tick.0,
             position: ground(here),
@@ -311,6 +312,8 @@ pub fn think(
             personality: &personality.0,
             worth: &worth,
             standable: &standable,
+            reachable: &reachable,
+            unknown: &unknown,
         };
 
         // Decide through the one tree: seeded by the tick and the person,
@@ -318,6 +321,14 @@ pub fn think(
         // what they learn from.
         let mut roll = Roll::new(tick.0 ^ actor.0.0.wrapping_mul(0x9E37_79B9_7F4A_7C15));
         let situation = situation(&perception);
+        // A stroll or trip out whose way the queue could not find
+        // (pathing.md rule 5) is dropped: they pick again from the root.
+        if let (modforge::statetree::Target::Point(to), Some(way)) = (record.0.target, way)
+            && tick.0 < way.retry_at
+            && way.goal.distance(Vec2::new(to.x, to.z)) <= 1.0
+        {
+            record.0 = Default::default();
+        }
         let mut thought = Think::new(&perception, &mut roll);
         let chose = tree.0.think(&mut thought, &mut record.0);
         let Think {

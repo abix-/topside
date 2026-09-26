@@ -15,6 +15,22 @@ fn people_carry_maps_that_fill_as_they_look_around() {
     assert!(with_map * 2 > tiles.len(), "fewer than half the people have seen anything");
 }
 
+/// What their bunker tells them (todo 11af): a bunker person home again
+/// learns the tiles their bunker mates saw; some bunker person's map holds
+/// tiles only a mate saw.
+#[test]
+fn bunker_people_learn_the_map_from_their_bunker() {
+    let list = people();
+    let told: Vec<String> = list
+        .iter()
+        .filter(|p| crate::endpoint::is_bunker_person(p))
+        .filter(|p| p["map_tiles_told"].as_u64().is_some_and(|n| n > 0))
+        .map(|p| format!("{} ({}): {} of {} tiles told by their bunker", p["id"], p["faction"], p["map_tiles_told"], p["map_tiles"]))
+        .collect();
+    eprintln!("{}", told.join("\n"));
+    assert!(!told.is_empty(), "no bunker person has been told any tile by their bunker yet");
+}
+
 /// The map drawn around the player shows only what their map holds, with
 /// the player at its centre.
 #[test]

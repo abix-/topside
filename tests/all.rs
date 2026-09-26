@@ -23,6 +23,7 @@ mod screenshot;
 mod sources;
 mod storm;
 mod the_dead;
+mod thirst;
 mod view;
 mod wander;
 mod weapons;
