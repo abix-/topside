@@ -31,8 +31,3 @@ max-threads = 1
 [[profile.default.overrides]]
 filter = 'test(/^game::/) | test(/^control_plane::/)'
 test-group = "real-game"
-
-# The scale and perf tests run the game at many head counts.
-[[profile.default.overrides]]
-filter = 'test(/^scale::/) | test(/^perf::/)'
-slow-timeout = { period = "60s", terminate-after = 10 }

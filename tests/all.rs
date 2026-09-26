@@ -18,7 +18,6 @@ mod monument;
 mod perf;
 mod player;
 mod roll;
-mod scale;
 mod sight;
 mod storm;
 mod survival;
