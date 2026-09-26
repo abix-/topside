@@ -242,10 +242,16 @@ pub fn publish_world(
     life: Res<crate::ai::LifeStats>,
     items: Res<crate::content::ItemRegistryRes>,
     stores: Query<&crate::interact::Container>,
-    people: Query<(&crate::actor::Store, &Npc, Has<crate::actor::Dead>, &Survival), With<crate::actor::Home>>,
+    people: Query<
+        (
+            (&crate::actor::Store, &Npc, Has<crate::actor::Dead>, &Survival),
+            (&crate::actor::Home, &Transform, &crate::actor::ActorCondition, &crate::actor::Memory),
+        ),
+    >,
     chunks: Option<Res<crate::terrain::Chunks>>,
     rolled: Option<Res<crate::terrain::WorldRes>>,
     standing: Option<Res<crate::structure::MonumentsRes>>,
+    deaths: Res<crate::combat::Deaths>,
 ) {
     if tick.0 % 60 != 0 {
         return;
@@ -261,7 +267,7 @@ pub fn publish_world(
             .count()
     });
     let mut bunkers: std::collections::BTreeMap<String, Json> = Default::default();
-    for (store, npc, dead, needs) in &people {
+    for ((store, npc, dead, needs), (home, at, condition, memory)) in &people {
         let name = npc.faction.clone().unwrap_or_default();
         let entry = bunkers.entry(name).or_insert_with(|| {
             let (mut food, mut water) = (0, 0);
@@ -277,18 +283,32 @@ pub fn publish_world(
                     }
                 }
             }
-            json!({"food": food, "water": water, "alive": 0, "starving": 0})
+            json!({"food": food, "water": water, "alive": 0, "starving": 0, "at_home": 0, "asleep": 0, "stocked": 0})
         });
+        let add = |entry: &mut Json, field: &str, n: u64| {
+            entry[field] = json!(entry[field].as_u64().unwrap_or(0) + n);
+        };
         if !dead {
-            entry["alive"] = json!(entry["alive"].as_u64().unwrap_or(0) + 1);
+            add(entry, "alive", 1);
+            // Home, as the brain counts it.
+            if at.translation.truncate().distance(home.0) <= crate::ai::HOME_REACH {
+                add(entry, "at_home", 1);
+            }
+            if condition.0.asleep {
+                add(entry, "asleep", 1);
+            }
         }
         if needs.0.starving() || needs.0.dehydrated() {
-            entry["starving"] = json!(entry["starving"].as_u64().unwrap_or(0) + 1);
+            add(entry, "starving", 1);
         }
+        // Times they put something into the store, from their memory.
+        let stocked = memory.0.done.iter().filter(|(_, d)| matches!(d, modforge::memory::Did::Stocked(..))).count();
+        add(entry, "stocked", stocked as u64);
     }
     let world = json!({
         "tick": tick.0,
         "day": crate::survival::Day::secs(&tick) / day.0,
+        "night": crate::survival::night(&tick, *day),
         "storms": storms.shifts,
         "ate": life.ate,
         "looked": life.looked,
@@ -305,6 +325,15 @@ pub fn publish_world(
             "at": [at.x, at.y],
             "buildings": def.members.len(),
         })).collect::<Vec<_>>()),
+        // Every death: when, who, their faction, what killed them, by whom.
+        "deaths": deaths.0.iter().map(|d| json!({
+            "tick": d.tick,
+            "id": d.id,
+            "def": d.def,
+            "faction": d.faction,
+            "of": d.of,
+            "by": d.by,
+        })).collect::<Vec<_>>(),
     });
     if let Ok(mut slot) = WORLD.lock() {
         *slot = world;
@@ -370,9 +399,15 @@ pub fn publish(
                 // How many of each kind of thing they did (life.md "What a
                 // person did"), and the last one.
                 let mut did = serde_json::Map::new();
+                // What they ate and drank, by what: a can, a well, water.
+                let mut ate_what = serde_json::Map::new();
                 for (_, d) in &memory.0.done {
                     let n = did.get(d.kind()).and_then(Json::as_u64).unwrap_or(0);
                     did.insert(d.kind().to_string(), json!(n + 1));
+                    if let modforge::memory::Did::Ate(what) = d {
+                        let n = ate_what.get(what).and_then(Json::as_u64).unwrap_or(0);
+                        ate_what.insert(what.clone(), json!(n + 1));
+                    }
                 }
                 json!({
                     "id": actor.0.0,
@@ -386,6 +421,7 @@ pub fn publish(
                     "rest": needs.0.rest,
                     "doing": format!("{:?}", doing.0),
                     "did": did,
+                    "ate_what": ate_what,
                     "last_did": memory.0.done.last().map(|(t, d)| json!({"tick": t, "did": d.words()})),
                     "killed_by": memory.0.killed_by().map(|(by, of)| json!({"by": by.map(|a| a.0), "of": of})),
                     "alive_for": memory.0.learned.last.map(|(_, secs)| secs),

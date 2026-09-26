@@ -291,7 +291,7 @@ fn click_slot(
 }
 
 /// Heal by what food or medicine gives, never past full.
-fn heal_by(health: &mut crate::combat::Health, heal: f32) {
+pub(crate) fn heal_by(health: &mut crate::combat::Health, heal: f32) {
     health.0.current = (health.0.current + heal).min(health.0.max);
 }
 

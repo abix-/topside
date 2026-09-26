@@ -49,6 +49,32 @@ pub struct BlocksSight;
 pub struct Chunks {
     pub made: HashSet<ChunkKey>,
     pub sites: HashSet<(i32, i32)>,
+    /// Per chunk made, its shore: the land tiles beside water, where a
+    /// person stands to drink from a river (design.md: rivers drinkable).
+    pub shores: std::collections::HashMap<ChunkKey, Vec<(i32, i32)>>,
+}
+
+/// The land tiles of `chunk` with water beside them (in the chunk).
+fn shore_of(chunk: &GroundChunk) -> Vec<(i32, i32)> {
+    let f = chunk.first();
+    let inside = |t: (i32, i32)| t.0 >= f.0 && t.0 < f.0 + CHUNK && t.1 >= f.1 && t.1 < f.1 + CHUNK;
+    let mut out = Vec::new();
+    for y in 0..CHUNK {
+        for x in 0..CHUNK {
+            let t = (f.0 + x, f.1 + y);
+            if !chunk.ground_at(t).is_land() {
+                continue;
+            }
+            let wet = [(1, 0), (-1, 0), (0, 1), (0, -1)]
+                .into_iter()
+                .map(|(dx, dy)| (t.0 + dx, t.1 + dy))
+                .any(|n| inside(n) && chunk.ground_at(n) == Ground::Water);
+            if wet {
+                out.push(t);
+            }
+        }
+    }
+    out
 }
 
 /// Sites found in newly made chunks, waiting to be spawned.
@@ -190,8 +216,19 @@ pub fn make_chunks(
         let chunk = world.world.chunk(r, key);
         body(&mut commands, &runs_of(&chunk, |g| g == Ground::Water), false);
         let mut solid = runs_of(&chunk, |g| matches!(g, Ground::Cliff | Ground::OutOfMap));
-        solid.extend(chunk.things.iter().map(|t| t.rect()));
+        solid.extend(chunk.things.iter().filter(|t| t.source.is_none()).map(|t| t.rect()));
         body(&mut commands, &solid, true);
+        let shore = shore_of(&chunk);
+        if !shore.is_empty() {
+            chunks.shores.insert(key, shore);
+        }
+        // The sources (wells, berry bushes) stop nobody: each is a spot
+        // to use, drawn with the chunk's things.
+        for thing in &chunk.things {
+            if let Some(name) = &thing.source {
+                crate::interact::spawn_source(&mut commands, name, modforge::walk::centre(thing.tile));
+            }
+        }
         if let Some(tiles) = tiles.as_ref() {
             draw(&mut commands, &chunk, &tiles.0);
         }

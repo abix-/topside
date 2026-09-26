@@ -370,6 +370,11 @@ pub fn ground_def() -> GroundDef {
         beach: 0.04,
         patch_size: 80.0,
         chunks_across: None,
+        // Rivers wind across the world, a ford every so often (design.md:
+        // a livable world, rivers drinkable).
+        river_size: 1500.0,
+        river_width: 0.02,
+        river_fords: 0.3,
     }
 }
 
@@ -429,8 +434,8 @@ pub fn look_def() -> LookDef {
 }
 
 /// The small world (design.md "The small world first"): 32 by 32 chunks,
-/// flat grass with forests (added back first, 2026-09-26), no water, no
-/// cliffs.
+/// flat grass with forests (added back first, 2026-09-26), rivers with
+/// fords (a livable world, 2026-09-26), no lakes, no cliffs.
 pub fn small_ground_def() -> GroundDef {
     GroundDef {
         feature_size: 500.0,
@@ -458,6 +463,10 @@ pub fn small_ground_def() -> GroundDef {
         beach: 0.0,
         patch_size: 80.0,
         chunks_across: Some(32),
+        // One or two rivers across the kilometre, about 10 m wide.
+        river_size: 600.0,
+        river_width: 0.03,
+        river_fords: 0.3,
     }
 }
 
@@ -816,6 +825,23 @@ pub fn starting_note(seed: u64) -> Note {
     }
 }
 
+/// A source's def: what one use of it fills.
+fn source(name: &str, hunger: f32, thirst: f32) -> ItemDef {
+    ItemDef {
+        name: name.to_string(),
+        unique: false,
+        kind: ItemKind::Source,
+        max_stack: 1,
+        quality_siblings: 1,
+        combat: None,
+        food: Some(FoodStats { hunger, thirst, health: 0.0 }),
+        storage: None,
+        armor: None,
+        good_for: Default::default(),
+        picture: None,
+    }
+}
+
 pub fn register_items(reg: &mut ItemRegistry) {
     let items = [
         ItemDef {
@@ -866,6 +892,12 @@ pub fn register_items(reg: &mut ItemRegistry) {
             good_for: Default::default(),
             picture: None,
         },
+        // The sources (design.md: a livable world, rivers drinkable,
+        // wells scattered, food sources): eaten or drunk from where they
+        // stand, a mouthful a use, never used up. Tuning.
+        source("well", 0.0, 50.0),
+        source("water", 0.0, 50.0),
+        source("berry bush", 20.0, 0.0),
         // Made at the bench from cloth; heals far faster than food, a
         // reason to craft before going out (todo 10ca). Tuning.
         ItemDef {
@@ -1332,12 +1364,37 @@ pub fn register_monuments(reg: &mut MonumentRegistry, buildings: &BuildingRegist
     }
 }
 
+/// The sources every biome has (design.md: a livable world, wells
+/// scattered across it, food sources): a well about every 100 m, a berry
+/// bush about every 30 m. First in a biome's scatter, so they are rolled
+/// before its trees. Tuning.
+fn sources() -> [ScatterDef; 2] {
+    [
+        ScatterDef {
+            size: Vec3::new(1.4, 1.0, 1.4),
+            color: [0.45, 0.47, 0.5],
+            density: 0.0016,
+            picture: None,
+            source: Some("well".to_string()),
+        },
+        ScatterDef {
+            size: Vec3::new(1.0, 0.8, 1.0),
+            color: [0.55, 0.15, 0.3],
+            density: 0.018,
+            picture: None,
+            source: Some("berry bush".to_string()),
+        },
+    ]
+}
+
 pub fn register_biomes(reg: &mut BiomeRegistry) {
     let biomes = [
         BiomeDef {
             name: "forest".to_string(),
             ground: [0.22, 0.38, 0.18],
             scatter: vec![
+                sources()[0].clone(),
+                sources()[1].clone(),
                 ScatterDef {
                     size: Vec3::new(0.6, 5.0, 0.6),
                     color: [0.3, 0.22, 0.12],
@@ -1346,6 +1403,7 @@ pub fn register_biomes(reg: &mut BiomeRegistry) {
                     density: 0.6,
                     // scripts/models.py renders it.
                     picture: Some("tree".to_string()),
+                    source: None,
                 },
                 ScatterDef {
                     size: Vec3::new(0.8, 0.5, 0.8),
@@ -1353,6 +1411,7 @@ pub fn register_biomes(reg: &mut BiomeRegistry) {
                     density: 0.01,
                     // scripts/models.py renders it.
                     picture: Some("rock".to_string()),
+                    source: None,
                 },
             ],
             weather: vec!["rain".to_string(), "fog".to_string()],
@@ -1372,12 +1431,15 @@ pub fn register_biomes(reg: &mut BiomeRegistry) {
             name: "wasteland".to_string(),
             ground: [0.55, 0.48, 0.35],
             scatter: vec![
+                sources()[0].clone(),
+                sources()[1].clone(),
                 ScatterDef {
                     size: Vec3::new(1.2, 0.6, 0.8),
                     color: [0.5, 0.42, 0.32],
                     density: 0.005,
                     // scripts/models.py renders it.
                     picture: Some("fallen log".to_string()),
+                    source: None,
                 },
             ],
             weather: vec!["dust storm".to_string(), "clear".to_string()],
@@ -1398,12 +1460,15 @@ pub fn register_biomes(reg: &mut BiomeRegistry) {
             name: "ruins".to_string(),
             ground: [0.4, 0.4, 0.42],
             scatter: vec![
+                sources()[0].clone(),
+                sources()[1].clone(),
                 ScatterDef {
                     size: Vec3::new(2.0, 1.5, 1.5),
                     color: [0.45, 0.43, 0.4],
                     density: 0.008,
                     // scripts/models.py renders it.
                     picture: Some("broken wall".to_string()),
+                    source: None,
                 },
             ],
             weather: vec!["rain".to_string(), "fog".to_string(), "clear".to_string()],
@@ -1425,11 +1490,12 @@ pub fn register_biomes(reg: &mut BiomeRegistry) {
             harvest: vec!["scrap".to_string(), "pipe".to_string(), "cloth".to_string()],
         },
         // The small world's ground (design.md "The small world first"):
-        // grass with nothing on it. Its sites are placed by hand.
+        // grass with only wells and berry bushes on it (a livable world).
+        // Its sites are placed by hand.
         BiomeDef {
             name: "grassland".to_string(),
             ground: [0.3, 0.45, 0.22],
-            scatter: vec![],
+            scatter: sources().to_vec(),
             weather: vec!["clear".to_string()],
             monuments: vec![],
             npcs: vec![],

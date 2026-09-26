@@ -27,7 +27,7 @@ use crate::content::{
     MonumentRegistryRes, PLAYER_FACTION,
 };
 use crate::input::{Action, Actions};
-use crate::interact::{Container, OpenContainer, WorldItem};
+use crate::interact::{Container, OpenContainer, Source, WorldItem};
 use crate::player::Player;
 use crate::sight::Sight;
 
@@ -46,7 +46,17 @@ pub struct LifeStats {
 }
 
 /// Within this of home counts as home.
-const HOME_REACH: f32 = 6.0;
+pub(crate) const HOME_REACH: f32 = 6.0;
+
+/// The second bit of a place key marks a river's water, one per chunk:
+/// the shore last seen there.
+const WATER_KEY: u64 = 1 << 62;
+
+/// The remembered key of the water in chunk `c`.
+fn water_key(c: modforge::walk::ChunkKey) -> u64 {
+    let pack = |v: i32| (v as i64 + (1 << 20)) as u64 & 0x1F_FFFF;
+    PLACE_KEY | WATER_KEY | (pack(c.0) << 21) | pack(c.1)
+}
 
 /// A point on the 2D ground as the brain's ground point.
 fn ground(p: Vec2) -> Vec3 {
@@ -114,6 +124,9 @@ pub fn think(
     mut life: ResMut<LifeStats>,
     mut thinkers: Thinkers,
     containers: Query<(Entity, &Container, &Transform, &WorldItem)>,
+    sources: Query<(Entity, &Transform, &Source)>,
+    world: Option<Res<crate::terrain::WorldRes>>,
+    chunks: Option<Res<crate::terrain::Chunks>>,
 ) {
     // What a remembered thing is worth for a need, the RimWorld way: for
     // hunger and thirst, the food seen inside it (modforge
@@ -132,6 +145,15 @@ pub fn think(
         .iter()
         .map(|(e, _, t, w)| (e, t.translation.truncate(), w.stack.item.clone()))
         .collect();
+    // Every source once (a well, a berry bush): where, what kind.
+    let sources_at: Vec<(Entity, Vec2, String)> =
+        sources.iter().map(|(e, t, s)| (e, t.translation.truncate(), s.0.clone())).collect();
+    let source_at = |key: u64| {
+        sources_at
+            .iter()
+            .find(|(e, _, _)| e.to_bits() == key)
+            .map(|(_, at, _)| *at)
+    };
     // Where someone can stand, from the tiles (pathing.md: never head for
     // a place nobody can stand on).
     let walk = std::cell::RefCell::new(&mut walk.0);
@@ -216,9 +238,25 @@ pub fn think(
         }
         // Looking round as they think: every box in the cone with a clear
         // line goes into memory (seen, not yet looked inside).
-        for (key, at, kind) in &boxes {
+        for (key, at, kind) in boxes.iter().chain(&sources_at) {
             if at.distance(here) <= def.sight && in_cone(facing, here, *at) && sight.clear(here, *at) {
                 memory.0.see(key.to_bits(), kind, ground(*at), tick.0);
+            }
+        }
+        // A river seen: the nearest shore in sight, one memory per chunk,
+        // where they can stand and drink (design.md: rivers drinkable).
+        if let Some(chunks) = chunks.as_ref() {
+            let c = crate::terrain::chunk_of(here);
+            let seen = (c.1 - 1..=c.1 + 1)
+                .flat_map(|y| (c.0 - 1..=c.0 + 1).map(move |x| (x, y)))
+                .filter_map(|k| chunks.shores.get(&k))
+                .flatten()
+                .map(|t| modforge::walk::centre(*t))
+                .filter(|p| p.distance(here) <= def.sight && in_cone(facing, here, *p))
+                .min_by(|a, b| a.distance(here).total_cmp(&b.distance(here)));
+            if let Some(shore) = seen.filter(|p| sight.clear(here, *p)) {
+                let key = water_key(crate::terrain::chunk_of(shore));
+                memory.0.see(key, crate::interact::WATER, ground(shore), tick.0);
             }
         }
         // A box they have open, they see into, as the player sees the
@@ -336,7 +374,9 @@ pub fn think(
             // A key is a place (PLACE_KEY set) or a box (an entity): a
             // place is visited; a box is opened to see inside (noted
             // above at the next think); a box that is gone is forgotten.
-            Some(Do::Check { key }) if key & PLACE_KEY != 0 => memory.0.visited(key, tick.0),
+            // A place, a river's water, or a source (a well, a bush) is
+            // visited: there is no inside to look into.
+            Some(Do::Check { key }) if key & PLACE_KEY != 0 || source_at(key).is_some() => memory.0.visited(key, tick.0),
             Some(Do::Check { key }) => match the_box(key) {
                 Some(found) => {
                     keep_open = Some(found);
@@ -349,6 +389,26 @@ pub fn think(
                     act(Action::UseSlot { slot });
                     life.ate += 1;
                 }
+            }
+            // At a river's shore: drink from the water in reach, a
+            // mouthful a think, until fed; no water there, forget it.
+            Some(Do::Eat { key }) if key & WATER_KEY != 0 => {
+                match world.as_ref().and_then(|w| crate::interact::nearest_water(w, here, here)) {
+                    Some(water) => {
+                        act(Action::Aim { x: water.x, y: water.y });
+                        act(Action::Use);
+                        life.ate += 1;
+                    }
+                    None => memory.0.gone(key),
+                }
+            }
+            // At a source (a well, a berry bush): use it where it stands,
+            // a mouthful a think, until fed.
+            Some(Do::Eat { key }) if source_at(key).is_some() => {
+                let at = source_at(key).expect("checked above");
+                act(Action::Aim { x: at.x, y: at.y });
+                act(Action::Use);
+                life.ate += 1;
             }
             // At the box: open it, then eat or drink one thing out of it
             // for the worse need, one a think, until fed. You eat what

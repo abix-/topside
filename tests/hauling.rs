@@ -81,16 +81,24 @@ fn bunker_people_haul_food_home() {
         world["result"]["bunkers"],
         hauled.join("\n")
     );
-    if hauled.is_empty() {
-        // Why not: every bunker person, as the game sees them.
+    // Every bunker hauls home and none starves (a bunker's store runs
+    // short within its first day: 10 cans and 10 bottles for five).
+    let bunkers = world["result"]["bunkers"].as_object().cloned().unwrap_or_default();
+    let failing: Vec<String> = bunkers
+        .iter()
+        .filter(|(_, b)| b["stocked"].as_u64().unwrap_or(0) == 0 || b["starving"].as_u64().unwrap_or(0) > 0)
+        .map(|(name, b)| format!("{name}: {b}"))
+        .collect();
+    if !failing.is_empty() {
+        // Why not: every person of those bunkers, as the game sees them.
         let ids: Vec<u64> = list
             .iter()
-            .filter(|p| p["faction"].as_str().is_some_and(|f| f.starts_with("bunker")))
+            .filter(|p| p["faction"].as_str().is_some_and(|f| failing.iter().any(|b| b.starts_with(&format!("{f}:")))))
             .filter_map(|p| p["id"].as_u64())
             .collect();
         for id in ids {
             eprintln!("{}", person(id));
         }
     }
-    assert!(!hauled.is_empty(), "no bunker person in the running game has put anything into its store");
+    assert!(failing.is_empty(), "bunkers that never hauled food home or are starving:\n{}", failing.join("\n"));
 }

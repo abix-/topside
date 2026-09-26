@@ -11,7 +11,11 @@ use modforge::hud::{HudState, InteractKind, InteractResult, OpenPanel, interact}
 use modforge::item::{self, ItemDef, ItemKind, ItemStack};
 use modforge::structure::Rgb;
 
-use crate::actor::{Dead, Inventory};
+use modforge::memory::Did;
+use modforge::walk::{cell_of, centre};
+
+use crate::actor::{Dead, Inventory, Memory, Survival};
+use crate::combat::Health;
 use crate::content::ItemRegistryRes;
 use crate::input::{Action, ActionQueue, ThisTick};
 
@@ -52,6 +56,50 @@ pub struct OpenContainer(pub Option<Entity>);
 /// The crafting station this person has open, if any.
 #[derive(Component, Default)]
 pub struct OpenStation(pub Option<StationKind>);
+
+/// A source standing in the world (a well, a berry bush; design.md: a
+/// livable world): eaten or drunk from where it stands, never used up.
+/// It names its ItemDef of kind `Source`.
+#[derive(Component)]
+pub struct Source(pub String);
+
+/// The def a river's water is (content: kind `Source`).
+pub const WATER: &str = "water";
+
+/// Where a source stands for E: nothing to draw (the chunk draws its
+/// things), only the spot.
+pub fn spawn_source(commands: &mut Commands, name: &str, at: Vec2) -> Entity {
+    commands
+        .spawn((
+            Interactable { kind: InteractKind::Source },
+            Source(name.to_string()),
+            crate::terrain::WorldPiece,
+            Transform::from_translation(at.extend(0.0)),
+        ))
+        .id()
+}
+
+/// Eat or drink one use of the source `name`: its food fills the needs
+/// and heals, and it goes into memory as eaten (life.md "What a person
+/// did"), the same as eating from the hotbar.
+fn use_source(
+    name: &str,
+    registry: &ItemRegistryRes,
+    needs: &mut Survival,
+    health: &mut Health,
+    memory: Option<&mut Memory>,
+    now: u64,
+) {
+    let Some(def) = registry.0.def(name) else {
+        return;
+    };
+    if let Ok(heal) = needs.0.eat(def) {
+        crate::hud::heal_by(health, heal);
+        if let Some(memory) = memory {
+            memory.0.did(Did::Ate(name.to_string()), now);
+        }
+    }
+}
 
 /// Where a station stands for E: nothing to draw (the furniture is
 /// drawn), only the spot.
@@ -137,16 +185,21 @@ fn use_point(door: Option<&Door>, transform: &Transform) -> Vec2 {
 pub fn interact_on_use(
     mut commands: Commands,
     registry: Res<ItemRegistryRes>,
+    tick: Res<crate::SimTick>,
+    world: Option<Res<crate::terrain::WorldRes>>,
     mut people: Query<
-        (&Transform, &ThisTick, &mut Inventory, &mut Hud, &mut OpenContainer, &mut OpenStation),
+        (
+            (&Transform, &ThisTick, &mut Inventory, &mut Hud, &mut OpenContainer, &mut OpenStation),
+            (&mut Survival, &mut Health, Option<&mut Memory>),
+        ),
         Without<Dead>,
     >,
     mut things: Query<
-        (Entity, &mut Interactable, Option<&mut Door>, Option<&WorldItem>, &mut Transform),
+        (Entity, &mut Interactable, Option<&mut Door>, Option<&WorldItem>, &mut Transform, Option<&Source>),
         Without<ThisTick>,
     >,
 ) {
-    for (person, this_tick, mut inventory, mut hud, mut open, mut station) in &mut people {
+    for ((person, this_tick, mut inventory, mut hud, mut open, mut station), (mut needs, mut health, mut memory)) in &mut people {
         if !this_tick.0.iter().any(|s| matches!(s.action, Action::Use)) {
             continue;
         }
@@ -157,15 +210,52 @@ pub fn interact_on_use(
         let pointed = ActionQueue::aim(&this_tick.0).map_or(at, |(x, y)| Vec2::new(x, y));
         let nearest = things
             .iter()
-            .map(|(e, _, door, _, t)| (e, use_point(door, t)))
+            .map(|(e, _, door, _, t, _)| (e, use_point(door, t)))
             .filter(|(_, p)| p.distance(at) <= REACH)
             .min_by(|a, b| a.1.distance(pointed).total_cmp(&b.1.distance(pointed)))
             .map(|(e, _)| e);
-        let Some(Ok(thing)) = nearest.map(|e| things.get_mut(e)) else {
+        let Some(Ok((entity, thing, door, item, transform, source))) = nearest.map(|e| things.get_mut(e)) else {
+            // Nothing to use in reach: a river's water pointed at is drunk
+            // (design.md: rivers are drinkable).
+            if world.as_ref().is_some_and(|w| water_in_reach(w, at, pointed)) {
+                use_source(WATER, &registry, &mut needs, &mut health, memory.as_deref_mut(), tick.0);
+            }
             continue;
         };
-        use_thing(&mut commands, &registry, thing, &mut inventory, &mut hud, &mut open, &mut station);
+        if let Some(source) = source {
+            use_source(&source.0, &registry, &mut needs, &mut health, memory.as_deref_mut(), tick.0);
+            continue;
+        }
+        use_thing(
+            &mut commands,
+            &registry,
+            (entity, thing, door, item, transform),
+            &mut inventory,
+            &mut hud,
+            &mut open,
+            &mut station,
+        );
     }
+}
+
+/// Whether a water tile lies within reach of `at`, the one nearest
+/// `pointed` being checked: the tile under the point, or the nearest
+/// water tile beside the person.
+pub fn water_in_reach(world: &crate::terrain::WorldRes, at: Vec2, pointed: Vec2) -> bool {
+    nearest_water(world, at, pointed).is_some()
+}
+
+/// The water tile within reach of `at` nearest `pointed`, if any.
+pub fn nearest_water(world: &crate::terrain::WorldRes, at: Vec2, pointed: Vec2) -> Option<Vec2> {
+    let here = cell_of(at);
+    let r = REACH.ceil() as i32 + 1;
+    (-r..=r)
+        .flat_map(|dy| (-r..=r).map(move |dx| (here.0 + dx, here.1 + dy)))
+        .filter(|t| world.world.ground.ground_at(*t) == modforge::ground::Ground::Water)
+        .map(centre)
+        // The edge of the water tile nearest the person is what they reach.
+        .filter(|c| (*c - at).abs().max_element() <= REACH + 0.5)
+        .min_by(|a, b| a.distance(pointed).total_cmp(&b.distance(pointed)))
 }
 
 /// One person uses one thing.
@@ -227,6 +317,7 @@ fn use_thing(
         }
         // The note's words are in the HUD state now; nothing moves. A
         // gate stays shut. A full inventory leaves the item lying.
-        InteractResult::Read | InteractResult::Locked(_) | InteractResult::InventoryFull => {}
+        // A source is used before this (`use_source`), never here.
+        InteractResult::Read | InteractResult::Locked(_) | InteractResult::InventoryFull | InteractResult::UseSource => {}
     }
 }

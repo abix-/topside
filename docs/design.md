@@ -818,6 +818,9 @@ walk". "lets do 32x32 chunks. that's small".
   sites, more bunkers, size).
 - Forests are added back first (operator, 2026-09-26): the small world
   has forests, trees drawn as the tree picture.
+- World generation makes a livable world (operator, 2026-09-26): trees,
+  rocks, water, and food sources. Rivers are drinkable, and wells are
+  scattered across the world.
 
 Rivers, rain and wildlife per biome, and the people who live at the
 sites come after the first world stands. The storm re-rolls the
