@@ -25,7 +25,11 @@ pub const FACINGS: usize = 8;
 /// changes": built from pieces), each with its tint; each layer's picture
 /// is `<layer> <facing>`.
 #[derive(Component)]
-pub struct Person(pub Vec<(String, Color)>);
+pub struct Person {
+    /// Their body, which every worn layer is rendered on.
+    body: String,
+    layers: Vec<(String, Color)>,
+}
 
 impl Person {
     /// The layers of a rolled look: the body in its skin, then each piece
@@ -34,7 +38,56 @@ impl Person {
         let tint = |c: [f32; 3]| Color::srgb(c[0], c[1], c[2]);
         let body = (format!("person {} body", look.body), tint(look.skin));
         let pieces = look.pieces.iter().map(|p| (format!("person {} {p}", look.body), tint(look.hair)));
-        Person(std::iter::once(body).chain(pieces).collect())
+        Person {
+            body: look.body.clone(),
+            layers: std::iter::once(body).chain(pieces).collect(),
+        }
+    }
+}
+
+/// A layer showing something a person wears, rebuilt when what they wear
+/// changes.
+#[derive(Component)]
+pub struct Worn;
+
+/// Every person whose equipment changed wears it: each worn item with a
+/// picture is a layer `person <body> <picture>` (scripts/models.py WORN),
+/// over the body and under the hair; the weapon is drawn at the hand.
+pub fn dress_people(
+    mut commands: Commands,
+    assets: Res<AssetServer>,
+    registry: Res<crate::content::ItemRegistryRes>,
+    // Also when their layers first exist (Stride comes with them), for
+    // anyone who was spawned wearing something.
+    people: Query<
+        (Entity, &Person, &crate::combat::Equipment, &Children),
+        Or<(Changed<crate::combat::Equipment>, Added<Stride>)>,
+    >,
+    worn: Query<(), With<Worn>>,
+) {
+    use modforge::item::EquipSlot;
+    for (entity, person, equipment, children) in &people {
+        for child in children.iter().filter(|c| worn.contains(*c)) {
+            commands.entity(child).despawn();
+        }
+        let pictures = EquipSlot::ALL
+            .into_iter()
+            .filter(|slot| *slot != EquipSlot::Weapon)
+            .filter_map(|slot| equipment.0.get(slot))
+            .filter_map(|stack| registry.0.def(&stack.item))
+            .filter_map(|def| def.picture.clone());
+        commands.entity(entity).with_children(|p| {
+            for picture in pictures {
+                let name = format!("person {} {picture}", person.body);
+                let shows = layer_picture(&name, 0, None);
+                p.spawn((
+                    Worn,
+                    Sprite::from_image(assets.load(&shows)),
+                    Layer { name, shows },
+                    Transform::from_xyz(0.0, 0.0, 0.015).with_scale(Vec3::splat(1.0 / PIXELS_PER_METRE)),
+                ));
+            }
+        });
     }
 }
 
@@ -83,7 +136,7 @@ pub fn draw_people(mut commands: Commands, assets: Res<AssetServer>, new: Query<
     for (entity, person) in &new {
         commands.entity(entity).insert(Stride::default());
         commands.entity(entity).with_children(|p| {
-            for (i, (name, tint)) in person.0.iter().enumerate() {
+            for (i, (name, tint)) in person.layers.iter().enumerate() {
                 let shows = layer_picture(name, 0, None);
                 p.spawn((
                     Sprite {

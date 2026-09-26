@@ -195,7 +195,13 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind) -> App {
         app.add_systems(Startup, terrain::setup_ground_tiles.before(terrain::make_chunks));
         app.add_systems(
             Update,
-            (picture::draw_pictures, picture::draw_people, picture::turn_people, picture::draw_held),
+            (
+                picture::draw_pictures,
+                picture::draw_people,
+                picture::dress_people,
+                picture::turn_people,
+                picture::draw_held,
+            ),
         );
         app.add_systems(
             Startup,

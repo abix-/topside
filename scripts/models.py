@@ -518,6 +518,40 @@ def piece(name, rig):
     return meshes
 
 
+def vest(rig, body):
+    """the road sign vest worn: a green road sign with a white border on the
+    chest, another on the back, joined by straps over the shoulders; sized
+    from this body's chest and pinned to its chest bone, standing at rest."""
+    sign = material("sign", (0.2, 0.5, 0.2))
+    white = material("border", (0.9, 0.9, 0.88))
+    strap = material("strap", (0.18, 0.16, 0.14))
+    # The torso below the armpits: at rest the arms stand straight out at
+    # shoulder height, so only what is near the middle is chest.
+    world = (o.matrix_world @ v.co for o in body for v in o.data.vertices)
+    chest = [p for p in world if 1.05 < p.z < 1.3 and abs(p.x) < 0.3]
+    front, back = min(p.y for p in chest), max(p.y for p in chest)
+    half = (max(p.x for p in chest) - min(p.x for p in chest)) / 2 * 0.8
+    w, h, z = half * 2, 0.4, 1.25
+    parts = []
+    for side, y in (("front", front - 0.02), ("back", back + 0.02)):
+        parts.append(box(f"{side}_plate", (w, 0.02, h), at=(0, y, z), mat=sign))
+        out = -0.011 if side == "front" else 0.011
+        for i, (bw, bh, bx, bz) in enumerate([(w, 0.02, 0, z + h / 2 - 0.02), (w, 0.02, 0, z - h / 2 + 0.02), (0.02, h, -w / 2 + 0.02, z), (0.02, h, w / 2 - 0.02, z)]):
+            parts.append(box(f"{side}_border_{i}", (bw, 0.002, bh), at=(bx, y + out, bz), mat=white))
+    for x in (-half * 0.55, half * 0.55):
+        parts.append(box("strap", (0.06, back - front + 0.06, 0.03), at=(x, (front + back) / 2, z + h / 2 + 0.05), mat=strap))
+    for p in parts:
+        world = p.matrix_world.copy()
+        p.parent, p.parent_type, p.parent_bone = rig, "BONE", "spine_03"
+        p.matrix_world = world
+    return parts
+
+
+# What people wear, drawn as a layer over the body like a piece: by the
+# item's picture name (content/src/lib.rs), built on each body.
+WORN = {"road sign vest": vest}
+
+
 def people():
     """render every body and every piece that fits it, per facing, standing
     and in each walking frame: `person <body> <layer> <facing>` and
@@ -531,7 +565,8 @@ def people():
         rig, body = person(file, skin)
         rig.rotation_mode = "XYZ"
         pieces = {n.lower(): piece(n, rig) for n in names}
-        layers = {"body": body, **pieces}
+        worn = {item: build(rig, body) for item, build in WORN.items()}
+        layers = {"body": body, **pieces, **worn}
         pose(rig, *STAND)
         # Which way the rig faces standing: from its ankles to its toes.
         bones, m = rig.pose.bones, rig.matrix_world
