@@ -11,6 +11,7 @@ mod eating;
 mod equipment;
 mod game;
 mod hauling;
+mod hud;
 mod items;
 mod map;
 mod monuments;

@@ -1086,8 +1086,9 @@ inventory (operator, 2026-08-20: "i think i like tab better. its more
 natural. can we have both for inventory?"),
 double click uses an item (eat food, equip gear), drag and drop moves
 stacks, hover plus T transfers the stack to the other open inventory
-(Shift+T half), hover plus O drops it on the ground, 0-9 uses the
-hotbar slot, Shift+0-9 equips to it, E picks up in the world, F opens
+(Shift+T half), hover plus O drops it on the ground, 1-6 uses the
+hotbar slot (the hotbar is Rust's belt of 6), Shift+1-6 equips to it,
+E picks up in the world, F opens
 another's inventory. E on a crate opens it; E again, Escape, Tab, or I
 closes it (operator, 2026-08-20: "make esc and e again close it").
 
@@ -1372,6 +1373,11 @@ built from pieces, items in layers).
   inventory screen shows it under the character: anything wearable goes in
   any free slot, with no layers and no slots by body area. Every item worn
   adds its protection.
+- The inventory screen is Rust's layout (operator, 2026-09-26): the
+  character on the left with the row of 7 under it, the inventory 6 by 4
+  in the middle with the belt of 6 under it, the open container on the
+  right, item icons rendered from the models. Gear goes on and off by
+  dragging it onto and off the row.
 - No circle of dirt round a bunker (operator, 2026-09-26): its clearing keeps
   its own ground.
 - People are built from shared pieces (operator, 2026-09-26: people are

@@ -246,6 +246,7 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind) -> App {
                 control_plane::take_screenshot,
                 control_plane::publish_view,
                 control_plane::publish_items,
+                control_plane::publish_hud,
             ),
         );
         app.add_systems(

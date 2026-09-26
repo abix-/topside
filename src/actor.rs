@@ -23,8 +23,8 @@ use crate::player::{BODY_CENTRE, body};
 use crate::structure::MonumentsRes;
 use crate::{Ground, SimTick, WorldSeed, on_ground};
 
-/// Slots in a person's inventory (the 3D game's number).
-pub const INVENTORY_SLOTS: usize = 20;
+/// Slots in a person's inventory: Rust's 6 by 4.
+pub const INVENTORY_SLOTS: usize = 24;
 
 /// Bound for the actor map's rows: the 1000 persistent people plus
 /// animals and headroom (the 3D game's number).

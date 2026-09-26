@@ -8,6 +8,7 @@ use modforge::hud::{
     Holder, Holders, HudState, OpenPanel, SlotRef, end_drag, hotbar_key, slot_label, start_drag, toggle_panel,
     transfer_slot, use_slot, HOTBAR_SLOTS,
 };
+use modforge::item::EQUIPMENT_SLOTS;
 
 use crate::Ground;
 use crate::actor::{Dead, Hotbar, Inventory, INVENTORY_SLOTS, Survival};
@@ -23,7 +24,16 @@ use crate::player::Player;
 
 /// Slots drawn for an open box; a bigger box shows its first ones.
 pub const CONTAINER_SLOTS: usize = 24;
-const SLOT_PX: f32 = 64.0;
+/// Slots across a row of the inventory and the open box (Rust's 6 by 4).
+const ACROSS: usize = 6;
+const SLOT_PX: f32 = 52.0;
+const GAP_PX: f32 = 4.0;
+const PAD_PX: f32 = 8.0;
+/// Space between the belt and the screen's bottom, and between panels.
+const MARGIN_PX: f32 = 16.0;
+/// How tall the character's box stands over the equipment row, in slots.
+const CHARACTER_SLOTS_TALL: f32 = 4.0;
+const PANEL_COLOR: Color = Color::srgba(0.05, 0.05, 0.05, 0.8);
 const SLOT_COLOR: Color = Color::srgba(0.12, 0.11, 0.1, 0.85);
 const HELD_COLOR: Color = Color::srgba(0.45, 0.38, 0.2, 0.95);
 const HOVER_COLOR: Color = Color::srgba(0.3, 0.3, 0.32, 0.95);
@@ -36,21 +46,31 @@ pub struct SlotUi(pub SlotRef);
 #[derive(Component)]
 pub struct NotePanel;
 
-/// The inventory panel and the open box's panel.
+/// A panel of slots and the holder it shows: the equipment row, the
+/// inventory, the belt, the open box.
 #[derive(Component)]
-pub struct InventoryPanel;
+pub struct Panel(pub Holder);
+
+/// The inventory screen, open with the inventory, in Rust's layout: the
+/// character with the equipment row under it on the left, the inventory
+/// in the middle over the belt, the open box on the right.
 #[derive(Component)]
-pub struct ContainerPanel;
+pub struct InventoryScreen;
 
 /// The slot under the cursor, for T.
 #[derive(Resource, Default)]
 pub struct HoveredSlot(pub Option<SlotRef>);
 
+/// How wide a panel of `across` slots is, its padding included.
+fn panel_width(across: usize) -> f32 {
+    across as f32 * SLOT_PX + (across - 1) as f32 * GAP_PX + 2.0 * PAD_PX
+}
+
 fn slot_row(parent: &mut ChildSpawnerCommands, holder: Holder, from: usize, to: usize) {
     parent
         .spawn(Node {
             flex_direction: FlexDirection::Row,
-            column_gap: Val::Px(4.0),
+            column_gap: Val::Px(GAP_PX),
             ..default()
         })
         .with_children(|row| {
@@ -75,22 +95,23 @@ fn slot_row(parent: &mut ChildSpawnerCommands, holder: Holder, from: usize, to: 
         });
 }
 
-fn panel(parent: &mut ChildSpawnerCommands, marker: impl Bundle, holder: Holder, slots: usize) {
+/// A panel of `slots` slots of `holder`, `across` to a row, placed by
+/// `place`.
+fn panel(parent: &mut ChildSpawnerCommands, holder: Holder, slots: usize, across: usize, place: Node) {
     parent
         .spawn((
-            marker,
+            Panel(holder),
             Node {
                 flex_direction: FlexDirection::Column,
-                row_gap: Val::Px(4.0),
-                padding: UiRect::all(Val::Px(8.0)),
-                ..default()
+                row_gap: Val::Px(GAP_PX),
+                padding: UiRect::all(Val::Px(PAD_PX)),
+                ..place
             },
-            BackgroundColor(Color::srgba(0.05, 0.05, 0.05, 0.8)),
-            Visibility::Hidden,
+            BackgroundColor(PANEL_COLOR),
         ))
         .with_children(|p| {
-            for from in (0..slots).step_by(6) {
-                slot_row(p, holder, from, (from + 6).min(slots));
+            for from in (0..slots).step_by(across) {
+                slot_row(p, holder, from, (from + across).min(slots));
             }
         });
 }
@@ -111,69 +132,113 @@ pub fn setup(mut commands: Commands) {
         BackgroundColor(Color::srgba(0.08, 0.07, 0.06, 0.9)),
         Visibility::Hidden,
     ));
-    // The inventory and the open box, side by side in the middle.
+    // Every panel is placed from the middle of the screen: the belt and
+    // the inventory centred on it, the character's column to its left,
+    // the open box to its right, all standing on the belt.
+    let half = panel_width(ACROSS) / 2.0;
+    let over_belt = MARGIN_PX + SLOT_PX + 2.0 * PAD_PX + MARGIN_PX;
+    let centred = |bottom: f32| Node {
+        position_type: PositionType::Absolute,
+        bottom: Val::Px(bottom),
+        left: Val::Percent(50.0),
+        margin: UiRect::left(Val::Px(-half)),
+        ..default()
+    };
+    let whole_screen = || Node {
+        position_type: PositionType::Absolute,
+        width: Val::Percent(100.0),
+        height: Val::Percent(100.0),
+        ..default()
+    };
+    // The belt, always, along the bottom.
+    commands.spawn((whole_screen(), Pickable::IGNORE)).with_children(|root| {
+        panel(root, Holder::Hotbar, HOTBAR_SLOTS, HOTBAR_SLOTS, centred(MARGIN_PX));
+    });
     commands
-        .spawn(Node {
-            position_type: PositionType::Absolute,
-            width: Val::Percent(100.0),
-            top: Val::Px(60.0),
-            justify_content: JustifyContent::Center,
-            column_gap: Val::Px(24.0),
-            ..default()
-        })
-        .with_children(|root| {
-            panel(root, InventoryPanel, Holder::Inventory, INVENTORY_SLOTS);
-            panel(root, ContainerPanel, Holder::Container, CONTAINER_SLOTS);
+        .spawn((InventoryScreen, whole_screen(), Pickable::IGNORE, Visibility::Hidden))
+        .with_children(|screen| {
+            // The character, the equipment row under it.
+            screen
+                .spawn(Node {
+                    position_type: PositionType::Absolute,
+                    bottom: Val::Px(over_belt),
+                    right: Val::Percent(50.0),
+                    margin: UiRect::right(Val::Px(half + MARGIN_PX)),
+                    flex_direction: FlexDirection::Column,
+                    row_gap: Val::Px(GAP_PX),
+                    ..default()
+                })
+                .with_children(|column| {
+                    column.spawn((
+                        Node {
+                            width: Val::Px(panel_width(EQUIPMENT_SLOTS)),
+                            height: Val::Px(CHARACTER_SLOTS_TALL * SLOT_PX),
+                            ..default()
+                        },
+                        BackgroundColor(PANEL_COLOR),
+                    ));
+                    panel(column, Holder::Equipment, EQUIPMENT_SLOTS, EQUIPMENT_SLOTS, Node::default());
+                });
+            panel(screen, Holder::Inventory, INVENTORY_SLOTS, ACROSS, centred(over_belt));
+            panel(
+                screen,
+                Holder::Container,
+                CONTAINER_SLOTS,
+                ACROSS,
+                Node {
+                    position_type: PositionType::Absolute,
+                    bottom: Val::Px(over_belt),
+                    left: Val::Percent(50.0),
+                    margin: UiRect::left(Val::Px(half + MARGIN_PX)),
+                    ..default()
+                },
+            );
         });
-    // The hotbar, always, along the bottom.
-    commands
-        .spawn(Node {
-            position_type: PositionType::Absolute,
-            width: Val::Percent(100.0),
-            bottom: Val::Px(16.0),
-            justify_content: JustifyContent::Center,
-            ..default()
-        })
-        .with_children(|root| slot_row(root, Holder::Hotbar, 0, HOTBAR_SLOTS));
 }
 
 /// Paint every slot from its holder, the held and hovered slots
-/// marked, and show the panels modforge says are open.
+/// marked, and show the screen and the box modforge says are open.
 pub fn render(
     hovered: Res<HoveredSlot>,
-    players: Query<(&Inventory, &Hotbar, &Hud, &OpenContainer), With<Player>>,
+    players: Query<(&Inventory, &Hotbar, &Equipment, &Hud, &OpenContainer), With<Player>>,
     containers: Query<&Container>,
     mut slots: Query<(&SlotUi, &Children, &mut BackgroundColor, &mut Visibility)>,
     mut texts: Query<&mut Text, Without<NotePanel>>,
-    mut inventory_panel: Query<&mut Visibility, (With<InventoryPanel>, Without<SlotUi>, Without<ContainerPanel>)>,
-    mut container_panel: Query<&mut Visibility, (With<ContainerPanel>, Without<SlotUi>, Without<InventoryPanel>)>,
-    mut note: Query<(&mut Text, &mut Visibility), (With<NotePanel>, Without<SlotUi>, Without<InventoryPanel>, Without<ContainerPanel>)>,
+    mut screen: Query<&mut Visibility, (With<InventoryScreen>, Without<SlotUi>, Without<Panel>)>,
+    mut panels: Query<(&Panel, &mut Visibility), (Without<SlotUi>, Without<InventoryScreen>)>,
+    mut note: Query<(&mut Text, &mut Visibility), (With<NotePanel>, Without<SlotUi>, Without<InventoryScreen>, Without<Panel>)>,
 ) {
-    let Ok((inventory, hotbar, hud, open)) = players.single() else {
+    let Ok((inventory, hotbar, worn, hud, open)) = players.single() else {
         return;
     };
     let container = open.0.and_then(|e| containers.get(e).ok());
     let inventory_open = hud.0.open_panel == OpenPanel::Inventory;
-    if let Ok(mut v) = inventory_panel.single_mut() {
+    if let Ok(mut v) = screen.single_mut() {
         *v = if inventory_open { Visibility::Visible } else { Visibility::Hidden };
     }
-    if let Ok(mut v) = container_panel.single_mut() {
-        *v = if inventory_open && container.is_some() { Visibility::Visible } else { Visibility::Hidden };
+    for (panel, mut v) in &mut panels {
+        if panel.0 == Holder::Container {
+            *v = if container.is_some() { Visibility::Inherited } else { Visibility::Hidden };
+        }
     }
     for (slot, children, mut color, mut visibility) in &mut slots {
         let holder = match slot.0.holder {
             Holder::Inventory => Some(&inventory.0),
             Holder::Hotbar => Some(&hotbar.0.slots),
             Holder::Container => container.map(|c| &c.0),
+            Holder::Equipment => None,
         };
-        let exists = holder.is_some_and(|h| slot.0.index < h.slots.len());
         if slot.0.holder == Holder::Container {
+            let exists = holder.is_some_and(|h| slot.0.index < h.slots.len());
             *visibility = if exists { Visibility::Inherited } else { Visibility::Hidden };
         }
-        let stack = holder.and_then(|h| h.slots.get(slot.0.index)).and_then(|s| s.as_ref());
+        let stack = match slot.0.holder {
+            Holder::Equipment => worn.0.get(slot.0.index),
+            _ => holder.and_then(|h| h.slots.get(slot.0.index)).and_then(|s| s.as_ref()),
+        };
         let label = slot_label(stack);
         let label = if slot.0.holder == Holder::Hotbar {
-            format!("{}\n{}", (slot.0.index + 1) % 10, label)
+            format!("{}\n{}", slot.0.index + 1, label)
         } else {
             label
         };
@@ -385,7 +450,13 @@ pub struct PlayerHolders<'w, 's> {
     players: Query<
         'w,
         's,
-        (&'static mut Inventory, &'static mut Hotbar, &'static mut Hud, &'static OpenContainer),
+        (
+            &'static mut Inventory,
+            &'static mut Hotbar,
+            &'static mut Equipment,
+            &'static mut Hud,
+            &'static OpenContainer,
+        ),
         With<Player>,
     >,
     containers: Query<'w, 's, &'static mut Container>,
@@ -393,12 +464,13 @@ pub struct PlayerHolders<'w, 's> {
 
 impl PlayerHolders<'_, '_> {
     fn with<R>(&mut self, f: impl FnOnce(&mut HudState, &mut Holders<'_>) -> R) -> Option<R> {
-        let (mut inventory, mut hotbar, mut hud, open) = self.players.single_mut().ok()?;
+        let (mut inventory, mut hotbar, mut worn, mut hud, open) = self.players.single_mut().ok()?;
         let mut container = open.0.and_then(|e| self.containers.get_mut(e).ok());
         let mut holders = Holders {
             inventory: &mut inventory.0,
             hotbar: &mut hotbar.0.slots,
             container: container.as_mut().map(|c| &mut c.0),
+            equipment: &mut worn.0,
         };
         Some(f(&mut hud.0, &mut holders))
     }
@@ -471,6 +543,7 @@ pub fn hud_keys(
                         inventory: &mut inventory.0,
                         hotbar: &mut hotbar.0.slots,
                         container: container.as_mut().map(|c| &mut c.0),
+                        equipment: &mut worn.0,
                     };
                     let before = stack_in(&holders, slot);
                     transfer_slot(&mut holders, slot, half, &registry.0);
@@ -498,6 +571,8 @@ pub fn hud_keys(
                             Some(c) => &mut c.0,
                             None => continue,
                         },
+                        // Worn gear comes off by dragging, not by a click.
+                        Holder::Equipment => continue,
                     };
                     let item = holder.slots.get(slot.index).and_then(|s| s.as_ref()).map(|s| s.item.clone());
                     if let Ok(heal) = use_slot(&mut needs.0, holder, slot.index, &registry.0, &mut worn.0)

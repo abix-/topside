@@ -344,6 +344,46 @@ pub fn publish_items(
     }
 }
 
+/// The inventory screen, once a second, for the `hud` op.
+static HUD: Mutex<Json> = Mutex::new(Json::Null);
+
+/// Once a second: whether the inventory screen is open, and each panel of
+/// slots (the equipment row, the inventory, the belt, the open box): its
+/// holder, how many slots it shows, and where its middle stands on the
+/// window, 0 the left or top edge and 1 the right or bottom.
+pub fn publish_hud(
+    tick: Res<crate::SimTick>,
+    windows: Query<&Window, With<bevy::window::PrimaryWindow>>,
+    screen: Query<&Visibility, With<crate::hud::InventoryScreen>>,
+    panels: Query<(&crate::hud::Panel, &UiGlobalTransform)>,
+    slots: Query<&crate::hud::SlotUi>,
+) {
+    if tick.0 % 60 != 0 {
+        return;
+    }
+    let Ok(window) = windows.single() else {
+        return;
+    };
+    let (w, h) = (window.physical_width() as f32, window.physical_height() as f32);
+    let list: Vec<Json> = panels
+        .iter()
+        .map(|(panel, at)| {
+            json!({
+                "holder": format!("{:?}", panel.0),
+                "slots": slots.iter().filter(|s| s.0.holder == panel.0).count(),
+                "x": at.translation.x / w,
+                "y": at.translation.y / h,
+            })
+        })
+        .collect();
+    if let Ok(mut slot) = HUD.lock() {
+        *slot = json!({
+            "open": screen.single().is_ok_and(|v| *v != Visibility::Hidden),
+            "panels": list,
+        });
+    }
+}
+
 /// What the window shows, saved to disk when the `screenshot` op asked.
 pub fn take_screenshot(mut commands: Commands) {
     if SCREENSHOT.swap(false, Ordering::Relaxed) {
@@ -715,6 +755,12 @@ pub fn start() {
         "every item lying in the world with layers: its layers, its reach, spread and delay from them, and the models it is drawn with",
         "",
         |_| Ok(ITEMS.lock().map(|v| v.clone()).unwrap_or(Json::Null)),
+    ));
+    OP_REGISTRY.register(OpDef::new(
+        "hud",
+        "the inventory screen: whether it is open, and each panel of slots with its holder, slot count, and where it stands on the window",
+        "",
+        |_| Ok(HUD.lock().map(|v| v.clone()).unwrap_or(Json::Null)),
     ));
     OP_REGISTRY.register(OpDef::new(
         "screenshot",
