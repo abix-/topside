@@ -1,0 +1,41 @@
+# The one test runner for topside (cargo-nextest), run through
+# scripts/build.ps1 test. Every test runs in its own process, prints
+# its time, and keeps its output in logs/nextest/default/junit.xml
+# whether it passed or failed.
+
+[store]
+# Beside the other logs, not in the shared target directory.
+dir = "logs/nextest"
+
+[profile.default]
+# Every test's result and time as it finishes; the summary repeats
+# only the slow and the failed.
+status-level = "all"
+final-status-level = "slow"
+failure-output = "immediate-final"
+success-output = "never"
+# A test past 30 s is reported slow each 30 s, and stopped at 2 min.
+slow-timeout = { period = "30s", terminate-after = 4 }
+
+[profile.default.junit]
+path = "junit.xml"
+store-success-output = true
+store-failure-output = true
+
+# Tests that talk to the real game on 127.0.0.1:15703 share that port.
+[test-groups.real-game]
+max-threads = 1
+
+[[profile.default.overrides]]
+filter = 'binary(game) | binary(control_plane)'
+test-group = "real-game"
+
+# The game test watches the real game for two minutes at 1x by design.
+[[profile.default.overrides]]
+filter = 'binary(game)'
+slow-timeout = { period = "60s", terminate-after = 5 }
+
+# The scale and perf tests run the game at many head counts.
+[[profile.default.overrides]]
+filter = 'binary(scale) | binary(perf)'
+slow-timeout = { period = "60s", terminate-after = 10 }

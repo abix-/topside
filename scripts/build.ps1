@@ -11,7 +11,10 @@ StallMinutes, the script stops it and shows where it stalled instead of
 hanging.
 .PARAMETER Action
 run: build, then launch the game (logs/topside.log, logs/topside.err.log).
-test: run the tests, all of them or one tests/<Name>.rs (logs/test.log).
+test: run the tests through cargo-nextest (.config/nextest.toml), all of
+them or one tests/<Name>.rs; every test's time is printed, the run is in
+logs/test.log, and every test's time and output in
+logs/nextest/default/junit.xml.
 build: build only (logs/build.log).
 .PARAMETER Name
 For test: one test file under tests/, without .rs. Empty runs every
@@ -116,31 +119,25 @@ switch ($Action) {
     }
     'test' {
         $log = Join-Path $logs 'test.log'
-        Remove-Item $log -ErrorAction SilentlyContinue
-        # The library's tests and every tests/*.rs file, each its own
-        # run, so one failure never hides another (k3sc cargo-lock also
-        # builds with the same arguments, so --no-fail-fast cannot go
-        # through it).
-        # The content crate's tests too: its world defs must roll.
+        # cargo-nextest (.config/nextest.toml): every test in its own
+        # process, its time printed, its output kept in
+        # logs/nextest/default/junit.xml, a hung test stopped. The
+        # content crate's tests too: its world defs must roll.
         $targets = if ($Name -eq 'content') {
-            @('-p topside-content')
+            '-p topside-content'
         } elseif ($Name) {
-            @("-p topside --test $Name")
+            "-p topside -E binary($Name)"
         } else {
-            @('-p topside-content', '-p topside --lib') +
-                (Get-ChildItem (Join-Path $repo 'tests') -Filter *.rs | ForEach-Object { "-p topside --test $($_.BaseName)" })
+            '-p topside -p topside-content'
         }
-        $code = 0
-        foreach ($target in $targets) {
-            $one = Invoke-Cargo "test $target" $log -Append
-            if ($one -ne 0) { $code = $one }
-        }
+        $code = Invoke-Cargo "nextest run --no-fail-fast $targets" $log
         Show-Problems $log
-        Select-String -Path $log -Pattern '^test |^test result|panicked|^failures' |
+        Select-String -Path $log -Pattern '^\s+(PASS|FAIL|SLOW|TERMINATING|TIMEOUT|SIGSEGV|SIGABRT|ABORT|LEAK|SKIP)\b|^\s+Summary|^\s+Starting|^error: ' |
             ForEach-Object {
-                $color = if ($_.Line -match 'FAILED|panicked|failed; [1-9]') { 'Red' } else { 'Gray' }
+                $color = if ($_.Line -match 'FAIL|TIMEOUT|TERMINATING|SIG|ABORT|^error') { 'Red' } elseif ($_.Line -match 'SLOW') { 'Yellow' } else { 'Gray' }
                 Write-Host $_.Line -ForegroundColor $color
             }
+        Write-Host "[build] every test's time and output: $(Join-Path $logs 'nextest\default\junit.xml')"
     }
     'run' {
         $log = Join-Path $logs 'build.log'
