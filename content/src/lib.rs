@@ -1374,14 +1374,14 @@ fn sources() -> [ScatterDef; 2] {
             size: Vec3::new(1.4, 1.0, 1.4),
             color: [0.45, 0.47, 0.5],
             density: 0.0016,
-            picture: None,
+            picture: Some("well".to_string()),
             source: Some("well".to_string()),
         },
         ScatterDef {
             size: Vec3::new(1.0, 0.8, 1.0),
             color: [0.55, 0.15, 0.3],
             density: 0.018,
-            picture: None,
+            picture: Some("berry bush".to_string()),
             source: Some("berry bush".to_string()),
         },
     ]

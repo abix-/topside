@@ -402,6 +402,39 @@ def road_sign_vest():
 # sites' `prop`); change both together.
 
 
+def berry_bush():
+    """a berry bush: Quaternius's flowering bush, its flowers the berries,
+    1.0 m across (content/src/lib.rs)."""
+    colours = {"Leaves": ((0.18, 0.32, 0.12), True), "Flowers": ((0.55, 0.15, 0.3), True)}
+    return join(load(MEGAKIT / "Bush_Common_Flowers.gltf", colours), "berry bush", 1.0)
+
+
+def well():
+    """a well: a ring of stones round dark water, two posts and a crossbar,
+    Kenney's bucket hanging from it, 1.4 m across (content/src/lib.rs)."""
+    stone = material("stone", (0.45, 0.47, 0.5))
+    water = material("water", (0.12, 0.18, 0.28))
+    wood = material("wood", (0.4, 0.28, 0.16))
+    parts = [cylinder("water", 0.5, 0.05, sides=12, at=(0, 0, 0.5), mat=water)]
+    for i in range(12):
+        a = i * math.tau / 12
+        parts.append(box(f"stone_{i}", (0.3, 0.16, 0.55), at=(0.58 * math.cos(a), 0.58 * math.sin(a), 0.275), rotation=(0, 0, a + math.pi / 2), mat=stone))
+    for x in (-0.6, 0.6):
+        parts.append(box("post", (0.08, 0.08, 1.3), at=(x, 0, 0.65), mat=wood))
+    parts.append(box("bar", (1.3, 0.07, 0.07), at=(0, 0, 1.25), mat=wood))
+    bucket = load(ROOT / "scripts" / "kenney-survival" / "bucket.glb", {"colormap": (None, False)})
+    for b in bucket:
+        b.location = (0, 0, 0.8)
+    return join(parts + bucket, "well", 1.4)
+
+
+def pellet():
+    """a shotgun pellet in flight (src/combat.rs), drawn 0.18 m across so it
+    can be seen."""
+    bpy.ops.mesh.primitive_ico_sphere_add(subdivisions=2, radius=0.09)
+    return join([_named("pellet", material("brass", (1.0, 0.85, 0.3)))], "pellet")
+
+
 def parachute():
     """a supply drop's parachute lying flat: a canvas disc with its seams."""
     canvas = material("canvas", (0.6, 0.6, 0.62))
@@ -730,6 +763,11 @@ MODELS = {
     # content/src/lib.rs sizes them.
     "fallen log": lambda: kenney("survival", "tree-log", "fallen log", 1.2, rgb=(0.5, 0.42, 0.32), turn=90),
     "broken wall": lambda: kenney("graveyard", "stone-wall-damaged", "broken wall", 2.0, rgb=(0.45, 0.43, 0.4)),
+    # What people eat and drink from where it stands.
+    "berry bush": berry_bush,
+    "well": well,
+    # What flies.
+    "pellet": pellet,
     # Items, named as in content/src/lib.rs.
     "note": note,
     "canned food": lambda: kenney("food", "can", "canned food"),

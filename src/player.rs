@@ -16,11 +16,10 @@ use crate::terrain::WorldRes;
 /// Metres per second on foot: three times the 3D game's 5 (design.md
 /// "What 2D changes").
 pub const WALK_SPEED: f32 = 15.0;
-/// The player's square, in metres.
+/// A person's body across, in metres: what stops them.
 pub const PLAYER_SIZE: f32 = 0.8;
 /// Above the ground.
 const PLAYER_Z: f32 = 1.0;
-const PLAYER_COLOR: Color = Color::srgb(0.9, 0.75, 0.3);
 
 /// The one player. Carries everything an actor needs to be told what
 /// to do, and a body that walls stop.
@@ -54,7 +53,7 @@ pub fn wake_point(world: &WorldRes) -> Vec3 {
 pub fn spawn_player(mut spawn: SpawnActor, registry: Res<ActorRegistryRes>, world: Res<WorldRes>) {
     let def = registry.0.def("player").expect("the player is registered");
     let at = wake_point(&world);
-    let person = spawn_person(&mut spawn, def, at.truncate(), def.faction.as_deref(), PLAYER_COLOR)
+    let person = spawn_person(&mut spawn, def, at.truncate(), def.faction.as_deref())
         .expect("the actor map has room for the player");
     spawn
         .commands

@@ -9,7 +9,6 @@ use bevy::prelude::*;
 use modforge::crafting::StationKind;
 use modforge::hud::{HudState, InteractKind, InteractResult, OpenPanel, interact};
 use modforge::item::{self, ItemDef, ItemKind, ItemStack};
-use modforge::structure::Rgb;
 
 use modforge::memory::Did;
 use modforge::walk::{cell_of, centre};
@@ -125,7 +124,7 @@ const ITEM_Z: f32 = 0.8;
 /// The ONE path from an item stack to a WorldItem in the world. A
 /// small item is a sensor people walk over and E picks up; a
 /// deployable is solid, and a box among them holds a `Container`.
-pub fn spawn_item(commands: &mut Commands, def: &ItemDef, stack: ItemStack, at: Vec2, color: Rgb) -> Entity {
+pub fn spawn_item(commands: &mut Commands, def: &ItemDef, stack: ItemStack, at: Vec2) -> Entity {
     debug_assert_eq!(def.name, stack.item, "the stack must be of this def");
     let deployable = def.kind == ItemKind::Deployable;
     let size = if deployable { DEPLOYABLE_SIZE } else { ITEM_SIZE };
@@ -143,16 +142,14 @@ pub fn spawn_item(commands: &mut Commands, def: &ItemDef, stack: ItemStack, at: 
         Collider::rectangle(size, size),
         Transform::from_translation(at.extend(ITEM_Z)),
     ));
-    // Its picture, rendered to this size by scripts/models.py, or a square
-    // in its colour until it has one.
+    // Its picture, rendered to this size by scripts/models.py; never a box
+    // (design.md: no coloured boxes).
     match &def.picture {
-        Some(name) => entity.insert(crate::picture::Picture(name.clone())),
-        None => entity.insert(Sprite {
-            color: Color::srgb(color[0], color[1], color[2]),
-            custom_size: Some(Vec2::splat(size)),
-            ..default()
-        }),
-    };
+        Some(name) => {
+            entity.insert(crate::picture::Picture(name.clone()));
+        }
+        None => warn!("item {} has no picture", def.name),
+    }
     if !deployable {
         entity.insert(Sensor);
     }

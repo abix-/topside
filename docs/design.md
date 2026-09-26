@@ -1365,6 +1365,8 @@ view.
   pictures need; then the steps are automated so every later model is
   easier. How Factorio does its pictures is in docs/references.md.
 - No shadows (2026-09-26). The operator does not like them.
+- No coloured boxes (operator, 2026-09-26): everything the game draws is a
+  picture.
 - People are built from shared pieces (operator, 2026-09-26: people are
   made a lot and must not all look the same; the body is built from DRY
   pieces, equipment and weapon included). As RimWorld does it: each

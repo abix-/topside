@@ -31,7 +31,6 @@ pub const MAX_ACTORS: usize = 8192;
 
 /// Above the ground and the buildings.
 const NPC_Z: f32 = 0.9;
-const NPC_COLOR: Color = Color::srgb(0.75, 0.25, 0.2);
 
 /// Which way a person faces, in radians: 0 is along +x, a quarter turn
 /// is +y (up the screen).
@@ -162,7 +161,7 @@ pub struct SpawnActor<'w, 's> {
 /// def's. None when the map is full or the faction is not registered.
 pub fn spawn_actor(spawn: &mut SpawnActor, def: &ActorDef, at: Vec2, faction: Option<&str>) -> Option<Entity> {
     let faction = faction.map(String::from).or_else(|| def.faction.clone());
-    let entity = spawn_person(spawn, def, at, faction.as_deref(), NPC_COLOR)?;
+    let entity = spawn_person(spawn, def, at, faction.as_deref())?;
     spawn.commands.entity(entity).insert((
         Npc {
             def: def.name.clone(),
@@ -185,7 +184,6 @@ pub fn spawn_person(
     def: &ActorDef,
     at: Vec2,
     faction: Option<&str>,
-    color: Color,
 ) -> Option<Entity> {
     if let Some(name) = faction
         && spawn.factions.0.def(name).is_none()
@@ -224,13 +222,8 @@ pub fn spawn_person(
             ThisTick::default(),
             RigidBody::Kinematic,
             Collider::circle(PLAYER_SIZE / 2.0),
-            // The marker under their feet (the player's colour or an
-            // NPC's), and the person drawn over it from their pieces.
-            Sprite {
-                color,
-                custom_size: Some(Vec2::splat(PLAYER_SIZE)),
-                ..default()
-            },
+            // Drawn from their pieces (picture::Person), no box.
+            Visibility::default(),
         ))
         .id();
     let Some((id, _row)) = spawn.actors.0.spawn(entity) else {

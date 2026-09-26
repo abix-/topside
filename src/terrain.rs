@@ -244,7 +244,7 @@ pub fn make_chunks(
 }
 
 /// Draw one chunk: its ground as one tilemap, a tile each, and every
-/// thing on it as its picture, or as a square in its colour if it has none.
+/// thing on it as its picture.
 fn draw(commands: &mut Commands, chunk: &GroundChunk, tileset: &Handle<Image>) {
     let first = chunk.first();
     let centre = Vec2::new(first.0 as f32, first.1 as f32) * TILE + Vec2::splat(CHUNK as f32 * TILE / 2.0);
@@ -281,18 +281,13 @@ fn draw(commands: &mut Commands, chunk: &GroundChunk, tileset: &Handle<Image>) {
         // the right way (still under people: a kilometre of y moves this
         // a thousandth).
         let at = Transform::from_translation(centre.extend(THING_Z - centre.y * 1e-6));
+        // Its picture; never a box (design.md: no coloured boxes).
         match &thing.picture {
-            Some(name) => commands.spawn((WorldPiece, crate::picture::Picture(name.clone()), at)),
-            None => commands.spawn((
-                WorldPiece,
-                Sprite {
-                    color: Color::srgb(thing.color[0], thing.color[1], thing.color[2]),
-                    custom_size: Some(r.max - r.min),
-                    ..default()
-                },
-                at,
-            )),
-        };
+            Some(name) => {
+                commands.spawn((WorldPiece, crate::picture::Picture(name.clone()), at));
+            }
+            None => warn!("a thing at {:?} has no picture", thing.tile),
+        }
     }
 }
 

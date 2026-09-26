@@ -498,7 +498,7 @@ pub fn hud_keys(
                         continue;
                     };
                     if let Some(left) = inventory.0.add(made, def.max_stack) {
-                        crate::interact::spawn_item(&mut commands, def, left, at.translation.truncate(), [0.8, 0.8, 0.8]);
+                        crate::interact::spawn_item(&mut commands, def, left, at.translation.truncate());
                     }
                 }
                 _ => {}

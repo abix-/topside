@@ -289,9 +289,7 @@ pub struct Bullet {
     pub range: f32,
 }
 
-const BULLET_SIZE: f32 = 0.18;
 const BULLET_Z: f32 = 1.5;
-const BULLET_COLOR: Color = Color::srgb(1.0, 0.85, 0.3);
 
 /// Every actor with the trigger held and a gun in its hands fires
 /// through modforge's timer: a shot takes one round of the gun's ammo
@@ -360,11 +358,7 @@ pub fn fire(
                     travelled: 0.0,
                     range: gun.reach,
                 },
-                Sprite {
-                    color: BULLET_COLOR,
-                    custom_size: Some(Vec2::splat(BULLET_SIZE)),
-                    ..default()
-                },
+                crate::picture::Picture("pellet".to_string()),
                 Transform::from_translation(muzzle.extend(BULLET_Z)),
             ));
         }
@@ -454,8 +448,6 @@ pub fn fly(
     }
 }
 
-/// The colour of the box a dead person leaves.
-const DEATH_BOX_COLOR: [f32; 3] = [0.35, 0.25, 0.2];
 
 /// One death, for the control plane: when, who, and what killed them.
 #[derive(Clone, Debug)]
@@ -533,7 +525,6 @@ pub fn die(
                     box_def,
                     item::create(box_def, 1, &[], tick.0 as f32, salt),
                     transform.translation.truncate(),
-                    DEATH_BOX_COLOR,
                 );
                 commands.entity(dropped).insert(Container(contents));
             }

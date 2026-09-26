@@ -9,7 +9,7 @@
 use avian2d::prelude::*;
 use bevy::prelude::*;
 use modforge::hud::InteractKind;
-use modforge::structure::{MonumentDef, Rgb, StructureDef, TileKind, TileRun, tile_plan};
+use modforge::structure::{MonumentDef, StructureDef, TileKind, TileRun, tile_plan};
 
 use modforge::crafting::StationKind;
 use modforge::ground::tile_hash;
@@ -34,14 +34,6 @@ const DOOR_Z: f32 = 0.7;
 /// A building's root: the body holding its one collider.
 #[derive(Component)]
 pub struct StructureRoot;
-
-fn sprite(rgb: Rgb, size: Vec2) -> Sprite {
-    Sprite {
-        color: Color::srgb(rgb[0], rgb[1], rgb[2]),
-        custom_size: Some(size),
-        ..default()
-    }
-}
 
 /// Where a building has a roof, in world metres: its floors. Anyone
 /// standing inside one is sheltered from the storm.
@@ -168,14 +160,8 @@ pub fn spawn_bunker(mut commands: Commands, world: Res<WorldRes>, items: Res<Ite
             .def(name)
             .unwrap_or_else(|| panic!("item '{name}' is not registered"))
     };
-    for (name, count, salt, [x, z], color) in STARTING_ITEMS {
-        spawn_item(
-            &mut commands,
-            def(name),
-            create(def(name), count, &[], 0.0, salt),
-            at + Vec2::new(x, z),
-            color,
-        );
+    for (name, count, salt, [x, z], _) in STARTING_ITEMS {
+        spawn_item(&mut commands, def(name), create(def(name), count, &[], 0.0, salt), at + Vec2::new(x, z));
     }
     // The crafting bench, where E opens its recipes.
     let [x, z] = BENCH_AT;
@@ -187,11 +173,8 @@ pub fn spawn_bunker(mut commands: Commands, world: Res<WorldRes>, items: Res<Ite
         def("note"),
         write(def("note"), starting_note(world.seed), 0.0, 13).expect("the note def is a note"),
         at + Vec2::new(x, z),
-        NOTE_COLOR,
     );
 }
-
-const NOTE_COLOR: Rgb = [0.9, 0.88, 0.8];
 
 /// The other bunkers (design.md: every bunker is its own faction), each
 /// the same building as the player's through `spawn_structure`, not of
@@ -212,7 +195,6 @@ pub fn spawn_other_bunkers(mut commands: Commands, world: Res<WorldRes>, items: 
             box_def,
             create(box_def, 1, &[], 0.0, i as u64),
             at + Vec2::new(x, z),
-            LOOT_BOX_COLOR,
         );
         commands.entity(store).insert(Container(contents));
     }
@@ -263,11 +245,13 @@ pub fn spawn_sites(
             for p in &monument.props {
                 let centre = site.position + Vec2::new(p.position.x, p.position.z);
                 let at = Transform::from_translation(centre.extend(SOLID_Z));
-                // Its picture, or a box in its colour until it has one.
+                // Its picture; never a box (design.md: no coloured boxes).
                 match &p.picture {
-                    Some(name) => commands.spawn((WorldPiece, crate::picture::Picture(name.clone()), at)),
-                    None => commands.spawn((WorldPiece, sprite(p.color, Vec2::new(p.size.x, p.size.z)), at)),
-                };
+                    Some(name) => {
+                        commands.spawn((WorldPiece, crate::picture::Picture(name.clone()), at));
+                    }
+                    None => warn!("a prop of {} has no picture", monument.name),
+                }
             }
         }
         // A box at every loot spot, filled by the spot's danger from the
@@ -282,12 +266,10 @@ pub fn spawn_sites(
                     }
                 }
                 let at = site.position + Vec2::new(spot.position.x, spot.position.z);
-                let found = spawn_item(&mut commands, box_def, item::create(box_def, 1, &[], 0.0, k as u64), at, LOOT_BOX_COLOR);
+                let found = spawn_item(&mut commands, box_def, item::create(box_def, 1, &[], 0.0, k as u64), at);
                 commands.entity(found).insert((Container(contents), WorldPiece));
             }
         }
         monuments.0.push((site.position, monument));
     }
 }
-
-const LOOT_BOX_COLOR: Rgb = [0.5, 0.4, 0.22];
