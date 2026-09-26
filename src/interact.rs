@@ -66,7 +66,9 @@ pub fn spawn_station(commands: &mut Commands, kind: StationKind, at: Vec2) -> En
         .id()
 }
 
-/// A small item's square and a deployable's, in metres.
+/// A small item's square and a deployable's, in metres; scripts/models.py
+/// renders item pictures to these sizes (ITEM, DEPLOYABLE), change both
+/// together.
 const ITEM_SIZE: f32 = 0.35;
 const DEPLOYABLE_SIZE: f32 = 0.7;
 /// Above floors and furniture, under people.
@@ -91,13 +93,18 @@ pub fn spawn_item(commands: &mut Commands, def: &ItemDef, stack: ItemStack, at: 
         WorldItem { stack },
         RigidBody::Static,
         Collider::rectangle(size, size),
-        Sprite {
+        Transform::from_translation(at.extend(ITEM_Z)),
+    ));
+    // Its picture, rendered to this size by scripts/models.py, or a square
+    // in its colour until it has one.
+    match &def.picture {
+        Some(name) => entity.insert(crate::picture::Picture(name.clone())),
+        None => entity.insert(Sprite {
             color: Color::srgb(color[0], color[1], color[2]),
             custom_size: Some(Vec2::splat(size)),
             ..default()
-        },
-        Transform::from_translation(at.extend(ITEM_Z)),
-    ));
+        }),
+    };
     if !deployable {
         entity.insert(Sensor);
     }

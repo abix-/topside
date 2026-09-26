@@ -26,8 +26,8 @@ ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / "assets" / "pictures"
 
 # Factorio's high resolution: 64 pixels to a tile, and a tile is a metre.
-# The game draws the pictures at this scale (src/terrain.rs
-# PICTURE_PIXELS_PER_METRE); change both together.
+# The game draws the pictures at this scale (src/picture.rs
+# PIXELS_PER_METRE); change both together.
 PIXELS_PER_METRE = 64
 # The camera: 45 degrees down (FFF 269), looking north (+Y).
 CAMERA_DOWN = math.radians(45)
@@ -70,9 +70,11 @@ def linear(c):
 
 
 def material(name, rgb, cutout=None):
-    """the cel shade: diffuse light cut into BANDS, times the colour. With a
-    `cutout` picture, its see-through parts stay see-through (leaf cards);
-    none of its colour is used."""
+    """the cel shade: diffuse light cut into BANDS, times the colour. `rgb`
+    is the game's sRGB numbers, or a picture the model takes each face's
+    flat colour from (a Kenney model's palette). With a `cutout` picture,
+    its see-through parts stay see-through (leaf cards); none of its
+    colour is used."""
     mat = bpy.data.materials.new(name)
     mat.use_nodes = True
     t = mat.node_tree
@@ -92,7 +94,13 @@ def material(name, rgb, cutout=None):
     mix.data_type = "RGBA"
     mix.blend_type = "MULTIPLY"
     mix.inputs[0].default_value = 1.0  # factor
-    mix.inputs[7].default_value = (*(linear(c) for c in rgb), 1.0)  # B colour
+    if isinstance(rgb, bpy.types.Image):
+        palette = t.nodes.new("ShaderNodeTexImage")
+        palette.image = rgb
+        palette.interpolation = "Closest"  # swatches stay flat
+        t.links.new(palette.outputs["Color"], mix.inputs[7])  # B colour
+    else:
+        mix.inputs[7].default_value = (*(linear(c) for c in rgb), 1.0)  # B colour
     emit = t.nodes.new("ShaderNodeEmission")
     t.links.new(diffuse.outputs[0], to_rgb.inputs[0])
     t.links.new(to_rgb.outputs[0], ramp.inputs[0])
@@ -144,20 +152,14 @@ def box(name, size, at=(0, 0, 0), rotation=(0, 0, 0), mat=None):
     return obj
 
 
-def load(file, colours, across=None):
+def load(file, colours):
     """import a model file (glTF) and put the cel shade on it. `colours`
-    maps the start of each of its material names to (rgb, cut): with cut,
-    the material keeps its picture's see-through parts (leaf cards) and
-    nothing else of the picture. With `across`, the model is scaled evenly
-    so its widest side on the ground is that many metres (the game's size
-    for it in content/src/lib.rs)."""
+    maps the start of each of its material names to (rgb, cut): rgb None
+    keeps the model's own flat colours from its picture (a palette); with
+    cut, the material keeps its picture's see-through parts (leaf cards)
+    and nothing else of the picture."""
     bpy.ops.import_scene.gltf(filepath=str(file))
     meshes = [o for o in bpy.context.selected_objects if o.type == "MESH"]
-    if across is not None:
-        widest = max(max(o.dimensions.x, o.dimensions.y) for o in meshes)
-        for o in meshes:
-            o.scale *= across / widest
-        bpy.context.view_layer.update()
     made = {}
     for obj in meshes:
         for slot in obj.material_slots:
@@ -168,15 +170,17 @@ def load(file, colours, across=None):
             if old.name not in made:
                 rgb, cut = colours[key]
                 image = next((n.image for n in old.node_tree.nodes if n.type == "TEX_IMAGE" and n.image), None)
-                if cut and image is None:
-                    sys.exit(f"ERROR: {file.name}: material {old.name} has no picture to cut from")
-                made[old.name] = material(key, rgb, cutout=image if cut else None)
+                if (cut or rgb is None) and image is None:
+                    sys.exit(f"ERROR: {file.name}: material {old.name} has no picture to take from")
+                made[old.name] = material(key, image if rgb is None else rgb, cutout=image if cut else None)
             slot.material = made[old.name]
     return meshes
 
 
-def join(parts, name):
-    """join parts into one flat-shaded object named `name`, resting on the ground."""
+def join(parts, name, size=None):
+    """join parts into one flat-shaded object named `name`, resting on the
+    ground. With `size`, it is scaled evenly so its largest side is that
+    many metres (the game's size for it)."""
     bpy.ops.object.select_all(action="DESELECT")
     for p in parts:
         p.select_set(True)
@@ -186,6 +190,9 @@ def join(parts, name):
     obj = bpy.context.active_object
     obj.name = name
     bpy.ops.object.shade_flat()
+    if size is not None:
+        obj.scale *= size / max(obj.dimensions)
+        bpy.context.view_layer.update()
     obj.location.z -= min((obj.matrix_world @ v.co).z for v in obj.data.vertices)
     return obj
 
@@ -248,11 +255,28 @@ def rock():
     """the forest's rock: Quaternius's Rock_Medium_1, 0.8 m across (the
     forest rock in content/src/lib.rs), in its grey."""
     colours = {"Rocks": ((0.4, 0.4, 0.35), False)}
-    return join(load(MEGAKIT / "Rock_Medium_1.gltf", colours, across=0.8), "rock")
+    return join(load(MEGAKIT / "Rock_Medium_1.gltf", colours), "rock", size=0.8)
+
+
+# -- items ---------------------------------------------------------------------
+#
+# Every item lies on the ground at the game's size for it (src/interact.rs
+# ITEM_SIZE and DEPLOYABLE_SIZE; change both together), its picture named
+# after it (content/src/lib.rs). Items come from Kenney's CC0 kits in their
+# own flat colours, or are built here from shapes in the colours content
+# gives them.
+ITEM = 0.35
+DEPLOYABLE = 0.7
+
+
+def kenney(kit, model, name, size=ITEM):
+    """a model from one of Kenney's kits (scripts/kenney-<kit>, CC0), in
+    its own flat colours."""
+    return join(load(ROOT / "scripts" / f"kenney-{kit}" / f"{model}.glb", {"colormap": (None, False)}), name, size)
 
 
 def pipe():
-    """the pipe: a metre of rusty steel with a taped grip at one end, lying on the ground."""
+    """the pipe: a metre of rusty steel with a taped grip at one end."""
     length, radius = 1.0, 0.025
     steel = material("steel", (0.45, 0.42, 0.40))
     tape = material("tape", (0.18, 0.16, 0.14))
@@ -265,10 +289,91 @@ def pipe():
         # A dent: a shallow box pressed into the shaft a third of the way up.
         box("dent", (0.06, radius * 1.1, radius * 0.5), at=(0.1, 0, radius * 0.9), mat=steel),
     ]
-    return join(parts, "pipe")
+    return join(parts, "pipe", ITEM)
 
 
-MODELS = {"tree": tree, "rock": rock, "pipe": pipe}
+def pipe_shotgun():
+    """the pipe shotgun: a steel pipe barrel slid into a fatter sleeve, on a
+    rough wooden stock."""
+    steel = material("steel", (0.3, 0.3, 0.3))
+    wood = material("wood", (0.4, 0.28, 0.16))
+    parts = [
+        cylinder("barrel", 0.022, 0.6, along="X", at=(0.15, 0, 0), mat=steel),
+        cylinder("sleeve", 0.032, 0.16, along="X", at=(-0.2, 0, 0), mat=steel),
+        box("stock", (0.3, 0.045, 0.09), at=(-0.42, 0, -0.02), mat=wood),
+        box("grip", (0.05, 0.04, 0.11), at=(-0.25, 0, -0.07), mat=wood),
+    ]
+    return join(parts, "pipe shotgun", ITEM)
+
+
+def shotgun_shell():
+    """three shotgun shells side by side: red hulls on brass bases."""
+    hull = material("hull", (0.8, 0.3, 0.2))
+    brass = material("brass", (0.75, 0.6, 0.25))
+    parts = []
+    for i in range(3):
+        y = (i - 1) * 0.03
+        parts.append(cylinder(f"hull_{i}", 0.012, 0.055, along="X", at=(0, y, 0), mat=hull))
+        parts.append(cylinder(f"base_{i}", 0.0125, 0.014, along="X", at=(-0.034, y, 0), mat=brass))
+    return join(parts, "shotgun shell", ITEM)
+
+
+def note():
+    """a note: a sheet of paper with lines of writing."""
+    paper = material("paper", (0.85, 0.82, 0.7))
+    ink = material("ink", (0.2, 0.2, 0.25))
+    parts = [box("sheet", (0.2, 0.26, 0.004), mat=paper)]
+    for i in range(5):
+        parts.append(box(f"line_{i}", (0.14 - (i % 2) * 0.03, 0.008, 0.001), at=(0, 0.08 - i * 0.04, 0.0025), mat=ink))
+    return join(parts, "note", ITEM)
+
+
+def bandage():
+    """a bandage: a white roll with its loose end lying out."""
+    cloth = material("gauze", (0.9, 0.88, 0.84))
+    parts = [
+        cylinder("roll", 0.035, 0.07, along="Y", mat=cloth),
+        box("end", (0.12, 0.06, 0.004), at=(0.09, 0, -0.033), mat=cloth),
+    ]
+    return join(parts, "bandage", ITEM)
+
+
+def road_sign_vest():
+    """the road sign vest: a green road sign with a white border, worn on
+    two straps."""
+    sign = material("sign", (0.2, 0.5, 0.2))
+    white = material("border", (0.9, 0.9, 0.88))
+    strap = material("strap", (0.18, 0.16, 0.14))
+    w, h = 0.42, 0.5
+    parts = [
+        box("plate", (w, h, 0.03), mat=sign),
+        box("top", (w, 0.02, 0.002), at=(0, h / 2 - 0.02, 0.016), mat=white),
+        box("bottom", (w, 0.02, 0.002), at=(0, -h / 2 + 0.02, 0.016), mat=white),
+        box("left", (0.02, h, 0.002), at=(-w / 2 + 0.02, 0, 0.016), mat=white),
+        box("right", (0.02, h, 0.002), at=(w / 2 - 0.02, 0, 0.016), mat=white),
+        box("strap_l", (0.07, 0.16, 0.02), at=(-0.12, h / 2 + 0.06, 0), mat=strap),
+        box("strap_r", (0.07, 0.16, 0.02), at=(0.12, h / 2 + 0.06, 0), mat=strap),
+    ]
+    return join(parts, "road sign vest", ITEM)
+
+
+MODELS = {
+    "tree": tree,
+    "rock": rock,
+    # Items, named as in content/src/lib.rs.
+    "note": note,
+    "canned food": lambda: kenney("food", "can", "canned food"),
+    "water bottle": lambda: kenney("survival", "bottle", "water bottle"),
+    "bandage": bandage,
+    "storage box": lambda: kenney("survival", "box", "storage box", DEPLOYABLE),
+    "scrap": lambda: kenney("survival", "metal-panel-screws-half", "scrap"),
+    "cloth": lambda: kenney("survival", "bedroll-packed", "cloth"),
+    "pipe": pipe,
+    "hatchet": lambda: kenney("survival", "tool-axe", "hatchet"),
+    "pipe shotgun": pipe_shotgun,
+    "shotgun shell": shotgun_shell,
+    "road sign vest": road_sign_vest,
+}
 
 
 def main():

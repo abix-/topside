@@ -10,6 +10,7 @@ pub mod hud;
 pub mod input;
 pub mod interact;
 pub mod nav;
+pub mod picture;
 pub mod player;
 pub mod profile;
 pub mod sight;
@@ -192,6 +193,7 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind) -> App {
         app.add_plugins(bevy::diagnostic::FrameTimeDiagnosticsPlugin::default());
         control_plane::start();
         app.add_systems(Startup, terrain::setup_ground_tiles.before(terrain::make_chunks));
+        app.add_systems(Update, picture::draw_pictures);
         app.add_systems(
             Startup,
             (

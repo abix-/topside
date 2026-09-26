@@ -800,7 +800,7 @@ pub fn register_items(reg: &mut ItemRegistry) {
             storage: None,
             armor: None,
             good_for: Default::default(),
-            model: None,
+            picture: None,
         },
         ItemDef {
             name: "canned food".to_string(),
@@ -818,7 +818,7 @@ pub fn register_items(reg: &mut ItemRegistry) {
             storage: None,
             armor: None,
             good_for: Default::default(),
-            model: None,
+            picture: None,
         },
         ItemDef {
             name: "water bottle".to_string(),
@@ -835,7 +835,7 @@ pub fn register_items(reg: &mut ItemRegistry) {
             storage: None,
             armor: None,
             good_for: Default::default(),
-            model: None,
+            picture: None,
         },
         // Made at the bench from cloth; heals far faster than food, a
         // reason to craft before going out (todo 10ca). Tuning.
@@ -854,7 +854,7 @@ pub fn register_items(reg: &mut ItemRegistry) {
             storage: None,
             armor: None,
             good_for: Default::default(),
-            model: None,
+            picture: None,
         },
         ItemDef {
             name: "storage box".to_string(),
@@ -869,7 +869,7 @@ pub fn register_items(reg: &mut ItemRegistry) {
             // A box feeds nobody; the food seen inside it does
             // (modforge `food_worth`, life.md "What things are good for").
             good_for: Default::default(),
-            model: None,
+            picture: None,
         },
         ItemDef {
             name: "scrap".to_string(),
@@ -882,7 +882,7 @@ pub fn register_items(reg: &mut ItemRegistry) {
             storage: None,
             armor: None,
             good_for: Default::default(),
-            model: None,
+            picture: None,
         },
         ItemDef {
             name: "cloth".to_string(),
@@ -895,7 +895,7 @@ pub fn register_items(reg: &mut ItemRegistry) {
             storage: None,
             armor: None,
             good_for: Default::default(),
-            model: None,
+            picture: None,
         },
         ItemDef {
             name: "pipe".to_string(),
@@ -915,8 +915,7 @@ pub fn register_items(reg: &mut ItemRegistry) {
             storage: None,
             armor: None,
             good_for: Default::default(),
-            // scripts/models/pipe.py builds it.
-            model: Some("pipe.glb".to_string()),
+            picture: None,
         },
         ItemDef {
             name: "hatchet".to_string(),
@@ -936,7 +935,7 @@ pub fn register_items(reg: &mut ItemRegistry) {
             storage: None,
             armor: None,
             good_for: Default::default(),
-            model: None,
+            picture: None,
         },
         // Rust's pipe shotgun: one shell, six pellets, wide spread,
         // instant out to 40 m (the hybrid's instant part).
@@ -958,7 +957,7 @@ pub fn register_items(reg: &mut ItemRegistry) {
             storage: None,
             armor: None,
             good_for: Default::default(),
-            model: None,
+            picture: None,
         },
         ItemDef {
             name: "shotgun shell".to_string(),
@@ -971,7 +970,7 @@ pub fn register_items(reg: &mut ItemRegistry) {
             storage: None,
             armor: None,
             good_for: Default::default(),
-            model: None,
+            picture: None,
         },
         // Worn in the chest slot; guards the chest only.
         ItemDef {
@@ -988,10 +987,13 @@ pub fn register_items(reg: &mut ItemRegistry) {
                 amount: 40.0,
             }),
             good_for: Default::default(),
-            model: None,
+            picture: None,
         },
     ];
-    for item in items {
+    for mut item in items {
+        // Every item is drawn with the picture named after it, rendered
+        // by scripts/models.py.
+        item.picture = Some(item.name.clone());
         reg.register(item).expect("item defs must not collide");
     }
 }
