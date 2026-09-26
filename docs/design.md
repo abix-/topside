@@ -1368,14 +1368,10 @@ built from pieces, items in layers).
 - No shadows (2026-09-26). The operator does not like them.
 - No coloured boxes (operator, 2026-09-26): everything the game draws is a
   model.
-- Equipment mirrors Rust's equipment slots (operator, 2026-09-26; Facepunch's
-  Rust wiki, "Clothing Slots"): every wearable item occupies one or more
-  equipment slots. Head, Chest and Legs each have two, a clothing layer
-  worn underneath and an armor layer on top; Hands and Feet take one item
-  each. An item can take both of an area's slots (a metal facemask),
-  several areas (bone armor), or every slot (a full-body suit, nothing
-  else worn with it). Putting an item on takes off whatever holds a slot
-  it needs. Every item worn adds its protection.
+- Equipment is one row of 7 plain slots (operator, 2026-09-26), as Rust's
+  inventory screen shows it under the character: anything wearable goes in
+  any free slot, with no layers and no slots by body area. Every item worn
+  adds its protection.
 - No circle of dirt round a bunker (operator, 2026-09-26): its clearing keeps
   its own ground.
 - People are built from shared pieces (operator, 2026-09-26: people are
