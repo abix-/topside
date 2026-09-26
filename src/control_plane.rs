@@ -49,8 +49,7 @@ pub struct PersonView<'w, 's> {
         (
             (&'static Actor, &'static Npc, &'static Transform, &'static Health, &'static Survival),
             (
-                &'static crate::actor::ActorActivity,
-                &'static crate::actor::ActorCombat,
+                &'static crate::actor::ActorRecord,
                 &'static crate::actor::Memory,
                 &'static crate::actor::Inventory,
                 &'static crate::actor::Hotbar,
@@ -78,14 +77,19 @@ pub struct PersonView<'w, 's> {
 
 /// Answer the `npc` op's question, if one is waiting: everything the game
 /// knows about that person, and their chunk as the walk grid sees it.
-pub fn answer_npc(view: PersonView, mut walk: ResMut<crate::nav::Walk>, tick: Res<crate::SimTick>) {
+pub fn answer_npc(
+    view: PersonView,
+    mut walk: ResMut<crate::nav::Walk>,
+    tick: Res<crate::SimTick>,
+    tree: Res<crate::content::brain::BrainTreeRes>,
+) {
     let Some(id) = NPC_ASK.lock().ok().and_then(|mut ask| ask.take()) else {
         return;
     };
     let found = view.people.iter().find(|((actor, ..), _, _)| actor.0.0 == id);
     let answer = match found {
         None => json!({"id": id, "error": "no NPC with that id"}),
-        Some(((_, npc, at, health, needs), (doing, fight, memory, inventory, hotbar), (way, home, store, dead, spawned))) => {
+        Some(((_, npc, at, health, needs), (record, memory, inventory, hotbar), (way, home, store, dead, spawned))) => {
             let here = at.translation.truncate();
             // What blocks the tile they stand on, if anything.
             let standing_on: Vec<Json> = walk
@@ -135,8 +139,8 @@ pub fn answer_npc(view: PersonView, mut walk: ResMut<crate::nav::Walk>, tick: Re
                 "standing_on": standing_on,
                 "health": health.0.current,
                 "needs": {"hunger": needs.0.hunger, "thirst": needs.0.thirst, "rest": needs.0.rest, "safety": needs.0.safety},
-                "doing": format!("{:?}", doing.0),
-                "fight": format!("{:?}", fight.0),
+                "doing": doing_name(&tree, &record.0),
+                "about": format!("{:?}", record.0.target),
                 "home": home.map(|h| [h.0.x, h.0.y]),
                 "store": store.map(|s| s.0.to_bits()),
                 "carrying": stacks(&inventory.0),
@@ -336,6 +340,12 @@ pub fn publish_world(
     }
 }
 
+/// What the brain's tree has a person doing: the active state's name, or
+/// "nothing" between one thing and the next.
+fn doing_name(tree: &crate::content::brain::BrainTreeRes, record: &modforge::statetree::Record) -> &'static str {
+    record.state.map_or("nothing", |s| tree.0.name(s))
+}
+
 pub fn publish(
     tick: Res<crate::SimTick>,
     real: Res<Time<Real>>,
@@ -345,11 +355,13 @@ pub fn publish(
     diagnostics: Option<Res<DiagnosticsStore>>,
     items: Res<crate::content::ItemRegistryRes>,
     layers: Res<crate::content::LayerRegistryRes>,
+    tree: Res<crate::content::brain::BrainTreeRes>,
     players: Query<(&Transform, &Health, &Survival), With<Player>>,
     npcs: Query<(
         (&Actor, &Npc, &Transform, &Health, &Survival, &Personality, &ThisTick),
-        (&crate::actor::Memory, &crate::actor::ActorActivity, Has<crate::actor::Dead>, &crate::actor::Hotbar),
+        (&crate::actor::Memory, &crate::actor::ActorRecord, Has<crate::actor::Dead>, &crate::actor::Hotbar, Option<&Children>, &crate::actor::Facing),
     )>,
+    drawn: Query<(&crate::picture::Layer, &Sprite)>,
 ) {
     TICK.store(tick.0, Ordering::Relaxed);
     PEOPLE.store(actors.0.live_count(), Ordering::Relaxed);
@@ -393,14 +405,22 @@ pub fn publish(
     if tick.0 % 60 == 0 {
         let list: Vec<Json> = npcs
             .iter()
-            .map(|((actor, npc, at, health, needs, personality, this_tick), (memory, doing, dead, hotbar))| {
+            .map(|((actor, npc, at, health, needs, personality, this_tick), (memory, record, dead, hotbar, children, facing))| {
+                // The pictures their layers show now, and whether each is
+                // drawn flipped (only with a window; none headless).
+                let pictures: Vec<Json> = children
+                    .into_iter()
+                    .flat_map(|c| c.iter())
+                    .filter_map(|c| drawn.get(c).ok())
+                    .map(|(layer, sprite)| json!({"picture": layer.shows, "flipped": sprite.flip_x}))
+                    .collect();
                 // What is in their hands, its layers, and the damage its
                 // hits land, worked out by the one place a hit reads it.
                 let weapon = hotbar.0.held_stack().map(|stack| {
                     let damage = items
                         .0
                         .def(&stack.item)
-                        .and_then(|def| modforge::item::combat_of(def, stack, &layers.0))
+                        .and_then(|def| modforge::item::numbers_of(def, stack, &layers.0).combat)
                         .map(|c| c.damage);
                     json!({"item": stack.item, "layers": stack.layers, "damage": damage})
                 });
@@ -427,8 +447,10 @@ pub fn publish(
                     "hunger": needs.0.hunger,
                     "thirst": needs.0.thirst,
                     "rest": needs.0.rest,
-                    "doing": format!("{:?}", doing.0),
+                    "doing": doing_name(&tree, &record.0),
                     "weapon": weapon,
+                    "facing": crate::picture::facing_index(facing.0),
+                    "pictures": pictures,
                     "did": did,
                     "ate_what": ate_what,
                     // Every death in their memory: when, of what, by whom.

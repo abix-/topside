@@ -95,6 +95,7 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind) -> App {
     app.init_resource::<content::DamageRegistryRes>();
     app.init_resource::<content::ActorRegistryRes>();
     app.init_resource::<content::FactionRegistryRes>();
+    app.init_resource::<content::brain::BrainTreeRes>();
     app.init_resource::<actor::ActorMapRes>();
     app.init_resource::<input::BindingsRes>();
     app.init_resource::<hud::HoveredSlot>();

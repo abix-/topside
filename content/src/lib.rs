@@ -2,6 +2,8 @@
 //! topside. modforge owns the shapes; this file says what
 //! concretely exists in this game.
 
+pub mod brain;
+
 use bevy::math::{Vec2, Vec3};
 use bevy::prelude::Resource;
 use modforge::worldgen::{BiomeRule, Generator, WorldDef};

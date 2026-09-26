@@ -8,7 +8,7 @@
 
 use bevy::prelude::*;
 use modforge::actor::ActorId;
-use modforge::brain::{Activity, Decision, Do, NEED_LINE, Perception, REACH, choose, reaction_ticks};
+use modforge::brain::{Do, NEED_LINE, Perception, Think, reaction_ticks, situation};
 use modforge::learn::alive_for;
 use modforge::hud::{Holder, SlotRef};
 use modforge::item::ItemRegistry;
@@ -18,7 +18,7 @@ use modforge::survival::Need;
 
 use crate::SimTick;
 use crate::actor::{
-    Actor, ActorActivity, ActorCombat, ActorCondition, Dead, Facing, Home, Hotbar, Inventory, Memory, NextThink,
+    Actor, ActorCondition, ActorRecord, Dead, Facing, Home, Hotbar, Inventory, Memory, NextThink,
     Npc, PLACE_KEY, Personality, Store, Survival, held_in,
 };
 use crate::combat::Health;
@@ -65,8 +65,7 @@ pub struct Thinkers<'w, 's> {
             &'static Personality,
             Option<&'static Home>,
             &'static mut Memory,
-            &'static mut ActorActivity,
-            &'static mut ActorCombat,
+            &'static mut ActorRecord,
             &'static mut ActorCondition,
             (
                 &'static mut Actions,
@@ -104,6 +103,7 @@ pub fn think(
     factions: Res<FactionRegistryRes>,
     items: Res<ItemRegistryRes>,
     monuments: Res<MonumentRegistryRes>,
+    tree: Res<crate::content::brain::BrainTreeRes>,
     day: Res<crate::survival::Day>,
     mut walk: ResMut<crate::nav::Walk>,
     sight: Sight,
@@ -177,8 +177,7 @@ pub fn think(
         personality,
         home,
         mut memory,
-        mut activity,
-        mut combat,
+        mut record,
         mut condition,
         (mut actions, inventory, hotbar, open, mut next_think, dead, store),
     ) in &mut thinkers.npcs
@@ -217,16 +216,6 @@ pub fn think(
             .map(|(_, id, at, _)| (*id, ground(*at)));
         let home_at = home.map(|h| ground(h.0));
         let at_home = home.is_some_and(|h| h.0.distance(here) <= HOME_REACH);
-        let target = match &activity.0 {
-            Activity::Going { to, .. }
-            | Activity::Looking { to, .. }
-            | Activity::Wander { to }
-            | Activity::Fetching { to, .. }
-            | Activity::Hauling { to, .. } => Some(*to),
-            Activity::GoHome => home_at,
-            _ => None,
-        };
-        let arrived = target.is_some_and(|t| Vec2::new(t.x, t.z).distance(here) <= REACH);
         condition.0.threat_in_sight = hostile.is_some();
         condition.0.at_home = at_home;
         if let Some((who, at)) = hostile {
@@ -311,7 +300,6 @@ pub fn think(
             at_home,
             asleep: condition.0.asleep,
             hostile,
-            arrived,
             storm_coming,
             carries_food: carried.is_some(),
             carries_drink,
@@ -325,27 +313,25 @@ pub fn think(
             standable: &standable,
         };
 
-        // Decide: seeded by the tick and the person, so a replay
-        // decides the same.
+        // Decide through the one tree: seeded by the tick and the person,
+        // so a replay decides the same. Each learned choice made goes to
+        // what they learn from.
         let mut roll = Roll::new(tick.0 ^ actor.0.0.wrapping_mul(0x9E37_79B9_7F4A_7C15));
-        let (
-            Decision {
-                activity: next_activity,
-                combat: next_combat,
-                actions: decided,
-                do_now,
-            },
-            situation,
-            choice,
-        ) = choose(&perception, &activity.0, &combat.0, &mut roll);
-        memory.0.learned.chose(situation, choice);
+        let situation = situation(&perception);
+        let mut thought = Think::new(&perception, &mut roll);
+        let chose = tree.0.think(&mut thought, &mut record.0);
+        let Think {
+            actions: decided,
+            do_now,
+            ..
+        } = thought;
+        for choice in chose {
+            memory.0.learned.chose(situation, choice);
+        }
 
-        // Act.
-        activity.0 = next_activity;
-        combat.0 = next_combat;
-        // Their next decision comes at their reaction time.
-        next_think.0 = tick.0
-            + reaction_ticks(condition.0.asleep, &combat.0, needs.0.rest, &personality.0, 60.0);
+        // Act. Their next decision comes at their reaction time.
+        let fighting = crate::content::brain::fighting(&tree.0, &record.0);
+        next_think.0 = tick.0 + reaction_ticks(condition.0.asleep, fighting, needs.0.rest, &personality.0, 60.0);
         for action in decided {
             actions.0.push(tick.0, action);
         }

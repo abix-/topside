@@ -106,7 +106,7 @@ pub fn dress_people(
 #[derive(Component)]
 pub struct Layer {
     name: String,
-    shows: String,
+    pub shows: String,
 }
 
 /// Walking frames rendered per facing (scripts/models.py WALK_FRAMES).
@@ -131,6 +131,17 @@ pub struct Stride {
 pub fn facing_index(angle: f32) -> usize {
     let step = std::f32::consts::TAU / FACINGS as f32;
     ((angle / step).round() as i64).rem_euclid(FACINGS as i64) as usize
+}
+
+/// The facing whose picture shows facing `k`, and whether it is drawn
+/// flipped: the left side (3, 4, 5) is the right side (1, 0, 7) mirrored,
+/// as RimWorld draws west as east flipped (scripts/models.py
+/// RENDERED_FACINGS; change both together).
+pub fn rendered_facing(k: usize) -> (usize, bool) {
+    match k {
+        3 | 4 | 5 => ((FACINGS + 4 - k) % FACINGS, true),
+        _ => (k, false),
+    }
 }
 
 /// A layer's picture: standing, or one walking frame, for a facing.
@@ -228,12 +239,13 @@ pub fn turn_people(
             stride.still += time.delta_secs();
         }
         let walk = (stride.still < STILL).then(|| (stride.walked / STRIDE * WALK_FRAMES as f32) as usize % WALK_FRAMES);
-        let k = facing_index(facing.0);
+        let (k, flip) = rendered_facing(facing_index(facing.0));
         for child in children.iter() {
             let Ok((mut layer, mut sprite, mut at)) = layers.get_mut(child) else {
                 continue;
             };
             at.rotation = transform.rotation.inverse();
+            sprite.flip_x = flip;
             let shows = layer_picture(&layer.name, k, walk);
             if layer.shows != shows {
                 sprite.image = assets.load(&shows);

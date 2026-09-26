@@ -14,7 +14,7 @@ use modforge::item::{self, ItemRegistry};
 use modforge::memory::Did;
 
 use modforge::actor::ActorId;
-use modforge::item::combat_of;
+use modforge::item::numbers_of;
 
 use crate::actor::{Actor, ActorMapRes, Dead, Facing, Home, Hotbar, Inventory, Memory, Personality};
 use crate::content::{DamageRegistryRes, ItemRegistryRes, LayerRegistryRes};
@@ -55,13 +55,14 @@ pub fn hit_actor(
     own: &Protection,
     worn: &Equipment,
     items: &ItemRegistry,
+    layers: &modforge::item::LayerRegistry,
     health: &mut Health,
     memory: Option<&mut Memory>,
     by: Option<ActorId>,
     now: u64,
 ) -> (HitResult, bool) {
     let alive = health.0.current > 0.0;
-    let mut protection = own.0.worn(&worn.0, |name| items.def(name).and_then(|d| d.armor));
+    let mut protection = own.0.worn(&worn.0, items, layers);
     let result = resolve_hit(hit, &mut protection, &mut health.0);
     let killed = alive && health.0.current <= 0.0;
     if let Some(memory) = memory {
@@ -168,7 +169,7 @@ pub fn melee(
         let Some(weapon) = hotbar
             .0
             .held_stack()
-            .and_then(|s| items.0.def(&s.item).and_then(|d| combat_of(d, s, &layers.0)))
+            .and_then(|s| items.0.def(&s.item).and_then(|d| numbers_of(d, s, &layers.0).combat))
         else {
             continue;
         };
@@ -240,6 +241,7 @@ pub fn melee(
                 own,
                 target_worn,
                 &items.0,
+                &layers.0,
                 &mut target_health,
                 memory.as_deref_mut(),
                 Some(attacker_id),
@@ -325,7 +327,7 @@ pub fn fire(
         let Some(gun) = hotbar
             .0
             .held_stack()
-            .and_then(|s| items.0.def(&s.item).and_then(|d| combat_of(d, s, &layers.0)))
+            .and_then(|s| items.0.def(&s.item).and_then(|d| numbers_of(d, s, &layers.0).combat))
         else {
             continue;
         };
@@ -376,6 +378,7 @@ pub fn fly(
     mut commands: Commands,
     time: Res<Time<Fixed>>,
     items: Res<ItemRegistryRes>,
+    layers: Res<LayerRegistryRes>,
     damage: Res<DamageRegistryRes>,
     spatial: SpatialQuery,
     sensors: Query<(), With<Sensor>>,
@@ -440,7 +443,7 @@ pub fn fly(
                 location_scale: pellets as f32,
             };
             let (result, killed) =
-                hit_actor(&hit, own, worn, &items.0, &mut health, memory.as_deref_mut(), Some(by), tick.0);
+                hit_actor(&hit, own, worn, &items.0, &layers.0, &mut health, memory.as_deref_mut(), Some(by), tick.0);
             struck(memory, by, from, result.damage_dealt, tick.0);
             let whom = target_id.map(|a| a.0);
             if let (Some(whom), Ok((.., Some(mut memory), _))) = (whom, targets.get_mut(shooter)) {

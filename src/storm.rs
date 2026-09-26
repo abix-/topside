@@ -14,7 +14,7 @@ use modforge::storm::StormPhase;
 use crate::actor::{Actor, ActorMapRes, Dead, Home, Memory, Npc};
 use crate::combat::leave;
 use crate::combat::{Equipment, Health, Protection, hit_actor};
-use crate::content::{DamageRegistryRes, ItemRegistryRes};
+use crate::content::{DamageRegistryRes, ItemRegistryRes, LayerRegistryRes};
 use crate::survival::Day;
 use crate::interact::WorldItem;
 use crate::structure::{Shelter, sheltered};
@@ -44,6 +44,7 @@ pub fn storm(
     tick: Res<SimTick>,
     day: Res<Day>,
     items: Res<ItemRegistryRes>,
+    layers: Res<LayerRegistryRes>,
     damage: Res<DamageRegistryRes>,
     mut state: ResMut<StormRes>,
     shelters: Query<&Shelter>,
@@ -63,7 +64,7 @@ pub fn storm(
                 distance: 0.0,
                 location_scale: 1.0,
             };
-            hit_actor(&hit, own, worn, &items.0, &mut health, memory.as_deref_mut(), None, tick.0);
+            hit_actor(&hit, own, worn, &items.0, &layers.0, &mut health, memory.as_deref_mut(), None, tick.0);
         }
     }
     let passed = day.storm().passed(Day::secs(&tick));

@@ -6,7 +6,8 @@
 use avian2d::prelude::*;
 use bevy::prelude::*;
 use modforge::actor::{ActorDef, ActorId, ActorMap};
-use modforge::brain::{AWAKE_REACTION, Activity, CombatState};
+use modforge::brain::AWAKE_REACTION;
+use modforge::statetree::Record;
 use modforge::item;
 use modforge::survival::{Condition, SurvivalStats};
 
@@ -125,25 +126,10 @@ pub struct Survival(pub SurvivalStats);
 #[derive(Component, Default, Debug, Clone, Copy, PartialEq)]
 pub struct ActorCondition(pub Condition);
 
-/// What an NPC is doing, kept between thinks (modforge::brain).
-#[derive(Component, Debug, Clone, PartialEq)]
-pub struct ActorActivity(pub Activity);
-
-impl Default for ActorActivity {
-    fn default() -> Self {
-        Self(Activity::Idle)
-    }
-}
-
-/// Whether an NPC is fighting, kept between thinks.
-#[derive(Component, Debug, Clone, Copy, PartialEq)]
-pub struct ActorCombat(pub CombatState);
-
-impl Default for ActorCombat {
-    fn default() -> Self {
-        Self(CombatState::None)
-    }
-}
+/// What an NPC is doing: their brain's StateTree record, the one record
+/// of it, kept between thinks (modforge docs/statetree.md).
+#[derive(Component, Default, Debug, Clone, Copy, PartialEq)]
+pub struct ActorRecord(pub Record);
 
 /// What the one spawn path needs from the world.
 #[derive(bevy::ecs::system::SystemParam)]
@@ -219,8 +205,7 @@ pub fn spawn_person(
                 Survival::default(),
                 ActorCondition::default(),
                 Memory::default(),
-                ActorActivity::default(),
-                ActorCombat::default(),
+                ActorRecord::default(),
             ),
             (Hud::default(), OpenContainer::default(), OpenStation::default()),
             Protection(def.protection.clone()),

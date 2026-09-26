@@ -55,6 +55,7 @@ impl Day {
 pub fn waste(
     tick: Res<SimTick>,
     items: Res<ItemRegistryRes>,
+    layers: Res<crate::content::LayerRegistryRes>,
     damage: Res<DamageRegistryRes>,
     mut actors: Query<(&Survival, &Protection, &Equipment, &mut Health, Option<&mut Memory>), Without<Dead>>,
 ) {
@@ -75,7 +76,7 @@ pub fn waste(
                 distance: 0.0,
                 location_scale: 1.0,
             };
-            hit_actor(&hit, own, worn, &items.0, &mut health, memory.as_deref_mut(), None, tick.0);
+            hit_actor(&hit, own, worn, &items.0, &layers.0, &mut health, memory.as_deref_mut(), None, tick.0);
         }
     }
 }

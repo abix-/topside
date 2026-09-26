@@ -224,7 +224,8 @@ pub fn steer(
     doors: Query<&Door>,
     mut laps: ResMut<crate::profile::Laps>,
     mut failed: ResMut<FailedWays>,
-    people: Query<(&Npc, &crate::actor::ActorActivity, &crate::actor::Actor)>,
+    tree: Res<crate::content::brain::BrainTreeRes>,
+    people: Query<(&Npc, &crate::actor::ActorRecord, &crate::actor::Actor)>,
     mut walkers: Query<(Entity, &Transform, &mut ThisTick, &mut NavPath), (With<Npc>, Without<Dead>)>,
 ) {
     let ms = |since: Instant| since.elapsed().as_secs_f64() * 1000.0;
@@ -283,8 +284,9 @@ pub fn steer(
                 let searched = walk.0.last_searched;
                 let (who, doing, id) = people
                     .get(entity)
-                    .map(|(npc, activity, actor)| {
-                        (format!("{} ({:?})", npc.def, npc.faction), format!("{:?}", activity.0), actor.0.0)
+                    .map(|(npc, record, actor)| {
+                        let doing = record.0.state.map_or("nothing", |s| tree.0.name(s));
+                        (format!("{} ({:?})", npc.def, npc.faction), doing.to_string(), actor.0.0)
                     })
                     .unwrap_or_default();
                 failed.0.push_back(FailedWay {

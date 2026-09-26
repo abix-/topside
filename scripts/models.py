@@ -837,6 +837,10 @@ CHARACTERS = Path(__file__).resolve().parent / "quaternius-characters"
 # Facings, as the game picks them (src/actor.rs): 0 east, then a turn of
 # 45 degrees counter-clockwise each, so 2 is north, away from the camera.
 FACINGS = 8
+# The facings rendered. The left side (3, 4, 5) is the right side flipped,
+# as RimWorld draws west as east flipped: the game draws 3, 4 and 5 as 1,
+# 0 and 7 mirrored (src/picture.rs; change both together).
+RENDERED_FACINGS = [0, 1, 2, 6, 7]
 # Every person picture is this many metres either side of the ground point
 # (half width, half height), so all layers and facings line up.
 PERSON_FRAME = (0.6, 1.45)
@@ -965,7 +969,7 @@ def people():
                 picture(meshes, OUT / f"person {body_name} {name} {suffix}.png", frame=PERSON_FRAME)
 
         length = int(bpy.data.actions[WALK].frame_range[1])
-        for k in range(FACINGS):
+        for k in RENDERED_FACINGS:
             rig.rotation_euler = (0, 0, math.radians(k * 360 / FACINGS) - rest)
             pose(rig, *STAND)
             render(f"{k}")
