@@ -400,21 +400,32 @@ impl WorldKind {
 }
 
 /// The small world (design.md "The small world first"): 32 by 32 chunks,
-/// flat grass, no water, no cliffs, nothing scattered.
+/// flat grass with forests (added back first, 2026-09-26), no water, no
+/// cliffs.
 pub fn small_ground_def() -> GroundDef {
     GroundDef {
         feature_size: 500.0,
         water_level: -2.0,
         cliff_every: 0.0,
         cliff_gaps: 0.0,
-        climate_size: 900.0,
-        climate: vec![ClimateRule {
-            biome: "grassland".to_string(),
-            moisture: (0.0, 1.0),
-            temperature: (0.0, 1.0),
-            land: Ground::Grass,
-            patches: Ground::Grass,
-        }],
+        // Small enough that the kilometre across holds several forests.
+        climate_size: 250.0,
+        climate: vec![
+            ClimateRule {
+                biome: "forest".to_string(),
+                moisture: (0.6, 1.0),
+                temperature: (0.0, 1.0),
+                land: Ground::ForestFloor,
+                patches: Ground::Grass,
+            },
+            ClimateRule {
+                biome: "grassland".to_string(),
+                moisture: (0.0, 1.0),
+                temperature: (0.0, 1.0),
+                land: Ground::Grass,
+                patches: Ground::Grass,
+            },
+        ],
         beach: 0.0,
         patch_size: 80.0,
         chunks_across: Some(32),
@@ -1276,12 +1287,17 @@ pub fn register_biomes(reg: &mut BiomeRegistry) {
                 ScatterDef {
                     size: Vec3::new(0.6, 5.0, 0.6),
                     color: [0.3, 0.22, 0.12],
-                    density: 0.04,
+                    // A forest (operator, 2026-09-26): a tree about every
+                    // 5 m, so the crowns (4.6 m across) close up.
+                    density: 0.6,
+                    // scripts/models.py renders it.
+                    picture: Some("tree".to_string()),
                 },
                 ScatterDef {
                     size: Vec3::new(0.8, 0.5, 0.8),
                     color: [0.4, 0.4, 0.35],
                     density: 0.01,
+                    picture: None,
                 },
             ],
             weather: vec!["rain".to_string(), "fog".to_string()],
@@ -1305,6 +1321,7 @@ pub fn register_biomes(reg: &mut BiomeRegistry) {
                     size: Vec3::new(1.2, 0.6, 0.8),
                     color: [0.5, 0.42, 0.32],
                     density: 0.005,
+                    picture: None,
                 },
             ],
             weather: vec!["dust storm".to_string(), "clear".to_string()],
@@ -1329,6 +1346,7 @@ pub fn register_biomes(reg: &mut BiomeRegistry) {
                     size: Vec3::new(2.0, 1.5, 1.5),
                     color: [0.45, 0.43, 0.4],
                     density: 0.008,
+                    picture: None,
                 },
             ],
             weather: vec!["rain".to_string(), "fog".to_string(), "clear".to_string()],

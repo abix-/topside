@@ -148,6 +148,7 @@ pub fn make_chunks(
     biomes: Res<BiomeRegistryRes>,
     monuments: Res<MonumentRegistryRes>,
     tiles: Option<Res<GroundTiles>>,
+    assets: Option<Res<AssetServer>>,
     players: Query<&Transform, With<crate::player::Player>>,
     people: Query<&Transform, (With<crate::actor::Npc>, Without<crate::player::Player>)>,
 ) {
@@ -193,8 +194,8 @@ pub fn make_chunks(
         let mut solid = runs_of(&chunk, |g| matches!(g, Ground::Cliff | Ground::OutOfMap));
         solid.extend(chunk.things.iter().map(|t| t.rect()));
         body(&mut commands, &solid, true);
-        if let Some(tiles) = tiles.as_ref() {
-            draw(&mut commands, &chunk, &tiles.0);
+        if let (Some(tiles), Some(assets)) = (tiles.as_ref(), assets.as_ref()) {
+            draw(&mut commands, &chunk, &tiles.0, assets);
         }
         // The sites standing in this chunk, once each.
         let lo = Vec2::new((key.0 * CHUNK) as f32, (key.1 * CHUNK) as f32) * TILE;
@@ -207,9 +208,14 @@ pub fn make_chunks(
     }
 }
 
-/// Draw one chunk: its ground as one tilemap, a tile each, and every tree
-/// and rock as a square.
-fn draw(commands: &mut Commands, chunk: &GroundChunk, tileset: &Handle<Image>) {
+/// Pixels to a metre in every picture scripts/models.py renders (its
+/// PIXELS_PER_METRE): a picture drawn at this scale is its model's size.
+const PICTURE_PIXELS_PER_METRE: f32 = 64.0;
+
+/// Draw one chunk: its ground as one tilemap, a tile each, and every
+/// thing on it as its picture (assets/pictures, its ground point at the
+/// picture's centre), or as a square in its colour if it has none.
+fn draw(commands: &mut Commands, chunk: &GroundChunk, tileset: &Handle<Image>, assets: &AssetServer) {
     let first = chunk.first();
     let centre = Vec2::new(first.0 as f32, first.1 as f32) * TILE + Vec2::splat(CHUNK as f32 * TILE / 2.0);
     commands.spawn((
@@ -237,15 +243,27 @@ fn draw(commands: &mut Commands, chunk: &GroundChunk, tileset: &Handle<Image>) {
     ));
     for thing in &chunk.things {
         let r = thing.rect();
-        commands.spawn((
-            WorldPiece,
-            Sprite {
-                color: Color::srgb(thing.color[0], thing.color[1], thing.color[2]),
-                custom_size: Some(r.max - r.min),
-                ..default()
-            },
-            Transform::from_translation(((r.min + r.max) / 2.0).extend(THING_Z)),
-        ));
+        let centre = (r.min + r.max) / 2.0;
+        // Lower on the screen draws in front, so a forest's crowns overlap
+        // the right way (still under people: a kilometre of y moves this
+        // a thousandth).
+        let at = Transform::from_translation(centre.extend(THING_Z - centre.y * 1e-6));
+        match &thing.picture {
+            Some(name) => commands.spawn((
+                WorldPiece,
+                Sprite::from_image(assets.load(format!("pictures/{name}.png"))),
+                at.with_scale(Vec3::splat(1.0 / PICTURE_PIXELS_PER_METRE)),
+            )),
+            None => commands.spawn((
+                WorldPiece,
+                Sprite {
+                    color: Color::srgb(thing.color[0], thing.color[1], thing.color[2]),
+                    custom_size: Some(r.max - r.min),
+                    ..default()
+                },
+                at,
+            )),
+        };
     }
 }
 

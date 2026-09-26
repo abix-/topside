@@ -52,13 +52,23 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind) -> App {
     if headless {
         app.add_plugins(MinimalPlugins);
     } else {
-        app.add_plugins(DefaultPlugins.set(WindowPlugin {
-            primary_window: Some(Window {
-                title: "topside".to_string(),
-                ..default()
-            }),
-            ..default()
-        }));
+        app.add_plugins(
+            DefaultPlugins
+                .set(WindowPlugin {
+                    primary_window: Some(Window {
+                        title: "topside".to_string(),
+                        ..default()
+                    }),
+                    ..default()
+                })
+                // The repo's assets folder, wherever the exe is built to
+                // (the build target is shared, so next to the exe is not
+                // the repo).
+                .set(AssetPlugin {
+                    file_path: concat!(env!("CARGO_MANIFEST_DIR"), "/assets").to_string(),
+                    ..default()
+                }),
+        );
     }
     // Avian 2D is the one physics system. Seen from above, nothing
     // falls.

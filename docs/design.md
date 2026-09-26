@@ -813,6 +813,8 @@ walk". "lets do 32x32 chunks. that's small".
   person eats from a box, bunker people haul food home, wander, the
   storm. Then one thing is added back at a time (water, cliffs, rolled
   sites, more bunkers, size).
+- Forests are added back first (operator, 2026-09-26): the small world
+  has forests, trees drawn as the tree picture.
 
 Rivers, rain and wildlife per biome, and the people who live at the
 sites come after the first world stands. The storm re-rolls the

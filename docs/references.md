@@ -50,3 +50,79 @@ Facepunch's devblogs 74, 75, 117, 123.
 | Source | Mine | Avoid |
 |---|---|---|
 | Quake 3 `common.c` (EVENTS AND JOURNALING), `win_main.c`, `cl_keys.c`, `cl_input.c` | Every input is one record, `sysEvent_t`: time, type, two values, optional blob; keys, chars, mouse, console lines, and packets alike. The platform only produces them (`Sys_QueEvent` into a ring); the engine only consumes them in one loop (`Com_EventLoop`), once per frame before simulation. A binding table maps keys to actions (`bind MOUSE1 +attack`), so no game system reads a key. `Com_Milliseconds` takes "now" from the last event's timestamp. Journaling: with `journal 1` every event is written to disk as fetched, with `journal 2` read back instead of the OS, replaying a whole session bit for bit. | Text commands as the action format; the console as the binding target. |
+
+## Graphics, how Factorio does it (2026-09-26)
+
+Checked against Factorio's own posts and modding docs. Each point names
+its source; "forum" means players, not Wube, said it.
+
+Factorio never draws anything 3D in the game. Every object is a 3D model
+rendered ahead of time into flat pictures; the game only stacks pictures.
+
+The pictures:
+
+- Modelled in Blender, rendered to pictures. "All objects in the game
+  (including the terrain) have been rendered from 3D models" (FFF 227);
+  "Blender is a great software which allows us to have a very flexible
+  workflow" (FFF 146). Every animation frame and every facing is its own
+  picture on a sprite sheet.
+- One camera angle: 45 degrees down, but the tiles stay square. "Our
+  'camera angle' is 45 degrees, which in 'real projection' would result in
+  rectangular tiles, but in Factorio this is contradicted by our tiles
+  being square" (FFF 269). The render camera is orthographic (forum).
+  Things are drawn to look right from that angle, not to be true models.
+- One light for everything, from the left at 45 degrees, so shadows fall
+  to the right (forum; FFF 269 shows the shadows but does not state the
+  angle).
+- Shadows are separate pictures. The shadow is worked out from the 3D
+  model when rendering, so the game cannot make shadows live; trees used
+  to carry their shadow in the same picture and were split (FFF 227). A
+  picture marked `draw_as_shadow` is drawn as a shadow (lua-api
+  SpriteParameters).
+- Resolution: 32 pixels per tile is "the usual pixel height/width of 1
+  tile in normal resolution" (lua-api SpriteParameters). High resolution
+  pictures are 64 pixels per tile, drawn at half scale (forum).
+- One entity is many layers put back together in the game. "A single
+  entity in Factorio is pretty complex, rendered in multiple layers, and
+  assembled again in the engine" (FFF 146), with hand-drawn masks and
+  additive blending. Each layer can be marked `draw_as_shadow`,
+  `draw_as_glow` ("draws first as a normal sprite, then again as a light
+  layer") or `draw_as_light`, and `apply_runtime_tint` tints it with the
+  player's colour (lua-api SpriteParameters).
+
+The ground:
+
+- Tiles with variations. Each ground type has several pictures, and
+  pictures covering 1x1 up to bigger squares of tiles (powers of 2 up to
+  128), picked by probability, so no pattern repeats visibly (lua-api
+  TileMainPictures).
+- Transition pictures at edges. Each tile has `transitions` to named
+  other tiles and `transitions_between_transitions`, and a `layer` number
+  deciding which tile draws its edge over the other (lua-api
+  TilePrototype).
+- Decoratives: small rocks, grass and cracks drawn on the ground, their
+  own render layer (lua-api RenderLayer "decorative").
+
+At run time:
+
+- Everything draws in a fixed list of render layers, bottom to top:
+  ground and its transitions, decals, decoratives, remnants, floor,
+  belts, corpses, items, objects, higher objects, wires, explosions,
+  projectiles, smoke, things in the air, the light effect, then the
+  cursor (lua-api RenderLayer, 72 layers).
+- NOT CONFIRMED: that objects on the same layer are sorted by y (lower
+  on screen drawn in front). The RenderLayer docs say nothing about
+  sorting inside a layer.
+- Night: layers marked `draw_as_light` go to a light layer; a "light-effect"
+  render layer exists (lua-api). How the darkening is done was not
+  checked.
+
+What topside has today: the ground as `TilemapChunk`, actors and
+buildings as sprites. Missing: the rendered pictures, one camera angle and
+light, ground variations and edge pictures, the render layers, the night
+light layer. Topside takes no shadows (design.md, 2026-09-26).
+
+Sources: factorio.com/blog/post/fff-146, fff-227, fff-269;
+lua-api.factorio.com types SpriteParameters, TileMainPictures,
+RenderLayer and prototypes TilePrototype; forums.factorio.com t=80136
+(camera and light), t=87188 (64 pixels per tile).
