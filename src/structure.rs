@@ -216,6 +216,7 @@ pub fn spawn_sites(
     mut new_sites: ResMut<NewSites>,
     mut monuments: ResMut<MonumentsRes>,
     items: Res<ItemRegistryRes>,
+    layers: Res<crate::content::LayerRegistryRes>,
 ) {
     let table = loot_table();
     for site in new_sites.0.drain(..) {
@@ -260,9 +261,15 @@ pub fn spawn_sites(
             for (k, spot) in monument.loot_spots.iter().enumerate() {
                 let mut roll = Roll::new(tile_hash(world.seed, cell_of(site.position), k as u64));
                 let mut contents = item::Inventory::new(box_def.storage.unwrap_or(12));
-                for (name, count) in roll_loot(&table, spot.danger, &mut roll) {
-                    if let Some(def) = items.0.def(&name) {
-                        let _ = contents.add(item::create(def, count, &[], 0.0, k as u64), def.max_stack);
+                for (name, on, count) in roll_loot(&table, spot.danger, &mut roll) {
+                    let Some(def) = items.0.def(&name) else {
+                        continue;
+                    };
+                    match item::create_layered(def, &on, &layers.0, count, &[], 0.0, k as u64) {
+                        Ok(stack) => {
+                            let _ = contents.add(stack, def.max_stack);
+                        }
+                        Err(e) => warn!("loot: {e}"),
                     }
                 }
                 let at = site.position + Vec2::new(spot.position.x, spot.position.z);

@@ -18,3 +18,4 @@ mod sources;
 mod storm;
 mod the_dead;
 mod wander;
+mod weapons;

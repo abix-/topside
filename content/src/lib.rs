@@ -14,7 +14,7 @@ use modforge::combat::{DamageDef, DamageRegistry, DamageType, Falloff};
 use modforge::faction::{FactionDef, FactionKind, FactionRegistry};
 use modforge::memory::GoodFor;
 use modforge::survival::Need;
-use modforge::item::{Armor, CombatStats, EquipSlot, FoodStats, ItemDef, ItemKind, ItemRegistry, LayerRegistry, Note};
+use modforge::item::{Armor, CombatStats, EquipSlot, FoodStats, ItemDef, ItemKind, ItemRegistry, LayerDef, LayerRegistry, Note};
 use modforge::monument::Roll;
 use modforge::monument::{
     Arrangement, BuildingRegistry, BuildingSize, BuildingSlot, BuildingTypeDef,
@@ -82,11 +82,18 @@ impl Default for RecipeRegistryRes {
 /// danger"): common junk anywhere, weapons and the vest only where it
 /// is dangerous. Tuning.
 pub fn loot_table() -> LootTable {
-    let e = |item: &str, count: (u32, u32), weight, min_danger| LootEntry {
+    // A handle and its head (design.md "What 2D changes": any handle
+    // goes with any head).
+    let weapon = |item: &str, head: &[&str], weight, min_danger| LootEntry {
         item: item.to_string(),
-        count,
+        layers: head.iter().map(|h| h.to_string()).collect(),
+        count: (1, 1),
         weight,
         min_danger,
+    };
+    let e = |item: &str, count: (u32, u32), weight, min_danger| LootEntry {
+        count,
+        ..weapon(item, &[], weight, min_danger)
     };
     LootTable {
         entries: vec![
@@ -96,8 +103,12 @@ pub fn loot_table() -> LootTable {
             e("water bottle", (1, 2), 6, 0),
             e("shotgun shell", (2, 5), 4, 1),
             e("bandage", (1, 1), 3, 1),
-            e("pipe", (1, 1), 2, 1),
-            e("hatchet", (1, 1), 2, 2),
+            weapon("pipe", &[], 2, 1),
+            weapon("wooden handle", &["nails"], 2, 1),
+            weapon("wooden handle", &["scrap blade"], 1, 1),
+            weapon("wooden handle", &["axe head"], 2, 2),
+            weapon("pipe", &["sharpened road sign"], 1, 2),
+            weapon("long pole", &["spear point"], 1, 2),
             e("road sign vest", (1, 1), 1, 3),
             e("pipe shotgun", (1, 1), 1, 3),
         ],
@@ -197,8 +208,37 @@ impl Default for ItemRegistryRes {
 /// The layer registry as an app resource (design.md "What 2D changes":
 /// every item is made in layers): every layer a stack carries is a def
 /// from here.
-#[derive(Resource, Default)]
+#[derive(Resource)]
 pub struct LayerRegistryRes(pub LayerRegistry);
+
+impl Default for LayerRegistryRes {
+    fn default() -> Self {
+        let mut reg = LayerRegistry::default();
+        register_layers(&mut reg);
+        Self(reg)
+    }
+}
+
+/// The first heads (design.md "What 2D changes"), each landing its own
+/// damage; a handle with no head hits with the handle. Each is drawn
+/// as its own picture over the handle.
+pub fn register_layers(reg: &mut LayerRegistry) {
+    for (name, damage) in [
+        ("nails", "nail hit"),
+        ("scrap blade", "blade cut"),
+        ("axe head", "axe chop"),
+        ("spear point", "spear thrust"),
+        ("sharpened road sign", "sign cut"),
+    ] {
+        reg.register(LayerDef {
+            name: name.to_string(),
+            slot: "head".to_string(),
+            damage: Some(damage.to_string()),
+            picture: Some(name.to_string()),
+        })
+        .expect("layer registered once");
+    }
+}
 
 /// The damage registry as an app resource: every hit names a def
 /// from here (design.md "How a hit works").
@@ -682,7 +722,8 @@ pub fn register_factions(reg: &mut FactionRegistry) {
 /// spawn), the topside hostiles found at monuments, and the wanderer,
 /// a topside neutral who belongs to no side.
 pub fn register_actors(reg: &mut ActorRegistry) {
-    let person = |name: &str, faction: Option<&str>, behaviour, max_health, weapon: &str| {
+    // Their weapon is a handle and its head (design.md "What 2D changes").
+    let person = |name: &str, faction: Option<&str>, behaviour, max_health, weapon: &str, head: &[&str]| {
         ActorDef {
             name: name.to_string(),
             faction: faction.map(String::from),
@@ -690,6 +731,7 @@ pub fn register_actors(reg: &mut ActorRegistry) {
             max_health,
             protection: Default::default(),
             weapon: Some(weapon.to_string()),
+            weapon_layers: head.iter().map(|h| h.to_string()).collect(),
             sight: 25.0,
             reach: 1.8,
         }
@@ -698,15 +740,15 @@ pub fn register_actors(reg: &mut ActorRegistry) {
     // control, starting with nothing in hand.
     reg.register(ActorDef {
         weapon: None,
-        ..person("player", Some(PLAYER_FACTION), Behaviour::Guard, 100.0, "")
+        ..person("player", Some(PLAYER_FACTION), Behaviour::Guard, 100.0, "", &[])
     })
     .expect("actor registered once");
     for def in [
-        person("bunker person", None, Behaviour::Guard, 100.0, "pipe"),
-        person("scavenger", Some(TOPSIDE_HOSTILES), Behaviour::Hunter, 60.0, "pipe"),
-        person("raider", Some(TOPSIDE_HOSTILES), Behaviour::Hunter, 100.0, "hatchet"),
-        person("lookout", Some(TOPSIDE_HOSTILES), Behaviour::Guard, 80.0, "pipe"),
-        person("wanderer", None, Behaviour::Guard, 70.0, "pipe"),
+        person("bunker person", None, Behaviour::Guard, 100.0, "pipe", &[]),
+        person("scavenger", Some(TOPSIDE_HOSTILES), Behaviour::Hunter, 60.0, "pipe", &[]),
+        person("raider", Some(TOPSIDE_HOSTILES), Behaviour::Hunter, 100.0, "wooden handle", &["axe head"]),
+        person("lookout", Some(TOPSIDE_HOSTILES), Behaviour::Guard, 80.0, "long pole", &["spear point"]),
+        person("wanderer", None, Behaviour::Guard, 70.0, "pipe", &[]),
     ] {
         reg.register(def).expect("actor registered once");
     }
@@ -762,8 +804,16 @@ pub fn register_damage(reg: &mut DamageRegistry) {
         falloff: Falloff::NONE,
     };
     for def in [
+        // A handle with no head hits with the handle.
         melee("pipe swing", 20.0, DamageType::Blunt),
-        melee("hatchet chop", 30.0, DamageType::Slash),
+        melee("handle swing", 15.0, DamageType::Blunt),
+        melee("pole swing", 12.0, DamageType::Blunt),
+        // A head decides the damage and its kind. Tuning.
+        melee("nail hit", 26.0, DamageType::Pierce),
+        melee("blade cut", 26.0, DamageType::Slash),
+        melee("axe chop", 30.0, DamageType::Slash),
+        melee("spear thrust", 28.0, DamageType::Pierce),
+        melee("sign cut", 24.0, DamageType::Slash),
         pellet,
         fall,
         wasting("starvation"),
@@ -991,17 +1041,19 @@ pub fn register_items(reg: &mut ItemRegistry) {
             armor: None,
             good_for: Default::default(),
             picture: None,
-            layer_slots: Vec::new(),
+            // A handle (design.md "What 2D changes"): the handle decides
+            // reach and speed, the head it takes decides the damage.
+            layer_slots: vec!["head".to_string()],
         },
         ItemDef {
-            name: "hatchet".to_string(),
+            name: "wooden handle".to_string(),
             unique: false,
-            kind: ItemKind::Tool,
+            kind: ItemKind::Weapon,
             max_stack: 1,
             quality_siblings: 3,
             combat: Some(CombatStats {
-                damage: "hatchet chop".to_string(),
-                delay: 0.8,
+                damage: "handle swing".to_string(),
+                delay: 0.7,
                 reach: 1.8,
                 pellets: 1,
                 spread_degrees: 0.0,
@@ -1012,7 +1064,28 @@ pub fn register_items(reg: &mut ItemRegistry) {
             armor: None,
             good_for: Default::default(),
             picture: None,
-            layer_slots: Vec::new(),
+            layer_slots: vec!["head".to_string()],
+        },
+        ItemDef {
+            name: "long pole".to_string(),
+            unique: false,
+            kind: ItemKind::Weapon,
+            max_stack: 1,
+            quality_siblings: 3,
+            combat: Some(CombatStats {
+                damage: "pole swing".to_string(),
+                delay: 0.9,
+                reach: 2.8,
+                pellets: 1,
+                spread_degrees: 0.0,
+                ammo: None,
+            }),
+            food: None,
+            storage: None,
+            armor: None,
+            good_for: Default::default(),
+            picture: None,
+            layer_slots: vec!["head".to_string()],
         },
         // Rust's pipe shotgun: one shell, six pellets, wide spread,
         // instant out to 40 m (the hybrid's instant part).

@@ -343,10 +343,12 @@ pub fn publish(
     laps: Res<crate::profile::Laps>,
     actors: Res<ActorMapRes>,
     diagnostics: Option<Res<DiagnosticsStore>>,
+    items: Res<crate::content::ItemRegistryRes>,
+    layers: Res<crate::content::LayerRegistryRes>,
     players: Query<(&Transform, &Health, &Survival), With<Player>>,
     npcs: Query<(
         (&Actor, &Npc, &Transform, &Health, &Survival, &Personality, &ThisTick),
-        (&crate::actor::Memory, &crate::actor::ActorActivity, Has<crate::actor::Dead>),
+        (&crate::actor::Memory, &crate::actor::ActorActivity, Has<crate::actor::Dead>, &crate::actor::Hotbar),
     )>,
 ) {
     TICK.store(tick.0, Ordering::Relaxed);
@@ -391,7 +393,17 @@ pub fn publish(
     if tick.0 % 60 == 0 {
         let list: Vec<Json> = npcs
             .iter()
-            .map(|((actor, npc, at, health, needs, personality, this_tick), (memory, doing, dead))| {
+            .map(|((actor, npc, at, health, needs, personality, this_tick), (memory, doing, dead, hotbar))| {
+                // What is in their hands, its layers, and the damage its
+                // hits land, worked out by the one place a hit reads it.
+                let weapon = hotbar.0.held_stack().map(|stack| {
+                    let damage = items
+                        .0
+                        .def(&stack.item)
+                        .and_then(|def| modforge::item::combat_of(def, stack, &layers.0))
+                        .map(|c| c.damage);
+                    json!({"item": stack.item, "layers": stack.layers, "damage": damage})
+                });
                 // How many of each kind of thing they did (life.md "What a
                 // person did"), and the last one.
                 let mut did = serde_json::Map::new();
@@ -416,6 +428,7 @@ pub fn publish(
                     "thirst": needs.0.thirst,
                     "rest": needs.0.rest,
                     "doing": format!("{:?}", doing.0),
+                    "weapon": weapon,
                     "did": did,
                     "ate_what": ate_what,
                     // Every death in their memory: when, of what, by whom.

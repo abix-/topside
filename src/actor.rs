@@ -150,6 +150,7 @@ impl Default for ActorCombat {
 pub struct SpawnActor<'w, 's> {
     pub commands: Commands<'w, 's>,
     pub items: Res<'w, ItemRegistryRes>,
+    pub layers: Res<'w, crate::content::LayerRegistryRes>,
     pub factions: Res<'w, FactionRegistryRes>,
     pub actors: ResMut<'w, ActorMapRes>,
     pub seed: Res<'w, WorldSeed>,
@@ -194,8 +195,13 @@ pub fn spawn_person(
     // way the player holds one.
     let mut hotbar = Hotbar::default();
     if let Some(weapon) = def.weapon.as_deref().and_then(|w| spawn.items.0.def(w)) {
-        hotbar.0.slots.slots[0] = Some(item::create(weapon, 1, &[], 0.0, 0));
-        hotbar.0.held = Some(0);
+        match item::create_layered(weapon, &def.weapon_layers, &spawn.layers.0, 1, &[], 0.0, 0) {
+            Ok(stack) => {
+                hotbar.0.slots.slots[0] = Some(stack);
+                hotbar.0.held = Some(0);
+            }
+            Err(e) => warn!("{}'s weapon: {e}", def.name),
+        }
     }
     let entity = spawn
         .commands
