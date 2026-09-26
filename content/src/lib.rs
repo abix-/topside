@@ -1317,7 +1317,8 @@ pub fn register_biomes(reg: &mut BiomeRegistry) {
                     size: Vec3::new(0.8, 0.5, 0.8),
                     color: [0.4, 0.4, 0.35],
                     density: 0.01,
-                    picture: None,
+                    // scripts/models.py renders it.
+                    picture: Some("rock".to_string()),
                 },
             ],
             weather: vec!["rain".to_string(), "fog".to_string()],

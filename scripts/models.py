@@ -144,13 +144,20 @@ def box(name, size, at=(0, 0, 0), rotation=(0, 0, 0), mat=None):
     return obj
 
 
-def load(file, colours):
+def load(file, colours, across=None):
     """import a model file (glTF) and put the cel shade on it. `colours`
     maps the start of each of its material names to (rgb, cut): with cut,
     the material keeps its picture's see-through parts (leaf cards) and
-    nothing else of the picture."""
+    nothing else of the picture. With `across`, the model is scaled evenly
+    so its widest side on the ground is that many metres (the game's size
+    for it in content/src/lib.rs)."""
     bpy.ops.import_scene.gltf(filepath=str(file))
     meshes = [o for o in bpy.context.selected_objects if o.type == "MESH"]
+    if across is not None:
+        widest = max(max(o.dimensions.x, o.dimensions.y) for o in meshes)
+        for o in meshes:
+            o.scale *= across / widest
+        bpy.context.view_layer.update()
     made = {}
     for obj in meshes:
         for slot in obj.material_slots:
@@ -237,6 +244,13 @@ def tree():
     return join(load(MEGAKIT / "CommonTree_1.gltf", colours), "tree")
 
 
+def rock():
+    """the forest's rock: Quaternius's Rock_Medium_1, 0.8 m across (the
+    forest rock in content/src/lib.rs), in its grey."""
+    colours = {"Rocks": ((0.4, 0.4, 0.35), False)}
+    return join(load(MEGAKIT / "Rock_Medium_1.gltf", colours, across=0.8), "rock")
+
+
 def pipe():
     """the pipe: a metre of rusty steel with a taped grip at one end, lying on the ground."""
     length, radius = 1.0, 0.025
@@ -254,7 +268,7 @@ def pipe():
     return join(parts, "pipe")
 
 
-MODELS = {"tree": tree, "pipe": pipe}
+MODELS = {"tree": tree, "rock": rock, "pipe": pipe}
 
 
 def main():
