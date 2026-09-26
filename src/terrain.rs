@@ -30,6 +30,8 @@ pub struct WorldRes {
     pub seed: u64,
     pub bunker: Vec2,
     pub bunkers: Vec<Vec2>,
+    /// Whether this world's topside people have been put in it.
+    pub peopled: bool,
 }
 
 /// Anything that belongs to this reality and goes when the storm shifts
@@ -80,6 +82,7 @@ pub fn roll(
         seed: seed.0,
         bunker: BUNKER_AT,
         bunkers: kind.other_bunkers(),
+        peopled: false,
     });
     commands.insert_resource(Chunks::default());
     commands.insert_resource(NewSites::default());

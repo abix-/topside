@@ -103,7 +103,12 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind) -> App {
             structure::spawn_sites,
             // The walk grid knows the world before anyone is put in it.
             nav::record_solids,
-            (actor::populate_monuments, actor::populate_bunkers, actor::spawn_door_enemy),
+            (
+                actor::populate_monuments,
+                actor::populate_topside_people,
+                actor::populate_bunkers,
+                actor::spawn_door_enemy,
+            ),
         )
             .chain(),
     );
@@ -123,6 +128,7 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind) -> App {
                     terrain::make_chunks,
                     structure::spawn_sites,
                     actor::populate_monuments,
+                    actor::populate_topside_people,
                     lap("chunks"),
                 )
                     .chain(),

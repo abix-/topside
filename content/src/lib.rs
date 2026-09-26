@@ -421,8 +421,20 @@ pub fn small_ground_def() -> GroundDef {
     }
 }
 
-/// The small world's one other bunker, a short walk east.
-pub const SMALL_OTHER_BUNKERS: [Vec2; 1] = [Vec2::new(200.0, 0.0)];
+/// The small world's other bunkers (operator, 2026-09-25: "lets do 5
+/// bunkers. each with 5 people"), round the player's, clear of the sites.
+pub const SMALL_OTHER_BUNKERS: [Vec2; 5] = [
+    Vec2::new(300.0, 0.0),
+    Vec2::new(-300.0, 0.0),
+    Vec2::new(0.0, 320.0),
+    Vec2::new(0.0, -300.0),
+    Vec2::new(300.0, -300.0),
+];
+
+/// The small world's topside people, placed by world generation on open
+/// land (operator, 2026-09-25: "another 25 nuetral topside creatures. and
+/// 25 hostile topside creatures"): each actor def and how many.
+pub const SMALL_TOPSIDE_PEOPLE: [(&str, u32); 3] = [("wanderer", 25), ("scavenger", 13), ("raider", 12)];
 
 /// The small world's sites: one of each kind, each at a fixed place round
 /// the bunker, clear of both bunkers' ground.
@@ -499,7 +511,11 @@ pub fn roll_world2d(
             .with_fixed(SMALL_SITES.iter().map(|(m, [x, y])| (m.to_string(), Vec2::new(*x, *y))).collect()),
         WorldKind::Big => Places::new(site_kinds(monuments), keep_clear),
     };
-    Ok(World2d::new(ground, places, clearings))
+    let people = match kind {
+        WorldKind::Small => SMALL_TOPSIDE_PEOPLE.iter().map(|(d, n)| (d.to_string(), *n)).collect(),
+        WorldKind::Big => Vec::new(),
+    };
+    Ok(World2d::new(ground, places, clearings).with_people(people))
 }
 
 /// The actor registry as an app resource: every NPC spawned through
@@ -573,7 +589,9 @@ pub fn bunker_faction(i: usize) -> String {
 /// them changes that, todo 11t). The topside hostiles are hostile to
 /// everyone.
 pub fn register_factions(reg: &mut FactionRegistry) {
-    let bunkers = (0..OTHER_BUNKERS.len()).map(|i| (bunker_faction(i), FactionKind::Builder));
+    // Enough for the other bunkers of either world.
+    let most = OTHER_BUNKERS.len().max(SMALL_OTHER_BUNKERS.len());
+    let bunkers = (0..most).map(|i| (bunker_faction(i), FactionKind::Builder));
     for (name, kind) in [
         (PLAYER_FACTION.to_string(), FactionKind::Player),
         (TOPSIDE_HOSTILES.to_string(), FactionKind::Hostile),
@@ -1513,6 +1531,11 @@ mod tests {
         let mut want: Vec<(String, Vec2)> = SMALL_SITES.iter().map(|(m, [x, y])| (m.to_string(), Vec2::new(*x, *y))).collect();
         want.sort_by(|a, b| a.0.cmp(&b.0));
         assert_eq!(sites, want);
+        // Every topside person asked for has a spot.
+        let people = world.topside_people(r);
+        for (def, n) in SMALL_TOPSIDE_PEOPLE {
+            assert_eq!(people.iter().filter(|(d, _)| d == def).count(), n as usize, "{def}");
+        }
     }
 
     /// modforge's valid-world check on `kind` for each seed, over the

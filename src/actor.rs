@@ -12,8 +12,8 @@ use modforge::survival::{Condition, SurvivalStats};
 
 use crate::combat::{Equipment, Firing, Health, Protection, Rolling};
 use crate::content::{
-    ActorRegistryRes, BUNKER_PEOPLE_AT, BUNKER_STORE_AT, DOOR_ENEMY, FactionRegistryRes, ItemRegistryRes,
-    bunker_faction, def_for_danger,
+    ActorRegistryRes, BUNKER_PEOPLE_AT, BUNKER_STORE_AT, BiomeRegistryRes, DOOR_ENEMY, FactionRegistryRes,
+    ItemRegistryRes, MonumentRegistryRes, bunker_faction, def_for_danger,
 };
 use crate::terrain::WorldRes;
 use crate::input::{Actions, ThisTick};
@@ -298,6 +298,33 @@ pub fn populate_monuments(
             };
             let stand = *at + Vec2::new(spot.position.x, spot.position.z);
             settle(&mut spawn, def, stand, &known);
+        }
+    }
+}
+
+/// The topside people world generation placed on open land (design.md
+/// "The small world first"), through the one settling path: no home,
+/// knowing nothing yet. Once for each world the storm rolls.
+pub fn populate_topside_people(
+    mut spawn: SpawnActor,
+    registry: Res<ActorRegistryRes>,
+    mut world: ResMut<WorldRes>,
+    biomes: Res<BiomeRegistryRes>,
+    monuments: Res<MonumentRegistryRes>,
+) {
+    if world.peopled {
+        return;
+    }
+    world.peopled = true;
+    let r = modforge::world2d::Registries {
+        biomes: &biomes.0,
+        monuments: &monuments.monuments,
+        buildings: &monuments.buildings,
+    };
+    let known = Memory(modforge::memory::Memory::default());
+    for (name, at) in world.world.topside_people(r) {
+        if let Some(def) = registry.0.def(&name) {
+            settle(&mut spawn, def, at, &known);
         }
     }
 }
