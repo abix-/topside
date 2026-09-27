@@ -39,8 +39,7 @@ fn dell_tells_the_player_of_the_tap() {
     }
     let (dell, tap) = dell_and_the_tap(&w).expect("The Tap has Dell and the tap");
     let player = op("player")["id"].as_u64().expect("the player op reports the player's id");
-    let at = op_with("npc", serde_json::json!({"id": dell}))["at"].clone();
-    eprintln!("use op answered {}", op_with("use", serde_json::json!({"id": player, "at": at})));
+        eprintln!("use op answered {}", op_with("use", serde_json::json!({"id": player, "person": dell})));
     let p = player_until(|p| told_by(p, tap).is_some());
     eprintln!("player {player}: tap told by {:?}; heard {}", told_by(&p, tap), p["heard"]);
     assert_eq!(told_by(&p, tap), Some(dell), "the player knows the tap, told by Dell");
@@ -60,8 +59,7 @@ fn use_on_a_person_opens_the_talk_panel() {
     let player = op("player")["id"].as_u64().expect("the player op reports the player's id");
     let mut talk = serde_json::Value::Null;
     for _ in 0..3 {
-        let at = op_with("npc", serde_json::json!({"id": dell}))["at"].clone();
-        op_with("use", serde_json::json!({"id": player, "at": at}));
+                op_with("use", serde_json::json!({"id": player, "person": dell}));
         for _ in 0..12 {
             std::thread::sleep(std::time::Duration::from_millis(250));
             talk = op("hud")["talk"].clone();
@@ -77,8 +75,10 @@ fn use_on_a_person_opens_the_talk_panel() {
     assert_eq!(talk["open"], true, "Use on Dell opened no talk panel");
     assert_eq!(talk["to"].as_u64(), Some(dell), "the panel talks to Dell");
     let topics: Vec<&str> = talk["topics"].as_array().map_or(Vec::new(), |t| t.iter().filter_map(|t| t.as_str()).collect());
-    assert!(topics.contains(&"Tell them of the tap"), "a topic to tell of the tap: {topics:?}");
-    assert!(topics.contains(&"Threaten them"), "a topic to threaten: {topics:?}");
+    assert!(
+        !topics.iter().any(|t| t.starts_with("Tell them of") || t.starts_with("Ask about") || *t == "Threaten them"),
+        "the always-on topics are gone (episodes.md \"Conversations\"): {topics:?}"
+    );
 }
 
 /// The `talk` op: Dell tells the player of the tap again; both remember.
@@ -90,8 +90,7 @@ fn the_talk_op_brings_a_talk_now() {
         return;
     };
     let player = op("player")["id"].as_u64().expect("the player op reports the player's id");
-    let at = op_with("npc", serde_json::json!({"id": dell}))["at"].clone();
-    op_with("use", serde_json::json!({"id": player, "at": at}));
+        op_with("use", serde_json::json!({"id": player, "person": dell}));
     std::thread::sleep(std::time::Duration::from_millis(500));
     let heard = |p: &serde_json::Value| p["heard"].as_array().map_or(0, |h| h.iter().filter(|h| h["by"].as_u64() == Some(dell)).count());
     let before = heard(&op("player"));

@@ -42,8 +42,16 @@ static PLAYER: Mutex<Json> = Mutex::new(Json::Null);
 static WAYS: Mutex<Json> = Mutex::new(Json::Null);
 /// The `kill` op's request: the ActorId to kill on the game's next step.
 static KILL_ASK: Mutex<Option<u64>> = Mutex::new(None);
-/// The `use` op's request: the ActorId, and the point of the thing to use.
-static USE_ASK: Mutex<Option<(u64, Vec2)>> = Mutex::new(None);
+/// Where the `use` op's person uses: a point, or wherever a person stands
+/// when the game takes the request (people keep walking).
+#[derive(Clone, Copy)]
+enum UseAt {
+    Point(Vec2),
+    Person(u64),
+}
+
+/// The `use` op's request: the ActorId, and where to use.
+static USE_ASK: Mutex<Option<(u64, UseAt)>> = Mutex::new(None);
 /// One step of driving the game the way the player does (the `pointer`
 /// and `key` ops): the mouse moved to a window point, a mouse button or
 /// key pressed or released; `Next` ends this frame's steps, so a press is
@@ -229,20 +237,42 @@ pub fn answer_kill(
 }
 
 /// The `use` op's request, if one is waiting: that person stands a metre
-/// from the point and pushes Use aimed at it, the same Use the keys and the
-/// brain push, so the one interact path does the rest.
+/// from the point (or from the person, where they stand now) and pushes
+/// Use aimed at it, the same Use the keys and the brain push, so the one
+/// interact path does the rest.
 pub fn answer_use(
     tick: Res<crate::SimTick>,
-    mut people: Query<(&Actor, &mut Transform, &mut crate::input::Actions), Without<crate::actor::Dead>>,
+    mut walk: ResMut<crate::nav::Walk>,
+    mut people: Query<(&Actor, &mut Transform, &mut crate::input::Actions, Has<Player>), Without<crate::actor::Dead>>,
+    mut eyes: Query<(&mut crate::player::Eyes, &mut Transform), Without<Actor>>,
 ) {
-    let Some((id, at)) = USE_ASK.lock().ok().and_then(|mut ask| ask.take()) else {
+    let Some((id, to)) = USE_ASK.lock().ok().and_then(|mut ask| ask.take()) else {
         return;
     };
-    for (actor, mut transform, mut actions) in &mut people {
+    let at = match to {
+        UseAt::Point(at) => at,
+        UseAt::Person(whom) => match people.iter().find(|(a, ..)| a.0.0 == whom) {
+            Some((_, there, ..)) => there.translation.ground(),
+            None => return,
+        },
+    };
+    // A metre off, on a spot someone can stand on (never inside a wall):
+    // the first of eight ways round that the walk grid can stand on.
+    let stand = (0..8)
+        .map(|k| at + Vec2::from_angle(k as f32 * std::f32::consts::FRAC_PI_4))
+        .find(|p| walk.0.standable(*p))
+        .unwrap_or(at + Vec2::X);
+    for (actor, mut transform, mut actions, is_player) in &mut people {
         if actor.0.0 != id {
             continue;
         }
-        transform.translation = crate::on_ground(at + Vec2::X, crate::player::BODY_CENTRE);
+        transform.translation = crate::on_ground(stand, crate::player::BODY_CENTRE);
+        // The player's eyes on the middle of whatever stands there, a
+        // metre off, so what they look at is what is there.
+        if is_player && let Ok((mut eye, mut view)) = eyes.single_mut() {
+            eye.pitch = (crate::player::BODY_CENTRE - crate::EYE_HEIGHT).atan2(1.0);
+            view.rotation = crate::player::eye_rotation(eye.pitch);
+        }
         actions.0.push(tick.0, crate::input::Action::Aim { x: at.x, y: at.y });
         actions.0.push(tick.0, crate::input::Action::Use);
     }
@@ -641,6 +671,8 @@ pub fn publish_hud(
             "filled": filled,
             "selected": selected,
             "talk": talk,
+            // What the player can do with what they look at.
+            "prompt": players.single().map_or(String::new(), |h| h.0.prompt.text.clone()),
             // Where Bevy picking has the `pointer` op's pointer now, in
             // logical pixels.
             "pointer": pointers
@@ -1104,19 +1136,23 @@ pub fn start() {
     ));
     OP_REGISTRY.register(OpDef::new(
         "use",
-        "a living person by id (see `people`) stands a metre from the point and uses the thing there on the game's next step, through the one interact path, so a test brings a use now",
-        "{\"id\": 42, \"at\": [10.0, 20.0]}",
+        "a living person by id (see `people`) stands a metre from the point (`at`), or from a person (`person`, by id, where they stand when the game takes it: people keep walking), and uses what is there on the game's next step, through the one interact path, so a test brings a use now",
+        "{\"id\": 1, \"person\": 3}",
         |args| {
             let id = args.get("id").and_then(Json::as_u64).ok_or_else(|| "id: a number".to_string())?;
             let at = args
                 .get("at")
                 .and_then(Json::as_array)
-                .and_then(|a| Some(Vec2::new(a.first()?.as_f64()? as f32, a.get(1)?.as_f64()? as f32)))
-                .ok_or_else(|| "at: [x, y]".to_string())?;
+                .and_then(|a| Some(Vec2::new(a.first()?.as_f64()? as f32, a.get(1)?.as_f64()? as f32)));
+            let to = match (at, args.get("person").and_then(Json::as_u64)) {
+                (_, Some(person)) => UseAt::Person(person),
+                (Some(at), None) => UseAt::Point(at),
+                (None, None) => return Err("at: [x, y], or person: an id".to_string()),
+            };
             if let Ok(mut ask) = USE_ASK.lock() {
-                *ask = Some((id, at));
+                *ask = Some((id, to));
             }
-            Ok(json!({"use": id, "at": [at.x, at.y]}))
+            Ok(json!({"use": id, "at": at.map(|a| [a.x, a.y]), "person": args.get("person")}))
         },
     ));
     OP_REGISTRY.register(OpDef::new(

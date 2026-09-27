@@ -296,6 +296,11 @@ impl Default for BiomeRegistryRes {
     }
 }
 
+/// What someone says to the player who talks to them when there is
+/// nothing to talk about (episodes.md "Conversations"): one way, then the
+/// conversation ends.
+pub const NOTHING_TO_SAY: [&str; 5] = ["Not now.", "What do you want?", "Leave me be.", "I've got nothing for you.", "Busy."];
+
 /// The names people are given (everybody has a name; operator,
 /// 2026-09-27), one rolled for each person from who they are.
 pub const PERSON_NAMES: [&str; 40] = [
@@ -363,7 +368,12 @@ pub fn register_episodes(reg: &mut EpisodeRegistry) {
     let part = |name: &str, from| PartDef { name: name.to_string(), from };
     let ways = |ways: &[&str]| ways.iter().map(|w| w.to_string()).collect::<Vec<_>>();
     let line = |part: &str, at: &str, w: &[&str]| LineDef { part: part.to_string(), at: at.to_string(), ways: ways(w) };
-    let choice = |at: &str, w: &[&str], choice: &str| ChoiceDef { at: at.to_string(), ways: ways(w), choice: choice.to_string() };
+    let choice = |at: &str, w: &[&str], choice: &str, reply: &[&str]| ChoiceDef {
+        at: at.to_string(),
+        ways: ways(w),
+        choice: choice.to_string(),
+        reply: ways(reply),
+    };
     for def in [
         // docs/episodes/the-tap.md "The people" and "The lines".
         EpisodeDef {
@@ -391,13 +401,24 @@ pub fn register_episodes(reg: &mut EpisodeRegistry) {
                 line("Mara", "the meeting", &["This is ours. We found it first.", "Walk away. This one's taken."]),
             ],
             choices: vec![
-                choice("the opening", &["Show me.", "Let's go."], "believes Dell"),
-                choice("the opening", &["Water doesn't just run out there. You're wrong.", "I don't believe it."], "does not believe it"),
-                choice("the opening", &["Go and look again. I'll wait.", "Check it again first."], "sends Dell"),
-                choice("the opening", &["Where exactly?", "Tell me the way again."], "asks the way"),
-                choice("the meeting", &["There's enough for both of us."], "talks with Mara"),
-                choice("the meeting", &["Step away from it."], "threatens Mara"),
-                choice("the meeting", &["Keep it."], "leaves Mara the tap"),
+                choice("the opening", &["Show me.", "Let's go."], "believes Dell", &["Follow me. Keep up.", "This way. Stay close."]),
+                choice(
+                    "the opening",
+                    &["Water doesn't just run out there. You're wrong.", "I don't believe it."],
+                    "does not believe it",
+                    &["Suit yourself. I'll go on my own.", "Then stay thirsty."],
+                ),
+                choice(
+                    "the opening",
+                    &["Go and look again. I'll wait.", "Check it again first."],
+                    "sends Dell",
+                    &["Fine. Don't drink anything while I'm gone.", "Back soon."],
+                ),
+                // Answered with the way again (episode::the_players_choice).
+                choice("the opening", &["Where exactly?", "Tell me the way again."], "asks the way", &[]),
+                choice("the meeting", &["There's enough for both of us."], "talks with Mara", &["Enough for today. Ask again tomorrow.", "Maybe. Don't get greedy."]),
+                choice("the meeting", &["Step away from it."], "threatens Mara", &["Try it.", "You'll regret that."]),
+                choice("the meeting", &["Keep it."], "leaves Mara the tap", &["Smart.", "Good. Go."]),
             ],
             ..episode("The Tap", &["Mixed world", "Sky Islands"])
         },

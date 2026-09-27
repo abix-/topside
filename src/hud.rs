@@ -1189,8 +1189,8 @@ pub fn setup_talk(mut commands: Commands) {
                 },
                 Pickable::IGNORE,
             ));
-            // An episode's choices (up to six), then the topics.
-            for _ in 0..6 + modforge::hud::TALK_TOPICS * 2 + 1 {
+            // The moment's choices, up to six.
+            for _ in 0..6 {
                 p.spawn((
                     TopicRow(0),
                     Node {
@@ -1215,12 +1215,11 @@ pub fn setup_talk(mut commands: Commands) {
         });
 }
 
-/// What the talk panel offers the player talking to `to`: the episode's
-/// choices open for that person first (episodes.md "The lines"), then what
-/// the player knows to tell of and ask about, and a threat (modforge
-/// `talk_topics`). The one list painting and clicking both read.
-fn talk_rows(episode: &crate::Episode, to: Option<u64>, memory: &modforge::memory::Memory) -> Vec<(modforge::actions::Said, String)> {
-    let mut rows: Vec<(modforge::actions::Said, String)> = episode
+/// What the talk panel offers the player talking to `to`: only the
+/// choices of the moment open with that person (episodes.md
+/// "Conversations"). The one list painting and clicking both read.
+fn talk_rows(episode: &crate::Episode, to: Option<u64>) -> Vec<(modforge::actions::Said, String)> {
+    episode
         .choices
         .iter()
         .filter(|(_, _, whom)| Some(whom.0) == to)
@@ -1228,9 +1227,36 @@ fn talk_rows(episode: &crate::Episode, to: Option<u64>, memory: &modforge::memor
             let words = episode.spoken.get(*line as usize)?;
             Some((modforge::actions::Said::Line { line: *line, key: 0 }, words.clone()))
         })
-        .collect();
-    rows.extend(modforge::hud::talk_topics(memory));
-    rows
+        .collect()
+}
+
+/// What the player can do with what they look at: "[E] Talk to Hank"
+/// (talk::look_at writes it), under the middle of the screen.
+#[derive(Component)]
+pub struct PromptText;
+
+pub fn setup_prompt(mut commands: Commands) {
+    commands.spawn((
+        PromptText,
+        Text::new(""),
+        TextFont::from_font_size(18.0),
+        Node {
+            position_type: PositionType::Absolute,
+            top: Val::Percent(56.0),
+            width: Val::Percent(100.0),
+            justify_content: JustifyContent::Center,
+            ..default()
+        },
+        Pickable::IGNORE,
+    ));
+}
+
+/// The prompt while no panel is open.
+pub fn render_prompt(players: Query<&Hud, With<Player>>, mut texts: Query<&mut Text, With<PromptText>>) {
+    let (Ok(hud), Ok(mut text)) = (players.single(), texts.single_mut()) else {
+        return;
+    };
+    text.0 = if hud.0.open_panel == OpenPanel::None { hud.0.prompt.text.clone() } else { String::new() };
 }
 
 /// Show the talk panel while it is open, its rows the player's topics,
@@ -1268,7 +1294,7 @@ pub fn render_talk(
             .collect();
         shown.0 = said[said.len().saturating_sub(TALK_LINES)..].join("\n");
     }
-    let topics = talk_rows(&episode, hud.0.talking_to, &memory.0);
+    let topics = talk_rows(&episode, hud.0.talking_to);
     let rows_in_order = in_order.iter().filter(|c| rows.contains(*c)).collect::<Vec<_>>();
     for (i, child) in rows_in_order.into_iter().enumerate() {
         let Ok((mut row, children, mut node)) = rows.get_mut(child) else {
@@ -1291,12 +1317,12 @@ fn click_topic(
     rows: Query<&TopicRow>,
     tick: Res<crate::SimTick>,
     episode: Res<crate::Episode>,
-    mut players: Query<(&Hud, &crate::actor::Memory, &mut Actions), With<Player>>,
+    mut players: Query<(&Hud, &mut Actions), With<Player>>,
 ) {
-    let (Ok(row), Ok((hud, memory, mut actions))) = (rows.get(click.entity), players.single_mut()) else {
+    let (Ok(row), Ok((hud, mut actions))) = (rows.get(click.entity), players.single_mut()) else {
         return;
     };
-    let offered = talk_rows(&episode, hud.0.talking_to, &memory.0);
+    let offered = talk_rows(&episode, hud.0.talking_to);
     let (Some(to), Some(said)) = (hud.0.talking_to, offered.get(row.0).map(|(said, _)| *said)) else {
         return;
     };

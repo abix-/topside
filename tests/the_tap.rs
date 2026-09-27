@@ -47,8 +47,7 @@ fn the_taps_first_day() {
     let player = op("player")["id"].as_u64().expect("the player op reports the player's id");
     // "Show me.": the player by Dell, the panel, the choice.
     if !reached("believes Dell") {
-        let at = op_with("npc", serde_json::json!({"id": dell}))["at"].clone();
-        op_with("use", serde_json::json!({"id": player, "at": at}));
+        op_with("use", serde_json::json!({"id": player, "person": dell}));
         let chosen = click_row(&["Show me.", "Let's go."]);
         eprintln!("chose {chosen:?}");
         for _ in 0..12 {
@@ -76,8 +75,7 @@ fn the_taps_first_day() {
     assert!(dell_at.is_some_and(|d| far(d, tap) <= 5.0), "Dell did not go to the tap");
     assert!(mara_at.is_some_and(|m| far(m, tap) <= 6.0), "Mara is not at the tap");
     // The player at the tap, by Mara: her line, then the panel on her.
-    let at = op_with("npc", serde_json::json!({"id": mara}))["at"].clone();
-    op_with("use", serde_json::json!({"id": player, "at": at}));
+    op_with("use", serde_json::json!({"id": player, "person": mara}));
     let heard_mara = |p: &serde_json::Value| p["heard"].as_array().and_then(|h| h.iter().rev().find(|h| h["by"].as_u64() == Some(mara)).cloned());
     let mut p = op("player");
     for _ in 0..12 {
@@ -92,7 +90,7 @@ fn the_taps_first_day() {
     assert!(heard_mara(&p).is_some(), "the player at the tap heard nothing from Mara");
     let talk = talk_after(|t| t["open"] == true && t["to"].as_u64() == Some(mara));
     if talk["to"].as_u64() != Some(mara) {
-        op_with("use", serde_json::json!({"id": player, "at": at}));
+        op_with("use", serde_json::json!({"id": player, "person": mara}));
     }
     let chosen = click_row(&["There's enough for both of us.", "Step away from it.", "Keep it."]);
     eprintln!("chose {chosen:?}");
@@ -106,4 +104,27 @@ fn the_taps_first_day() {
     shot("tap_3_chose");
     eprintln!("reached: {}", op("world")["reached"]);
     assert!(pivots.iter().any(|p| reached(p)), "the meeting's choice reached nothing");
+    // Mara's reply, then it ends by itself.
+    let closed = crate::talk_ui::closed_within_8s();
+    shot("tap_4_ended");
+    eprintln!("Mara said {:?}; then {closed}", heard_mara(&op("player")));
+    assert_eq!(closed["open"], false, "the meeting never ended");
+    // E, with the player's hand on the key, on Mara standing at the tap:
+    // nothing more to talk about, one short line, and it ends.
+    let before = op("player")["heard"].as_array().map_or(0, |h| h.iter().filter(|h| h["by"].as_u64() == Some(mara)).count());
+    op_with("key", serde_json::json!({"key": "E"}));
+    let open = talk_after(|t| t["open"] == true);
+    let mut p = op("player");
+    for _ in 0..12 {
+        if p["heard"].as_array().map_or(0, |h| h.iter().filter(|h| h["by"].as_u64() == Some(mara)).count()) > before {
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(250));
+        p = op("player");
+    }
+    shot("tap_5_e_again");
+    let closed = crate::talk_ui::closed_within_8s();
+    eprintln!("E on Mara again: {open}; she said {:?}; then {closed}", heard_mara(&p));
+    assert_eq!(open["open"], true, "E on Mara opened nothing");
+    assert_eq!(closed["open"], false, "E on Mara never ended");
 }

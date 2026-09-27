@@ -188,10 +188,19 @@ The player's choices:
 - "Where exactly?" / "Tell me the way again." Dell answers with the way
   line again.
 
+Dell's replies (drafts): to "Show me." or "Let's go.": "Follow me. Keep
+up." / "This way. Stay close." To "Water doesn't just run out there.
+You're wrong." or "I don't believe it.": "Suit yourself. I'll go on my
+own." / "Then stay thirsty." To "Go and look again. I'll wait." or "Check
+it again first.": "Fine. Don't drink anything while I'm gone." / "Back
+soon."
+
 Pivot point 4, the first meeting at the tap. Mara: "This is ours. We
 found it first." / "Walk away. This one's taken." Choices: "There's
 enough for both of us." (talk), "Step away from it." (threaten), "Keep
-it." (leave).
+it." (leave). Mara's replies (drafts): to talk: "Enough for today. Ask
+again tomorrow." / "Maybe. Don't get greedy."; to threaten: "Try it." /
+"You'll regret that."; to leave: "Smart." / "Good. Go."
 
 Pivot point 6, Dell's storing noticed. Dell: "We might need it. You
 don't know. None of us know." / "It's not stealing if it's ours." Choices:

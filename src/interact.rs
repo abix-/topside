@@ -172,22 +172,30 @@ pub fn interact_on_use(
     mut people: Query<
         (
             (Entity, &Transform, &ThisTick, &mut Inventory, &mut Hud, &mut OpenContainer, &mut OpenStation),
-            (&mut Survival, &mut Health, Option<&mut Memory>, &Facing),
+            (&mut Survival, &mut Health, Option<&mut Memory>, &Facing, Option<&crate::talk::LookingAt>),
         ),
         Without<Dead>,
     >,
-    // Everyone who can be talked to: Use on a person opens the talk panel.
-    others: Query<(Entity, &crate::actor::Actor, &Transform), (With<ThisTick>, Without<Dead>)>,
     mut things: Query<
         (Entity, &mut Interactable, Option<&mut Door>, Option<&WorldItem>, &mut Transform, Option<&DrawsFrom>),
         Without<ThisTick>,
     >,
     mut stores: Query<&mut Container>,
 ) {
-    for ((me, person, this_tick, mut inventory, mut hud, mut open, mut station), (mut needs, mut health, mut memory, facing)) in
+    for ((me, person, this_tick, mut inventory, mut hud, mut open, mut station), (mut needs, mut health, mut memory, facing, looking)) in
         &mut people
     {
         if !this_tick.0.iter().any(|s| matches!(s.action, Action::Use)) {
+            continue;
+        }
+        // Looking at a person: E talks to exactly them (episodes.md
+        // "Conversations"), a conversation that ends by itself.
+        if let Some((_, id)) = looking.and_then(|l| l.0) {
+            if hud.0.open_panel != OpenPanel::Talk || hud.0.talking_to != Some(id) {
+                hud.0.open_panel = OpenPanel::Talk;
+                hud.0.talking_to = Some(id);
+                commands.entity(me).insert(crate::talk::Conversation { with: id, started: tick.0, ends_at: None });
+            }
             continue;
         }
         // The thing pointed at: within reach of the person, the one
@@ -200,24 +208,8 @@ pub fn interact_on_use(
             .iter()
             .map(|(e, _, door, _, t, _)| (e, use_point(door, t)))
             .filter(|(_, p)| p.distance(at) <= REACH)
-            .min_by(|a, b| a.1.distance(pointed).total_cmp(&b.1.distance(pointed)));
-        // A person in reach nearer the aim than any thing: talk to them
-        // (the talk panel, modforge `talk_topics`); Use again closes it.
-        let person_there = others
-            .iter()
-            .filter(|(e, ..)| *e != me)
-            .map(|(_, actor, t)| (actor.0.0, t.translation.ground()))
-            .filter(|(_, p)| p.distance(at) <= REACH)
-            .min_by(|a, b| a.1.distance(pointed).total_cmp(&b.1.distance(pointed)));
-        if let Some((id, p)) = person_there
-            && nearest.is_none_or(|(_, thing)| p.distance(pointed) < thing.distance(pointed))
-        {
-            let talking = hud.0.open_panel == OpenPanel::Talk && hud.0.talking_to == Some(id);
-            hud.0.open_panel = if talking { OpenPanel::None } else { OpenPanel::Talk };
-            hud.0.talking_to = (!talking).then_some(id);
-            continue;
-        }
-        let nearest = nearest.map(|(e, _)| e);
+            .min_by(|a, b| a.1.distance(pointed).total_cmp(&b.1.distance(pointed)))
+            .map(|(e, _)| e);
         let Some(Ok((entity, thing, door, item, transform, draws_from))) = nearest.map(|e| things.get_mut(e)) else {
             // Nothing to use in reach: a river's water pointed at is drunk
             // (design.md: rivers are drinkable).

@@ -140,6 +140,24 @@ writing, the one thing only a writer gives.
 - Outside an episode, plain talk is built the same way from what the
   speaker knows.
 
+## Conversations (operator, 2026-09-27)
+
+Talking is a conversation: it starts, the player makes choices, and it
+ends. Nothing is always on offer.
+
+- The player looks at a person and presses E: that is talking, to that
+  person, each NPC on their own. While the player looks at someone in
+  talking distance, the screen says "[E] Talk to" and their name.
+- A conversation starts when someone speaks (an episode's moment) or when
+  the player presses E on someone. The other person says their lines; the
+  player's choices are the moment's only.
+- Every choice gets the other person's reply, several ways of saying it
+  like every line.
+- After the last reply the conversation ends and the panel closes by
+  itself, once the player has had time to read it.
+- E on someone with nothing to talk about gets a short line of theirs
+  ("Not now." / "What do you want?"), several ways, and it ends.
+
 ## How an episode is written
 
 Episodes are not vanilla (operator, 2026-09-27). Rick and Morty does

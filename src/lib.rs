@@ -212,7 +212,7 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind) -> App {
             )
                 .chain(),
             (
-                (interact::interact_on_use, talk::talk).chain(),
+                (talk::look_at, interact::interact_on_use, talk::talk, talk::conversations).chain(),
                 lap("interact"),
                 (player::movement, sight::look_around, sight::share_maps).chain(),
                 lap("movement"),
@@ -237,6 +237,8 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind) -> App {
             .chain(),
     );
     app.add_systems(Update, profile::start);
+    // A conversation ends on real time, so it can be read at any speed.
+    app.add_systems(Update, talk::end_conversations);
     if !headless {
         app.insert_resource(storm::Windowed);
         app.add_plugins(bevy::diagnostic::FrameTimeDiagnosticsPlugin::default());
@@ -287,6 +289,7 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind) -> App {
                 hud::setup_vitals,
                 hud::setup_station,
                 hud::setup_talk,
+                hud::setup_prompt,
                 hud::setup_sky,
             )
                 .after(terrain::roll),
@@ -304,6 +307,7 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind) -> App {
                 hud::render_vitals,
                 hud::render_station,
                 hud::render_talk,
+                hud::render_prompt,
                 hud::render_sky,
             ),
         );

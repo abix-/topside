@@ -62,6 +62,12 @@ pub struct Eyes {
     pub pitch: f32,
 }
 
+/// The eyes' turn under the player for a pitch: the one place it is
+/// worked out.
+pub fn eye_rotation(pitch: f32) -> Quat {
+    Quat::from_rotation_y(-std::f32::consts::FRAC_PI_2) * Quat::from_rotation_x(pitch)
+}
+
 /// Where the player wakes: the bunker, at the start and after every
 /// death.
 pub fn wake_point(world: &WorldRes) -> Vec3 {
@@ -78,7 +84,7 @@ pub fn spawn_player(mut spawn: SpawnActor, registry: Res<ActorRegistryRes>, worl
     spawn
         .commands
         .entity(person)
-        .insert((Player, Transform::from_translation(at)));
+        .insert((Player, crate::talk::LookingAt::default(), Transform::from_translation(at)));
 }
 
 /// Every actor's roll this tick (combat.md "The roll"): Roll starts one
@@ -115,7 +121,7 @@ pub fn look(
         for child in children.into_iter().flat_map(|c| c.iter()) {
             if let Ok((mut eye, mut at)) = eyes.get_mut(child) {
                 eye.pitch = (eye.pitch + pitch).clamp(-PITCH_LIMIT, PITCH_LIMIT);
-                at.rotation = Quat::from_rotation_y(-std::f32::consts::FRAC_PI_2) * Quat::from_rotation_x(eye.pitch);
+                at.rotation = eye_rotation(eye.pitch);
             }
         }
     }

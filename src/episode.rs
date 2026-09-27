@@ -347,6 +347,19 @@ pub fn the_players_choice(
     if choice != "asks the way" {
         episode.reach(&choice, player.0, when);
         episode.choices.retain(|(_, _, to)| *to != whom);
+        // Their reply (episodes.md "Conversations"), one way of it.
+        let reply = episode
+            .name
+            .as_deref()
+            .and_then(|n| episodes.0.def(n))
+            .and_then(|def| def.choices.iter().find(|c| c.choice == choice))
+            .and_then(|c| modforge::storyteller::say(&c.reply, &[], seed.0, when));
+        if let Some(words) = reply
+            && let Some((_, _, mut actions)) = people.iter_mut().find(|(a, ..)| a.0 == whom)
+        {
+            let line = episode.speak(words);
+            actions.0.push(tick.0, crate::input::Action::Talk { to: player.0.0, said: Said::Line { line, key: 0 } });
+        }
         return;
     }
     // The way again, another way of saying it.
@@ -389,9 +402,11 @@ pub fn the_taps_errands(
     let Some((tap, tap_key)) = episode.thing("tap") else {
         return;
     };
+    // The episode's errand wins over stopping to talk: it is no longer
+    // the conversation's to let go.
     let ask = |commands: &mut Commands, entity: Entity, at: Option<Vec2>| match at {
         Some(at) => {
-            commands.entity(entity).insert(crate::actor::Asked(at));
+            commands.entity(entity).insert(crate::actor::Asked(at)).remove::<crate::talk::HeldToTalk>();
         }
         None => {
             commands.entity(entity).remove::<crate::actor::Asked>();

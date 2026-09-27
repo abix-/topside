@@ -26,6 +26,62 @@ pub fn talk_after(done: impl Fn(&serde_json::Value) -> bool) -> serde_json::Valu
     talk
 }
 
+/// The talk panel once it has closed by itself, at most 8 real seconds
+/// (a conversation stays 4 real seconds after its last line, to be read).
+pub fn closed_within_8s() -> serde_json::Value {
+    let mut talk = op("hud")["talk"].clone();
+    for _ in 0..32 {
+        if talk["open"] == false {
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(250));
+        talk = op("hud")["talk"].clone();
+    }
+    talk
+}
+
+/// The player's lines heard from `id` so far.
+fn heard_from(id: u64) -> Vec<String> {
+    op("player")["heard"]
+        .as_array()
+        .map_or(Vec::new(), |h| h.iter().filter(|h| h["by"].as_u64() == Some(id)).filter_map(|h| h["said"].as_str().map(str::to_string)).collect())
+}
+
+/// Look at someone and press E (episodes.md "Conversations"): the prompt
+/// names them; with nothing to talk about they say one short line and the
+/// conversation ends by itself. Played on a topside stranger.
+#[test]
+fn e_on_someone_with_nothing_to_say_gets_one_line_and_ends() {
+    let people = crate::endpoint::people();
+    // Someone not out to kill the player: a stranger of no faction.
+    let Some(stranger) = people.iter().find(|p| !crate::endpoint::is_bunker_person(p) && p["dead"] != true && p["faction"].is_null()) else {
+        eprintln!("no living stranger this run");
+        return;
+    };
+    let (id, name) = (stranger["id"].as_u64().unwrap_or(0), stranger["name"].as_str().unwrap_or_default().to_string());
+    let player = op("player")["id"].as_u64().expect("the player op reports the player's id");
+    let before = heard_from(id).len();
+    // Stand by them, looking at them: the use op also presses E.
+    op_with("use", serde_json::json!({"id": player, "person": id}));
+    let open = talk_after(|t| t["open"] == true);
+    let prompt = op("hud")["prompt"].clone();
+    shot("stranger_1_talking");
+    let mut heard = heard_from(id);
+    for _ in 0..12 {
+        if heard.len() > before {
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(250));
+        heard = heard_from(id);
+    }
+    eprintln!("{name} ({id}): panel {open}; prompt {prompt}; heard {heard:?}");
+    assert!(heard.len() > before, "{name} said nothing");
+    let closed = closed_within_8s();
+    shot("stranger_2_ended");
+    eprintln!("after their line: {closed}");
+    assert_eq!(closed["open"], false, "the conversation with {name} never ended");
+}
+
 #[test]
 fn the_player_talks_to_dell_through_the_panel() {
     let w = op("world");
@@ -34,33 +90,38 @@ fn the_player_talks_to_dell_through_the_panel() {
         return;
     };
     let player = op("player")["id"].as_u64().expect("the player op reports the player's id");
-    // Stand by Dell facing her (the `use` op aims there), then close
-    // whatever that opened with Escape, as a player would.
-    let at = op_with("npc", serde_json::json!({"id": dell}))["at"].clone();
-    op_with("use", serde_json::json!({"id": player, "at": at}));
-    std::thread::sleep(Duration::from_millis(500));
-    op_with("key", serde_json::json!({"key": "Escape"}));
-    let closed = talk_after(|t| t["open"] == false);
-    shot("talk_0_by_dell");
-    eprintln!("by Dell, after Escape: {closed}");
-    // E: the talk panel opens.
-    op_with("key", serde_json::json!({"key": "E"}));
+    // Stand by Dell looking at her and use (the `use` op: E, as the
+    // player's hands press it): she stops to talk.
+    op_with("use", serde_json::json!({"id": player, "person": dell}));
+    let dell_name = crate::endpoint::people().into_iter().find(|p| p["id"].as_u64() == Some(dell)).and_then(|p| p["name"].as_str().map(str::to_string));
+    let want = dell_name.as_deref().map(|n| format!("[E] Talk to {n}"));
+    let mut prompt = op("hud")["prompt"].clone();
+    for _ in 0..12 {
+        if prompt.as_str() == want.as_deref() {
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(250));
+        prompt = op("hud")["prompt"].clone();
+    }
     let open = talk_after(|t| t["open"] == true);
     shot("talk_1_open");
-    eprintln!("after E: {open}");
-    assert_eq!(open["open"], true, "E on Dell opened no talk panel");
-    // Dell's opening, as the panel shows it: no slot left unfilled.
-    let lines = open["lines"].as_str().unwrap_or_default().to_string();
-    eprintln!("Dell's lines: {lines:?}");
-    assert!(lines.contains("tap"), "the panel shows no line of Dell's about the tap: {lines:?}");
-    assert!(!lines.contains('{'), "a slot left unfilled: {lines:?}");
-    // The choice to believe Dell, however it is said this time.
+    eprintln!("by Dell ({dell_name:?}): prompt {prompt}; {open}");
+    assert_eq!(prompt.as_str(), want.as_deref(), "the prompt names Dell's person");
+    assert_eq!(open["open"], true, "talking to Dell opened no talk panel");
+    // The choice to believe Dell, however it is said this time; the
+    // opening already chosen this episode (another test played it), there
+    // is nothing more of it to read.
     let believe = ["Show me.", "Let's go."];
     let row = |t: &serde_json::Value| t["rows"].as_array().and_then(|r| r.iter().find(|r| believe.iter().any(|b| r["words"] == *b)).cloned());
     let Some(target) = row(&open) else {
         eprintln!("the opening's choices are closed (already chosen this episode); the rows: {}", open["rows"]);
         return;
     };
+    // Dell's opening, as the panel shows it: no slot left unfilled.
+    let lines = open["lines"].as_str().unwrap_or_default().to_string();
+    eprintln!("Dell's lines: {lines:?}");
+    assert!(lines.contains("tap"), "the panel shows no line of Dell's about the tap: {lines:?}");
+    assert!(!lines.contains('{'), "a slot left unfilled: {lines:?}");
     // The mouse over that row.
     op_with("pointer", serde_json::json!({"at": target["at"]}));
     std::thread::sleep(Duration::from_millis(600));
@@ -99,4 +160,20 @@ fn the_player_talks_to_dell_through_the_panel() {
         reached.as_array().is_some_and(|r| r.iter().any(|p| p["pivot"] == "believes Dell")),
         "choosing {words:?} reached no pivot point believing Dell"
     );
+    // Dell's reply, then the conversation ends by itself.
+    let replies = ["Follow me. Keep up.", "This way. Stay close."];
+    let mut heard = heard_from(dell);
+    for _ in 0..12 {
+        if heard.iter().any(|h| replies.contains(&h.as_str())) {
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(250));
+        heard = heard_from(dell);
+    }
+    shot("talk_4_reply");
+    let closed = closed_within_8s();
+    shot("talk_5_ended");
+    eprintln!("Dell said {heard:?}; then {closed}");
+    assert!(heard.iter().any(|h| replies.contains(&h.as_str())), "Dell never replied to {words:?}");
+    assert_eq!(closed["open"], false, "the conversation never ended");
 }
