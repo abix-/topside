@@ -17,8 +17,10 @@ without knowing; here they know, and they talk about it.
   little of their mind. It adds up.
 - Who pays for it: the one who returns, the one who killed them, or
   someone in another bunker who dies for good.
-- Who comes back first: someone lost in The Fever, someone killed in The
-  Tap, or the double from The Other You.
+- The one at the door: always a bunker person, from a random bunker, a
+  random person in it (operator, 2026-09-27). Topside people are gone for
+  good after each episode, so only a bunker person can come back across
+  episodes.
 - Who knows it is a loop: only the dead, everyone, or one person who
   has worked it out and cannot make anyone believe them.
 - The reveal: one of the four under "The reveal".
@@ -30,7 +32,9 @@ what you owe the people you hurt.
 
 ## The people
 
-- The one at the door: whoever comes back first, by the parameter.
+- The one at the door: a random person from a random bunker, by the
+  parameter. They already exist, so they walk from their bunker to the
+  player's door; nobody is placed there.
 - The one who comes back wrong: someone in the player's bunker who has
   died too many times.
 - The one killing on purpose: someone who uses the loop as a punishment
