@@ -108,6 +108,7 @@ pub fn think(
     tree: Res<crate::content::brain::BrainTreeRes>,
     day: Res<crate::survival::Day>,
     storms: Res<crate::storm::StormRes>,
+    reality: Res<crate::Reality>,
     mut walk: ResMut<crate::nav::Walk>,
     sight: Sight,
     mut thinkers: Thinkers,
@@ -188,9 +189,10 @@ pub fn think(
         }
         // Dead with a home to wake in: at their moment they respawn, the
         // same Respawn the player's Enter pushes. Dead with none (a topside
-        // person): never back.
+        // person): never back, unless death does not stick in this reality
+        // (realities.md, Loop).
         if dead {
-            if home.is_some() {
+            if home.is_some() || !reality.0.death_sticks {
                 actions.0.push(tick.0, Action::Respawn);
                 next_think.0 = tick.0 + (modforge::brain::AWAKE_REACTION * 60.0) as u64;
             }

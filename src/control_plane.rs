@@ -487,18 +487,19 @@ pub fn publish_world(
     rolled: Option<Res<crate::terrain::WorldRes>>,
     standing: Option<Res<crate::structure::MonumentsRes>>,
     reality: Res<crate::Reality>,
-    realities: Res<crate::content::RealityRegistryRes>,
+    episode: Res<crate::Episode>,
 ) {
     if tick.0 % 60 != 0 {
         return;
     }
+    let night = crate::survival::night(&tick, *day, &reality);
     // The reality the world is in now, and its rules (realities.md).
-    let reality = realities.0.def(&reality.0).map(|def| json!({
-        "name": def.name,
-        "danger": def.danger.name(),
-        "night": def.night,
-        "death_sticks": def.death_sticks,
-    }));
+    let reality = json!({
+        "name": reality.0.name,
+        "danger": reality.0.danger.name(),
+        "night": reality.0.night,
+        "death_sticks": reality.0.death_sticks,
+    });
     // The chunks made, and for a world with an edge, how many of the
     // chunks it is made whole with (the world and the ring past its
     // edge, terrain::make_chunks) are still not made.
@@ -560,10 +561,14 @@ pub fn publish_world(
     let world = json!({
         "tick": tick.0,
         "day": crate::survival::Day::secs(&tick) / day.0,
-        "night": crate::survival::night(&tick, *day),
+        "night": night,
+        // Whether the day clock is in its night hours, night or not in
+        // this reality.
+        "night_hours": crate::survival::night_hours(&tick, *day),
         "storms": storms.shifts,
         "storm": format!("{:?}", crate::storm::phase(&tick, *day, &storms)).to_lowercase(),
         "reality": reality,
+        "episode": episode.0,
         "did": did,
         "bunkers": bunkers,
         "chunks": {"made": made, "missing": missing},

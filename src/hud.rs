@@ -703,6 +703,7 @@ pub fn render_vitals(
     tick: Res<crate::SimTick>,
     day: Res<crate::survival::Day>,
     storms: Res<crate::storm::StormRes>,
+    reality: Res<crate::Reality>,
     players: Query<(&crate::combat::Health, &Survival), With<Player>>,
     mut texts: Query<&mut Text, With<VitalsText>>,
 ) {
@@ -712,7 +713,7 @@ pub fn render_vitals(
     let time = match crate::storm::phase(&tick, *day, &storms) {
         StormPhase::Storm => "THE STORM",
         StormPhase::Warning => "The sky has changed",
-        StormPhase::Calm if crate::survival::night(&tick, *day) => "Night",
+        StormPhase::Calm if crate::survival::night(&tick, *day, &reality) => "Night",
         StormPhase::Calm => "Day",
     };
     text.0 = format!(
@@ -748,12 +749,13 @@ pub fn render_sky(
     tick: Res<crate::SimTick>,
     day: Res<crate::survival::Day>,
     storms: Res<crate::storm::StormRes>,
+    reality: Res<crate::Reality>,
     mut layers: Query<&mut BackgroundColor, With<SkyLayer>>,
 ) {
     let sky = match crate::storm::phase(&tick, *day, &storms) {
         StormPhase::Storm => Color::srgba(0.95, 0.93, 0.88, 0.85),
         StormPhase::Warning => Color::srgba(0.7, 0.3, 0.05, 0.3),
-        StormPhase::Calm if crate::survival::night(&tick, *day) => Color::srgba(0.0, 0.02, 0.08, NIGHT_DARK),
+        StormPhase::Calm if crate::survival::night(&tick, *day, &reality) => Color::srgba(0.0, 0.02, 0.08, NIGHT_DARK),
         StormPhase::Calm => Color::NONE,
     };
     for mut color in &mut layers {

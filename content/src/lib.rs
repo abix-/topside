@@ -19,6 +19,7 @@ use modforge::survival::Need;
 use modforge::item::{Armor, CombatStats, FoodStats, ItemDef, ItemKind, ItemRegistry, LayerDef, LayerRegistry, Note};
 use modforge::monument::Roll;
 use modforge::reality::{Danger, RealityDef, RealityRegistry};
+use modforge::storyteller::{EpisodeDef, EpisodeRegistry};
 use modforge::monument::{
     Arrangement, BuildingRegistry, BuildingSize, BuildingSlot, BuildingTypeDef,
     MonumentRegistry, MonumentTypeDef, PropDef,
@@ -323,6 +324,38 @@ pub fn register_realities(reg: &mut RealityRegistry) {
         reality("Loop", Danger::Deadly, true, false),
     ] {
         reg.register(def).expect("each reality is registered once");
+    }
+}
+
+/// The episode registry as an app resource: after the storm hands over a
+/// reality, the storyteller starts one of these that fits it
+/// (episodes.md).
+#[derive(Resource)]
+pub struct EpisodeRegistryRes(pub EpisodeRegistry);
+
+impl Default for EpisodeRegistryRes {
+    fn default() -> Self {
+        let mut reg = EpisodeRegistry::default();
+        register_episodes(&mut reg);
+        Self(reg)
+    }
+}
+
+/// The episodes written so far (docs/episodes/), each with the realities
+/// its file says it fits; an empty list fits any.
+pub fn register_episodes(reg: &mut EpisodeRegistry) {
+    let episode = |name: &str, fits: &[&str]| EpisodeDef {
+        name: name.to_string(),
+        fits: fits.iter().map(|r| r.to_string()).collect(),
+    };
+    for def in [
+        episode("The Tap", &["Sky Islands"]),
+        episode("The Fever", &[]),
+        episode("The Other You", &["Mirror"]),
+        episode("Nobody Dies", &["Loop"]),
+        episode("The Question", &["Endless Day", "Rot", "Still Storm", "Maze", "Loop"]),
+    ] {
+        reg.register(def).expect("each episode is registered once");
     }
 }
 

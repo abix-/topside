@@ -64,17 +64,30 @@ pub struct SimTick(pub u64);
 #[derive(Resource)]
 pub struct WorldSeed(pub u64);
 
-/// The reality the world is in now (realities.md), by its name in the
-/// reality registry: the first registered until a storm hands over
-/// another.
+/// The reality the world is in now (realities.md), with its rules: the
+/// first registered until a storm hands over another.
 #[derive(Resource)]
-pub struct Reality(pub String);
+pub struct Reality(pub modforge::reality::RealityDef);
 
 impl FromWorld for Reality {
     fn from_world(world: &mut World) -> Self {
         let realities = world.get_resource_or_init::<content::RealityRegistryRes>();
-        let first = realities.0.pick(0, 0, "").expect("content registers at least one reality");
-        Self(first.name.clone())
+        Self(realities.0.pick(0, 0, "").expect("content registers at least one reality").clone())
+    }
+}
+
+/// The episode running now (episodes.md): one that fits the reality,
+/// started by the storm that handed the reality over; none when no
+/// episode fits it.
+#[derive(Resource)]
+pub struct Episode(pub Option<String>);
+
+impl FromWorld for Episode {
+    fn from_world(world: &mut World) -> Self {
+        let reality = world.get_resource_or_init::<Reality>().0.name.clone();
+        let seed = world.resource::<WorldSeed>().0;
+        let episodes = world.get_resource_or_init::<content::EpisodeRegistryRes>();
+        Self(episodes.0.pick(&reality, seed, 0).map(|e| e.name.clone()))
     }
 }
 
@@ -121,6 +134,8 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind) -> App {
     app.init_resource::<SimTick>();
     app.init_resource::<content::RealityRegistryRes>();
     app.init_resource::<Reality>();
+    app.init_resource::<content::EpisodeRegistryRes>();
+    app.init_resource::<Episode>();
     app.init_resource::<content::BiomeRegistryRes>();
     app.init_resource::<content::MonumentRegistryRes>();
     app.init_resource::<content::ItemRegistryRes>();

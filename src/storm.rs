@@ -17,12 +17,12 @@ use crate::Ground;
 use crate::actor::{Actor, ActorMapRes, Dead, Home, Memory, Npc};
 use crate::combat::leave;
 use crate::combat::{Equipment, Health, Protection, hit_actor};
-use crate::content::{DamageRegistryRes, ItemRegistryRes, LayerRegistryRes, RealityRegistryRes};
+use crate::content::{DamageRegistryRes, EpisodeRegistryRes, ItemRegistryRes, LayerRegistryRes, RealityRegistryRes};
 use crate::survival::Day;
 use crate::interact::WorldItem;
 use crate::structure::{Shelter, sheltered};
 use crate::terrain::WorldPiece;
-use crate::{Reality, SimTick, WorldSeed};
+use crate::{Episode, Reality, SimTick, WorldSeed};
 
 /// How many times the world has shifted, and how far the storm's clock
 /// runs ahead of the world's (the `storm` op brings the next storm now by
@@ -111,13 +111,18 @@ pub fn shift_world(
     tick: Res<SimTick>,
     realities: Res<RealityRegistryRes>,
     mut reality: ResMut<Reality>,
+    episodes: Res<EpisodeRegistryRes>,
+    mut episode: ResMut<Episode>,
 ) {
     // The storm hands over another reality (realities.md), picked from
     // the seed and the storm's number, never the one being left.
-    if let Some(next) = realities.0.pick(seed.0, state.shifts, &reality.0) {
+    if let Some(next) = realities.0.pick(seed.0, state.shifts, &reality.0.name) {
         info!("the storm hands over {} after storm {}", next.name, state.shifts);
-        reality.0 = next.name.clone();
+        reality.0 = next.clone();
     }
+    // Then the storyteller starts an episode that fits it (episodes.md).
+    episode.0 = episodes.0.pick(&reality.0.name, seed.0, state.shifts).map(|e| e.name.clone());
+    info!("episode: {:?}", episode.0);
     for entity in &pieces {
         commands.entity(entity).despawn();
     }

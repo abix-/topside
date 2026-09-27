@@ -251,11 +251,14 @@ pub fn respawn(
     world: Res<WorldRes>,
     tick: Res<crate::SimTick>,
     mut dead: Query<
-        (Entity, &ThisTick, &mut Transform, Option<&Home>, Option<&mut crate::actor::Memory>, &mut Health, &mut Survival),
+        (
+            (Entity, &ThisTick, &mut Transform, Option<&Home>, Option<&crate::actor::SpawnedAt>),
+            (Option<&mut crate::actor::Memory>, &mut Health, &mut Survival, Has<crate::actor::Npc>),
+        ),
         With<Dead>,
     >,
 ) {
-    for (entity, this_tick, mut transform, home, memory, mut health, mut needs) in &mut dead {
+    for ((entity, this_tick, mut transform, home, spawned), (memory, mut health, mut needs, npc)) in &mut dead {
         if !this_tick.0.iter().any(|s| matches!(s.action, Action::Respawn)) {
             continue;
         }
@@ -264,9 +267,13 @@ pub fn respawn(
         if let Some(mut memory) = memory {
             memory.0.did(modforge::memory::Did::Respawned, tick.0);
         }
-        transform.translation = match home {
-            Some(home) => on_ground(home.0, BODY_CENTRE),
-            None => wake_point(&world),
+        // Home if they have one; a topside person where they were spawned
+        // (they come back only where death does not stick); the player
+        // wakes in their bunker.
+        transform.translation = match (home, spawned) {
+            (Some(home), _) => on_ground(home.0, BODY_CENTRE),
+            (None, Some(spawned)) if npc => on_ground(spawned.0, BODY_CENTRE),
+            (None, _) => wake_point(&world),
         };
         commands
             .entity(entity)

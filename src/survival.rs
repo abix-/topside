@@ -81,9 +81,15 @@ pub fn waste(
     }
 }
 
-/// Whether it is night now, from the one day clock (todo 11e4).
-pub fn night(tick: &SimTick, day: Day) -> bool {
+/// Whether the one day clock is in its night hours (todo 11e4).
+pub fn night_hours(tick: &SimTick, day: Day) -> bool {
     is_night(day_fraction(Day::secs(tick), day.0))
+}
+
+/// Whether it is night now: the night hours, never in a reality without
+/// night (realities.md).
+pub fn night(tick: &SimTick, day: Day, reality: &crate::Reality) -> bool {
+    reality.0.night && night_hours(tick, day)
 }
 
 /// Every living actor's needs move one fixed step; at night the awake
@@ -92,9 +98,10 @@ pub fn survival_tick(
     time: Res<Time<Fixed>>,
     tick: Res<SimTick>,
     day: Res<Day>,
+    reality: Res<crate::Reality>,
     mut actors: Query<(&mut Survival, Option<&ActorCondition>), Without<Dead>>,
 ) {
-    let night = night(&tick, *day);
+    let night = night(&tick, *day, &reality);
     let rates = day.rates();
     for (mut survival, condition) in &mut actors {
         let mut condition = condition.map_or_else(Condition::default, |c| c.0);
