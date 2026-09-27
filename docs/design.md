@@ -42,13 +42,17 @@ scripted triggers and thresholds, but through how the player interacts
 with the world and how the world interacts back. Something truly
 emergent, and then enjoying it.
 
-So nothing in topside is a written choice. The story is what happens
+The story is what happens
 when the player pushes on the world and the world pushes back: people
 with their own needs and memories, who remember what you did to them,
 bunkers whose standing with you changes with what happens between you,
 knowledge that travels, and consequences that stay in a world that
 keeps going without you. Every system is judged by whether it lets the
 player write a story no one wrote for them.
+
+Each storm starts a new episode: one story that starts from something
+and ends in many different endings, with the player deciding how it
+goes. See [episodes.md](episodes.md).
 
 ## The feeling (operator, 2026-08-22)
 
@@ -186,7 +190,7 @@ What this changes outside the hour:
 - Roads cannot go to every monument; a road to everything is the
   list. Roads go where history put them (between places people used),
   some broken, and the places that matter are off them. This is a
-  change to the topside generator, not only the Labyrinth.
+  change to the topside generator, not only the Maze.
 - The bunker's starting room carries one rolled question from a
   registry of questions (the bolted door, the note, the radio, and
   more), each with its answer placed by history somewhere within the
@@ -194,7 +198,7 @@ What this changes outside the hour:
 - The first site in any direction is a trace with a link back to the
   question.
 
-In the Labyrinth the hour is the same shape with the clearing as the
+In the Maze the hour is the same shape with the clearing as the
 room: the first question is a mark on the clearing's wall, the big
 triangle is a gate's tower standing over the walls, the first trace
 is in the first dead end, the first teeth are an anomaly in the
@@ -305,6 +309,16 @@ realities, not destruction. "Regenerate" above means the actors arrive
 in a different reality. That is why the people and bunkers persist and
 nothing else does, and why the next world may be made by a completely
 different generator (see "The world").
+
+The storm changes everything (operator, 2026-09-27): not only the
+monuments, where buildings stand, and which people are about, but the
+whole theme, physics, and logic of the world. Death, night, falling,
+what water does, what people believe: any of it can work differently
+in the next reality. The Death Gate worlds are the model: falling is
+death on Sky Islands, Endless Day has no night, Deep Stone keeps its
+dead working, Frozen Sea's water kills power (realities.md). Each storm also starts a new
+episode (see episodes.md). A reality is its own thing, separate from
+the episodes (see realities.md).
 
 ## Building, the Rust way (operator, 2026-08-20: "think about how
 ## Rust lets you build buildings. i want that")
@@ -565,7 +579,7 @@ the road bends around them and the far thing disappears and comes
 back. Small: the bumps, rocks, and scatter that make the ground a
 rhythm instead of a plane. Behind every one of them, something: that
 is the surprise half. A site is placed behind a triangle, never in
-the open beside the road. In the Labyrinth the walls are all medium
+the open beside the road. In the Maze the walls are all medium
 triangles; its big ones must rise over them (a gate's tower, smoke,
 a light at night) or it has no far things at all.
 
@@ -872,7 +886,7 @@ split one world into four elemental ones plus a prison, and each is a
 complete way to live that is nothing like the others. We take them as
 generators, one each:
 
-- Arianus, the world of air: porous floating islands of coralite in
+- Sky Islands (from Arianus, the world of air): porous floating islands of coralite in
   three bands of altitude, the Maelstrom, an eternal storm, filling
   the bottom third. Water is scarce and made by one continent-sized
   machine (the Kicksey-winsey) in the low realm, and the people who
@@ -881,7 +895,7 @@ generators, one each:
   instead of coming over you, water is the scarce pressure, the
   machine is the one monument everyone fights over, and crossing
   between islands needs a vehicle.
-- Pryan, the world of fire: a hollow sphere lit by small suns at its
+- Endless Day (from Pryan, the world of fire): a hollow sphere lit by small suns at its
   centre, so there is no night, covered in jungle miles high; people
   live in the canopy and on country-sized moss mats, and almost nobody
   has seen the ground. Giants roam, asking a question and killing
@@ -889,18 +903,18 @@ generators, one each:
   world is a canopy with holes to a ground you never reach, citadels
   are the monuments, and one wandering actor is bigger than anything
   else and not hostile until you fail it.
-- Abarrach, the world of stone: solid rock honeycombed with tunnels,
+- Deep Stone (from Abarrach, the world of stone): solid rock honeycombed with tunnels,
   volcanic at the core and frozen at the edge, livable only in the
   band between; a lava sea, poison air, and a people who keep their
   dead working. For us: the underground generator, heat and
   radiation as the pressures, the livable band as the map, the dead
   as a faction.
-- Chelestra, the world of water: an egg of ice with a seasun moving
+- Frozen Sea (from Chelestra, the world of water): an egg of ice with a seasun moving
   through it, thawing and refreezing the floating islands people live
   in as it passes; the water itself undoes the old magic. For us: a
   world that changes while you are in it (the sun's path thaws and
   freezes the map on a clock), boats, and water that ruins gear.
-- The Labyrinth: a prison world that hates you, a maze split by gates,
+- Maze (from the Labyrinth): a prison world that hates you, a maze split by gates,
   where the people are runners (keep moving) or squatters (hold a
   place). For us: a maze generator whose walls move on the storm's
   smaller cousin, gates as monuments, and the two ways of living as
@@ -910,14 +924,14 @@ generators, one each:
 Each of these is one `WorldDef` plus its roll, each ends in the same
 `World` data, and none of them is built until the mixed world is
 done. Order after the mixed world: the Backrooms first, then the
-Death Gate worlds, the Labyrinth before the others because it is the
+Death Gate worlds, Maze before the others because it is the
 closest to what the game is about.
 
-### The Labyrinth, mined (operator, 2026-08-21: "i like the idea of
+### Maze, mined (operator, 2026-08-21: "i like the idea of
 ### stalker anomalies and traps. this is a labyrinth after all. and
 ### honestly lets mine the death gate cycle books for ideas")
 
-The Labyrinth is built as data: 10 m corridors (operator: "wide
+Maze is built as data: 10 m corridors (operator: "wide
 enough for 4 people"), walls as high as the corridor is wide, paths
 and dead ends, the bunker in a clearing the maze grows out of. That
 is the stage. What makes it a place is that the maze is the
@@ -951,7 +965,7 @@ From the books (Weis and Hickman, Into the Labyrinth and The Seventh
 Gate; the fandom wiki and TV Tropes read 2026-08-21, the rest from
 memory of the books and marked so):
 
-- The walls move. The Labyrinth manipulates its terrain against you.
+- The walls move. The maze manipulates its terrain against you.
   For us: on the storm's smaller cousin, runs of wall vanish and new
   ones stand, a corridor you walked is not there next time, and the
   map you drew yourself is wrong. This is the maze's own version of
@@ -969,7 +983,7 @@ memory of the books and marked so):
 - The creatures, sent by the maze: wolfen, man-sized wolves hunting
   in packs of thirty to forty; chaodyn, insect things (from memory:
   killed in one blow or they split into two); snogs; tiger-men;
-  dragons. For us: the Labyrinth's NPC pools are these, not raiders,
+  dragons. For us: Maze's NPC pools are these, not raiders,
   and each is a rule, not a reskin. A wolfen pack is a crowd that
   flanks in corridors; a chaodyn punishes a weak hit; a dragon is the
   thing you hear and never want to meet.

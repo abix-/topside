@@ -93,10 +93,13 @@ changes"), so cover also hides.
 Similar to Enter the Gungeon, kept on topside's damage numbers: an
 ordinary hit takes about a sixth of a person's health.
 
-No body parts for damage, as in Enter the Gungeon and Factorio: a hit lands
-on the person, not on a part of them. The body still has parts and armor
-pieces worn on them, but their protection is added together into one total
-that every hit goes through. Armor reduces damage by type.
+Damage by where the hit lands, with weak places, on everyone (operator,
+2026-09-27). "No body parts" was decided when the game was top-down,
+where it was hard to tell where a hit landed; in first person it is
+clear, so a hit lands on a part of the body, and some parts are weak
+places: the foot of a giant, a head. This is the same for every person,
+the player, every NPC, and every boss. Armor reduces damage by type.
+Worn armor protects only the part it is worn on (operator, 2026-09-27).
 
 ## How a hit is resolved
 
@@ -114,6 +117,31 @@ that every hit goes through. Armor reduces damage by type.
    rewind.
 5. Buildings are targets: a piece has health and no armor, and the same
    function routes to it.
+
+## Bosses (operator, 2026-09-27)
+
+Elden Ring does boss fights right. A boss is a puzzle solved with
+agility and timing, fought by the same rules as everyone above, pushed
+further:
+
+- A boss has a set list of attacks. Each has a wind-up the player learns
+  to read, a shape (the strip or arc it covers), a right answer (block,
+  roll, cover, distance), and a recovery: the commitment above, and the
+  player's safe window to hit back.
+- The boss chooses how to do those attacks: which one, in what order,
+  whether to delay the swing, whether to chain two.
+- The player's knowledge of the attacks is the progression: the more
+  wind-ups they know, the more safe windows they see. Knowledge travels:
+  survivors can tell the player what it does.
+- There is usually a weakness: a weak place (the foot of a giant) or an
+  item that helps.
+- Bosses are learning NPCs like everyone else (life.md, "Learning to stay
+  alive"): the list of attacks is what the boss is born with; what it
+  learns picks among them, so it learns which work against this player,
+  and the attacks stay learnable. A boss that survives remembers the
+  player (Shadow of Mordor's Nemesis system).
+- A boss is an actor through `spawn_actor` like everyone else
+  (realities.md, "Danger").
 
 ## Not decided
 

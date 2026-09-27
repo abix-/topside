@@ -11,7 +11,8 @@ Every cargo run is watched: when its log has not grown for
 StallMinutes, the script stops it and shows where it stalled instead of
 hanging.
 .PARAMETER Action
-run: build, then launch the game (logs/topside.log, logs/topside.err.log).
+run: build, then launch the game detached in the background and return
+at once (logs/topside.log, logs/topside.err.log).
 test: run the tests (the topside-tests crate) against the running game
 through cargo-nextest (.config/nextest.toml), all of them or one
 tests/<Name>.rs; every test's time is printed, the run is in
@@ -144,15 +145,21 @@ switch ($Action) {
         if ($code -eq 0) {
             $out = Join-Path $logs 'topside.log'
             $err = Join-Path $logs 'topside.err.log'
-            $launch = @{
-                FilePath               = $exe
-                WorkingDirectory       = $repo
-                RedirectStandardOutput = $out
-                RedirectStandardError  = $err
+            # Launched detached through WMI so the game inherits none of
+            # this script's handles: a Start-Process child with redirected
+            # output keeps the caller's pipe open, and whoever ran this
+            # script waits until the game closes.
+            $command = "cmd /c `"`"$exe`" $($GameArgs -join ' ') > `"$out`" 2> `"$err`"`""
+            $launched = Invoke-CimMethod -ClassName Win32_Process -MethodName Create -Arguments @{
+                CommandLine      = $command
+                CurrentDirectory = $repo
             }
-            if ($GameArgs.Count -gt 0) { $launch.ArgumentList = $GameArgs }
-            Start-Process @launch
-            Write-Host "[build] topside launched $GameArgs (log: $out, $err)" -ForegroundColor Green
+            if ($launched.ReturnValue -ne 0) {
+                Write-Host "[build] launching topside FAILED (Win32_Process.Create returned $($launched.ReturnValue))" -ForegroundColor Red
+                $code = 1
+            } else {
+                Write-Host "[build] topside launched in the background $GameArgs (log: $out, $err)" -ForegroundColor Green
+            }
         }
     }
 }

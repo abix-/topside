@@ -486,10 +486,19 @@ pub fn publish_world(
     chunks: Option<Res<crate::terrain::Chunks>>,
     rolled: Option<Res<crate::terrain::WorldRes>>,
     standing: Option<Res<crate::structure::MonumentsRes>>,
+    reality: Res<crate::Reality>,
+    realities: Res<crate::content::RealityRegistryRes>,
 ) {
     if tick.0 % 60 != 0 {
         return;
     }
+    // The reality the world is in now, and its rules (realities.md).
+    let reality = realities.0.def(&reality.0).map(|def| json!({
+        "name": def.name,
+        "danger": def.danger.name(),
+        "night": def.night,
+        "death_sticks": def.death_sticks,
+    }));
     // The chunks made, and for a world with an edge, how many of the
     // chunks it is made whole with (the world and the ring past its
     // edge, terrain::make_chunks) are still not made.
@@ -553,6 +562,8 @@ pub fn publish_world(
         "day": crate::survival::Day::secs(&tick) / day.0,
         "night": crate::survival::night(&tick, *day),
         "storms": storms.shifts,
+        "storm": format!("{:?}", crate::storm::phase(&tick, *day, &storms)).to_lowercase(),
+        "reality": reality,
         "did": did,
         "bunkers": bunkers,
         "chunks": {"made": made, "missing": missing},
@@ -826,6 +837,15 @@ pub fn start() {
         "the inventory screen: whether it is open, each panel of slots with its holder, slot count, and where it stands on the window, and every filled slot with the icons it shows",
         "",
         |_| Ok(HUD.lock().map(|v| v.clone()).unwrap_or(Json::Null)),
+    ));
+    OP_REGISTRY.register(OpDef::new(
+        "storm",
+        "bring the next storm now: the sky warns on the game's next step, then the storm hits and the world shifts to the next reality, as any storm does",
+        "",
+        |_| {
+            crate::storm::STORM_NOW.store(true, Ordering::Relaxed);
+            Ok(json!({"storm": "coming"}))
+        },
     ));
     OP_REGISTRY.register(OpDef::new(
         "screenshot",

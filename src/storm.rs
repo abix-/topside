@@ -7,6 +7,8 @@
 //! stay; the topside people die with their world and the next world's
 //! are found at its monuments.
 
+use std::sync::atomic::{AtomicBool, Ordering};
+
 use bevy::prelude::*;
 use modforge::combat::Hit;
 use modforge::storm::StormPhase;
@@ -15,31 +17,46 @@ use crate::Ground;
 use crate::actor::{Actor, ActorMapRes, Dead, Home, Memory, Npc};
 use crate::combat::leave;
 use crate::combat::{Equipment, Health, Protection, hit_actor};
-use crate::content::{DamageRegistryRes, ItemRegistryRes, LayerRegistryRes};
+use crate::content::{DamageRegistryRes, ItemRegistryRes, LayerRegistryRes, RealityRegistryRes};
 use crate::survival::Day;
 use crate::interact::WorldItem;
 use crate::structure::{Shelter, sheltered};
 use crate::terrain::WorldPiece;
-use crate::{SimTick, WorldSeed};
+use crate::{Reality, SimTick, WorldSeed};
 
-/// How many times the world has shifted.
+/// How many times the world has shifted, and how far the storm's clock
+/// runs ahead of the world's (the `storm` op brings the next storm now by
+/// running it ahead).
 #[derive(Resource, Default)]
 pub struct StormRes {
     pub shifts: u32,
+    pub ahead: f32,
+}
+
+impl StormRes {
+    /// Seconds on the storm's clock at `tick`.
+    pub fn secs(&self, tick: &SimTick) -> f32 {
+        Day::secs(tick) + self.ahead
+    }
 }
 
 /// The game draws a window (the ground needs one to be drawn).
 #[derive(Resource)]
 pub struct Windowed;
 
-/// Where the world is in the storm's cycle now, on the day's clock.
-pub fn phase(tick: &SimTick, day: Day) -> StormPhase {
-    day.storm().phase(Day::secs(tick))
+/// Where the world is in the storm's cycle now, on the storm's clock.
+pub fn phase(tick: &SimTick, day: Day, storms: &StormRes) -> StormPhase {
+    day.storm().phase(storms.secs(tick))
 }
 
-/// Every fixed step: during the storm, once a second, everyone in the
-/// open takes the storm's damage; when a storm has passed, the world
-/// shifts.
+/// The `storm` op's request to bring the next storm now, taken by the
+/// game on its next step.
+pub static STORM_NOW: AtomicBool = AtomicBool::new(false);
+
+/// Every fixed step: the `storm` op's request runs the storm's clock
+/// ahead to the next warning; during the storm, once a second, everyone
+/// in the open takes the storm's damage; when a storm has passed, the
+/// world shifts.
 pub fn storm(
     mut commands: Commands,
     tick: Res<SimTick>,
@@ -51,7 +68,10 @@ pub fn storm(
     shelters: Query<&Shelter>,
     mut actors: Query<(&Transform, &Protection, &Equipment, &mut Health, Option<&mut Memory>), Without<Dead>>,
 ) {
-    if phase(&tick, *day) == StormPhase::Storm
+    if STORM_NOW.swap(false, Ordering::Relaxed) {
+        state.ahead += day.storm().until_next_warning(state.secs(&tick));
+    }
+    if phase(&tick, *day, &state) == StormPhase::Storm
         && tick.0 % 60 == 0
         && let Some(def) = damage.0.def("storm")
     {
@@ -68,7 +88,7 @@ pub fn storm(
             hit_actor(&hit, own, worn, &items.0, &layers.0, &mut health, memory.as_deref_mut(), None, tick.0);
         }
     }
-    let passed = day.storm().passed(Day::secs(&tick));
+    let passed = day.storm().passed(state.secs(&tick));
     if passed > state.shifts {
         state.shifts = passed;
         commands.run_system_cached(shift_world);
@@ -89,7 +109,15 @@ pub fn shift_world(
     mut topside_people: Query<(Entity, Option<&Actor>, Option<&mut Memory>), (With<Npc>, Without<Home>, Without<Dead>)>,
     mut map: ResMut<ActorMapRes>,
     tick: Res<SimTick>,
+    realities: Res<RealityRegistryRes>,
+    mut reality: ResMut<Reality>,
 ) {
+    // The storm hands over another reality (realities.md), picked from
+    // the seed and the storm's number, never the one being left.
+    if let Some(next) = realities.0.pick(seed.0, state.shifts, &reality.0) {
+        info!("the storm hands over {} after storm {}", next.name, state.shifts);
+        reality.0 = next.name.clone();
+    }
     for entity in &pieces {
         commands.entity(entity).despawn();
     }

@@ -107,6 +107,7 @@ pub fn think(
     monuments: Res<MonumentRegistryRes>,
     tree: Res<crate::content::brain::BrainTreeRes>,
     day: Res<crate::survival::Day>,
+    storms: Res<crate::storm::StormRes>,
     mut walk: ResMut<crate::nav::Walk>,
     sight: Sight,
     mut thinkers: Thinkers,
@@ -151,7 +152,7 @@ pub fn think(
     let walk = std::cell::RefCell::new(&mut walk.0);
     let can_go = |at: Vec3| walk.borrow_mut().standable(Vec2::new(at.x, at.z));
     // The storm is the same for everyone: coming or here, hide.
-    let storm_coming = crate::storm::phase(&tick, *day) != modforge::storm::StormPhase::Calm;
+    let storm_coming = crate::storm::phase(&tick, *day, &storms) != modforge::storm::StormPhase::Calm;
     // Everyone's position and faction first, so the pass below holds
     // no second borrow. The player carries no id yet: zero names it.
     let everyone: Vec<(Entity, ActorId, Vec2, Option<String>)> = thinkers

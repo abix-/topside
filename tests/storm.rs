@@ -5,6 +5,27 @@
 
 use crate::endpoint::{is_bunker_person, op, people};
 
+/// The `storm` op brings the next storm now: the sky warns on the game's
+/// next step (the `world` op publishes once a game second, so it is read
+/// again until it has published since the request).
+#[test]
+fn the_storm_op_brings_the_storm_now() {
+    let before = op("world");
+    let asked = op("storm");
+    eprintln!("storm op answered {asked}; before it: tick {}, storm {}, {} storms", before["tick"], before["storm"], before["storms"]);
+    let mut after = op("world");
+    for _ in 0..50 {
+        if after["tick"].as_u64() > before["tick"].as_u64() {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(100));
+        after = op("world");
+    }
+    eprintln!("after it: tick {}, storm {}, {} storms", after["tick"], after["storm"], after["storms"]);
+    assert!(after["tick"].as_u64() > before["tick"].as_u64(), "the world op did not publish again within 5 seconds");
+    assert_ne!(after["storm"], "calm", "the sky does not warn and no storm hits after the storm op");
+}
+
 #[test]
 fn the_storm_hurts_the_open_bunker_people_shelter_and_the_world_shifts() {
     let w = op("world");

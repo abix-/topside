@@ -64,13 +64,17 @@ pub struct SimTick(pub u64);
 #[derive(Resource)]
 pub struct WorldSeed(pub u64);
 
-/// Which reality the world rolls from (`content::WORLDS`).
+/// The reality the world is in now (realities.md), by its name in the
+/// reality registry: the first registered until a storm hands over
+/// another.
 #[derive(Resource)]
-pub struct WorldName(pub String);
+pub struct Reality(pub String);
 
-impl Default for WorldName {
-    fn default() -> Self {
-        Self(content::WORLDS[0].to_string())
+impl FromWorld for Reality {
+    fn from_world(world: &mut World) -> Self {
+        let realities = world.get_resource_or_init::<content::RealityRegistryRes>();
+        let first = realities.0.pick(0, 0, "").expect("content registers at least one reality");
+        Self(first.name.clone())
     }
 }
 
@@ -115,7 +119,8 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind) -> App {
     app.insert_resource(WorldSeed(seed));
     app.insert_resource(world);
     app.init_resource::<SimTick>();
-    app.init_resource::<WorldName>();
+    app.init_resource::<content::RealityRegistryRes>();
+    app.init_resource::<Reality>();
     app.init_resource::<content::BiomeRegistryRes>();
     app.init_resource::<content::MonumentRegistryRes>();
     app.init_resource::<content::ItemRegistryRes>();

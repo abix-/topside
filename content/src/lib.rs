@@ -18,6 +18,7 @@ use modforge::memory::GoodFor;
 use modforge::survival::Need;
 use modforge::item::{Armor, CombatStats, FoodStats, ItemDef, ItemKind, ItemRegistry, LayerDef, LayerRegistry, Note};
 use modforge::monument::Roll;
+use modforge::reality::{Danger, RealityDef, RealityRegistry};
 use modforge::monument::{
     Arrangement, BuildingRegistry, BuildingSize, BuildingSlot, BuildingTypeDef,
     MonumentRegistry, MonumentTypeDef, PropDef,
@@ -294,18 +295,34 @@ impl Default for BiomeRegistryRes {
     }
 }
 
-/// The realities that can be rolled, by name (design.md "The
-/// generators we want"; operator 2026-08-21: "call the first one
-/// topside and this one labyrinth"). `--world <name>` picks one
-/// until the storm rolls it.
-pub const WORLDS: [&str; 2] = ["topside", "labyrinth"];
+/// The reality registry as an app resource: the storm hands over one of
+/// these (realities.md).
+#[derive(Resource)]
+pub struct RealityRegistryRes(pub RealityRegistry);
 
-/// The world to roll for a reality name, or the names it knows.
-pub fn world_def(name: &str) -> Result<WorldDef, String> {
-    match name {
-        "topside" => Ok(topside_def()),
-        "labyrinth" => Ok(labyrinth_def()),
-        other => Err(format!("unknown world '{other}'; one of {WORLDS:?}")),
+impl Default for RealityRegistryRes {
+    fn default() -> Self {
+        let mut reg = RealityRegistry::default();
+        register_realities(&mut reg);
+        Self(reg)
+    }
+}
+
+/// The realities built so far (docs/realities/), Mixed world first: the
+/// world before any storm. Each changes only rules the game already has.
+pub fn register_realities(reg: &mut RealityRegistry) {
+    let reality = |name: &str, danger, night, death_sticks| RealityDef {
+        name: name.to_string(),
+        danger,
+        night,
+        death_sticks,
+    };
+    for def in [
+        reality("Mixed world", Danger::Hard, true, true),
+        reality("Endless Day", Danger::Deadly, false, true),
+        reality("Loop", Danger::Deadly, true, false),
+    ] {
+        reg.register(def).expect("each reality is registered once");
     }
 }
 

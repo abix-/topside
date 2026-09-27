@@ -22,6 +22,15 @@ These rules govern `docs/changelog.md`. Follow them exactly.
 - Use plain terms. Do not use vague descriptions, invented language, or design
   essays.
 
+## 2026-09-27
+
+| System | Item | Done when |
+|---|---|---|
+| topside-tests | [x] Confirm on the endpoint that the storm comes, hurts those in the open, and shifts the world | tests/storm.rs `the_storm_hurts_the_open_bunker_people_shelter_and_the_world_shifts` passes against the running game after a storm brought by the `storm` op |
+| storm, control_plane, modforge storm | [x] A `storm` op brings the next storm now: it runs the storm's clock ahead to the next warning (modforge `StormDef::until_next_warning`), so the warning, the storm, and the shift play through the one storm path; the `world` op reports the storm's phase | modforge `storm::` tests pass (4); tests/storm.rs against the running game: the storm op answered, the world op went from tick 120 "calm" to tick 180 "warning"; modforge f111a821 |
+| topside-content, storm, control_plane | [x] The storm hands over a reality: content registers the first realities (Mixed world: night, death sticks, hard; Endless Day: no night, deadly; Loop: death does not stick, deadly), `shift_world` picks the next one from the registry, the game keeps the current one, and the `world` op reports it (name, danger, night, death sticks) | tests/reality.rs against the running game: tick 2220, 0 storms, Mixed world with its rules; tick 12480, 1 storm, Endless Day (deadly, no night, death sticks) |
+| modforge reality | [x] A reality as data (realities.md): `RealityDef` with its name, danger (calm, hard, deadly), whether it has night, and whether death sticks; `RealityRegistry` holds them and picks the reality for each storm from the seed and the storm's number: the first registered before any storm, never the one being left | modforge `reality::` tests pass (5): the same seed and storm number pick the same reality, before any storm it is the first registered, a pick never repeats the reality being left; modforge 2ffc0fb5 |
+
 ## 2026-09-26
 
 | System | Item | Done when |

@@ -17,6 +17,7 @@ mod map;
 mod monuments;
 mod night;
 mod people_drawn;
+mod reality;
 mod respawn;
 mod roads;
 mod screenshot;

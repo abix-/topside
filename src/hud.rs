@@ -702,13 +702,14 @@ pub fn setup_vitals(mut commands: Commands) {
 pub fn render_vitals(
     tick: Res<crate::SimTick>,
     day: Res<crate::survival::Day>,
+    storms: Res<crate::storm::StormRes>,
     players: Query<(&crate::combat::Health, &Survival), With<Player>>,
     mut texts: Query<&mut Text, With<VitalsText>>,
 ) {
     let (Ok((health, needs)), Ok(mut text)) = (players.single(), texts.single_mut()) else {
         return;
     };
-    let time = match crate::storm::phase(&tick, *day) {
+    let time = match crate::storm::phase(&tick, *day, &storms) {
         StormPhase::Storm => "THE STORM",
         StormPhase::Warning => "The sky has changed",
         StormPhase::Calm if crate::survival::night(&tick, *day) => "Night",
@@ -746,9 +747,10 @@ pub fn setup_sky(mut commands: Commands) {
 pub fn render_sky(
     tick: Res<crate::SimTick>,
     day: Res<crate::survival::Day>,
+    storms: Res<crate::storm::StormRes>,
     mut layers: Query<&mut BackgroundColor, With<SkyLayer>>,
 ) {
-    let sky = match crate::storm::phase(&tick, *day) {
+    let sky = match crate::storm::phase(&tick, *day, &storms) {
         StormPhase::Storm => Color::srgba(0.95, 0.93, 0.88, 0.85),
         StormPhase::Warning => Color::srgba(0.7, 0.3, 0.05, 0.3),
         StormPhase::Calm if crate::survival::night(&tick, *day) => Color::srgba(0.0, 0.02, 0.08, NIGHT_DARK),
