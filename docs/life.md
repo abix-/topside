@@ -200,6 +200,19 @@ still there to query, memory and all. They lived, they died, and they
 still exist. A topside person who dies, by a hand or the storm, never
 comes back, but is never erased.
 
+### How a person feels about others (operator, 2026-09-27)
+
+Relationships are between people, and also between factions: both.
+A person's feeling toward another person comes from their own memory:
+what that person did to them, what they saw them do, what they were
+told about them. A faction's standing toward a person, or toward
+another faction, is worked out from its members' feelings taken
+together; it is never kept as a second record. A person acts on their
+own feeling when they have one, and on their faction's standing when
+they have none: their own history with you comes first. Prior art:
+RimWorld (pawn opinions, faction goodwill), Mount & Blade (lord and
+kingdom relations).
+
 ### Learning to stay alive (operator, 2026-09-25)
 
 Every person learns from what they live through (reinforcement
