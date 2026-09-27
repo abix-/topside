@@ -84,6 +84,21 @@ things in them belong to whichever reality you are in now. The player
 is never told this outright; it is something to wonder about (see "The
 unknown").
 
+The truth behind it (operator, 2026-09-27): the never-ending loop of
+realities and episodes is TV for an alien race. They have enslaved the
+bunker people and every other NPC in a digital hell, as entertainment.
+The episodes the player lives through are watched by the aliens, who
+influence the loop of realities. They are never described; the player
+only ever learns what the research reveals.
+
+- It is found only through the tech tree: researching the storm leads to
+  it. Nothing tells the player before they earn it (episodes.md: the
+  player is never told what they did not see or hear).
+- With enough research the player finds the episode guide: summaries of
+  their past episodes, with the ratings and viewers from the aliens.
+- The ratings matter, always. If the ratings are too low, the Directors
+  take direct action to keep the viewers happy.
+
 ## The goal
 
 The goal of this game is to make the player FEEL like they are in a struggle
@@ -1446,6 +1461,8 @@ playable version. They stay here as documented goals, not promises.
   one day controls it. Knowledge earned, never given (The unknown).
   Controlling it would be the one exception, earned through research, to
   the player never picking the next episode or reality (episodes.md).
+  The research leads to the truth behind the storm and to the episode
+  guide (The story).
 
 ## Still open
 
