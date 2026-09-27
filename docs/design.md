@@ -96,8 +96,10 @@ only ever learns what the research reveals.
   player is never told what they did not see or hear).
 - With enough research the player finds the episode guide: summaries of
   their past episodes, with the ratings and viewers from the aliens.
-- The ratings matter, always. If the ratings are too low, the Directors
-  take direct action to keep the viewers happy.
+- The ratings matter, always. If the ratings are too low, the Director
+  takes direct action to keep the viewers happy.
+- The Director is the Storyteller (authority.md): the alien entity
+  managing it all (operator, 2026-09-27).
 
 ## The goal
 

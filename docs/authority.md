@@ -124,7 +124,7 @@ the operator's own words. No synonyms, no renamed wrappers.
 |---|---|
 | **World** | Topside's one simulation state: map, people, items, structures, factions, time. The only source of truth about what exists right now. |
 | **Binder** | The trait a consumer implements to give one modforge system eyes and hands into its world. Binders observe and act; they never decide. |
-| **Storyteller** | The one director. Two locked layers: Randy Random (random events regardless of how the player is doing; never adaptive) and Mario Kart (adaptive pressure on whoever is winning). Nothing else schedules dramatic events. |
+| **Storyteller** | The one director. Two locked layers: Randy Random (random events regardless of how the player is doing; never adaptive) and Mario Kart (adaptive pressure on whoever is winning). Nothing else schedules dramatic events. In the story the Storyteller is the Director: the alien entity managing it all, whose show the episodes are (operator, 2026-09-27; design.md "The story"). |
 | **The edge** | The border of the unknown beyond the map. The ONE faucet through which new people, items, and factions enter the world. |
 | **Incursion** | One thing the storyteller sends across the edge, telegraphed by the dread loop. |
 | **Dread loop** | Telegraph, uncertainty, varied payoff, lingering mystery, escalation. The storyteller's pacing mechanism. |
