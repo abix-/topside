@@ -173,7 +173,9 @@ Pivot point 1, how it opens. Dell:
   stop." / "Go {way} out the door, past the {landmark} on your {side}.
   The {place} there has a tap. It still runs." / "Head {way} from the
   door. When the {landmark} is on your {side}, look for the {place}. The
-  tap in it doesn't stop."
+  tap in it doesn't stop." / "Out the door, then {way}. There's a
+  {place} out there, and a tap inside it that runs." (when Dell knows no
+  landmark on the way)
 - "Don't tell anyone. The day the other bunker hears of it, it's
   theirs." / "Keep it quiet. If the others find out, it's gone."
 
