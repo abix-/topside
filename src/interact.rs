@@ -49,6 +49,11 @@ pub struct WorldItem {
 #[derive(Component)]
 pub struct Container(pub item::Inventory);
 
+/// A source whose water comes out of a store (The Tap's tap, drawn from
+/// Mara's bunker's store): each drink takes one water from that box.
+#[derive(Component)]
+pub struct DrawsFrom(pub Entity);
+
 /// The box this person has open, if any.
 #[derive(Component, Default)]
 pub struct OpenContainer(pub Option<Entity>);
@@ -172,9 +177,10 @@ pub fn interact_on_use(
         Without<Dead>,
     >,
     mut things: Query<
-        (Entity, &mut Interactable, Option<&mut Door>, Option<&WorldItem>, &mut Transform),
+        (Entity, &mut Interactable, Option<&mut Door>, Option<&WorldItem>, &mut Transform, Option<&DrawsFrom>),
         Without<ThisTick>,
     >,
+    mut stores: Query<&mut Container>,
 ) {
     for ((person, this_tick, mut inventory, mut hud, mut open, mut station), (mut needs, mut health, mut memory, facing)) in
         &mut people
@@ -190,11 +196,11 @@ pub fn interact_on_use(
         let pointed = ActionQueue::aim(&this_tick.0).map_or(at + facing.direction(), |(x, y)| Vec2::new(x, y));
         let nearest = things
             .iter()
-            .map(|(e, _, door, _, t)| (e, use_point(door, t)))
+            .map(|(e, _, door, _, t, _)| (e, use_point(door, t)))
             .filter(|(_, p)| p.distance(at) <= REACH)
             .min_by(|a, b| a.1.distance(pointed).total_cmp(&b.1.distance(pointed)))
             .map(|(e, _)| e);
-        let Some(Ok((entity, thing, door, item, transform))) = nearest.map(|e| things.get_mut(e)) else {
+        let Some(Ok((entity, thing, door, item, transform, draws_from))) = nearest.map(|e| things.get_mut(e)) else {
             // Nothing to use in reach: a river's water pointed at is drunk
             // (design.md: rivers are drinkable).
             if chunks.as_ref().is_some_and(|c| nearest_water(c, at, pointed).is_some()) {
@@ -206,6 +212,21 @@ pub fn interact_on_use(
         if thing.kind == InteractKind::Source {
             if let Some(item) = item {
                 eat_from_source(&item.stack.item, &registry, &mut needs, &mut health, memory.as_deref_mut(), tick.0);
+                // Water drawn from a store: one of its waters goes.
+                if let Some(from) = draws_from
+                    && let Ok(mut store) = stores.get_mut(from.0)
+                {
+                    let water = store
+                        .0
+                        .slots
+                        .iter()
+                        .flatten()
+                        .find(|s| registry.0.def(&s.item).and_then(|d| d.food).is_some_and(|f| f.thirst > 0.0))
+                        .map(|s| s.item.clone());
+                    if let Some(water) = water {
+                        store.0.take_one(&water);
+                    }
+                }
             }
             continue;
         }

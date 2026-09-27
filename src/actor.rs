@@ -14,7 +14,7 @@ use modforge::survival::{Condition, SurvivalStats};
 use crate::combat::{Equipment, Firing, Health, Protection, Rolling};
 use crate::content::{
     ActorRegistryRes, BUNKER_PEOPLE_AT, BUNKER_STORE_AT, BiomeRegistryRes, DOOR_ENEMY, FactionRegistryRes,
-    ItemRegistryRes, MonumentRegistryRes, bunker_faction, def_for_danger,
+    ItemRegistryRes, MonumentRegistryRes, PLAYER_BUNKER_PEOPLE, PLAYER_FACTION, bunker_faction, def_for_danger,
 };
 use crate::terrain::WorldRes;
 use crate::input::{Actions, ThisTick};
@@ -125,7 +125,6 @@ pub struct Map {
 /// Where this person lives and returns to.
 #[derive(Component, Debug, Clone, Copy, PartialEq)]
 pub struct Home(pub Vec2);
-
 /// Where this person was spawned, for the control plane: whether they
 /// started somewhere or walked there.
 #[derive(Component, Debug, Clone, Copy, PartialEq)]
@@ -245,6 +244,10 @@ pub fn spawn_person(
     // What they look like, rolled from who they are.
     let look = modforge::actor::Look::roll(id, spawn.seed.0, &crate::content::look_def());
     spawn.commands.entity(entity).insert(Look(look));
+    // Everybody has a name (operator, 2026-09-27), Bevy's `Name` on the
+    // person, rolled from who they are.
+    let name = modforge::actor::roll_name(&crate::content::PERSON_NAMES, id, spawn.seed.0);
+    spawn.commands.entity(entity).insert(Name::new(name));
     let mut health = def.health();
     health.max *= personality.health_mult();
     health.current = health.max;
@@ -370,7 +373,8 @@ pub fn settle(spawn: &mut SpawnActor, def: &ActorDef, stand: Vec2, known: &Memor
 }
 
 /// The bunker people (design.md "Bunker people and topside people"):
-/// `BUNKER_PEOPLE` in every other bunker, through the one spawn path,
+/// `BUNKER_PEOPLE` in every other bunker, and `PLAYER_BUNKER_PEOPLE`
+/// beside the player in theirs (Roxanne), all through the one spawn path,
 /// of that bunker's faction, home at their spot in it, knowing only that
 /// (life.md "Learning to stay alive"). Once: they persist, and respawn
 /// at home.
@@ -381,15 +385,24 @@ pub fn populate_bunkers(
     stores: Query<(Entity, &Transform), With<Container>>,
 ) {
     let def = registry.0.def("bunker person").expect("the bunker person is registered");
+    // Each bunker: where, its faction, and its people (a name set in
+    // content, or rolled, and where they stand in it).
+    let mut bunkers: Vec<(Vec2, String, Vec<(Option<&str>, [f32; 2])>)> = vec![(
+        world.bunker,
+        PLAYER_FACTION.to_string(),
+        PLAYER_BUNKER_PEOPLE.iter().map(|(name, at)| (Some(*name), *at)).collect(),
+    )];
     for (i, &at) in world.bunkers.iter().enumerate() {
+        bunkers.push((at, bunker_faction(i), BUNKER_PEOPLE_AT.iter().map(|at| (None, *at)).collect()));
+    }
+    for (at, faction, people) in bunkers {
         let [x, z] = BUNKER_STORE_AT;
         let store_at = at + Vec2::new(x, z);
         let store = stores
             .iter()
             .find(|(_, t, ..)| t.translation.ground().distance(store_at) < 0.5)
             .map(|(entity, ..)| entity);
-        let faction = bunker_faction(i);
-        for [x, z] in BUNKER_PEOPLE_AT {
+        for (name, [x, z]) in people {
             let stand = at + Vec2::new(x, z);
             if let Some(npc) = spawn_actor(&mut spawn, def, stand, Some(&faction)) {
                 // They know one thing: this bunker is home (life.md
@@ -398,6 +411,9 @@ pub fn populate_bunkers(
                 spawn.commands.entity(npc).insert(Home(stand));
                 if let Some(store) = store {
                     spawn.commands.entity(npc).insert(Store(store));
+                }
+                if let Some(name) = name {
+                    spawn.commands.entity(npc).insert(Name::new(name));
                 }
             }
         }

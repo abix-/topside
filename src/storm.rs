@@ -132,8 +132,8 @@ pub fn shift_world(
         reality.0 = next.clone();
     }
     // Then the storyteller starts an episode that fits it (episodes.md).
-    episode.0 = episodes.0.pick(&reality.0.name, seed.0, state.shifts).map(|e| e.name.clone());
-    info!("episode: {:?}", episode.0);
+    episode.start(episodes.0.pick(&reality.0.name, seed.0, state.shifts).map(|e| e.name.clone()));
+    info!("episode: {:?}", episode.name);
     for entity in &pieces {
         commands.entity(entity).despawn();
     }

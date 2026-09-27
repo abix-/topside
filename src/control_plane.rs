@@ -41,6 +41,8 @@ static WORLD: Mutex<Json> = Mutex::new(Json::Null);
 static WAYS: Mutex<Json> = Mutex::new(Json::Null);
 /// The `kill` op's request: the ActorId to kill on the game's next step.
 static KILL_ASK: Mutex<Option<u64>> = Mutex::new(None);
+/// The `use` op's request: the ActorId, and the point of the thing to use.
+static USE_ASK: Mutex<Option<(u64, Vec2)>> = Mutex::new(None);
 /// The `npc` op's question (an ActorId) and the game's answer.
 static NPC_ASK: Mutex<Option<u64>> = Mutex::new(None);
 static NPC_ANSWER: Mutex<Option<(u64, Json)>> = Mutex::new(None);
@@ -123,6 +125,26 @@ pub fn answer_kill(
             location_scale: 1.0,
         };
         crate::combat::hit_actor(&hit, own, worn, &items.0, &layers.0, &mut health, memory.as_deref_mut(), None, tick.0);
+    }
+}
+
+/// The `use` op's request, if one is waiting: that person stands a metre
+/// from the point and pushes Use aimed at it, the same Use the keys and the
+/// brain push, so the one interact path does the rest.
+pub fn answer_use(
+    tick: Res<crate::SimTick>,
+    mut people: Query<(&Actor, &mut Transform, &mut crate::input::Actions), Without<crate::actor::Dead>>,
+) {
+    let Some((id, at)) = USE_ASK.lock().ok().and_then(|mut ask| ask.take()) else {
+        return;
+    };
+    for (actor, mut transform, mut actions) in &mut people {
+        if actor.0.0 != id {
+            continue;
+        }
+        transform.translation = crate::on_ground(at + Vec2::X, crate::player::BODY_CENTRE);
+        actions.0.push(tick.0, crate::input::Action::Aim { x: at.x, y: at.y });
+        actions.0.push(tick.0, crate::input::Action::Use);
     }
 }
 
@@ -602,7 +624,13 @@ pub fn publish_world(
         "storms": storms.shifts,
         "storm": format!("{:?}", crate::storm::phase(&tick, *day, &storms)).to_lowercase(),
         "reality": reality,
-        "episode": episode.0,
+        "episode": episode.name,
+        // Each part and the ActorId cast for it.
+        "cast": episode.cast.iter().map(|(part, id)| json!({"part": part, "id": id.0})).collect::<Vec<_>>(),
+        // What the episode brought into the world, and where.
+        "things": episode.things.iter().map(|(name, at)| json!({"name": name, "at": [at.x, at.y]})).collect::<Vec<_>>(),
+        // Each pivot point reached: who and when.
+        "reached": episode.reached.iter().map(|(pivot, who, at)| json!({"pivot": pivot, "by": who.0, "tick": at})).collect::<Vec<_>>(),
         "did": did,
         "bunkers": bunkers,
         "chunks": {"made": made, "missing": missing},
@@ -639,7 +667,7 @@ pub fn publish(
     tree: Res<crate::content::brain::BrainTreeRes>,
     players: Query<(&Transform, &Health, &Survival), With<Player>>,
     npcs: Query<(
-        (&Actor, &Npc, &Transform, &Health, &Survival, &Personality, &ThisTick),
+        (&Actor, &Npc, &Transform, &Health, &Survival, &Personality, &ThisTick, Option<&Name>),
         (&crate::actor::Memory, &crate::actor::ActorRecord, Has<crate::actor::Dead>, &crate::actor::Hotbar, &crate::actor::Facing, Option<&crate::people::Drawn>, &crate::actor::Map, &crate::combat::Equipment),
     )>,
 ) {
@@ -687,7 +715,7 @@ pub fn publish(
     if tick.0 % 60 == 0 {
         let list: Vec<Json> = npcs
             .iter()
-            .map(|((actor, npc, at, health, needs, personality, this_tick), (memory, record, dead, hotbar, facing, drawn, map, worn))| {
+            .map(|((actor, npc, at, health, needs, personality, this_tick, name), (memory, record, dead, hotbar, facing, drawn, map, worn))| {
                 // What is in their hands, its layers, and the damage its
                 // hits land, worked out by the one place a hit reads it.
                 let weapon = hotbar.0.held_stack().map(|stack| {
@@ -713,6 +741,7 @@ pub fn publish(
                 }
                 json!({
                     "id": actor.0.0,
+                    "name": name.map(|n| n.as_str()),
                     "def": npc.def,
                     "faction": npc.faction,
                     "dead": dead,
@@ -905,6 +934,23 @@ pub fn start() {
                 *ask = Some(id);
             }
             Ok(json!({"kill": id}))
+        },
+    ));
+    OP_REGISTRY.register(OpDef::new(
+        "use",
+        "a living person by id (see `people`) stands a metre from the point and uses the thing there on the game's next step, through the one interact path, so a test brings a use now",
+        "{\"id\": 42, \"at\": [10.0, 20.0]}",
+        |args| {
+            let id = args.get("id").and_then(Json::as_u64).ok_or_else(|| "id: a number".to_string())?;
+            let at = args
+                .get("at")
+                .and_then(Json::as_array)
+                .and_then(|a| Some(Vec2::new(a.first()?.as_f64()? as f32, a.get(1)?.as_f64()? as f32)))
+                .ok_or_else(|| "at: [x, y]".to_string())?;
+            if let Ok(mut ask) = USE_ASK.lock() {
+                *ask = Some((id, at));
+            }
+            Ok(json!({"use": id, "at": [at.x, at.y]}))
         },
     ));
     OP_REGISTRY.register(OpDef::new(

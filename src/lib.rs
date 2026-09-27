@@ -6,6 +6,7 @@ pub mod actor;
 pub mod ai;
 pub mod combat;
 pub mod control_plane;
+pub mod episode;
 pub mod held;
 pub mod hud;
 pub mod input;
@@ -76,20 +77,7 @@ impl FromWorld for Reality {
     }
 }
 
-/// The episode running now (episodes.md): one that fits the reality,
-/// started by the storm that handed the reality over; none when no
-/// episode fits it.
-#[derive(Resource)]
-pub struct Episode(pub Option<String>);
-
-impl FromWorld for Episode {
-    fn from_world(world: &mut World) -> Self {
-        let reality = world.get_resource_or_init::<Reality>().0.name.clone();
-        let seed = world.resource::<WorldSeed>().0;
-        let episodes = world.get_resource_or_init::<content::EpisodeRegistryRes>();
-        Self(episodes.0.pick(&reality, seed, 0).map(|e| e.name.clone()))
-    }
-}
+pub use episode::Episode;
 
 /// Build the app. `headless` skips the window and the drawing so
 /// tests can run the simulation bare; `world` is the 2D world to make.
@@ -203,7 +191,7 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind) -> App {
                 survival::survival_tick,
                 survival::waste,
                 lap("survival"),
-                storm::storm,
+                (storm::storm, episode::cast_episode, episode::place_the_tap, episode::the_first_drink).chain(),
                 lap("storm"),
                 hud::hud_keys,
                 player::roll,
@@ -230,8 +218,7 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind) -> App {
                 control_plane::publish,
                 control_plane::publish_world,
                 control_plane::publish_ways,
-                control_plane::answer_npc,
-                control_plane::answer_kill,
+                (control_plane::answer_npc, control_plane::answer_kill, control_plane::answer_use).chain(),
                 lap("publish"),
             )
                 .chain(),

@@ -19,7 +19,7 @@ use modforge::survival::Need;
 use modforge::item::{Armor, CombatStats, FoodStats, ItemDef, ItemKind, ItemRegistry, LayerDef, LayerRegistry, Note};
 use modforge::monument::Roll;
 use modforge::reality::{Danger, RealityDef, RealityRegistry};
-use modforge::storyteller::{EpisodeDef, EpisodeRegistry};
+use modforge::storyteller::{CastFrom, EpisodeDef, EpisodeRegistry, PartDef};
 use modforge::monument::{
     Arrangement, BuildingRegistry, BuildingSize, BuildingSlot, BuildingTypeDef,
     MonumentRegistry, MonumentTypeDef, PropDef,
@@ -296,6 +296,14 @@ impl Default for BiomeRegistryRes {
     }
 }
 
+/// The names people are given (everybody has a name; operator,
+/// 2026-09-27), one rolled for each person from who they are.
+pub const PERSON_NAMES: [&str; 40] = [
+    "Abel", "Ada", "Amos", "Bea", "Bram", "Cass", "Cole", "Dana", "Dex", "Edie", "Eli", "Faye", "Finn", "Gus",
+    "Hana", "Hank", "Ida", "Ike", "Jada", "Jude", "Kit", "Lena", "Lou", "Mae", "Milo", "Nell", "Ned", "Opal",
+    "Otis", "Pearl", "Quinn", "Rhea", "Rudy", "Sage", "Silas", "Tess", "Tobias", "Vera", "Wade", "Zelda",
+];
+
 /// The reality registry as an app resource: the storm hands over one of
 /// these (realities.md).
 #[derive(Resource)]
@@ -348,9 +356,19 @@ pub fn register_episodes(reg: &mut EpisodeRegistry) {
     let episode = |name: &str, fits: &[&str]| EpisodeDef {
         name: name.to_string(),
         fits: fits.iter().map(|r| r.to_string()).collect(),
+        parts: Vec::new(),
     };
+    let part = |name: &str, from| PartDef { name: name.to_string(), from };
     for def in [
-        episode("The Tap", &["Mixed world", "Sky Islands"]),
+        // docs/episodes/the-tap.md "The people".
+        EpisodeDef {
+            parts: vec![
+                part("Dell", CastFrom::PlayerBunker),
+                part("Mara", CastFrom::NearestOtherBunker),
+                part("Mara's child", CastFrom::SameBunkerAs("Mara".to_string())),
+            ],
+            ..episode("The Tap", &["Mixed world", "Sky Islands"])
+        },
         episode("The Fever", &[]),
         episode("The Other You", &["Mirror"]),
         episode("Nobody Dies", &["Loop"]),
@@ -763,6 +781,11 @@ pub const BUNKER_PEOPLE: usize = 5;
 pub const BUNKER_PEOPLE_AT: [[f32; 2]; BUNKER_PEOPLE] =
     [[-1.5, 0.0], [0.0, 0.0], [1.5, 0.0], [-1.0, 1.5], [1.0, 1.5]];
 
+/// The people of the player's bunker besides the player (operator,
+/// 2026-09-27: "two people. me and Roxanne"), each named and where they
+/// stand in the bunker's plan (x, z).
+pub const PLAYER_BUNKER_PEOPLE: [(&str, [f32; 2]); 1] = [("Roxanne", [1.5, 0.0])];
+
 /// A bunker's store (design.md: factions have real stores): one box in
 /// the bunker's plan (x, z) and what is in it. Tuning.
 pub const BUNKER_STORE_AT: [f32; 2] = [-2.0, -3.0];
@@ -1052,6 +1075,9 @@ pub fn register_items(reg: &mut ItemRegistry) {
         // stand, a mouthful a use, never used up. Tuning.
         source("well", 0.0, 50.0),
         source("water", 0.0, 50.0),
+        // The Tap's tap (docs/episodes/the-tap.md): water that never stops,
+        // drawn from Mara's bunker's store.
+        source("tap", 0.0, 50.0),
         source("berry bush", 20.0, 0.0),
         // Made at the bench from cloth; heals far faster than food, a
         // reason to craft before going out (todo 10ca). Tuning.
