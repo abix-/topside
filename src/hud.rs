@@ -1137,6 +1137,92 @@ pub fn render_station(
     }
 }
 
+/// The talk panel (talking, operator 2026-09-27): the topics the player
+/// can say to the person they are talking to, from what they know
+/// (modforge `talk_topics`); a click says it.
+#[derive(Component)]
+pub struct TalkPanel;
+
+/// One topic row and which topic of the list it is.
+#[derive(Component)]
+pub struct TopicRow(pub usize);
+
+pub fn setup_talk(mut commands: Commands) {
+    commands
+        .spawn((
+            TalkPanel,
+            Node {
+                position_type: PositionType::Absolute,
+                top: Val::Px(60.0),
+                left: Val::Px(40.0),
+                flex_direction: FlexDirection::Column,
+                row_gap: Val::Px(4.0),
+                padding: UiRect::all(Val::Px(8.0)),
+                ..default()
+            },
+            BackgroundColor(Color::srgba(0.05, 0.05, 0.05, 0.85)),
+            Visibility::Hidden,
+        ))
+        .with_children(|p| {
+            for _ in 0..modforge::hud::TALK_TOPICS * 2 + 1 {
+                p.spawn((
+                    TopicRow(0),
+                    Node {
+                        padding: UiRect::all(Val::Px(6.0)),
+                        ..default()
+                    },
+                    BackgroundColor(SLOT_COLOR),
+                    children![(Text::new(""), TextFont::from_font_size(14.0), Pickable::IGNORE)],
+                ))
+                .observe(click_topic);
+            }
+        });
+}
+
+/// Show the talk panel while it is open, its rows the player's topics.
+pub fn render_talk(
+    players: Query<(&Hud, &crate::actor::Memory), With<Player>>,
+    mut panels: Query<&mut Visibility, (With<TalkPanel>, Without<TopicRow>)>,
+    mut rows: Query<(&mut TopicRow, &Children, &mut Visibility)>,
+    mut texts: Query<&mut Text>,
+) {
+    let (Ok(mut panel), Ok((hud, memory))) = (panels.single_mut(), players.single()) else {
+        return;
+    };
+    if hud.0.open_panel != OpenPanel::Talk {
+        *panel = Visibility::Hidden;
+        return;
+    }
+    *panel = Visibility::Visible;
+    let topics = modforge::hud::talk_topics(&memory.0);
+    for (i, (mut row, children, mut visibility)) in rows.iter_mut().enumerate() {
+        let Some((_, words)) = topics.get(i) else {
+            *visibility = Visibility::Hidden;
+            continue;
+        };
+        *visibility = Visibility::Inherited;
+        row.0 = i;
+        if let Some(mut text) = children.first().and_then(|c| texts.get_mut(*c).ok()) {
+            text.0 = words.clone();
+        }
+    }
+}
+
+fn click_topic(
+    click: On<Pointer<Click>>,
+    rows: Query<&TopicRow>,
+    tick: Res<crate::SimTick>,
+    mut players: Query<(&Hud, &crate::actor::Memory, &mut Actions), With<Player>>,
+) {
+    let (Ok(row), Ok((hud, memory, mut actions))) = (rows.get(click.entity), players.single_mut()) else {
+        return;
+    };
+    let (Some(to), Some(said)) = (hud.0.talking_to, modforge::hud::talk_topics(&memory.0).get(row.0).map(|(said, _)| *said)) else {
+        return;
+    };
+    actions.0.push(tick.0 + 1, Action::Talk { to, said });
+}
+
 fn click_recipe(
     click: On<Pointer<Click>>,
     rows: Query<&RecipeRow>,

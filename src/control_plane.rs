@@ -465,10 +465,25 @@ pub fn publish_hud(
     panels: Query<(&crate::hud::Panel, &UiGlobalTransform)>,
     slots: Query<(&crate::hud::SlotUi, &crate::hud::SlotIcons)>,
     item_panel: Query<&crate::hud::ItemPanel>,
+    talk_panel: Query<&Visibility, With<crate::hud::TalkPanel>>,
+    talk_rows: Query<(&Visibility, &Children), With<crate::hud::TopicRow>>,
+    texts: Query<&Text>,
+    players: Query<&crate::interact::Hud, With<Player>>,
 ) {
     if tick.0 % 60 != 0 {
         return;
     }
+    // The talk panel as drawn: whether it shows, to whom, and the words of
+    // each topic row shown.
+    let talk = json!({
+        "open": talk_panel.single().is_ok_and(|v| *v != Visibility::Hidden),
+        "to": players.single().ok().and_then(|h| h.0.talking_to),
+        "topics": talk_rows
+            .iter()
+            .filter(|(v, _)| **v != Visibility::Hidden)
+            .filter_map(|(_, children)| children.first().and_then(|c| texts.get(*c).ok()).map(|t| t.0.clone()))
+            .collect::<Vec<_>>(),
+    });
     let Ok(window) = windows.single() else {
         return;
     };
@@ -516,6 +531,7 @@ pub fn publish_hud(
             "panels": list,
             "filled": filled,
             "selected": selected,
+            "talk": talk,
         });
     }
 }

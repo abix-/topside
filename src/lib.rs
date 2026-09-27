@@ -267,6 +267,7 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind) -> App {
                 hud::setup_death,
                 hud::setup_vitals,
                 hud::setup_station,
+                hud::setup_talk,
                 hud::setup_sky,
             )
                 .after(terrain::roll),
@@ -283,6 +284,7 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind) -> App {
                 hud::render_death,
                 hud::render_vitals,
                 hud::render_station,
+                hud::render_talk,
                 hud::render_sky,
             ),
         );

@@ -46,6 +46,41 @@ fn dell_tells_the_player_of_the_tap() {
     assert_eq!(told_by(&p, tap), Some(dell), "the player knows the tap, told by Dell");
 }
 
+/// Use on a person opens the talk panel: its topics are what the player
+/// knows (the tap, told by Dell) and a threat. The `use` op puts the
+/// player a metre from Dell and uses there; used again if another test
+/// closed it meanwhile.
+#[test]
+fn use_on_a_person_opens_the_talk_panel() {
+    let w = op("world");
+    let Some((dell, _)) = dell_and_the_tap(&w) else {
+        eprintln!("the episode is {}, with no Dell; not read this run", w["episode"]);
+        return;
+    };
+    let player = op("player")["id"].as_u64().expect("the player op reports the player's id");
+    let mut talk = serde_json::Value::Null;
+    for _ in 0..3 {
+        let at = op_with("npc", serde_json::json!({"id": dell}))["at"].clone();
+        op_with("use", serde_json::json!({"id": player, "at": at}));
+        for _ in 0..12 {
+            std::thread::sleep(std::time::Duration::from_millis(250));
+            talk = op("hud")["talk"].clone();
+            if talk["open"] == true {
+                break;
+            }
+        }
+        if talk["open"] == true {
+            break;
+        }
+    }
+    eprintln!("talk panel: {talk}");
+    assert_eq!(talk["open"], true, "Use on Dell opened no talk panel");
+    assert_eq!(talk["to"].as_u64(), Some(dell), "the panel talks to Dell");
+    let topics: Vec<&str> = talk["topics"].as_array().map_or(Vec::new(), |t| t.iter().filter_map(|t| t.as_str()).collect());
+    assert!(topics.contains(&"Tell them of the tap"), "a topic to tell of the tap: {topics:?}");
+    assert!(topics.contains(&"Threaten them"), "a topic to threaten: {topics:?}");
+}
+
 /// The `talk` op: Dell tells the player of the tap again; both remember.
 #[test]
 fn the_talk_op_brings_a_talk_now() {

@@ -26,6 +26,7 @@ These rules govern `docs/changelog.md`. Follow them exactly.
 
 | System | Item | Done when |
 |---|---|---|
+| hud, interact, modforge hud | [x] The player's talk panel: Use on a person in reach, nearer the aim than any thing, opens it (`OpenPanel::Talk`, `talking_to`); its topics are modforge `talk_topics` (tell of and ask about each thing known, threaten); a click pushes the player's `Talk`; the `hud` op reports it | modforge `hud::` tests pass (20), modforge 2f9c8917; tests/talk.rs against the running game: panel open to Dell (85), topics "Tell them of the tap", "Ask about the tap", "Threaten them" |
 | modforge actions, memory, talk | [x] Talking as data (operator, 2026-09-27): `Action::Talk` to one person, saying tell, ask, offer, or threaten (`Said`); memory remembers talking and being talked to (`Did::Talked`, `Did::Heard`), and a told thing is `Known` with `told_by`; modforge `talk::talk` decides the answer from the listener's memory | modforge lib tests pass (414, `talk::` 5), modforge cb48c64a |
 | talk, authority | [x] Every `Talk` is carried out through one path, `talk::talk`, within `TALK_REACH`, both memories written through modforge `talk`; `authority.md` has the Talking row | tests/talk.rs against the running game: the player knows the tap, told by Dell (person 3) |
 | control_plane | [x] A `talk` op (one person says something to another now) and a `player` op (the player's id, what they know and who told them, what they heard) | tests/talk.rs: talk op answered; the player heard Dell 1 time before, 2 after |
