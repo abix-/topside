@@ -118,6 +118,28 @@ reality's danger (realities.md, "Danger") they can be crazy hard.
 - In a deadly reality, holding the bunker may be impossible. Then the
   choice is what to save and where to run.
 
+## The lines (operator, 2026-09-27)
+
+The dialogue has to make sense, and it is part of the episode: the
+writing, the one thing only a writer gives.
+
+- Lines belong to parts and pivot points, never to a person: whoever is
+  cast as Dell speaks Dell's lines.
+- The player's choices at a pivot point are things the player says
+  ("Show me."), and choosing one reaches the pivot point.
+- Lines are parameterized like everything else: anything always the same
+  becomes static, repeating, and boring. Each line has several ways of
+  saying it, one picked each time, and slots filled from the world.
+- A line that points somewhere gives directions a person would give from
+  where the player stands, by landmarks they can see: which way out of
+  the door, a landmark and which side to keep it on, the place by what it
+  is (design.md "The unknown": the player navigates by landmarks, memory,
+  and what people say). Never "halfway to the other bunker".
+- A person says only what they know: every slot is filled from the
+  speaker's memory (memory is the one record).
+- Outside an episode, plain talk is built the same way from what the
+  speaker knows.
+
 ## How an episode is written
 
 Episodes are not vanilla (operator, 2026-09-27). Rick and Morty does
@@ -145,6 +167,8 @@ Each file in docs/episodes/ has these parts, in this order:
 - The real cost.
 - The pivot points, in order, each choice with what it changes and who
   remembers it.
+- The lines: what each part says, and the player's choices at each pivot
+  point as things the player says.
 - The endings.
 - What carries across the storm.
 - What the game does not do yet that the episode needs.

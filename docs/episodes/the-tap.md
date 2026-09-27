@@ -38,8 +38,9 @@ by a person who already exists.
 ## How it opens
 
 The bunker's water store is low and the people are thirsty. Dell tells
-the player about a tap in a ruin down the road that still runs: clean
-water that never stops.
+the player about a tap in a building between the player's bunker and
+Mara's, giving the way by landmarks from the bunker door (see "The
+lines"): clean water that never stops.
 
 ## The wish
 
@@ -145,6 +146,61 @@ people is killing someone else's.
     tell everyone the truth, or walk away. Each plays out through the
     ten before it: who trusts you, who is alive, whether Dell is still
     home, whether you learned the cost.
+
+## The lines
+
+Each line has several ways of saying it, one picked each time; the slots
+are filled from the world and the speaker's memory (episodes.md "The
+lines"):
+
+- {way}: which way out of the bunker door to go: left, right, or
+  straight out.
+- {landmark}: the biggest thing standing between the door and the tap
+  that the speaker has seen, by what it is.
+- {side}: which side of the way the landmark stands.
+- {place}: what the building the tap stands in is.
+
+The tap stands inside a monument between the player's bunker and
+Mara's, so {place} is true when the player gets there.
+
+Pivot point 1, how it opens. Dell:
+
+- "You're up. Good. The store's down to a few bottles; that won't last
+  the week." / "Finally awake. We're nearly out of water." / "Don't get
+  comfortable. The water's almost gone."
+- "Out the door, then {way}. Keep the {landmark} on your {side}. There's
+  a {place}, and a tap inside it that runs. Clean water, and it doesn't
+  stop." / "Go {way} out the door, past the {landmark} on your {side}.
+  The {place} there has a tap. It still runs." / "Head {way} from the
+  door. When the {landmark} is on your {side}, look for the {place}. The
+  tap in it doesn't stop."
+- "Don't tell anyone. The day the other bunker hears of it, it's
+  theirs." / "Keep it quiet. If the others find out, it's gone."
+
+The player's choices:
+
+- "Show me." / "Let's go." (believes Dell and goes)
+- "Water doesn't just run out there. You're wrong." / "I don't believe
+  it." (does not believe it)
+- "Go and look again. I'll wait." / "Check it again first." (sends Dell)
+- "Where exactly?" / "Tell me the way again." Dell answers with the way
+  line again.
+
+Pivot point 4, the first meeting at the tap. Mara: "This is ours. We
+found it first." / "Walk away. This one's taken." Choices: "There's
+enough for both of us." (talk), "Step away from it." (threaten), "Keep
+it." (leave).
+
+Pivot point 6, Dell's storing noticed. Dell: "We might need it. You
+don't know. None of us know." / "It's not stealing if it's ours." Choices:
+"Stop. We have enough." (stop Dell), say nothing (let it go on), "Then
+take more." (Dell's side).
+
+Pivot point 8, the reveal, from Mara: "Our well was full a week ago. Now
+we're hauling from the {river}. It started when that tap did." ({river}:
+the water Mara's people drink from now, by what it is.)
+
+Pivot point 9, Mara's child: "Is there water today?" / "I'm thirsty."
 
 ## The endings
 
