@@ -38,11 +38,14 @@ static DIAGNOSTICS: Mutex<Json> = Mutex::new(Json::Null);
 static PEOPLE_LIST: Mutex<Json> = Mutex::new(Json::Null);
 static PERF: Mutex<Json> = Mutex::new(Json::Null);
 static WORLD: Mutex<Json> = Mutex::new(Json::Null);
+static PLAYER: Mutex<Json> = Mutex::new(Json::Null);
 static WAYS: Mutex<Json> = Mutex::new(Json::Null);
 /// The `kill` op's request: the ActorId to kill on the game's next step.
 static KILL_ASK: Mutex<Option<u64>> = Mutex::new(None);
 /// The `use` op's request: the ActorId, and the point of the thing to use.
 static USE_ASK: Mutex<Option<(u64, Vec2)>> = Mutex::new(None);
+/// The `talk` op's request: who speaks, to whom, saying what.
+static TALK_ASK: Mutex<Option<(u64, u64, modforge::actions::Said)>> = Mutex::new(None);
 /// The `npc` op's question (an ActorId) and the game's answer.
 static NPC_ASK: Mutex<Option<u64>> = Mutex::new(None);
 static NPC_ANSWER: Mutex<Option<(u64, Json)>> = Mutex::new(None);
@@ -145,6 +148,19 @@ pub fn answer_use(
         transform.translation = crate::on_ground(at + Vec2::X, crate::player::BODY_CENTRE);
         actions.0.push(tick.0, crate::input::Action::Aim { x: at.x, y: at.y });
         actions.0.push(tick.0, crate::input::Action::Use);
+    }
+}
+
+/// The `talk` op's request, if one is waiting: the speaker pushes the
+/// `Talk`, the same the keys and the brain push; `talk::talk` does the rest.
+pub fn answer_talk(tick: Res<crate::SimTick>, mut people: Query<(&Actor, &mut crate::input::Actions), Without<crate::actor::Dead>>) {
+    let Some((id, to, said)) = TALK_ASK.lock().ok().and_then(|mut ask| ask.take()) else {
+        return;
+    };
+    for (actor, mut actions) in &mut people {
+        if actor.0.0 == id {
+            actions.0.push(tick.0, crate::input::Action::Talk { to, said });
+        }
     }
 }
 
@@ -628,7 +644,7 @@ pub fn publish_world(
         // Each part and the ActorId cast for it.
         "cast": episode.cast.iter().map(|(part, id)| json!({"part": part, "id": id.0})).collect::<Vec<_>>(),
         // What the episode brought into the world, and where.
-        "things": episode.things.iter().map(|(name, at)| json!({"name": name, "at": [at.x, at.y]})).collect::<Vec<_>>(),
+        "things": episode.things.iter().map(|(name, at, key)| json!({"name": name, "at": [at.x, at.y], "key": key})).collect::<Vec<_>>(),
         // Each pivot point reached: who and when.
         "reached": episode.reached.iter().map(|(pivot, who, at)| json!({"pivot": pivot, "by": who.0, "tick": at})).collect::<Vec<_>>(),
         "did": did,
@@ -665,7 +681,7 @@ pub fn publish(
     items: Res<crate::content::ItemRegistryRes>,
     layers: Res<crate::content::LayerRegistryRes>,
     tree: Res<crate::content::brain::BrainTreeRes>,
-    players: Query<(&Transform, &Health, &Survival), With<Player>>,
+    players: Query<(&Transform, &Health, &Survival, &Actor, &crate::actor::Memory), With<Player>>,
     npcs: Query<(
         (&Actor, &Npc, &Transform, &Health, &Survival, &Personality, &ThisTick, Option<&Name>),
         (&crate::actor::Memory, &crate::actor::ActorRecord, Has<crate::actor::Dead>, &crate::actor::Hotbar, &crate::actor::Facing, Option<&crate::people::Drawn>, &crate::actor::Map, &crate::combat::Equipment),
@@ -686,7 +702,22 @@ pub fn publish(
         }
         *last_second = Some((tick.0, now));
     }
-    if let Ok((at, health, needs)) = players.single() {
+    if let Ok((at, health, needs, actor, memory)) = players.single() {
+        // Who the player is and what they know, once a second, for the
+        // `player` op: every thing known (and who told them, if told), and
+        // everything they heard said.
+        if tick.0 % 60 == 0
+            && let Ok(mut slot) = PLAYER.lock()
+        {
+            *slot = json!({
+                "id": actor.0.0,
+                "knows": memory.0.known.iter().map(|k| json!({"key": k.key, "kind": k.kind, "told_by": k.told_by.map(|a| a.0)})).collect::<Vec<_>>(),
+                "heard": memory.0.done.iter().filter_map(|(t, d)| match d {
+                    modforge::memory::Did::Heard(by, said) => Some(json!({"tick": t, "by": by.0, "said": said})),
+                    _ => None,
+                }).collect::<Vec<_>>(),
+            });
+        }
         HEALTH_BITS.store(health.0.current.to_bits(), Ordering::Relaxed);
         HUNGER_BITS.store(needs.0.hunger.to_bits(), Ordering::Relaxed);
         THIRST_BITS.store(needs.0.thirst.to_bits(), Ordering::Relaxed);
@@ -951,6 +982,27 @@ pub fn start() {
                 *ask = Some((id, at));
             }
             Ok(json!({"use": id, "at": [at.x, at.y]}))
+        },
+    ));
+    OP_REGISTRY.register(OpDef::new(
+        "player",
+        "the player: their id, every thing they know (key, kind, and who told them, if told), and everything they heard said",
+        "",
+        |_| Ok(PLAYER.lock().map(|p| p.clone()).unwrap_or(Json::Null)),
+    ));
+    OP_REGISTRY.register(OpDef::new(
+        "talk",
+        "one living person by id says something to another (`to`) on the game's next step, through the one talk path: said is {\"Tell\": {\"key\": k}}, {\"Ask\": {\"key\": k}}, {\"Offer\": {\"slot\": n}}, or \"Threaten\"; a thing's key is the one in the `npc` op's knowledge",
+        "{\"id\": 3, \"to\": 1, \"said\": {\"Tell\": {\"key\": 42}}}",
+        |args| {
+            let id = args.get("id").and_then(Json::as_u64).ok_or_else(|| "id: a number".to_string())?;
+            let to = args.get("to").and_then(Json::as_u64).ok_or_else(|| "to: a number".to_string())?;
+            let said: modforge::actions::Said =
+                serde_json::from_value(args.get("said").cloned().unwrap_or(Json::Null)).map_err(|e| format!("said: {e}"))?;
+            if let Ok(mut ask) = TALK_ASK.lock() {
+                *ask = Some((id, to, said));
+            }
+            Ok(json!({"talk": id, "to": to, "said": format!("{said:?}")}))
         },
     ));
     OP_REGISTRY.register(OpDef::new(

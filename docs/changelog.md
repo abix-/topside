@@ -26,6 +26,10 @@ These rules govern `docs/changelog.md`. Follow them exactly.
 
 | System | Item | Done when |
 |---|---|---|
+| modforge actions, memory, talk | [x] Talking as data (operator, 2026-09-27): `Action::Talk` to one person, saying tell, ask, offer, or threaten (`Said`); memory remembers talking and being talked to (`Did::Talked`, `Did::Heard`), and a told thing is `Known` with `told_by`; modforge `talk::talk` decides the answer from the listener's memory | modforge lib tests pass (414, `talk::` 5), modforge cb48c64a |
+| talk, authority | [x] Every `Talk` is carried out through one path, `talk::talk`, within `TALK_REACH`, both memories written through modforge `talk`; `authority.md` has the Talking row | tests/talk.rs against the running game: the player knows the tap, told by Dell (person 3) |
+| control_plane | [x] A `talk` op (one person says something to another now) and a `player` op (the player's id, what they know and who told them, what they heard) | tests/talk.rs: talk op answered; the player heard Dell 1 time before, 2 after |
+| episode | [x] Dell opens The Tap: Dell knows the tap from its placing and, with the player in reach, tells them of it through the same `Talk`, once | tests/talk.rs: the player heard "told of the tap" from Dell at tick 2 |
 | modforge actor | [x] Everybody has a name (operator, 2026-09-27): modforge `roll_name` rolls a person's name from a list of names, from their ActorId and the world seed | modforge `actor::` tests pass (10), modforge 6a9c3523 |
 | actor, topside-content, control_plane | [x] Every person is named when they enter the world, through `spawn_person`, from content's `PERSON_NAMES`, as Bevy's `Name` on the person; the `people` op reports each name | tests/names.rs against the running game: 107 people, none unnamed |
 | actor, topside-content | [x] The player's bunker holds two people, the player and Roxanne (operator, 2026-09-27): `populate_bunkers` fills every bunker through one loop, the player's with `PLAYER_BUNKER_PEOPLE` | tests/names.rs: one living Roxanne (person 3) of the player's faction |

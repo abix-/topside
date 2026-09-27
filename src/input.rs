@@ -153,6 +153,7 @@ pub fn read_input(
             | Action::UseSlot { .. }
             | Action::Craft { .. }
             | Action::Map
+            | Action::Talk { .. }
             | Action::Respawn => true,
             Action::Look { .. } | Action::Aim { .. } | Action::Fly => false,
         };

@@ -25,6 +25,7 @@ mod roads;
 mod screenshot;
 mod sources;
 mod storm;
+mod talk;
 mod the_dead;
 mod thirst;
 mod view;

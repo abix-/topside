@@ -8,6 +8,7 @@ use modforge::storyteller::{CastBunker, cast};
 use modforge::item;
 use modforge::memory::Did;
 
+use crate::Ground;
 use crate::actor::{Actor, Dead, Home, Memory, Npc, Store};
 use crate::content::{BUNKER_AT, EpisodeRegistryRes, ItemRegistryRes, PLAYER_FACTION};
 use crate::interact::{DrawsFrom, spawn_item};
@@ -25,8 +26,9 @@ pub struct Episode {
     pub cast_done: bool,
     /// Each pivot point reached: its name, who, and when.
     pub reached: Vec<(String, ActorId, u64)>,
-    /// What the episode brought into the world, and where.
-    pub things: Vec<(String, Vec2)>,
+    /// What the episode brought into the world, where, and the key
+    /// memory knows it by.
+    pub things: Vec<(String, Vec2, u64)>,
 }
 
 impl Episode {
@@ -111,12 +113,15 @@ pub fn cast_episode(
 
 /// The Tap, once cast: the tap comes into the world through
 /// `interact::spawn_item`, midway between the player's bunker and Mara's,
-/// its water drawn from Mara's bunker's store (docs/episodes/the-tap.md).
+/// its water drawn from Mara's bunker's store; Dell knows it from the
+/// start, to tell the player (docs/episodes/the-tap.md "How it opens").
 pub fn place_the_tap(
     mut commands: Commands,
+    tick: Res<crate::SimTick>,
     mut episode: ResMut<Episode>,
     items: Res<ItemRegistryRes>,
     people: Query<(&Actor, &Home, &Store)>,
+    mut memories: Query<(&Actor, &mut Memory)>,
 ) {
     if episode.name.as_deref() != Some("The Tap") || !episode.cast_done || !episode.things.is_empty() {
         return;
@@ -130,8 +135,46 @@ pub fn place_the_tap(
     let at = (BUNKER_AT + home.0) / 2.0;
     let tap = spawn_item(&mut commands, def, item::create(def, 1, &[], 0.0, 0), at);
     commands.entity(tap).insert(DrawsFrom(store.0));
-    episode.things.push(("tap".to_string(), at));
+    let key = tap.to_bits();
+    if let Some(dell) = episode.cast_as("Dell")
+        && let Some((_, mut memory)) = memories.iter_mut().find(|(a, _)| a.0 == dell)
+    {
+        memory.0.see(key, "tap", Vec3::new(at.x, 0.0, at.y), tick.0);
+    }
+    episode.things.push(("tap".to_string(), at, key));
     info!("the tap stands at {at}, drawing from Mara's bunker's store");
+}
+
+/// How The Tap opens (docs/episodes/the-tap.md): Dell, who knows the tap,
+/// tells the player of it through the same `Talk` anyone pushes, once,
+/// while the player is in reach.
+pub fn dell_tells_of_the_tap(
+    tick: Res<crate::SimTick>,
+    // When it was last said, so it is said once before memory has it.
+    mut said_at: Local<Option<u64>>,
+    episode: Res<Episode>,
+    player: Query<(&Actor, &Transform), (With<crate::player::Player>, Without<Dead>)>,
+    mut people: Query<(&Actor, &Transform, &Memory, &mut crate::input::Actions), Without<Dead>>,
+) {
+    if episode.name.as_deref() != Some("The Tap") {
+        return;
+    }
+    let (Some(dell), Some((_, _, key))) = (episode.cast_as("Dell"), episode.things.iter().find(|(n, ..)| n == "tap")) else {
+        return;
+    };
+    let Ok((player, near)) = player.single() else {
+        return;
+    };
+    let Some((_, at, memory, mut actions)) = people.iter_mut().find(|(a, ..)| a.0 == dell) else {
+        return;
+    };
+    let told = memory.0.done.iter().any(|(_, did)| matches!(did, Did::Talked(to, _) if *to == player.0));
+    let in_reach = at.translation.ground().distance(near.translation.ground()) <= crate::talk::TALK_REACH;
+    let just_said = said_at.is_some_and(|t| tick.0 < t + 60);
+    if !told && in_reach && !just_said {
+        actions.0.push(tick.0, crate::input::Action::Talk { to: player.0.0, said: modforge::actions::Said::Tell { key: *key } });
+        *said_at = Some(tick.0);
+    }
 }
 
 /// The Tap's first pivot point after it opens: the first drink at the

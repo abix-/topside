@@ -21,6 +21,7 @@ pub mod sight;
 pub mod storm;
 pub mod structure;
 pub mod survival;
+pub mod talk;
 pub mod terrain;
 
 pub use topside_content as content;
@@ -191,7 +192,7 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind) -> App {
                 survival::survival_tick,
                 survival::waste,
                 lap("survival"),
-                (storm::storm, episode::cast_episode, episode::place_the_tap, episode::the_first_drink).chain(),
+                (storm::storm, episode::cast_episode, episode::place_the_tap, episode::dell_tells_of_the_tap, episode::the_first_drink).chain(),
                 lap("storm"),
                 hud::hud_keys,
                 player::roll,
@@ -201,7 +202,7 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind) -> App {
             )
                 .chain(),
             (
-                interact::interact_on_use,
+                (interact::interact_on_use, talk::talk).chain(),
                 lap("interact"),
                 (player::movement, sight::look_around, sight::share_maps).chain(),
                 lap("movement"),
@@ -218,7 +219,7 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind) -> App {
                 control_plane::publish,
                 control_plane::publish_world,
                 control_plane::publish_ways,
-                (control_plane::answer_npc, control_plane::answer_kill, control_plane::answer_use).chain(),
+                (control_plane::answer_npc, control_plane::answer_kill, control_plane::answer_use, control_plane::answer_talk).chain(),
                 lap("publish"),
             )
                 .chain(),
