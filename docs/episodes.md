@@ -32,6 +32,14 @@ player decides how it goes.
   being told (realities.md says how, for each rule). Finding it out is
   one of the first pivot points, so every choice after it is made
   knowing the rules changed.
+- The first episode of the game is The Tap, in the Mixed world. Every
+  episode and reality after it comes from the player's decisions and
+  randomness (operator, 2026-09-27): choice through consequences, a
+  living world. What the player did, as people remember it, makes some
+  episodes and realities more likely than others; the storm's pick stays
+  random, weighted by those memories. It changes what can come next, never
+  how hard it is (authority.md: Randy Random never scales to the player's
+  safety). The player never picks the next episode or reality directly.
 - We will make a lot of episodes. Each one is documented in its own
   file, and every one follows the rules below.
 

@@ -20,7 +20,11 @@ storm"). A reality is its own thing, separate from the episodes:
   it fits. One reality can hold many episodes, and one episode can play
   in many realities.
 - The storm picks the reality, then an episode that fits it, cast from
-  what people remember.
+  what people remember. The first reality is always the Mixed world;
+  every one after comes from the player's decisions and randomness: what
+  people remember of the player makes some realities more likely, and the
+  pick stays random (operator, 2026-09-27: choice through consequences, a
+  living world; episodes.md).
 - A rule is written once, here, never copied into the episodes that
   use it.
 - The player finds out what is different by doing something, never by
