@@ -28,6 +28,7 @@ mod storm;
 mod talk;
 mod talk_ui;
 mod the_dead;
+mod the_tap;
 mod thirst;
 mod view;
 mod wander;

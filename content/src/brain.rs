@@ -6,7 +6,8 @@
 //! fighting included (life.md "Learning to stay alive"); with nothing
 //! learned, instinct's order below decides:
 //!   hide from the storm, flee, break off, fight, eat what they carry,
-//!   go to a need (going, then using it), supply the bunker (in order:
+//!   go to a need (going, then using it), do what was asked (going, then
+//!   waiting there), supply the bunker (in order:
 //!   haul, fetch, look in a box, head out), look (in order: the nearest
 //!   unchecked thing, head out), wander
 //! The storm or a threat takes a person out of any errand to choose again.
@@ -24,23 +25,26 @@ pub const EAT_CARRIED: StateId = 5;
 pub const NEED: StateId = 6;
 pub const NEED_GOING: StateId = 7;
 pub const NEED_USING: StateId = 8;
-pub const SUPPLY: StateId = 9;
-pub const HAUL: StateId = 10;
-pub const HAUL_GOING: StateId = 11;
-pub const HAUL_STOCKING: StateId = 12;
-pub const FETCH: StateId = 13;
-pub const FETCH_GOING: StateId = 14;
-pub const FETCH_TAKING: StateId = 15;
-pub const LOOK_IN: StateId = 16;
-pub const LOOK_IN_GOING: StateId = 17;
-pub const LOOK_IN_CHECKING: StateId = 18;
-pub const SUPPLY_HEAD_OUT: StateId = 19;
-pub const LOOK: StateId = 20;
-pub const LOOK_AT: StateId = 21;
-pub const LOOK_AT_GOING: StateId = 22;
-pub const LOOK_AT_CHECKING: StateId = 23;
-pub const LOOK_HEAD_OUT: StateId = 24;
-pub const WANDER: StateId = 25;
+pub const ASKED: StateId = 9;
+pub const ASKED_GOING: StateId = 10;
+pub const ASKED_WAITING: StateId = 11;
+pub const SUPPLY: StateId = 12;
+pub const HAUL: StateId = 13;
+pub const HAUL_GOING: StateId = 14;
+pub const HAUL_STOCKING: StateId = 15;
+pub const FETCH: StateId = 16;
+pub const FETCH_GOING: StateId = 17;
+pub const FETCH_TAKING: StateId = 18;
+pub const LOOK_IN: StateId = 19;
+pub const LOOK_IN_GOING: StateId = 20;
+pub const LOOK_IN_CHECKING: StateId = 21;
+pub const SUPPLY_HEAD_OUT: StateId = 22;
+pub const LOOK: StateId = 23;
+pub const LOOK_AT: StateId = 24;
+pub const LOOK_AT_GOING: StateId = 25;
+pub const LOOK_AT_CHECKING: StateId = 26;
+pub const LOOK_HEAD_OUT: StateId = 27;
+pub const WANDER: StateId = 28;
 
 fn state(
     name: &'static str,
@@ -124,6 +128,14 @@ pub fn brain_tree() -> StateTree<Brain> {
     s[NEED].choice = Some(Choice::GoToNeed);
     s[NEED].transitions.push(when(brain::danger, ROOT));
     s[NEED].transitions.push(when(brain::worse_need, ROOT));
+
+    // Do what they were asked (an episode's errand): go there and wait,
+    // after their own needs, before their bunker's.
+    errand(&mut s, "do what was asked", ROOT, brain::enter_asked, "waiting", brain::wait);
+    s[ASKED].choice = Some(Choice::Asked);
+    s[ASKED].transitions.push(when(brain::danger, ROOT));
+    s[ASKED].transitions.push(when(brain::worse_need, ROOT));
+    s[ASKED].transitions.push(when(brain::not_asked, ROOT));
 
     let mut supply = choice(state("supply the bunker", Some(ROOT), Some(brain::enter_supply), None), Choice::Supply);
     supply.transitions.push(when(brain::danger, ROOT));
@@ -216,6 +228,7 @@ mod tests {
             standable: &|_| true,
             reachable: &Vec::new,
             unknown: &|_| true,
+            asked: None,
         }
     }
 

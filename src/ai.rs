@@ -77,6 +77,7 @@ pub struct Thinkers<'w, 's> {
                 Option<&'static Store>,
                 Option<&'static crate::nav::NavPath>,
                 Option<&'static crate::actor::Map>,
+                Option<&'static crate::actor::Asked>,
             ),
         ),
         // The dead for good never think again.
@@ -181,7 +182,7 @@ pub fn think(
         mut memory,
         mut record,
         mut condition,
-        (mut actions, inventory, hotbar, open, mut next_think, dead, store, way, map),
+        (mut actions, inventory, hotbar, open, mut next_think, dead, store, way, map, asked),
     ) in &mut thinkers.npcs
     {
         // Not their moment yet: they keep doing what they decided.
@@ -335,6 +336,7 @@ pub fn think(
             standable: &standable,
             reachable: &reachable,
             unknown: &unknown,
+            asked: asked.map(|a| ground(a.0)),
         };
 
         // Decide through the one tree: seeded by the tick and the person,

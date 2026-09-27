@@ -388,12 +388,16 @@ pub fn register_episodes(reg: &mut EpisodeRegistry) {
                     "Don't tell anyone. The day the other bunker hears of it, it's theirs.",
                     "Keep it quiet. If the others find out, it's gone.",
                 ]),
+                line("Mara", "the meeting", &["This is ours. We found it first.", "Walk away. This one's taken."]),
             ],
             choices: vec![
                 choice("the opening", &["Show me.", "Let's go."], "believes Dell"),
                 choice("the opening", &["Water doesn't just run out there. You're wrong.", "I don't believe it."], "does not believe it"),
                 choice("the opening", &["Go and look again. I'll wait.", "Check it again first."], "sends Dell"),
                 choice("the opening", &["Where exactly?", "Tell me the way again."], "asks the way"),
+                choice("the meeting", &["There's enough for both of us."], "talks with Mara"),
+                choice("the meeting", &["Step away from it."], "threatens Mara"),
+                choice("the meeting", &["Keep it."], "leaves Mara the tap"),
             ],
             ..episode("The Tap", &["Mixed world", "Sky Islands"])
         },

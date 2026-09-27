@@ -198,6 +198,8 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind) -> App {
                     episode::place_the_tap,
                     episode::dell_opens_the_tap,
                     episode::the_players_choice,
+                    episode::the_taps_errands,
+                    episode::the_first_meeting,
                     episode::the_first_drink,
                 )
                     .chain(),

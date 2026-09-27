@@ -346,7 +346,7 @@ pub fn the_players_choice(
     *answered = when;
     if choice != "asks the way" {
         episode.reach(&choice, player.0, when);
-        episode.choices.clear();
+        episode.choices.retain(|(_, _, to)| *to != whom);
         return;
     }
     // The way again, another way of saying it.
@@ -364,6 +364,135 @@ pub fn the_players_choice(
         let line = episode.speak(words);
         actions.0.push(tick.0, crate::input::Action::Talk { to: player.0.0, said: Said::Line { line, key: tap } });
     }
+}
+
+/// Who The Tap asks to be where (docs/episodes/the-tap.md), once a game
+/// second, as `Asked` the brain weighs like any choice: Mara to the tap
+/// from the start (her bunker's water is going); Dell, once the player has
+/// chosen, to the tap ("Show me.", or alone when not believed); sent to
+/// look again, Dell goes to the tap, comes back home, and tells the way
+/// again.
+#[allow(clippy::too_many_arguments)]
+pub fn the_taps_errands(
+    mut commands: Commands,
+    tick: Res<crate::SimTick>,
+    mut episode: ResMut<Episode>,
+    episodes: Res<EpisodeRegistryRes>,
+    seed: Res<crate::WorldSeed>,
+    world: Res<crate::terrain::WorldRes>,
+    player: Query<(&Actor, &Transform), (With<crate::player::Player>, Without<Dead>)>,
+    mut people: Query<(Entity, &Actor, &Transform, &Home, &Memory, &mut crate::input::Actions), Without<crate::player::Player>>,
+) {
+    if tick.0 % 60 != 0 || episode.name.as_deref() != Some("The Tap") {
+        return;
+    }
+    let Some((tap, tap_key)) = episode.thing("tap") else {
+        return;
+    };
+    let ask = |commands: &mut Commands, entity: Entity, at: Option<Vec2>| match at {
+        Some(at) => {
+            commands.entity(entity).insert(crate::actor::Asked(at));
+        }
+        None => {
+            commands.entity(entity).remove::<crate::actor::Asked>();
+        }
+    };
+    let mara = episode.cast_as("Mara");
+    let dell = episode.cast_as("Dell");
+    let sent = episode.reached("sends Dell");
+    let goes = episode.reached("believes Dell") || episode.reached("does not believe it");
+    let mut looked = episode.reached("Dell looked");
+    let mut tell_again = None;
+    for (entity, actor, at, home, _, _) in &people {
+        if Some(actor.0) == mara {
+            ask(&mut commands, entity, Some(tap + Vec2::new(2.0, 0.0)));
+        } else if Some(actor.0) == dell {
+            let here = at.translation.ground();
+            if sent && !looked && here.distance(tap) <= 4.0 {
+                looked = true;
+            }
+            let to = if goes || (sent && !looked) {
+                Some(tap - Vec2::new(2.0, 0.0))
+            } else if sent && looked && !episode.reached("Dell told the way again") {
+                if here.distance(home.0) <= 2.0 {
+                    tell_again = Some(actor.0);
+                }
+                Some(home.0)
+            } else {
+                None
+            };
+            ask(&mut commands, entity, to);
+        }
+    }
+    if looked && !episode.reached("Dell looked")
+        && let Some(dell) = dell
+    {
+        episode.reach("Dell looked", dell, tick.0);
+    }
+    // Back from looking, with the player in reach: the way again.
+    let (Some(dell), Ok((player, near))) = (tell_again, player.single()) else {
+        return;
+    };
+    let (Some(def), Some((_, tap_site))) = (episodes.0.def("The Tap"), episode.thing("tap site")) else {
+        return;
+    };
+    let Some((_, _, at, _, memory, mut actions)) = people.iter_mut().find(|(_, a, ..)| a.0 == dell) else {
+        return;
+    };
+    if at.translation.ground().distance(near.translation.ground()) > crate::talk::TALK_REACH {
+        return;
+    }
+    let slots = the_way(&memory.0, bunker_door(world.bunker), tap_key, tap_site);
+    let slots: Vec<(&str, &str)> = slots.iter().map(|(n, v)| (*n, v.as_str())).collect();
+    if let Some(way) = def.lines.iter().find(|l| l.at == "the way")
+        && let Some(words) = modforge::storyteller::say(&way.ways, &slots, seed.0, tick.0)
+    {
+        let line = episode.speak(words);
+        actions.0.push(tick.0, crate::input::Action::Talk { to: player.0.0, said: Said::Line { line, key: tap_key } });
+        episode.reach("Dell told the way again", dell, tick.0);
+    }
+}
+
+/// The Tap's pivot point 4 (docs/episodes/the-tap.md): the first meeting
+/// with Mara at the tap. With the player in reach of her there, she says
+/// her line once, and the player's choices for the meeting open.
+#[allow(clippy::too_many_arguments)]
+pub fn the_first_meeting(
+    tick: Res<crate::SimTick>,
+    mut episode: ResMut<Episode>,
+    episodes: Res<EpisodeRegistryRes>,
+    seed: Res<crate::WorldSeed>,
+    player: Query<(&Actor, &Transform), (With<crate::player::Player>, Without<Dead>)>,
+    mut people: Query<(&Actor, &Transform, &mut crate::input::Actions), (Without<crate::player::Player>, Without<Dead>)>,
+) {
+    if episode.name.as_deref() != Some("The Tap") || episode.reached("the meeting") {
+        return;
+    }
+    let (Some(mara), Some((tap, _)), Some(def), Ok((player, near))) =
+        (episode.cast_as("Mara"), episode.thing("tap"), episodes.0.def("The Tap"), player.single())
+    else {
+        return;
+    };
+    let Some((_, at, mut actions)) = people.iter_mut().find(|(a, ..)| a.0 == mara) else {
+        return;
+    };
+    let here = at.translation.ground();
+    if here.distance(tap) > 6.0 || here.distance(near.translation.ground()) > crate::talk::TALK_REACH {
+        return;
+    }
+    if let Some(line) = def.lines.iter().find(|l| l.part == "Mara" && l.at == "the meeting")
+        && let Some(words) = modforge::storyteller::say(&line.ways, &[], seed.0, 200)
+    {
+        let line = episode.speak(words);
+        actions.0.push(tick.0, crate::input::Action::Talk { to: player.0.0, said: Said::Line { line, key: 0 } });
+    }
+    for (salt, choice) in def.choices.iter().filter(|c| c.at == "the meeting").enumerate() {
+        if let Some(words) = modforge::storyteller::say(&choice.ways, &[], seed.0, 300 + salt as u64) {
+            let line = episode.speak(words);
+            episode.choices.push((line, choice.choice.clone(), mara));
+        }
+    }
+    episode.reach("the meeting", mara, tick.0);
 }
 
 /// The Tap's first pivot point after it opens: the first drink at the

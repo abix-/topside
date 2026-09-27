@@ -125,6 +125,11 @@ pub struct Map {
 /// Where this person lives and returns to.
 #[derive(Component, Debug, Clone, Copy, PartialEq)]
 pub struct Home(pub Vec2);
+
+/// A place this person was asked to go to and wait at (an episode's
+/// errand, episodes.md); the brain weighs it like any other choice.
+#[derive(Component, Debug, Clone, Copy, PartialEq)]
+pub struct Asked(pub Vec2);
 /// Where this person was spawned, for the control plane: whether they
 /// started somewhere or walked there.
 #[derive(Component, Debug, Clone, Copy, PartialEq)]

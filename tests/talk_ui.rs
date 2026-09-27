@@ -7,14 +7,14 @@ use std::time::Duration;
 
 use crate::endpoint::{op, op_with};
 
-fn shot(name: &str) {
+pub fn shot(name: &str) {
     op_with("screenshot", serde_json::json!({"name": name}));
     std::thread::sleep(Duration::from_millis(400));
 }
 
 /// The `hud` op's talk panel once it has published again (once a game
 /// second), at most 3 real seconds.
-fn talk_after(done: impl Fn(&serde_json::Value) -> bool) -> serde_json::Value {
+pub fn talk_after(done: impl Fn(&serde_json::Value) -> bool) -> serde_json::Value {
     let mut talk = op("hud")["talk"].clone();
     for _ in 0..12 {
         if done(&talk) {
