@@ -40,6 +40,11 @@ player decides how it goes.
   random, weighted by those memories. It changes what can come next, never
   how hard it is (authority.md: Randy Random never scales to the player's
   safety). The player never picks the next episode or reality directly.
+- The player is never told anything they did not see or hear
+  (operator, 2026-09-27): telling them would be cheating. No narration
+  of the episode, before, during, or after. The player learns how an
+  episode went the way anyone does: by seeing it, or by a person who
+  saw it telling them (life.md, "What a person knows").
 - We will make a lot of episodes. Each one is documented in its own
   file, and every one follows the rules below.
 
@@ -152,8 +157,8 @@ Each file in docs/episodes/ has these parts, in this order:
   topside.
 - The episodes themselves are content, in topside's content crate.
 - Topside answers what the storyteller asks about its world, starts an
-  episode when the storm lands, brings the opening to the player, and
-  shows what happened when the storm ends it.
+  episode when the storm lands, and brings the opening to the player
+  through the world (a person comes to them, a thing lies on their road).
 
 None of this is built yet. Today the storyteller's `Director` only fires
 a weighted random rule on a timer.

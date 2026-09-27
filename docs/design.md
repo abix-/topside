@@ -1441,6 +1441,11 @@ playable version. They stay here as documented goals, not promises.
 - **Vehicles**: traversal across the world (cars, bikes, mounts).
   Fuel, maintenance, breakdown risk. Added when the world is big
   enough to need them.
+- **Researching the storm** (operator, 2026-09-27): through the tech
+  tree, the player researches the storm and learns more about it, maybe
+  one day controls it. Knowledge earned, never given (The unknown).
+  Controlling it would be the one exception, earned through research, to
+  the player never picking the next episode or reality (episodes.md).
 
 ## Still open
 
