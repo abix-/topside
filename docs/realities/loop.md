@@ -21,7 +21,9 @@ Normal.
 
 ## The logic
 
-Nobody dies (realities.md, "The rules a reality can change").
+Nobody dies (realities.md, "The rules a reality can change"): a
+topside person who dies wakes where they were spawned. The storm still
+takes every topside person for good at the end of the episode.
 
 ## Danger
 

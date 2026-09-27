@@ -907,6 +907,17 @@ pub fn register_damage(reg: &mut DamageRegistry) {
             self_scale: 1.0,
             falloff: Falloff::NONE,
         },
+        // The control plane's `kill` op: one hit that kills anyone, no
+        // armor helps, so a test can bring a death now.
+        DamageDef {
+            name: "kill".to_string(),
+            amount: 1_000_000.0,
+            kind: DamageType::Blunt,
+            knockback: 0.0,
+            ignores_armor: true,
+            self_scale: 1.0,
+            falloff: Falloff::NONE,
+        },
     ] {
         reg.register(def).expect("damage defs must not collide");
     }

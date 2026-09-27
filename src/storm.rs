@@ -7,6 +7,7 @@
 //! stay; the topside people die with their world and the next world's
 //! are found at its monuments.
 
+use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use bevy::prelude::*;
@@ -14,7 +15,7 @@ use modforge::combat::Hit;
 use modforge::storm::StormPhase;
 
 use crate::Ground;
-use crate::actor::{Actor, ActorMapRes, Dead, Home, Memory, Npc};
+use crate::actor::{Actor, ActorMapRes, Dead, Gone, Home, Memory, Npc};
 use crate::combat::leave;
 use crate::combat::{Equipment, Health, Protection, hit_actor};
 use crate::content::{DamageRegistryRes, EpisodeRegistryRes, ItemRegistryRes, LayerRegistryRes, RealityRegistryRes};
@@ -52,6 +53,10 @@ pub fn phase(tick: &SimTick, day: Day, storms: &StormRes) -> StormPhase {
 /// The `storm` op's request to bring the next storm now, taken by the
 /// game on its next step.
 pub static STORM_NOW: AtomicBool = AtomicBool::new(false);
+
+/// The reality the `storm` op named for the next shift, taken when the
+/// world shifts; none leaves the pick to the registry.
+pub static NEXT_REALITY: Mutex<Option<String>> = Mutex::new(None);
 
 /// Every fixed step: the `storm` op's request runs the storm's clock
 /// ahead to the next warning; during the storm, once a second, everyone
@@ -106,7 +111,7 @@ pub fn shift_world(
     pieces: Query<Entity, With<WorldPiece>>,
     lying: Query<(Entity, &Transform), With<WorldItem>>,
     bunker: Query<&Shelter, Without<WorldPiece>>,
-    mut topside_people: Query<(Entity, Option<&Actor>, Option<&mut Memory>), (With<Npc>, Without<Home>, Without<Dead>)>,
+    mut topside_people: Query<(Entity, Option<&Actor>, Option<&mut Memory>), (With<Npc>, Without<Home>, Without<Gone>)>,
     mut map: ResMut<ActorMapRes>,
     tick: Res<SimTick>,
     realities: Res<RealityRegistryRes>,
@@ -116,7 +121,13 @@ pub fn shift_world(
 ) {
     // The storm hands over another reality (realities.md), picked from
     // the seed and the storm's number, never the one being left.
-    if let Some(next) = realities.0.pick(seed.0, state.shifts, &reality.0.name) {
+    // The reality the `storm` op named, if any; else the registry's pick.
+    let named = NEXT_REALITY.lock().ok().and_then(|mut n| n.take());
+    let next = match named.as_deref().and_then(|name| realities.0.def(name)) {
+        Some(def) => Some(def),
+        None => realities.0.pick(seed.0, state.shifts, &reality.0.name),
+    };
+    if let Some(next) = next {
         info!("the storm hands over {} after storm {}", next.name, state.shifts);
         reality.0 = next.clone();
     }
@@ -126,9 +137,11 @@ pub fn shift_world(
     for entity in &pieces {
         commands.entity(entity).despawn();
     }
-    // The topside people are part of this world and die with it
-    // (design.md "Bunker people and topside people"), the storm's death in
-    // their memory like any other; they stay, dead, to query.
+    // Each episode everything topside dies, and only bunker people come
+    // back (operator, 2026-09-27): the topside people die with this world
+    // (design.md "Bunker people and topside people"), those waiting to
+    // wake in Loop included, the storm's death in their memory like any
+    // other; they stay, gone for good, to query.
     for (entity, actor, memory) in &mut topside_people {
         if let Some(mut memory) = memory {
             memory.0.did(modforge::memory::Did::Died(None, "storm".to_string()), tick.0);

@@ -231,6 +231,7 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind) -> App {
                 control_plane::publish_world,
                 control_plane::publish_ways,
                 control_plane::answer_npc,
+                control_plane::answer_kill,
                 lap("publish"),
             )
                 .chain(),

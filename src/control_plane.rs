@@ -39,6 +39,8 @@ static PEOPLE_LIST: Mutex<Json> = Mutex::new(Json::Null);
 static PERF: Mutex<Json> = Mutex::new(Json::Null);
 static WORLD: Mutex<Json> = Mutex::new(Json::Null);
 static WAYS: Mutex<Json> = Mutex::new(Json::Null);
+/// The `kill` op's request: the ActorId to kill on the game's next step.
+static KILL_ASK: Mutex<Option<u64>> = Mutex::new(None);
 /// The `npc` op's question (an ActorId) and the game's answer.
 static NPC_ASK: Mutex<Option<u64>> = Mutex::new(None);
 static NPC_ANSWER: Mutex<Option<(u64, Json)>> = Mutex::new(None);
@@ -90,6 +92,38 @@ pub struct PersonView<'w, 's> {
     /// What they do this tick.
     this_tick: Query<'w, 's, (&'static Actor, &'static crate::input::ThisTick)>,
     chunks: Option<Res<'w, crate::terrain::Chunks>>,
+}
+
+/// The `kill` op's request, if one is waiting: that person takes the
+/// `kill` hit through the one hit path, and `die` does the rest.
+pub fn answer_kill(
+    tick: Res<crate::SimTick>,
+    items: Res<crate::content::ItemRegistryRes>,
+    layers: Res<crate::content::LayerRegistryRes>,
+    damage: Res<crate::content::DamageRegistryRes>,
+    mut people: Query<
+        (&Actor, &crate::combat::Protection, &crate::combat::Equipment, &mut Health, Option<&mut crate::actor::Memory>),
+        Without<crate::actor::Dead>,
+    >,
+) {
+    let Some(id) = KILL_ASK.lock().ok().and_then(|mut ask| ask.take()) else {
+        return;
+    };
+    let Some(def) = damage.0.def("kill") else {
+        return;
+    };
+    for (actor, own, worn, mut health, mut memory) in &mut people {
+        if actor.0.0 != id {
+            continue;
+        }
+        let hit = modforge::combat::Hit {
+            def,
+            self_inflicted: false,
+            distance: 0.0,
+            location_scale: 1.0,
+        };
+        crate::combat::hit_actor(&hit, own, worn, &items.0, &layers.0, &mut health, memory.as_deref_mut(), None, tick.0);
+    }
 }
 
 /// Answer the `npc` op's question, if one is waiting: everything the game
@@ -845,11 +879,32 @@ pub fn start() {
     ));
     OP_REGISTRY.register(OpDef::new(
         "storm",
-        "bring the next storm now: the sky warns on the game's next step, then the storm hits and the world shifts to the next reality, as any storm does",
-        "",
-        |_| {
+        "bring the next storm now: the sky warns on the game's next step, then the storm hits and the world shifts to the next reality, as any storm does; `reality` names the one it shifts to",
+        "{\"reality\": \"Loop\"}",
+        |args| {
+            let reality = args.get("reality").and_then(Json::as_str).map(str::to_string);
+            if let Some(name) = &reality
+                && crate::content::RealityRegistryRes::default().0.def(name).is_none()
+            {
+                return Err(format!("no reality named '{name}'"));
+            }
+            if let Ok(mut next) = crate::storm::NEXT_REALITY.lock() {
+                *next = reality.clone();
+            }
             crate::storm::STORM_NOW.store(true, Ordering::Relaxed);
-            Ok(json!({"storm": "coming"}))
+            Ok(json!({"storm": "coming", "reality": reality}))
+        },
+    ));
+    OP_REGISTRY.register(OpDef::new(
+        "kill",
+        "kill one living person by id (see `people`) on the game's next step, through the one hit path, so a test can bring a death now",
+        "{\"id\": 42}",
+        |args| {
+            let id = args.get("id").and_then(Json::as_u64).ok_or_else(|| "id: a number".to_string())?;
+            if let Ok(mut ask) = KILL_ASK.lock() {
+                *ask = Some(id);
+            }
+            Ok(json!({"kill": id}))
         },
     ));
     OP_REGISTRY.register(OpDef::new(

@@ -79,6 +79,8 @@ pub struct Thinkers<'w, 's> {
                 Option<&'static crate::actor::Map>,
             ),
         ),
+        // The dead for good never think again.
+        Without<crate::actor::Gone>,
     >,
     others: Query<
         'w,
@@ -108,7 +110,6 @@ pub fn think(
     tree: Res<crate::content::brain::BrainTreeRes>,
     day: Res<crate::survival::Day>,
     storms: Res<crate::storm::StormRes>,
-    reality: Res<crate::Reality>,
     mut walk: ResMut<crate::nav::Walk>,
     sight: Sight,
     mut thinkers: Thinkers,
@@ -187,15 +188,12 @@ pub fn think(
         if tick.0 < next_think.0 {
             continue;
         }
-        // Dead with a home to wake in: at their moment they respawn, the
-        // same Respawn the player's Enter pushes. Dead with none (a topside
-        // person): never back, unless death does not stick in this reality
-        // (realities.md, Loop).
+        // Dead and not gone for good (a bunker person, or a topside person
+        // where death does not stick; `combat::die` decides): at their
+        // moment they respawn, the same Respawn the player's Enter pushes.
         if dead {
-            if home.is_some() || !reality.0.death_sticks {
-                actions.0.push(tick.0, Action::Respawn);
-                next_think.0 = tick.0 + (modforge::brain::AWAKE_REACTION * 60.0) as u64;
-            }
+            actions.0.push(tick.0, Action::Respawn);
+            next_think.0 = tick.0 + (modforge::brain::AWAKE_REACTION * 60.0) as u64;
             continue;
         }
         let Some(def) = registry.0.def(&npc.def) else {

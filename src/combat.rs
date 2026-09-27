@@ -462,12 +462,15 @@ pub fn fly(
 /// carried (inventory, hotbar, worn gear) goes into one storage box
 /// where it fell (modforge's `loot_all`, a box through `spawn_item`).
 /// Someone with a home to wake in (the player, the bunker people) is
-/// then dead until they respawn there with nothing; a topside person
-/// leaves the actor map (its id never returns) and the world.
+/// then dead until they respawn there with nothing; so is a topside
+/// person where death does not stick (realities.md, Loop), to wake where
+/// they were spawned. Any other topside person leaves the actor map (its
+/// id never returns) and the world.
 pub fn die(
     mut commands: Commands,
     items: Res<ItemRegistryRes>,
     tick: Res<crate::SimTick>,
+    reality: Res<crate::Reality>,
     mut map: ResMut<ActorMapRes>,
     mut dying: Query<
         (
@@ -510,7 +513,7 @@ pub fn die(
             }
         }
         let (is_player, has_home) = wakes;
-        if is_player || has_home {
+        if is_player || has_home || !reality.0.death_sticks {
             // The death message and the choice to respawn (design.md
             // "Death and difficulty"); the world keeps running meanwhile.
             health.0.current = health.0.max;
@@ -534,5 +537,5 @@ pub fn leave(commands: &mut Commands, map: &mut ActorMapRes, entity: Entity, act
     if let Some(actor) = actor {
         map.0.remove(actor.0);
     }
-    commands.entity(entity).insert((Dead, Visibility::Hidden, ColliderDisabled));
+    commands.entity(entity).insert((Dead, crate::actor::Gone, Visibility::Hidden, ColliderDisabled));
 }

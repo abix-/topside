@@ -25,6 +25,10 @@ storm"). A reality is its own thing, separate from the episodes:
   use it.
 - The player finds out what is different by doing something, never by
   being told. Each rule below says how.
+- Each episode everything topside dies, and only bunker people come
+  back (operator, 2026-09-27): the rule of the base reality for now. The
+  storm takes every topside person with their world for good, in every
+  reality; a rule like Loop's changes only deaths inside the reality.
 
 ## Danger (operator, 2026-09-27)
 

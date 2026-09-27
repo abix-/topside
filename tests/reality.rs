@@ -2,7 +2,7 @@
 //! running game's `world` op reports the one it is in now with its
 //! rules.
 
-use crate::endpoint::{is_bunker_person, op, people};
+use crate::endpoint::{is_bunker_person, op, op_with, people};
 
 /// The realities built so far and their rules: name, danger, night,
 /// death sticks (docs/realities/).
@@ -52,28 +52,56 @@ fn no_night_in_a_reality_without_night() {
     }
 }
 
-/// Where death does not stick, a topside person who died comes back:
-/// alive, with the death in their memory.
+/// Read the `world` op until `done` holds, at most `secs` real seconds.
+fn world_until(secs: u64, done: impl Fn(&serde_json::Value) -> bool) -> serde_json::Value {
+    let mut w = op("world");
+    for _ in 0..secs * 4 {
+        if done(&w) {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(250));
+        w = op("world");
+    }
+    w
+}
+
+/// Each episode everything topside dies and only bunker people come back
+/// (operator, 2026-09-27): after a storm into Loop, nobody the storm took
+/// is alive again; then a topside person killed there (the `kill` op)
+/// comes back alive with the death in their memory. Brings the storm and
+/// the death with ops, so it takes about half a minute.
 #[test]
-fn death_does_not_stick_where_it_does_not() {
-    let w = op("world");
-    let reality = &w["reality"];
+fn in_loop_the_killed_come_back_and_the_storm_takes_everything_topside() {
+    let before = op("world")["storms"].as_u64().unwrap_or(0);
+    eprintln!("storm op answered {}", op_with("storm", serde_json::json!({"reality": "Loop"})));
+    let w = world_until(60, |w| w["storms"].as_u64().unwrap_or(0) > before);
+    assert_eq!(w["reality"]["name"], "Loop", "the storm op named Loop, yet the world is in {} (tick {})", w["reality"]["name"], w["tick"]);
     let list = people();
     let topside: Vec<_> = list.iter().filter(|p| !is_bunker_person(p)).collect();
-    let died = |p: &&serde_json::Value| p["deaths"].as_array().is_some_and(|d| !d.is_empty());
-    let back = topside.iter().filter(|p| died(p) && p["dead"] != true).count();
-    let dead = topside.iter().filter(|p| p["dead"] == true).count();
-    eprintln!(
-        "world op, tick {}: reality {}; {} topside people, {back} came back from a death, {dead} dead now",
-        w["tick"],
-        reality["name"],
-        topside.len()
-    );
-    if reality["death_sticks"] == true {
-        eprintln!("death sticks in {}; the rule for a reality where it does not is not read this run", reality["name"]);
-        return;
+    let of_storm = |p: &&serde_json::Value| p["deaths"].as_array().is_some_and(|d| d.iter().any(|d| d["of"] == "storm"));
+    let storm_back = topside.iter().filter(|p| p["dead"] != true && of_storm(p)).count();
+    eprintln!("tick {}: Loop, {} topside people, {storm_back} alive after the storm took them", w["tick"], topside.len());
+    assert_eq!(storm_back, 0, "the storm takes everything topside for good, yet some are alive again");
+    let victim = topside
+        .iter()
+        .find(|p| p["dead"] != true && !of_storm(p))
+        .expect("the new world has a living topside person");
+    let id = victim["id"].as_u64().expect("people report an id");
+    eprintln!("kill op answered {}", op_with("kill", serde_json::json!({"id": id})));
+    let mut back = None;
+    for _ in 0..40 {
+        std::thread::sleep(std::time::Duration::from_millis(250));
+        let now = people().into_iter().find(|p| p["id"].as_u64() == Some(id));
+        if let Some(p) = now
+            && p["dead"] != true
+            && p["deaths"].as_array().is_some_and(|d| d.iter().any(|d| d["of"] == "kill"))
+        {
+            back = Some(p);
+            break;
+        }
     }
-    assert!(back > 0, "death does not stick in {}, yet no topside person has come back from one", reality["name"]);
+    let back = back.unwrap_or_else(|| panic!("person {id} was killed in Loop and has not come back within 10 seconds"));
+    eprintln!("person {id} came back: deaths {}", back["deaths"]);
 }
 
 /// The episode running fits the reality it runs in (episodes.md); the

@@ -53,6 +53,12 @@ impl Facing {
 #[derive(Component, Default, Clone, Copy, Debug, PartialEq)]
 pub struct Dead;
 
+/// Dead for good (`combat::leave`): never back. Every topside person the
+/// storm takes with their world, and every topside person who dies where
+/// death sticks.
+#[derive(Component, Default, Clone, Copy, Debug, PartialEq)]
+pub struct Gone;
+
 /// The tick a person next decides at (life.md "How often a person
 /// thinks"): set from their reaction time after every decision.
 #[derive(Component, Default, Clone, Copy, Debug, PartialEq)]

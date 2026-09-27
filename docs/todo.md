@@ -6,7 +6,6 @@ v3: polish and endgame (NPC memory, vehicles, GPU simulation, quality/named uniq
 
 | Priority | Version | System | Todo | Done when |
 |---:|---|---|---|---|
-| 1 | v1 | ai, player | [ ] Death does not stick in a reality where it does not: a dead topside person comes back where they were spawned, the same Respawn a bunker person pushes | tests/reality.rs: when the running game's reality is one where death does not stick, a topside person who died has come back (Respawned in their memory) |
 | 14a | v1 | equipment | [ ] Left from 14a (equipment is one row of 7 plain slots): seen in the running game, someone wearing (nobody wears anything yet; the road sign vest is the one wearable) | tests/equipment.rs reports someone wearing, each item in its own slot of the row |
 | 12b | v1 | content | [ ] The first handles (wooden handle, pipe, long pole) and heads (none, nails, scrap blade, axe head, spear point, sharpened road sign) in content; the pipe becomes the pipe handle with no head, the hatchet the wooden handle with the axe head; every other item one layer; people's weapons and loot come in layers | A test reads the running game: people hold layered weapons, and the damage a hit did matches its weapon's layers |
 | 13a | v1 | nav, structure | [ ] Left from 13a (every level above the ground now stands, and the player climbs): the walk grid per floor, so NPCs go up and down the stairs too; basements, with the stair tower going down through the ground | A test reads the running game and finds an NPC on a floor above the ground, and a basement standing |
