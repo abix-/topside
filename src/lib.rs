@@ -192,7 +192,15 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind) -> App {
                 survival::survival_tick,
                 survival::waste,
                 lap("survival"),
-                (storm::storm, episode::cast_episode, episode::place_the_tap, episode::dell_tells_of_the_tap, episode::the_first_drink).chain(),
+                (
+                    storm::storm,
+                    episode::cast_episode,
+                    episode::place_the_tap,
+                    episode::dell_opens_the_tap,
+                    episode::the_players_choice,
+                    episode::the_first_drink,
+                )
+                    .chain(),
                 lap("storm"),
                 hud::hud_keys,
                 player::roll,
@@ -233,6 +241,7 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind) -> App {
         control_plane::start();
         // The `pointer` and `key` ops drive the game as the player's hands
         // do: after Bevy reads the real input, before picking reads pointers.
+        app.add_systems(Startup, control_plane::spawn_driven_pointer);
         app.add_systems(
             PreUpdate,
             control_plane::drive_input

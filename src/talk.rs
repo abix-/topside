@@ -18,6 +18,7 @@ pub const TALK_REACH: f32 = 3.0;
 pub fn talk(
     tick: Res<crate::SimTick>,
     map: Res<ActorMapRes>,
+    episode: Res<crate::Episode>,
     speakers: Query<(Entity, &Actor, &ThisTick), Without<Dead>>,
     mut people: Query<(&Transform, &mut Memory, &Inventory), Without<Dead>>,
 ) {
@@ -40,11 +41,16 @@ pub fn talk(
                 Said::Offer { slot } => inventory.0.slots.get(slot).and_then(Option::as_ref).map(|s| s.item.clone()),
                 _ => None,
             };
+            // A line's words, held by the episode that wrote them.
+            let words = match said {
+                Said::Line { line, .. } => episode.spoken.get(line as usize).map(String::as_str),
+                _ => None,
+            };
             let answer = modforge::talk::talk(
                 said,
                 (id.0, &mut speaker_memory.0),
                 (ActorId(to), &mut listener_memory.0),
-                offered.as_deref(),
+                (offered.as_deref(), words),
                 tick.0,
             );
             debug!("{:?} to {to}: {said:?}, {answer:?}", id.0);

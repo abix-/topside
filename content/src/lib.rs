@@ -19,7 +19,7 @@ use modforge::survival::Need;
 use modforge::item::{Armor, CombatStats, FoodStats, ItemDef, ItemKind, ItemRegistry, LayerDef, LayerRegistry, Note};
 use modforge::monument::Roll;
 use modforge::reality::{Danger, RealityDef, RealityRegistry};
-use modforge::storyteller::{CastFrom, EpisodeDef, EpisodeRegistry, PartDef};
+use modforge::storyteller::{CastFrom, ChoiceDef, EpisodeDef, EpisodeRegistry, LineDef, PartDef};
 use modforge::monument::{
     Arrangement, BuildingRegistry, BuildingSize, BuildingSlot, BuildingTypeDef,
     MonumentRegistry, MonumentTypeDef, PropDef,
@@ -357,15 +357,43 @@ pub fn register_episodes(reg: &mut EpisodeRegistry) {
         name: name.to_string(),
         fits: fits.iter().map(|r| r.to_string()).collect(),
         parts: Vec::new(),
+        lines: Vec::new(),
+        choices: Vec::new(),
     };
     let part = |name: &str, from| PartDef { name: name.to_string(), from };
+    let ways = |ways: &[&str]| ways.iter().map(|w| w.to_string()).collect::<Vec<_>>();
+    let line = |part: &str, at: &str, w: &[&str]| LineDef { part: part.to_string(), at: at.to_string(), ways: ways(w) };
+    let choice = |at: &str, w: &[&str], choice: &str| ChoiceDef { at: at.to_string(), ways: ways(w), choice: choice.to_string() };
     for def in [
-        // docs/episodes/the-tap.md "The people".
+        // docs/episodes/the-tap.md "The people" and "The lines".
         EpisodeDef {
             parts: vec![
                 part("Dell", CastFrom::PlayerBunker),
                 part("Mara", CastFrom::NearestOtherBunker),
                 part("Mara's child", CastFrom::SameBunkerAs("Mara".to_string())),
+            ],
+            lines: vec![
+                line("Dell", "the opening", &[
+                    "You're up. Good. The store's down to a few bottles; that won't last the week.",
+                    "Finally awake. We're nearly out of water.",
+                    "Don't get comfortable. The water's almost gone.",
+                ]),
+                line("Dell", "the way", &[
+                    "Out the door, then {way}. Keep the {landmark} on your {side}. There's a {place}, and a tap inside it that runs. Clean water, and it doesn't stop.",
+                    "Go {way} out the door, past the {landmark} on your {side}. The {place} there has a tap. It still runs.",
+                    "Head {way} from the door. When the {landmark} is on your {side}, look for the {place}. The tap in it doesn't stop.",
+                    "Out the door, then {way}. There's a {place} out there, and a tap inside it that runs.",
+                ]),
+                line("Dell", "keep it quiet", &[
+                    "Don't tell anyone. The day the other bunker hears of it, it's theirs.",
+                    "Keep it quiet. If the others find out, it's gone.",
+                ]),
+            ],
+            choices: vec![
+                choice("the opening", &["Show me.", "Let's go."], "believes Dell"),
+                choice("the opening", &["Water doesn't just run out there. You're wrong.", "I don't believe it."], "does not believe it"),
+                choice("the opening", &["Go and look again. I'll wait.", "Check it again first."], "sends Dell"),
+                choice("the opening", &["Where exactly?", "Tell me the way again."], "asks the way"),
             ],
             ..episode("The Tap", &["Mixed world", "Sky Islands"])
         },

@@ -1176,8 +1176,21 @@ pub fn setup_talk(mut commands: Commands) {
             Visibility::Hidden,
         ))
         .with_children(|p| {
-            p.spawn((TalkLines, Text::new(""), TextFont::from_font_size(14.0), TextColor(Color::srgb(0.85, 0.8, 0.6)), Pickable::IGNORE));
-            for _ in 0..modforge::hud::TALK_TOPICS * 2 + 1 {
+            // A fixed height of `TALK_LINES` lines, so a new line never
+            // pushes the rows out from under the mouse.
+            p.spawn((
+                TalkLines,
+                Text::new(""),
+                TextFont::from_font_size(14.0),
+                TextColor(Color::srgb(0.85, 0.8, 0.6)),
+                Node {
+                    height: Val::Px(TALK_LINES as f32 * 18.0),
+                    ..default()
+                },
+                Pickable::IGNORE,
+            ));
+            // An episode's choices (up to six), then the topics.
+            for _ in 0..6 + modforge::hud::TALK_TOPICS * 2 + 1 {
                 p.spawn((
                     TopicRow(0),
                     Node {
@@ -1202,10 +1215,29 @@ pub fn setup_talk(mut commands: Commands) {
         });
 }
 
+/// What the talk panel offers the player talking to `to`: the episode's
+/// choices open for that person first (episodes.md "The lines"), then what
+/// the player knows to tell of and ask about, and a threat (modforge
+/// `talk_topics`). The one list painting and clicking both read.
+fn talk_rows(episode: &crate::Episode, to: Option<u64>, memory: &modforge::memory::Memory) -> Vec<(modforge::actions::Said, String)> {
+    let mut rows: Vec<(modforge::actions::Said, String)> = episode
+        .choices
+        .iter()
+        .filter(|(_, _, whom)| Some(whom.0) == to)
+        .filter_map(|(line, _, _)| {
+            let words = episode.spoken.get(*line as usize)?;
+            Some((modforge::actions::Said::Line { line: *line, key: 0 }, words.clone()))
+        })
+        .collect();
+    rows.extend(modforge::hud::talk_topics(memory));
+    rows
+}
+
 /// Show the talk panel while it is open, its rows the player's topics,
 /// top to bottom in the panel's own order; rows past the last topic take
 /// no room.
 pub fn render_talk(
+    episode: Res<crate::Episode>,
     players: Query<(&Hud, &crate::actor::Memory), With<Player>>,
     names: Query<(&crate::actor::Actor, &Name)>,
     mut panels: Query<(&mut Visibility, &Children), (With<TalkPanel>, Without<TopicRow>)>,
@@ -1236,7 +1268,7 @@ pub fn render_talk(
             .collect();
         shown.0 = said[said.len().saturating_sub(TALK_LINES)..].join("\n");
     }
-    let topics = modforge::hud::talk_topics(&memory.0);
+    let topics = talk_rows(&episode, hud.0.talking_to, &memory.0);
     let rows_in_order = in_order.iter().filter(|c| rows.contains(*c)).collect::<Vec<_>>();
     for (i, child) in rows_in_order.into_iter().enumerate() {
         let Ok((mut row, children, mut node)) = rows.get_mut(child) else {
@@ -1258,12 +1290,14 @@ fn click_topic(
     click: On<Pointer<Click>>,
     rows: Query<&TopicRow>,
     tick: Res<crate::SimTick>,
+    episode: Res<crate::Episode>,
     mut players: Query<(&Hud, &crate::actor::Memory, &mut Actions), With<Player>>,
 ) {
     let (Ok(row), Ok((hud, memory, mut actions))) = (rows.get(click.entity), players.single_mut()) else {
         return;
     };
-    let (Some(to), Some(said)) = (hud.0.talking_to, modforge::hud::talk_topics(&memory.0).get(row.0).map(|(said, _)| *said)) else {
+    let offered = talk_rows(&episode, hud.0.talking_to, &memory.0);
+    let (Some(to), Some(said)) = (hud.0.talking_to, offered.get(row.0).map(|(said, _)| *said)) else {
         return;
     };
     actions.0.push(tick.0 + 1, Action::Talk { to, said });

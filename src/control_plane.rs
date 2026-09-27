@@ -59,6 +59,19 @@ enum Drive {
 }
 static DRIVE: Mutex<Vec<Drive>> = Mutex::new(Vec::new());
 
+/// The pointer the `pointer` op drives: a pointer of its own beside the
+/// real mouse, so the player's hand on the mouse never moves it (the real
+/// mouse moving over the window replaced the op's position on the one
+/// mouse pointer). Bevy picking hovers and clicks the UI for every pointer
+/// the same way.
+pub const DRIVEN: bevy::picking::pointer::PointerId =
+    bevy::picking::pointer::PointerId::Custom(bevy::asset::uuid::Uuid::from_u128(0x7070_1de0_0000_4000_8000_000000000001));
+
+/// The driven pointer, once, with a window.
+pub fn spawn_driven_pointer(mut commands: Commands) {
+    commands.spawn(DRIVEN);
+}
+
 /// A key's name, as the `key` op takes it, to Bevy's code.
 fn key_code(name: &str) -> Option<KeyCode> {
     Some(match name {
@@ -94,7 +107,7 @@ pub fn drive_input(
     windows: Query<Entity, With<bevy::window::PrimaryWindow>>,
     mut pointers: MessageWriter<bevy::picking::pointer::PointerInput>,
 ) {
-    use bevy::picking::pointer::{Location, PointerAction, PointerButton, PointerId, PointerInput};
+    use bevy::picking::pointer::{Location, PointerAction, PointerButton, PointerInput};
     let steps: Vec<Drive> = {
         let Ok(mut queue) = DRIVE.lock() else {
             return;
@@ -112,14 +125,14 @@ pub fn drive_input(
         let location = |position| Location { target: target.clone(), position };
         match step {
             Drive::Move(to) => {
-                pointers.write(PointerInput::new(PointerId::Mouse, location(to), PointerAction::Move { delta: to - *last }));
+                pointers.write(PointerInput::new(DRIVEN, location(to), PointerAction::Move { delta: to - *last }));
                 *last = to;
             }
             Drive::Press => {
-                pointers.write(PointerInput::new(PointerId::Mouse, location(*last), PointerAction::Press(PointerButton::Primary)));
+                pointers.write(PointerInput::new(DRIVEN, location(*last), PointerAction::Press(PointerButton::Primary)));
             }
             Drive::Release => {
-                pointers.write(PointerInput::new(PointerId::Mouse, location(*last), PointerAction::Release(PointerButton::Primary)));
+                pointers.write(PointerInput::new(DRIVEN, location(*last), PointerAction::Release(PointerButton::Primary)));
             }
             Drive::KeyPress(code) => keys.press(code),
             Drive::KeyRelease(code) => keys.release(code),
@@ -553,6 +566,7 @@ pub fn publish_hud(
     talk_panel: Query<&Visibility, With<crate::hud::TalkPanel>>,
     talk_rows: Query<(&Node, &Children, &UiGlobalTransform), With<crate::hud::TopicRow>>,
     talk_lines: Query<&Text, With<crate::hud::TalkLines>>,
+    pointers: Query<(&bevy::picking::pointer::PointerId, &bevy::picking::pointer::PointerLocation)>,
     texts: Query<&Text>,
     players: Query<&crate::interact::Hud, With<Player>>,
 ) {
@@ -627,6 +641,12 @@ pub fn publish_hud(
             "filled": filled,
             "selected": selected,
             "talk": talk,
+            // Where Bevy picking has the `pointer` op's pointer now, in
+            // logical pixels.
+            "pointer": pointers
+                .iter()
+                .find(|(id, _)| **id == DRIVEN)
+                .and_then(|(_, at)| at.location().map(|l| [l.position.x, l.position.y])),
         });
     }
 }
