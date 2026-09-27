@@ -32,4 +32,5 @@ Nothing to find out: this is the world the other realities break.
 
 ## The episodes that fit it
 
-The Fever (any reality). The Tap where water is scarce.
+The Tap, the first episode, a gentle intro (operator, 2026-09-27). The
+Fever (any reality).

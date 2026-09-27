@@ -1,12 +1,13 @@
 # The Tap
 
 The first episode (operator, 2026-09-27). It starts when the player
-wakes in the bunker knowing nothing.
+wakes in the bunker knowing nothing, in the Mixed world, our vanilla
+world: a gentle intro (operator, 2026-09-27).
 
 ## Parameters
 
-- The realities it fits: any reality where water is scarce
-  (realities.md).
+- The realities it fits: the Mixed world (always the first), and any
+  reality where water is scarce (realities.md).
 - The endless thing: water, food, power, or ammo.
 - What it drains: a well, someone's memory, someone's life, or the
   ground under a building.

@@ -342,14 +342,15 @@ impl Default for EpisodeRegistryRes {
 }
 
 /// The episodes written so far (docs/episodes/), each with the realities
-/// its file says it fits; an empty list fits any.
+/// its file says it fits; an empty list fits any. The Tap is first: the
+/// first episode, in the Mixed world (operator, 2026-09-27).
 pub fn register_episodes(reg: &mut EpisodeRegistry) {
     let episode = |name: &str, fits: &[&str]| EpisodeDef {
         name: name.to_string(),
         fits: fits.iter().map(|r| r.to_string()).collect(),
     };
     for def in [
-        episode("The Tap", &["Sky Islands"]),
+        episode("The Tap", &["Mixed world", "Sky Islands"]),
         episode("The Fever", &[]),
         episode("The Other You", &["Mirror"]),
         episode("Nobody Dies", &["Loop"]),

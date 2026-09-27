@@ -109,7 +109,7 @@ fn in_loop_the_killed_come_back_and_the_storm_takes_everything_topside() {
 #[test]
 fn the_episode_fits_its_reality() {
     const FITS: [(&str, &[&str]); 5] = [
-        ("The Tap", &["Sky Islands"]),
+        ("The Tap", &["Mixed world", "Sky Islands"]),
         ("The Fever", &[]),
         ("The Other You", &["Mirror"]),
         ("Nobody Dies", &["Loop"]),
@@ -121,4 +121,7 @@ fn the_episode_fits_its_reality() {
     let name = w["episode"].as_str().expect("an episode runs: The Fever fits any reality");
     let &(_, fits) = FITS.iter().find(|(n, _)| *n == name).unwrap_or_else(|| panic!("'{name}' is not an episode written"));
     assert!(fits.is_empty() || fits.contains(&reality), "{name} runs in {reality}, which it does not fit");
+    if w["storms"] == 0 {
+        assert_eq!(name, "The Tap", "the first episode is The Tap (operator, 2026-09-27)");
+    }
 }
