@@ -231,6 +231,14 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind) -> App {
         app.insert_resource(storm::Windowed);
         app.add_plugins(bevy::diagnostic::FrameTimeDiagnosticsPlugin::default());
         control_plane::start();
+        // The `pointer` and `key` ops drive the game as the player's hands
+        // do: after Bevy reads the real input, before picking reads pointers.
+        app.add_systems(
+            PreUpdate,
+            control_plane::drive_input
+                .after(bevy::input::InputSystems)
+                .before(bevy::picking::PickingSystems::Input),
+        );
         app.add_systems(Startup, terrain::setup_ground.before(terrain::make_chunks));
         app.add_systems(Startup, minimap::setup_map);
         app.add_systems(FixedUpdate, minimap::toggle_map.after(input::drain_actions));

@@ -26,6 +26,7 @@ mod screenshot;
 mod sources;
 mod storm;
 mod talk;
+mod talk_ui;
 mod the_dead;
 mod thirst;
 mod view;

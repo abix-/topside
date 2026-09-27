@@ -44,6 +44,90 @@ static WAYS: Mutex<Json> = Mutex::new(Json::Null);
 static KILL_ASK: Mutex<Option<u64>> = Mutex::new(None);
 /// The `use` op's request: the ActorId, and the point of the thing to use.
 static USE_ASK: Mutex<Option<(u64, Vec2)>> = Mutex::new(None);
+/// One step of driving the game the way the player does (the `pointer`
+/// and `key` ops): the mouse moved to a window point, a mouse button or
+/// key pressed or released; `Next` ends this frame's steps, so a press is
+/// seen one frame before its release.
+#[derive(Clone, Copy, Debug)]
+enum Drive {
+    Move(Vec2),
+    Press,
+    Release,
+    KeyPress(KeyCode),
+    KeyRelease(KeyCode),
+    Next,
+}
+static DRIVE: Mutex<Vec<Drive>> = Mutex::new(Vec::new());
+
+/// A key's name, as the `key` op takes it, to Bevy's code.
+fn key_code(name: &str) -> Option<KeyCode> {
+    Some(match name {
+        "W" => KeyCode::KeyW,
+        "A" => KeyCode::KeyA,
+        "S" => KeyCode::KeyS,
+        "D" => KeyCode::KeyD,
+        "E" => KeyCode::KeyE,
+        "I" => KeyCode::KeyI,
+        "M" => KeyCode::KeyM,
+        "T" => KeyCode::KeyT,
+        "O" => KeyCode::KeyO,
+        "Tab" => KeyCode::Tab,
+        "Escape" => KeyCode::Escape,
+        "Enter" => KeyCode::Enter,
+        "Space" => KeyCode::Space,
+        "1" => KeyCode::Digit1,
+        "2" => KeyCode::Digit2,
+        "3" => KeyCode::Digit3,
+        _ => return None,
+    })
+}
+
+/// Once a frame, right after Bevy has read the real mouse and keys: the
+/// `pointer` and `key` ops' steps up to the next frame's, the mouse as
+/// Bevy picking's `PointerInput` on the real mouse pointer (as its own
+/// mouse backend writes them) and keys into the one key state
+/// `input::read_input` reads. Nothing downstream can tell them from the
+/// player's hands.
+pub fn drive_input(
+    mut last: Local<Vec2>,
+    mut keys: ResMut<ButtonInput<KeyCode>>,
+    windows: Query<Entity, With<bevy::window::PrimaryWindow>>,
+    mut pointers: MessageWriter<bevy::picking::pointer::PointerInput>,
+) {
+    use bevy::picking::pointer::{Location, PointerAction, PointerButton, PointerId, PointerInput};
+    let steps: Vec<Drive> = {
+        let Ok(mut queue) = DRIVE.lock() else {
+            return;
+        };
+        let end = queue.iter().position(|s| matches!(s, Drive::Next)).map_or(queue.len(), |i| i + 1);
+        queue.drain(..end).collect()
+    };
+    let Ok(window) = windows.single() else {
+        return;
+    };
+    let Some(target) = bevy::camera::RenderTarget::Window(bevy::window::WindowRef::Entity(window)).normalize(Some(window)) else {
+        return;
+    };
+    for step in steps {
+        let location = |position| Location { target: target.clone(), position };
+        match step {
+            Drive::Move(to) => {
+                pointers.write(PointerInput::new(PointerId::Mouse, location(to), PointerAction::Move { delta: to - *last }));
+                *last = to;
+            }
+            Drive::Press => {
+                pointers.write(PointerInput::new(PointerId::Mouse, location(*last), PointerAction::Press(PointerButton::Primary)));
+            }
+            Drive::Release => {
+                pointers.write(PointerInput::new(PointerId::Mouse, location(*last), PointerAction::Release(PointerButton::Primary)));
+            }
+            Drive::KeyPress(code) => keys.press(code),
+            Drive::KeyRelease(code) => keys.release(code),
+            Drive::Next => {}
+        }
+    }
+}
+
 /// The `talk` op's request: who speaks, to whom, saying what.
 static TALK_ASK: Mutex<Option<(u64, u64, modforge::actions::Said)>> = Mutex::new(None);
 /// The `npc` op's question (an ActorId) and the game's answer.
@@ -335,10 +419,11 @@ pub fn publish_ways(tick: Res<crate::SimTick>, failed: Res<crate::nav::FailedWay
 /// were, is past by tick 42,000, 2 minutes 55 seconds at 4x).
 static SPEED_BITS: AtomicU32 = AtomicU32::new(0x4080_0000);
 
-/// The `screenshot` op asked for one, taken the next frame.
-static SCREENSHOT: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
-/// Where the screenshot is saved.
-const SCREENSHOT_PATH: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/logs/screenshot.png");
+/// The `screenshot` op asked for one, taken the next frame: the path to
+/// save it to.
+static SCREENSHOT: Mutex<Option<String>> = Mutex::new(None);
+/// Where screenshots are saved: logs/<name>.png, `screenshot` unnamed.
+const SCREENSHOT_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/logs");
 
 /// What the camera sees, once a second, for the `view` op.
 static VIEW: Mutex<Json> = Mutex::new(Json::Null);
@@ -466,23 +551,33 @@ pub fn publish_hud(
     slots: Query<(&crate::hud::SlotUi, &crate::hud::SlotIcons)>,
     item_panel: Query<&crate::hud::ItemPanel>,
     talk_panel: Query<&Visibility, With<crate::hud::TalkPanel>>,
-    talk_rows: Query<(&Visibility, &Children), With<crate::hud::TopicRow>>,
+    talk_rows: Query<(&Node, &Children, &UiGlobalTransform), With<crate::hud::TopicRow>>,
+    talk_lines: Query<&Text, With<crate::hud::TalkLines>>,
     texts: Query<&Text>,
     players: Query<&crate::interact::Hud, With<Player>>,
 ) {
     if tick.0 % 60 != 0 {
         return;
     }
-    // The talk panel as drawn: whether it shows, to whom, and the words of
-    // each topic row shown.
+    // The talk panel as drawn: whether it shows, to whom, and each topic
+    // row shown, top to bottom: its words and its centre in the window's
+    // logical pixels (what the `pointer` op takes).
+    let scale = windows.single().map_or(1.0, |w| w.scale_factor());
+    let mut rows: Vec<(String, Vec2)> = talk_rows
+        .iter()
+        .filter(|(node, ..)| node.display != Display::None)
+        .filter_map(|(_, children, at)| {
+            let words = children.first().and_then(|c| texts.get(*c).ok())?.0.clone();
+            Some((words, at.translation / scale))
+        })
+        .collect();
+    rows.sort_by(|a, b| a.1.y.total_cmp(&b.1.y));
     let talk = json!({
+        "lines": talk_lines.single().map_or(String::new(), |t| t.0.clone()),
         "open": talk_panel.single().is_ok_and(|v| *v != Visibility::Hidden),
         "to": players.single().ok().and_then(|h| h.0.talking_to),
-        "topics": talk_rows
-            .iter()
-            .filter(|(v, _)| **v != Visibility::Hidden)
-            .filter_map(|(_, children)| children.first().and_then(|c| texts.get(*c).ok()).map(|t| t.0.clone()))
-            .collect::<Vec<_>>(),
+        "topics": rows.iter().map(|(words, _)| words.clone()).collect::<Vec<_>>(),
+        "rows": rows.iter().map(|(words, at)| json!({"words": words, "at": [at.x, at.y]})).collect::<Vec<_>>(),
     });
     let Ok(window) = windows.single() else {
         return;
@@ -538,9 +633,9 @@ pub fn publish_hud(
 
 /// What the window shows, saved to disk when the `screenshot` op asked.
 pub fn take_screenshot(mut commands: Commands) {
-    if SCREENSHOT.swap(false, Ordering::Relaxed) {
+    if let Some(path) = SCREENSHOT.lock().ok().and_then(|mut s| s.take()) {
         use bevy::render::view::screenshot::{Screenshot, save_to_disk};
-        commands.spawn(Screenshot::primary_window()).observe(save_to_disk(SCREENSHOT_PATH));
+        commands.spawn(Screenshot::primary_window()).observe(save_to_disk(path));
     }
 }
 
@@ -730,6 +825,10 @@ pub fn publish(
                 "knows": memory.0.known.iter().map(|k| json!({"key": k.key, "kind": k.kind, "told_by": k.told_by.map(|a| a.0)})).collect::<Vec<_>>(),
                 "heard": memory.0.done.iter().filter_map(|(t, d)| match d {
                     modforge::memory::Did::Heard(by, said) => Some(json!({"tick": t, "by": by.0, "said": said})),
+                    _ => None,
+                }).collect::<Vec<_>>(),
+                "said": memory.0.done.iter().filter_map(|(t, d)| match d {
+                    modforge::memory::Did::Talked(to, said) => Some(json!({"tick": t, "to": to.0, "said": said})),
                     _ => None,
                 }).collect::<Vec<_>>(),
             });
@@ -1001,6 +1100,44 @@ pub fn start() {
         },
     ));
     OP_REGISTRY.register(OpDef::new(
+        "pointer",
+        "drive the mouse as the player does, through Bevy picking on the real mouse pointer: `at` moves it to a window point in logical pixels (the `hud` op gives where things are), `click` presses the left button this frame and releases it the next",
+        "{\"at\": [640.0, 360.0], \"click\": true}",
+        |args| {
+            let at = args.get("at").and_then(Json::as_array).and_then(|a| Some(Vec2::new(a.first()?.as_f64()? as f32, a.get(1)?.as_f64()? as f32)));
+            let click = args.get("click").and_then(Json::as_bool).unwrap_or(false);
+            if at.is_none() && !click {
+                return Err("at: [x, y], click: true, or both".to_string());
+            }
+            if let Ok(mut queue) = DRIVE.lock() {
+                if let Some(at) = at {
+                    queue.extend([Drive::Move(at), Drive::Next]);
+                }
+                if click {
+                    queue.extend([Drive::Press, Drive::Next, Drive::Release, Drive::Next]);
+                }
+            }
+            Ok(json!({"at": at.map(|a| [a.x, a.y]), "click": click}))
+        },
+    ));
+    OP_REGISTRY.register(OpDef::new(
+        "key",
+        "press a key as the player does, into the one key state input::read_input reads: tapped (pressed one frame, released the next) or, with `hold`, pressed until a `key` op with `hold: false` (W, A, S, D, E, I, M, T, O, Tab, Escape, Enter, Space, 1, 2, 3)",
+        "{\"key\": \"E\"}",
+        |args| {
+            let name = args.get("key").and_then(Json::as_str).ok_or_else(|| "key: a key's name".to_string())?;
+            let code = key_code(name).ok_or_else(|| format!("no key named '{name}'"))?;
+            if let Ok(mut queue) = DRIVE.lock() {
+                match args.get("hold").and_then(Json::as_bool) {
+                    Some(true) => queue.extend([Drive::KeyPress(code), Drive::Next]),
+                    Some(false) => queue.extend([Drive::KeyRelease(code), Drive::Next]),
+                    None => queue.extend([Drive::KeyPress(code), Drive::Next, Drive::KeyRelease(code), Drive::Next]),
+                }
+            }
+            Ok(json!({"key": name}))
+        },
+    ));
+    OP_REGISTRY.register(OpDef::new(
         "player",
         "the player: their id, every thing they know (key, kind, and who told them, if told), and everything they heard said",
         "",
@@ -1023,11 +1160,18 @@ pub fn start() {
     ));
     OP_REGISTRY.register(OpDef::new(
         "screenshot",
-        "save what the game window shows next frame to logs/screenshot.png",
-        "",
-        |_| {
-            SCREENSHOT.store(true, Ordering::Relaxed);
-            Ok(json!({"path": SCREENSHOT_PATH}))
+        "save what the game window shows next frame to logs/<name>.png (logs/screenshot.png with no name)",
+        "{\"name\": \"talk_open\"}",
+        |args| {
+            let name = args.get("name").and_then(Json::as_str).unwrap_or("screenshot");
+            if name.is_empty() || !name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-') {
+                return Err("name: letters, digits, _ and -".to_string());
+            }
+            let path = format!("{SCREENSHOT_DIR}/{name}.png");
+            if let Ok(mut slot) = SCREENSHOT.lock() {
+                *slot = Some(path.clone());
+            }
+            Ok(json!({"path": path}))
         },
     ));
     modforge::server::spawn(

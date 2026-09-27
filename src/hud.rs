@@ -1104,16 +1104,17 @@ pub fn setup_station(mut commands: Commands) {
         });
 }
 
-/// Fill the station panel from the open station's recipes: a recipe the
-/// inventory can pay for is lit.
+/// Fill the station panel from the open station's recipes, top to bottom
+/// in the panel's own order, rows past the last recipe taking no room: a
+/// recipe the inventory can pay for is lit.
 pub fn render_station(
     recipes: Res<RecipeRegistryRes>,
     players: Query<(&Inventory, &OpenStation), With<Player>>,
-    mut panels: Query<&mut Visibility, (With<StationPanel>, Without<RecipeRow>)>,
-    mut rows: Query<(&mut RecipeRow, &Children, &mut BackgroundColor, &mut Visibility)>,
+    mut panels: Query<(&mut Visibility, &Children), (With<StationPanel>, Without<RecipeRow>)>,
+    mut rows: Query<(&mut RecipeRow, &Children, &mut BackgroundColor, &mut Node)>,
     mut texts: Query<&mut Text>,
 ) {
-    let (Ok(mut panel), Ok((inventory, station))) = (panels.single_mut(), players.single()) else {
+    let (Ok((mut panel, in_order)), Ok((inventory, station))) = (panels.single_mut(), players.single()) else {
         return;
     };
     let Some(kind) = station.0 else {
@@ -1122,12 +1123,15 @@ pub fn render_station(
     };
     *panel = Visibility::Visible;
     let list = recipes.0.for_station(kind);
-    for (i, (mut row, children, mut color, mut visibility)) in rows.iter_mut().enumerate() {
-        let Some(recipe) = list.get(i) else {
-            *visibility = Visibility::Hidden;
+    for (i, child) in in_order.iter().enumerate() {
+        let Ok((mut row, children, mut color, mut node)) = rows.get_mut(child) else {
             continue;
         };
-        *visibility = Visibility::Inherited;
+        let Some(recipe) = list.get(i) else {
+            node.display = Display::None;
+            continue;
+        };
+        node.display = Display::Flex;
         row.0 = i;
         let takes: Vec<String> = recipe.inputs.iter().map(|(item, n)| format!("{item} x{n}")).collect();
         if let Some(mut text) = children.first().and_then(|c| texts.get_mut(*c).ok()) {
@@ -1147,6 +1151,14 @@ pub struct TalkPanel;
 #[derive(Component)]
 pub struct TopicRow(pub usize);
 
+/// The talk panel's lines: the last things said between the player and
+/// the person they talk to, from the player's memory.
+#[derive(Component)]
+pub struct TalkLines;
+
+/// How many said and heard lines the talk panel shows.
+const TALK_LINES: usize = 4;
+
 pub fn setup_talk(mut commands: Commands) {
     commands
         .spawn((
@@ -1164,6 +1176,7 @@ pub fn setup_talk(mut commands: Commands) {
             Visibility::Hidden,
         ))
         .with_children(|p| {
+            p.spawn((TalkLines, Text::new(""), TextFont::from_font_size(14.0), TextColor(Color::srgb(0.85, 0.8, 0.6)), Pickable::IGNORE));
             for _ in 0..modforge::hud::TALK_TOPICS * 2 + 1 {
                 p.spawn((
                     TopicRow(0),
@@ -1174,19 +1187,33 @@ pub fn setup_talk(mut commands: Commands) {
                     BackgroundColor(SLOT_COLOR),
                     children![(Text::new(""), TextFont::from_font_size(14.0), Pickable::IGNORE)],
                 ))
-                .observe(click_topic);
+                .observe(click_topic)
+                .observe(|over: On<Pointer<Over>>, mut colors: Query<&mut BackgroundColor>| {
+                    if let Ok(mut color) = colors.get_mut(over.entity) {
+                        color.0 = HELD_COLOR;
+                    }
+                })
+                .observe(|out: On<Pointer<Out>>, mut colors: Query<&mut BackgroundColor>| {
+                    if let Ok(mut color) = colors.get_mut(out.entity) {
+                        color.0 = SLOT_COLOR;
+                    }
+                });
             }
         });
 }
 
-/// Show the talk panel while it is open, its rows the player's topics.
+/// Show the talk panel while it is open, its rows the player's topics,
+/// top to bottom in the panel's own order; rows past the last topic take
+/// no room.
 pub fn render_talk(
     players: Query<(&Hud, &crate::actor::Memory), With<Player>>,
-    mut panels: Query<&mut Visibility, (With<TalkPanel>, Without<TopicRow>)>,
-    mut rows: Query<(&mut TopicRow, &Children, &mut Visibility)>,
-    mut texts: Query<&mut Text>,
+    names: Query<(&crate::actor::Actor, &Name)>,
+    mut panels: Query<(&mut Visibility, &Children), (With<TalkPanel>, Without<TopicRow>)>,
+    mut rows: Query<(&mut TopicRow, &Children, &mut Node)>,
+    mut lines: Query<&mut Text, (With<TalkLines>, Without<TopicRow>)>,
+    mut texts: Query<&mut Text, Without<TalkLines>>,
 ) {
-    let (Ok(mut panel), Ok((hud, memory))) = (panels.single_mut(), players.single()) else {
+    let (Ok((mut panel, in_order)), Ok((hud, memory))) = (panels.single_mut(), players.single()) else {
         return;
     };
     if hud.0.open_panel != OpenPanel::Talk {
@@ -1194,13 +1221,32 @@ pub fn render_talk(
         return;
     }
     *panel = Visibility::Visible;
+    // What was last said between them, from the player's memory, by name.
+    if let (Some(to), Ok(mut shown)) = (hud.0.talking_to, lines.single_mut()) {
+        let name = names.iter().find(|(a, _)| a.0.0 == to).map_or_else(|| "They".to_string(), |(_, n)| n.as_str().to_string());
+        let said: Vec<String> = memory
+            .0
+            .done
+            .iter()
+            .filter_map(|(_, did)| match did {
+                modforge::memory::Did::Talked(whom, words) if whom.0 == to => Some(format!("You: {words}")),
+                modforge::memory::Did::Heard(by, words) if by.0 == to => Some(format!("{name}: {words}")),
+                _ => None,
+            })
+            .collect();
+        shown.0 = said[said.len().saturating_sub(TALK_LINES)..].join("\n");
+    }
     let topics = modforge::hud::talk_topics(&memory.0);
-    for (i, (mut row, children, mut visibility)) in rows.iter_mut().enumerate() {
-        let Some((_, words)) = topics.get(i) else {
-            *visibility = Visibility::Hidden;
+    let rows_in_order = in_order.iter().filter(|c| rows.contains(*c)).collect::<Vec<_>>();
+    for (i, child) in rows_in_order.into_iter().enumerate() {
+        let Ok((mut row, children, mut node)) = rows.get_mut(child) else {
             continue;
         };
-        *visibility = Visibility::Inherited;
+        let Some((_, words)) = topics.get(i) else {
+            node.display = Display::None;
+            continue;
+        };
+        node.display = Display::Flex;
         row.0 = i;
         if let Some(mut text) = children.first().and_then(|c| texts.get_mut(*c).ok()) {
             text.0 = words.clone();
