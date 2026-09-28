@@ -158,4 +158,48 @@ fn word_of_the_threat_spreads_to_a_mate() {
     let hers = m["feelings"].as_array().and_then(|f| f.iter().find(|f| f["toward"].as_u64() == Some(player))).and_then(|f| f["feeling"].as_f64());
     assert!(felt.is_some_and(|f| f < 0.0), "mate {mate} feels nothing bad toward the player after being told: {felt:?}");
     assert!(felt.zip(hers).is_some_and(|(f, h)| f > h), "being told is felt less than being threatened: {felt:?} against Mara's {hers:?}");
+    // Mara told of the places she knows too (one seen already is kept as
+    // seen).
+    let places: Vec<&str> = n["knows"].as_array().map_or(Vec::new(), |k| k.iter().filter(|k| k["told_by"].as_u64() == Some(mara)).filter_map(|k| k["kind"].as_str()).collect());
+    eprintln!("mate {mate}, places told of by Mara: {places:?}");
+    assert!(!places.is_empty(), "Mara told her mate {mate} of no place");
+}
+
+/// Word spreads, but not what is kept quiet: Dell wants the tap kept
+/// secret (docs/episodes/the-tap.md), so a bunker mate brought to her with
+/// the `use` op learns what else she knows and not the tap.
+#[test]
+fn dell_keeps_the_tap_quiet() {
+    let w = op("world");
+    let cast = |part: &str| w["cast"].as_array().and_then(|c| c.iter().find(|p| p["part"] == part)).and_then(|p| p["id"].as_u64());
+    let (Some(dell), Some(tap)) = (cast("Dell"), w["things"].as_array().and_then(|t| t.iter().find(|t| t["name"] == "tap")).and_then(|t| t["key"].as_u64())) else {
+        eprintln!("the episode is {}, with no Dell and tap; not played this run", w["episode"]);
+        return;
+    };
+    let d = npc(dell);
+    assert!(d["quiet"].as_array().is_some_and(|q| q.iter().any(|k| k.as_u64() == Some(tap))), "Dell does not keep the tap quiet: {}", d["quiet"]);
+    let faction = d["faction"].clone();
+    let Some(mate) = crate::endpoint::people()
+        .iter()
+        .filter(|p| p["faction"] == faction && p["dead"] != true && p["id"].as_u64() != Some(dell))
+        .find_map(|p| p["id"].as_u64())
+    else {
+        eprintln!("Dell has no living bunker mate; not played this run");
+        return;
+    };
+    let knows = |n: &serde_json::Value, key: u64| n["knows"].as_array().is_some_and(|k| k.iter().any(|k| k["key"].as_u64() == Some(key)));
+    let dells: Vec<u64> = d["knows"].as_array().map_or(Vec::new(), |k| k.iter().filter_map(|k| k["key"].as_u64()).collect());
+    op_with("use", serde_json::json!({"id": mate, "person": dell}));
+    let mut n = npc(mate);
+    for _ in 0..16 {
+        if dells.iter().any(|k| *k != tap && knows(&n, *k)) {
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(250));
+        n = npc(mate);
+    }
+    let told: Vec<&serde_json::Value> = n["knows"].as_array().map_or(Vec::new(), |k| k.iter().filter(|k| k["told_by"].as_u64() == Some(dell)).collect());
+    eprintln!("mate {mate}, told by Dell: {told:?}");
+    assert!(!told.is_empty(), "Dell told her mate {mate} nothing");
+    assert!(!knows(&n, tap), "Dell's mate {mate} knows the tap");
 }

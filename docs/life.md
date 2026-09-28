@@ -213,6 +213,14 @@ they have none: their own history with you comes first. Prior art:
 RimWorld (pawn opinions, faction goodwill), Mount & Blade (lord and
 kingdom relations).
 
+Word spreads (operator, 2026-09-27): people of one faction near each
+other tell each other what someone did to them, and the places they
+know; what they were told they feel at half, and a place they were told
+of they can tell on. Something a person was asked to keep quiet, or
+wants kept quiet, they do not pass on (Dell and the tap). The player
+tells only what they choose, by talking. Prior art: Dwarf Fortress
+rumours.
+
 ### Learning to stay alive (operator, 2026-09-25)
 
 Every person learns from what they live through (reinforcement

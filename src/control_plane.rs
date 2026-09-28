@@ -383,7 +383,9 @@ pub fn answer_npc(
                     "seen_at": k.seen_at,
                     "checked_at": k.checked_at,
                     "held": k.held,
+                    "told_by": k.told_by.map(|a| a.0),
                 })).collect::<Vec<_>>(),
+                "quiet": memory.0.quiet,
                 "way": {
                     "goal": [way.goal.x, way.goal.y],
                     "waypoints": way.waypoints.iter().map(|p| [p.x, p.y]).collect::<Vec<_>>(),

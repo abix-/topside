@@ -226,6 +226,9 @@ pub fn place_the_tap(
     {
         let ground = |p: Vec2| Vec3::new(p.x, 0.0, p.y);
         memory.0.see(key, "tap", ground(at), tick.0);
+        // Dell wants it kept secret (docs/episodes/the-tap.md "Pushed all
+        // the way"): she never passes it on.
+        memory.0.keep_quiet(key);
         for passed in sites.iter().filter(|p| off_the_way(door, at, p.position).0 <= ON_THE_WAY) {
             memory.0.see(site_key(passed.position), &passed.monument, ground(passed.position), tick.0);
         }
