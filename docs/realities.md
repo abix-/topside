@@ -57,7 +57,7 @@ and great loot.
 
 - Water remembers. Water carries the memories of the last one who drank
   it; whoever drinks sees what the one before them saw. The player finds
-  out with their first drink from a shared source. Used by The Tap.
+  out with their first drink from a shared source.
 - Nobody dies. Anyone who dies wakes the next morning where they last
   slept, and remembers who killed them. The people know they are stuck
   in the loop and never chose it. The player finds out by seeing someone
