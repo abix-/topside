@@ -21,9 +21,18 @@ fn far(a: [f64; 2], b: [f64; 2]) -> f64 {
 
 /// Click the row whose words are one of `words` in the open talk panel;
 /// the words clicked.
-fn click_row(words: &[&str]) -> Option<String> {
-    let talk = talk_after(|t| t["open"] == true);
-    let row = talk["rows"].as_array()?.iter().find(|r| words.iter().any(|w| r["words"] == *w))?.clone();
+pub fn click_row(words: &[&str]) -> Option<String> {
+    // The row, at most 8 real seconds (a game just started runs slow).
+    let row_of = |t: &serde_json::Value| t["rows"].as_array().and_then(|r| r.iter().find(|r| words.iter().any(|w| r["words"] == *w)).cloned());
+    let mut talk = talk_after(|t| row_of(t).is_some());
+    for _ in 0..20 {
+        if row_of(&talk).is_some() {
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(250));
+        talk = op("hud")["talk"].clone();
+    }
+    let row = row_of(&talk)?;
     op_with("pointer", serde_json::json!({"at": row["at"]}));
     std::thread::sleep(Duration::from_millis(400));
     op_with("pointer", serde_json::json!({"click": true}));
@@ -68,6 +77,7 @@ fn the_taps_first_day() {
         if dell_at.zip(mara_at).is_some_and(|(d, m)| far(d, tap) <= 5.0 && far(m, tap) <= 6.0) {
             break;
         }
+        // The player follows Dell there, no key pressed (ai::follow).
         std::thread::sleep(Duration::from_secs(1));
         dell_at = at_of(dell);
         mara_at = at_of(mara);

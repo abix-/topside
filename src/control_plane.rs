@@ -155,6 +155,70 @@ static TALK_ASK: Mutex<Option<(u64, u64, modforge::actions::Said)>> = Mutex::new
 static NPC_ASK: Mutex<Option<u64>> = Mutex::new(None);
 static NPC_ANSWER: Mutex<Option<(u64, Json)>> = Mutex::new(None);
 
+/// The `walk` op's question (a ground point) and the game's answer.
+static WALK_ASK: Mutex<Option<Vec2>> = Mutex::new(None);
+static WALK_ANSWER: Mutex<Option<Json>> = Mutex::new(None);
+
+/// What a solid thing is, to name what blocks a tile.
+type Things<'w, 's> = Query<
+    'w,
+    's,
+    (
+        Option<&'static crate::structure::StructureRoot>,
+        Option<&'static crate::interact::WorldItem>,
+        Has<crate::terrain::WorldPiece>,
+    ),
+>;
+
+/// The solids on the walk grid's tile under `at`, each named with what
+/// it is and where it lies.
+fn solids_on(walk: &mut crate::nav::Walk, things: &Things, at: Vec2) -> Vec<Json> {
+    walk.0
+        .solids_on(at)
+        .into_iter()
+        .map(|(key, r)| {
+            let what = Entity::try_from_bits(key)
+                .and_then(|e| things.get(e).ok())
+                .map_or("gone".to_string(), |(building, item, piece)| match (building, item) {
+                    (Some(_), _) => "a building (wall or furniture)".to_string(),
+                    (_, Some(item)) => format!("an item: {}", item.stack.item),
+                    _ if piece => "the ground (water, trees, rocks) or a monument's props".to_string(),
+                    _ => "something else".to_string(),
+                });
+            json!({"what": what, "min": [r.min.x, r.min.y], "max": [r.max.x, r.max.y]})
+        })
+        .collect()
+}
+
+/// Answer the `walk` op's question, if one is waiting: the walk grid's
+/// chunk at the point, drawn, and every solid on the tiles within 3 m.
+pub fn answer_walk(mut walk: ResMut<crate::nav::Walk>, things: Things) {
+    let Some(at) = WALK_ASK.lock().ok().and_then(|mut ask| ask.take()) else {
+        return;
+    };
+    let mut solids: Vec<Json> = Vec::new();
+    for y in -3..=3 {
+        for x in -3..=3 {
+            for s in solids_on(&mut walk, &things, at + Vec2::new(x as f32, y as f32)) {
+                if !solids.contains(&s) {
+                    solids.push(s);
+                }
+            }
+        }
+    }
+    let p = walk.0.picture(at, '@');
+    let answer = json!({
+        "at": [at.x, at.y],
+        "chunk": [p.chunk.0, p.chunk.1],
+        "tile": [p.tile.0, p.tile.1],
+        "tiles": p.rows,
+        "solids": solids,
+    });
+    if let Ok(mut slot) = WALK_ANSWER.lock() {
+        *slot = Some(answer);
+    }
+}
+
 /// Everything about one person, for the `npc` op.
 #[derive(bevy::ecs::system::SystemParam)]
 pub struct PersonView<'w, 's> {
@@ -179,15 +243,7 @@ pub struct PersonView<'w, 's> {
         ),
     >,
     /// What a solid thing is, to name what blocks a tile.
-    things: Query<
-        'w,
-        's,
-        (
-            Option<&'static crate::structure::StructureRoot>,
-            Option<&'static crate::interact::WorldItem>,
-            Has<crate::terrain::WorldPiece>,
-        ),
-    >,
+    things: Things<'w, 's>,
     /// What a person could use, to name what is in their reach.
     usable: Query<
         'w,
@@ -295,6 +351,7 @@ pub fn answer_npc(
     tick: Res<crate::SimTick>,
     tree: Res<crate::content::brain::BrainTreeRes>,
     episodes: Res<crate::content::EpisodeRegistryRes>,
+    leaders: Query<(&Actor, &crate::ai::Leading)>,
 ) {
     let Some(id) = NPC_ASK.lock().ok().and_then(|mut ask| ask.take()) else {
         return;
@@ -305,22 +362,7 @@ pub fn answer_npc(
         Some(((_, npc, at, health, needs), (record, memory, inventory, hotbar), (way, home, store, dead, spawned))) => {
             let here = at.translation.ground();
             // What blocks the tile they stand on, if anything.
-            let standing_on: Vec<Json> = walk
-                .0
-                .solids_on(here)
-                .into_iter()
-                .map(|(key, r)| {
-                    let what = Entity::try_from_bits(key)
-                        .and_then(|e| view.things.get(e).ok())
-                        .map_or("gone".to_string(), |(building, item, piece)| match (building, item) {
-                            (Some(_), _) => "a building (wall or furniture)".to_string(),
-                            (_, Some(item)) => format!("an item: {}", item.stack.item),
-                            _ if piece => "the ground (water, trees, rocks) or a monument's props".to_string(),
-                            _ => "something else".to_string(),
-                        });
-                    json!({"what": what, "min": [r.min.x, r.min.y], "max": [r.max.x, r.max.y]})
-                })
-                .collect();
+            let standing_on = solids_on(&mut walk, &view.things, here);
             let stacks = |held: &modforge::item::Inventory| -> Vec<Json> {
                 held.slots.iter().flatten().map(|s| json!({"item": s.item, "count": s.count})).collect()
             };
@@ -386,6 +428,12 @@ pub fn answer_npc(
                     "told_by": k.told_by.map(|a| a.0),
                 })).collect::<Vec<_>>(),
                 "quiet": memory.0.quiet,
+                // Who they lead, to where, and where they wait for them.
+                "leading": leaders.iter().find(|(a, _)| a.0.0 == id).map(|(_, l)| json!({
+                    "who": l.who.0,
+                    "to": [l.to.x, l.to.y],
+                    "waiting_at": l.waiting_at.map(|w| [w.x, w.y]),
+                })),
                 "way": {
                     "goal": [way.goal.x, way.goal.y],
                     "waypoints": way.waypoints.iter().map(|p| [p.x, p.y]).collect::<Vec<_>>(),
@@ -455,6 +503,8 @@ pub fn publish_ways(tick: Res<crate::SimTick>, failed: Res<crate::nav::FailedWay
                 "from_blocked": f.from_blocked,
                 "to_blocked": f.to_blocked,
                 "tiles_searched": f.searched,
+                "why": f.why.map(|(why, _)| why),
+                "doorways_searched": f.why.map(|(_, n)| n),
             })
         })
         .collect();
@@ -883,7 +933,7 @@ pub fn publish(
     items: Res<crate::content::ItemRegistryRes>,
     layers: Res<crate::content::LayerRegistryRes>,
     tree: Res<crate::content::brain::BrainTreeRes>,
-    players: Query<(&Transform, &Health, &Survival, &Actor, &crate::actor::Memory, Has<crate::actor::Dead>), With<Player>>,
+    players: Query<(&Transform, &Health, &Survival, &Actor, &crate::actor::Memory, Has<crate::actor::Dead>, Option<&crate::ai::Following>), With<Player>>,
     npcs: Query<(
         (&Actor, &Npc, &Transform, &Health, &Survival, &Personality, &ThisTick, Option<&Name>),
         (&crate::actor::Memory, &crate::actor::ActorRecord, Has<crate::actor::Dead>, &crate::actor::Hotbar, &crate::actor::Facing, Option<&crate::people::Drawn>, &crate::actor::Map, &crate::combat::Equipment),
@@ -904,7 +954,7 @@ pub fn publish(
         }
         *last_second = Some((tick.0, now));
     }
-    if let Ok((at, health, needs, actor, memory, dead)) = players.single() {
+    if let Ok((at, health, needs, actor, memory, dead, following)) = players.single() {
         // Who the player is and what they know, once a second, for the
         // `player` op: every thing known (and who told them, if told), and
         // everything they heard said.
@@ -915,6 +965,7 @@ pub fn publish(
                 "id": actor.0.0,
                 "at": [at.translation.x, at.translation.z],
                 "dead": dead,
+                "following": following.map(|f| f.0.0),
                 // Who killed them last, and of what, from their memory.
                 "killed_by": memory.0.killed_by().map(|(by, of)| json!({"by": by.map(|a| a.0), "of": of})),
                 "knows": memory.0.known.iter().map(|k| json!({"key": k.key, "kind": k.kind, "told_by": k.told_by.map(|a| a.0)})).collect::<Vec<_>>(),
@@ -1112,6 +1163,31 @@ pub fn start() {
                     && slot.as_ref().is_some_and(|(asked, _)| *asked == id)
                 {
                     return Ok(slot.take().map(|(_, a)| a).unwrap_or(Json::Null));
+                }
+            }
+            Err("the game did not answer within a second".to_string())
+        },
+    ));
+    OP_REGISTRY.register(OpDef::new(
+        "walk",
+        "the walk grid at a ground point: its chunk drawn (`#` blocked, `.` reachable from the point, `:` open and not reachable, `D` a reachable doorway, `x` one not) and every solid on the tiles within 3 m, named",
+        "{\"at\": [412.0, -159.0]}",
+        |args| {
+            let at = args
+                .get("at")
+                .and_then(Json::as_array)
+                .and_then(|a| Some(Vec2::new(a.first()?.as_f64()? as f32, a.get(1)?.as_f64()? as f32)))
+                .ok_or_else(|| "at: [x, y]".to_string())?;
+            if let Ok(mut ask) = WALK_ASK.lock() {
+                *ask = Some(at);
+            }
+            // The game answers on its next step.
+            for _ in 0..100 {
+                std::thread::sleep(std::time::Duration::from_millis(10));
+                if let Ok(mut slot) = WALK_ANSWER.lock()
+                    && slot.is_some()
+                {
+                    return Ok(slot.take().unwrap_or(Json::Null));
                 }
             }
             Err("the game did not answer within a second".to_string())

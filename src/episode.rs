@@ -397,8 +397,8 @@ pub fn the_taps_errands(
     seed: Res<crate::WorldSeed>,
     world: Res<crate::terrain::WorldRes>,
     mut walk: ResMut<crate::nav::Walk>,
-    player: Query<(&Actor, &Transform), (With<crate::player::Player>, Without<Dead>)>,
-    mut people: Query<(Entity, &Actor, &Transform, &Home, &Memory, &mut crate::input::Actions), Without<crate::player::Player>>,
+    player: Query<(Entity, &Actor, &Transform), (With<crate::player::Player>, Without<Dead>)>,
+    mut people: Query<(Entity, &Actor, &Transform, &Home, &Memory, &mut crate::input::Actions, Has<crate::ai::Leading>), Without<crate::player::Player>>,
 ) {
     if tick.0 % 60 != 0 || episode.name.as_deref() != Some("The Tap") {
         return;
@@ -428,13 +428,25 @@ pub fn the_taps_errands(
     let goes = episode.reached("believes Dell") || episode.reached("does not believe it");
     let mut looked = episode.reached("Dell looked");
     let mut tell_again = None;
-    for (entity, actor, at, home, _, _) in &people {
+    let believed = episode.reached("believes Dell");
+    let player_id = player.single().ok().map(|(e, a, _)| (a.0, e));
+    for (entity, actor, at, home, _, _, leading) in &people {
         if Some(actor.0) == mara {
             ask(&mut commands, entity, Some(mara_at));
         } else if Some(actor.0) == dell {
             let here = at.translation.ground();
             if sent && !looked && here.distance(tap) <= 4.0 {
                 looked = true;
+            }
+            // Believed, she shows the player the way: she leads them to the
+            // tap (ai::lead asks her each game second), and the player
+            // follows her until they move themselves (ai::follow).
+            if believed {
+                if !leading && let Some((who, follower)) = player_id {
+                    commands.entity(entity).insert(crate::ai::Leading { who, to: dell_at, waiting_at: None });
+                    commands.entity(follower).insert(crate::ai::Following(actor.0));
+                }
+                continue;
             }
             let to = if goes || (sent && !looked) {
                 Some(dell_at)
@@ -455,13 +467,13 @@ pub fn the_taps_errands(
         episode.reach("Dell looked", dell, tick.0);
     }
     // Back from looking, with the player in reach: the way again.
-    let (Some(dell), Ok((player, near))) = (tell_again, player.single()) else {
+    let (Some(dell), Ok((_, player, near))) = (tell_again, player.single()) else {
         return;
     };
     let (Some(def), Some((_, tap_site))) = (episodes.0.def("The Tap"), episode.thing("tap site")) else {
         return;
     };
-    let Some((_, _, at, _, memory, mut actions)) = people.iter_mut().find(|(_, a, ..)| a.0 == dell) else {
+    let Some((_, _, at, _, memory, mut actions, _)) = people.iter_mut().find(|(_, a, ..)| a.0 == dell) else {
         return;
     };
     if at.translation.ground().distance(near.translation.ground()) > crate::talk::TALK_REACH {

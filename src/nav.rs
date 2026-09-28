@@ -76,6 +76,9 @@ pub struct FailedWay {
     pub from_blocked: bool,
     pub to_blocked: bool,
     pub searched: usize,
+    /// Why no way was found, and how many chunk doorways were searched
+    /// (modforge `WalkMap::last_failed`).
+    pub why: Option<(&'static str, usize)>,
 }
 
 /// The last failed searches, newest last.
@@ -246,7 +249,7 @@ pub fn steer(
     mut failed: ResMut<FailedWays>,
     tree: Res<crate::content::brain::BrainTreeRes>,
     people: Query<(&Npc, &crate::actor::ActorRecord, &crate::actor::Actor)>,
-    mut walkers: Query<(Entity, &Transform, &mut ThisTick, &mut NavPath), (With<Npc>, Without<Dead>)>,
+    mut walkers: Query<(Entity, &Transform, &mut ThisTick, &mut NavPath), Without<Dead>>,
 ) {
     let ms = |since: Instant| since.elapsed().as_secs_f64() * 1000.0;
     // Who needs a way.
@@ -319,6 +322,7 @@ pub fn steer(
                     from_blocked: walk.0.blocked(modforge::walk::cell_of(here)),
                     to_blocked: walk.0.blocked(modforge::walk::cell_of(target)),
                     searched,
+                    why: walk.0.last_failed,
                 });
                 if failed.0.len() > FAILED_KEPT {
                     failed.0.pop_front();

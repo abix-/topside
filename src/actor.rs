@@ -172,13 +172,10 @@ pub struct SpawnActor<'w, 's> {
 pub fn spawn_actor(spawn: &mut SpawnActor, def: &ActorDef, at: Vec2, faction: Option<&str>) -> Option<Entity> {
     let faction = faction.map(String::from).or_else(|| def.faction.clone());
     let entity = spawn_person(spawn, def, at, faction.as_deref())?;
-    spawn.commands.entity(entity).insert((
-        Npc {
-            def: def.name.clone(),
-            faction,
-        },
-        crate::nav::NavPath::default(),
-    ));
+    spawn.commands.entity(entity).insert(Npc {
+        def: def.name.clone(),
+        faction,
+    });
     Some(entity)
 }
 
@@ -232,7 +229,7 @@ pub fn spawn_person(
                 Map::default(),
                 ActorRecord::default(),
             ),
-            (Hud::default(), OpenContainer::default(), OpenStation::default()),
+            (Hud::default(), OpenContainer::default(), OpenStation::default(), crate::nav::NavPath::default()),
             Protection(def.protection.clone()),
             Actions::default(),
             ThisTick::default(),

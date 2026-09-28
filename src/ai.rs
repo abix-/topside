@@ -91,6 +91,82 @@ pub struct Thinkers<'w, 's> {
     >,
 }
 
+/// Leading someone somewhere (life.md "Going with someone"): who, to
+/// where, and the spot they wait at while that person catches up.
+#[derive(Component, Debug, Clone, Copy)]
+pub struct Leading {
+    pub who: ActorId,
+    pub to: Vec2,
+    pub waiting_at: Option<Vec2>,
+}
+
+/// Four times a game second, each leader is asked to where they lead, or,
+/// left behind by the one they lead, to wait where they are (modforge
+/// `brain::waits_for`): the same `Asked` errand the brain weighs.
+pub fn lead(
+    mut commands: Commands,
+    tick: Res<SimTick>,
+    mut leaders: Query<(Entity, &Transform, &mut Leading)>,
+    people: Query<(&Actor, &Transform), Without<Leading>>,
+) {
+    if tick.0 % 15 != 0 {
+        return;
+    }
+    for (entity, at, mut leading) in &mut leaders {
+        let here = at.translation.ground();
+        let Some(follower) = people.iter().find(|(a, _)| a.0 == leading.who).map(|(_, t)| t.translation.ground()) else {
+            continue;
+        };
+        // Waiting, where they stand (never walking back to where they
+        // noticed).
+        let to = if modforge::brain::waits_for(ground(here), ground(follower), leading.waiting_at.is_some()) {
+            leading.waiting_at = Some(here);
+            here
+        } else {
+            leading.waiting_at = None;
+            leading.to
+        };
+        commands.entity(entity).insert(crate::actor::Asked(to)).remove::<crate::talk::HeldToTalk>();
+    }
+}
+
+/// Following someone (life.md "Going with someone"): whom. Anyone can
+/// follow anyone, the player too.
+#[derive(Component, Debug, Clone, Copy)]
+pub struct Following(pub ActorId);
+
+/// Every tick, once the queues have drained: each follower walks after
+/// the one they follow (modforge `brain::follows`) with the same Aim and
+/// Move the brain pushes, which `nav::steer` walks around walls. A move of
+/// their own this tick (the keys: a move with no aim) ends it, as in World
+/// of Warcraft.
+pub fn follow(
+    mut commands: Commands,
+    tick: Res<SimTick>,
+    mut followers: Query<(Entity, &Transform, &mut crate::input::ThisTick, &Following, Has<Dead>)>,
+    people: Query<(&Actor, &Transform), (Without<Following>, Without<Dead>)>,
+) {
+    use modforge::actions::{ActionQueue, Stamped};
+    for (entity, at, mut this_tick, following, dead) in &mut followers {
+        let (x, y) = ActionQueue::movement(&this_tick.0);
+        let leader = people.iter().find(|(a, _)| a.0 == following.0).map(|(_, t)| t.translation.ground());
+        // Their own move, their death, or the one they follow gone: it ends.
+        let own_move = (x != 0.0 || y != 0.0) && ActionQueue::aim(&this_tick.0).is_none();
+        let Some(leader) = leader.filter(|_| !own_move && !dead) else {
+            commands.entity(entity).remove::<Following>();
+            continue;
+        };
+        let here = at.translation.ground();
+        if !modforge::brain::follows(ground(here), ground(leader)) {
+            continue;
+        }
+        let way = (leader - here).normalize_or_zero();
+        this_tick.0.retain(|s| !matches!(s.action, Action::Move { .. } | Action::Aim { .. }));
+        this_tick.0.push(Stamped { tick: tick.0, action: Action::Aim { x: leader.x, y: leader.y } });
+        this_tick.0.push(Stamped { tick: tick.0, action: Action::Move { x: way.x, y: way.y } });
+    }
+}
+
 /// Half the width of what a person sees ahead: a 120 degree cone
 /// (life.md "Perception with belief").
 const HALF_CONE: f32 = std::f32::consts::FRAC_PI_3;

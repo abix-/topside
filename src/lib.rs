@@ -184,8 +184,7 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind) -> App {
                     .chain(),
                 ai::think,
                 lap("think"),
-                input::drain_actions,
-                lap("drain_actions"),
+                (input::drain_actions, lap("drain_actions"), ai::follow).chain(),
                 (nav::record_solids, nav::record_doors),
                 nav::steer,
                 lap("steer"),
@@ -201,6 +200,7 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind) -> App {
                     episode::the_taps_errands,
                     episode::the_first_meeting,
                     episode::the_first_drink,
+                    ai::lead,
                 )
                     .chain(),
                 lap("storm"),
@@ -229,7 +229,7 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind) -> App {
                 control_plane::publish,
                 control_plane::publish_world,
                 control_plane::publish_ways,
-                (control_plane::answer_npc, control_plane::answer_kill, control_plane::answer_use, control_plane::answer_talk).chain(),
+                (control_plane::answer_npc, control_plane::answer_kill, control_plane::answer_use, control_plane::answer_talk, control_plane::answer_walk).chain(),
                 lap("publish"),
             )
                 .chain(),

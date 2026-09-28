@@ -221,6 +221,16 @@ wants kept quiet, they do not pass on (Dell and the tap). The player
 tells only what they choose, by talking. Prior art: Dwarf Fortress
 rumours.
 
+### Going with someone (operator, 2026-09-27)
+
+Anyone can follow anyone, the player too, and it is one way for all:
+the follower walks after the one they follow with no key pressed, the
+same moves the brain makes, around walls by the same found way, until
+they move themselves (World of Warcraft's auto-follow). A person leading
+someone to a place waits when the one they lead falls behind and goes on
+once they catch up (Skyrim's escort). The Tap: "Show me." and Dell leads
+the player to the tap while the player follows her.
+
 ### Learning to stay alive (operator, 2026-09-25)
 
 Every person learns from what they live through (reinforcement

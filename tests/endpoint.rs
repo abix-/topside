@@ -33,6 +33,10 @@ pub fn player_alive() {
         return;
     }
     eprintln!("the player was dead, killed by {}; respawning", p["killed_by"]);
+    if let Some(by) = p["killed_by"]["by"].as_u64() {
+        let k = op_with("npc", json!({"id": by}));
+        eprintln!("the killer {by}: {} of {}, at {}, doing {}, feelings {}", k["def"], k["faction"], k["at"], k["doing"], k["feelings"]);
+    }
     op_with("key", json!({"key": "Enter"}));
     for _ in 0..12 {
         std::thread::sleep(std::time::Duration::from_millis(250));
