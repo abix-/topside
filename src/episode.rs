@@ -393,6 +393,7 @@ pub fn the_taps_errands(
     episodes: Res<EpisodeRegistryRes>,
     seed: Res<crate::WorldSeed>,
     world: Res<crate::terrain::WorldRes>,
+    mut walk: ResMut<crate::nav::Walk>,
     player: Query<(&Actor, &Transform), (With<crate::player::Player>, Without<Dead>)>,
     mut people: Query<(Entity, &Actor, &Transform, &Home, &Memory, &mut crate::input::Actions), Without<crate::player::Player>>,
 ) {
@@ -402,6 +403,12 @@ pub fn the_taps_errands(
     let Some((tap, tap_key)) = episode.thing("tap") else {
         return;
     };
+    // Where each stands by the tap: two metres off, on a spot they can
+    // stand on (the tap's building has walls), Mara on one side and Dell
+    // on the other.
+    let by_tap = |walk: &mut crate::nav::Walk, from: f32| walk.stand_by(tap, 2.0, from).unwrap_or(tap);
+    let mara_at = by_tap(&mut walk, 0.0);
+    let dell_at = by_tap(&mut walk, std::f32::consts::PI);
     // The episode's errand wins over stopping to talk: it is no longer
     // the conversation's to let go.
     let ask = |commands: &mut Commands, entity: Entity, at: Option<Vec2>| match at {
@@ -420,14 +427,14 @@ pub fn the_taps_errands(
     let mut tell_again = None;
     for (entity, actor, at, home, _, _) in &people {
         if Some(actor.0) == mara {
-            ask(&mut commands, entity, Some(tap + Vec2::new(2.0, 0.0)));
+            ask(&mut commands, entity, Some(mara_at));
         } else if Some(actor.0) == dell {
             let here = at.translation.ground();
             if sent && !looked && here.distance(tap) <= 4.0 {
                 looked = true;
             }
             let to = if goes || (sent && !looked) {
-                Some(tap - Vec2::new(2.0, 0.0))
+                Some(dell_at)
             } else if sent && looked && !episode.reached("Dell told the way again") {
                 if here.distance(home.0) <= 2.0 {
                     tell_again = Some(actor.0);

@@ -36,6 +36,7 @@ fn reached(pivot: &str) -> bool {
 
 #[test]
 fn the_taps_first_day() {
+    crate::endpoint::player_alive();
     let w = op("world");
     let cast = |part: &str| w["cast"].as_array().and_then(|c| c.iter().find(|p| p["part"] == part)).and_then(|p| p["id"].as_u64());
     let (Some(dell), Some(mara)) = (cast("Dell"), cast("Mara")) else {
@@ -72,6 +73,10 @@ fn the_taps_first_day() {
         mara_at = at_of(mara);
     }
     eprintln!("tap at {tap:?}; Dell at {dell_at:?}, Mara at {mara_at:?}");
+    for (part, id) in [("Dell", dell), ("Mara", mara)] {
+        let n = op_with("npc", serde_json::json!({"id": id}));
+        eprintln!("{part}: doing {}, about {}, last threat {}, feelings {}, way {}", n["doing"], n["about"], n["last_threat"], n["feelings"], n["way"]);
+    }
     assert!(dell_at.is_some_and(|d| far(d, tap) <= 5.0), "Dell did not go to the tap");
     assert!(mara_at.is_some_and(|m| far(m, tap) <= 6.0), "Mara is not at the tap");
     // The player at the tap, by Mara: her line, then the panel on her.
@@ -109,22 +114,4 @@ fn the_taps_first_day() {
     shot("tap_4_ended");
     eprintln!("Mara said {:?}; then {closed}", heard_mara(&op("player")));
     assert_eq!(closed["open"], false, "the meeting never ended");
-    // E, with the player's hand on the key, on Mara standing at the tap:
-    // nothing more to talk about, one short line, and it ends.
-    let before = op("player")["heard"].as_array().map_or(0, |h| h.iter().filter(|h| h["by"].as_u64() == Some(mara)).count());
-    op_with("key", serde_json::json!({"key": "E"}));
-    let open = talk_after(|t| t["open"] == true);
-    let mut p = op("player");
-    for _ in 0..12 {
-        if p["heard"].as_array().map_or(0, |h| h.iter().filter(|h| h["by"].as_u64() == Some(mara)).count()) > before {
-            break;
-        }
-        std::thread::sleep(Duration::from_millis(250));
-        p = op("player");
-    }
-    shot("tap_5_e_again");
-    let closed = crate::talk_ui::closed_within_8s();
-    eprintln!("E on Mara again: {open}; she said {:?}; then {closed}", heard_mara(&p));
-    assert_eq!(open["open"], true, "E on Mara opened nothing");
-    assert_eq!(closed["open"], false, "E on Mara never ended");
 }

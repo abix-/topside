@@ -368,11 +368,15 @@ pub fn register_episodes(reg: &mut EpisodeRegistry) {
     let part = |name: &str, from| PartDef { name: name.to_string(), from };
     let ways = |ways: &[&str]| ways.iter().map(|w| w.to_string()).collect::<Vec<_>>();
     let line = |part: &str, at: &str, w: &[&str]| LineDef { part: part.to_string(), at: at.to_string(), ways: ways(w) };
-    let choice = |at: &str, w: &[&str], choice: &str, reply: &[&str]| ChoiceDef {
+    // `felt`: how the one spoken to feels about hearing it (life.md "How
+    // a person feels about others"); a threat is below
+    // `relationship::HOSTILE`.
+    let choice = |at: &str, w: &[&str], choice: &str, reply: &[&str], felt: f32| ChoiceDef {
         at: at.to_string(),
         ways: ways(w),
         choice: choice.to_string(),
         reply: ways(reply),
+        felt,
     };
     for def in [
         // docs/episodes/the-tap.md "The people" and "The lines".
@@ -401,24 +405,32 @@ pub fn register_episodes(reg: &mut EpisodeRegistry) {
                 line("Mara", "the meeting", &["This is ours. We found it first.", "Walk away. This one's taken."]),
             ],
             choices: vec![
-                choice("the opening", &["Show me.", "Let's go."], "believes Dell", &["Follow me. Keep up.", "This way. Stay close."]),
+                choice("the opening", &["Show me.", "Let's go."], "believes Dell", &["Follow me. Keep up.", "This way. Stay close."], 0.1),
                 choice(
                     "the opening",
                     &["Water doesn't just run out there. You're wrong.", "I don't believe it."],
                     "does not believe it",
                     &["Suit yourself. I'll go on my own.", "Then stay thirsty."],
+                    -0.1,
                 ),
                 choice(
                     "the opening",
                     &["Go and look again. I'll wait.", "Check it again first."],
                     "sends Dell",
                     &["Fine. Don't drink anything while I'm gone.", "Back soon."],
+                    0.0,
                 ),
                 // Answered with the way again (episode::the_players_choice).
-                choice("the opening", &["Where exactly?", "Tell me the way again."], "asks the way", &[]),
-                choice("the meeting", &["There's enough for both of us."], "talks with Mara", &["Enough for today. Ask again tomorrow.", "Maybe. Don't get greedy."]),
-                choice("the meeting", &["Step away from it."], "threatens Mara", &["Try it.", "You'll regret that."]),
-                choice("the meeting", &["Keep it."], "leaves Mara the tap", &["Smart.", "Good. Go."]),
+                choice("the opening", &["Where exactly?", "Tell me the way again."], "asks the way", &[], 0.0),
+                choice(
+                    "the meeting",
+                    &["There's enough for both of us."],
+                    "talks with Mara",
+                    &["Enough for today. Ask again tomorrow.", "Maybe. Don't get greedy."],
+                    0.2,
+                ),
+                choice("the meeting", &["Step away from it."], "threatens Mara", &["Try it.", "You'll regret that."], -0.6),
+                choice("the meeting", &["Keep it."], "leaves Mara the tap", &["Smart.", "Good. Go."], 0.1),
             ],
             ..episode("The Tap", &["Mixed world", "Sky Islands"])
         },

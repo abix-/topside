@@ -256,12 +256,8 @@ pub fn answer_use(
             None => return,
         },
     };
-    // A metre off, on a spot someone can stand on (never inside a wall):
-    // the first of eight ways round that the walk grid can stand on.
-    let stand = (0..8)
-        .map(|k| at + Vec2::from_angle(k as f32 * std::f32::consts::FRAC_PI_4))
-        .find(|p| walk.0.standable(*p))
-        .unwrap_or(at + Vec2::X);
+    // A metre off, on a spot someone can stand on (never inside a wall).
+    let stand = walk.stand_by(at, 1.0, 0.0).unwrap_or(at + Vec2::X);
     for (actor, mut transform, mut actions, is_player) in &mut people {
         if actor.0.0 != id {
             continue;
@@ -298,6 +294,7 @@ pub fn answer_npc(
     mut walk: ResMut<crate::nav::Walk>,
     tick: Res<crate::SimTick>,
     tree: Res<crate::content::brain::BrainTreeRes>,
+    episodes: Res<crate::content::EpisodeRegistryRes>,
 ) {
     let Some(id) = NPC_ASK.lock().ok().and_then(|mut ask| ask.take()) else {
         return;
@@ -397,6 +394,14 @@ pub fn answer_npc(
                 "chunk": picture,
                 "goal_chunk": goal_picture,
                 "did": memory.0.done.iter().map(|(t, d)| json!({"tick": t, "did": d.words()})).collect::<Vec<_>>(),
+                // How they feel toward each person in their memory (life.md
+                // "How a person feels about others"), -1 to 1, and the
+                // last hostile they saw.
+                "feelings": modforge::relationship::feelings(&memory.0, |w| episodes.0.felt(w))
+                    .into_iter()
+                    .map(|(who, felt)| json!({"toward": who.0, "feeling": felt, "relation": format!("{:?}", modforge::relationship::relation_of(felt))}))
+                    .collect::<Vec<_>>(),
+                "last_threat": memory.0.last_threat.map(|(who, _, when)| json!({"who": who.0, "tick": when})),
                 // What they learned (life.md "Learning to stay alive"): how
                 // long they could stay alive at their last think, how long
                 // each life lasted, and each choice's value in each
@@ -710,7 +715,8 @@ pub fn publish_world(
     day: Res<crate::survival::Day>,
     storms: Res<crate::storm::StormRes>,
     items: Res<crate::content::ItemRegistryRes>,
-    memories: Query<&crate::actor::Memory>,
+    episodes: Res<crate::content::EpisodeRegistryRes>,
+    memories: Query<(&crate::actor::Memory, &Actor, Option<&Npc>)>,
     stores: Query<&crate::interact::Container>,
     people: Query<
         (
@@ -787,10 +793,40 @@ pub fn publish_world(
     // What everyone did, alive and dead, each kind counted, read from
     // their memories (life.md: memory is the one record).
     let mut did = serde_json::Map::new();
-    for memory in &memories {
+    for (memory, ..) in &memories {
         for (_, d) in &memory.0.done {
             let n = did.get(d.kind()).and_then(Json::as_u64).unwrap_or(0);
             did.insert(d.kind().to_string(), json!(n + 1));
+        }
+    }
+    // Each faction's standing toward each faction (life.md "How a person
+    // feels about others"): its members' feelings toward that faction's
+    // people taken together, worked out here, never stored.
+    let faction_of: std::collections::HashMap<u64, String> = memories
+        .iter()
+        .filter_map(|(_, actor, npc)| {
+            let faction = npc.map_or(Some(crate::content::PLAYER_FACTION.to_string()), |n| n.faction.clone());
+            faction.map(|f| (actor.0.0, f))
+        })
+        .collect();
+    // Each member's feeling toward a faction: their feelings toward its
+    // people taken together; none when they feel nothing toward any.
+    let names: std::collections::BTreeSet<&String> = faction_of.values().collect();
+    let mut factions: Vec<Json> = Vec::new();
+    for from in &names {
+        let members: Vec<Vec<(modforge::actor::ActorId, f32)>> = memories
+            .iter()
+            .filter(|(_, actor, _)| faction_of.get(&actor.0.0) == Some(*from))
+            .map(|(memory, ..)| modforge::relationship::feelings(&memory.0, |w| episodes.0.felt(w)))
+            .collect();
+        for to in &names {
+            let toward = members.iter().map(|felt| {
+                let theirs: Vec<Option<f32>> = felt.iter().filter(|(who, _)| faction_of.get(&who.0) == Some(*to)).map(|(_, f)| Some(*f)).collect();
+                modforge::relationship::standing(theirs)
+            });
+            if let Some(standing) = modforge::relationship::standing(toward) {
+                factions.push(json!({"faction": from, "toward": to, "standing": standing, "relation": format!("{:?}", modforge::relationship::relation_of(standing))}));
+            }
         }
     }
     let world = json!({
@@ -811,6 +847,7 @@ pub fn publish_world(
         // Each pivot point reached: who and when.
         "reached": episode.reached.iter().map(|(pivot, who, at)| json!({"pivot": pivot, "by": who.0, "tick": at})).collect::<Vec<_>>(),
         "did": did,
+        "factions": factions,
         "bunkers": bunkers,
         "chunks": {"made": made, "missing": missing},
         // The seed this world rolled from, and the road tiles in its chunks.
@@ -844,7 +881,7 @@ pub fn publish(
     items: Res<crate::content::ItemRegistryRes>,
     layers: Res<crate::content::LayerRegistryRes>,
     tree: Res<crate::content::brain::BrainTreeRes>,
-    players: Query<(&Transform, &Health, &Survival, &Actor, &crate::actor::Memory), With<Player>>,
+    players: Query<(&Transform, &Health, &Survival, &Actor, &crate::actor::Memory, Has<crate::actor::Dead>), With<Player>>,
     npcs: Query<(
         (&Actor, &Npc, &Transform, &Health, &Survival, &Personality, &ThisTick, Option<&Name>),
         (&crate::actor::Memory, &crate::actor::ActorRecord, Has<crate::actor::Dead>, &crate::actor::Hotbar, &crate::actor::Facing, Option<&crate::people::Drawn>, &crate::actor::Map, &crate::combat::Equipment),
@@ -865,7 +902,7 @@ pub fn publish(
         }
         *last_second = Some((tick.0, now));
     }
-    if let Ok((at, health, needs, actor, memory)) = players.single() {
+    if let Ok((at, health, needs, actor, memory, dead)) = players.single() {
         // Who the player is and what they know, once a second, for the
         // `player` op: every thing known (and who told them, if told), and
         // everything they heard said.
@@ -874,6 +911,10 @@ pub fn publish(
         {
             *slot = json!({
                 "id": actor.0.0,
+                "at": [at.translation.x, at.translation.z],
+                "dead": dead,
+                // Who killed them last, and of what, from their memory.
+                "killed_by": memory.0.killed_by().map(|(by, of)| json!({"by": by.map(|a| a.0), "of": of})),
                 "knows": memory.0.known.iter().map(|k| json!({"key": k.key, "kind": k.kind, "told_by": k.told_by.map(|a| a.0)})).collect::<Vec<_>>(),
                 "heard": memory.0.done.iter().filter_map(|(t, d)| match d {
                     modforge::memory::Did::Heard(by, said) => Some(json!({"tick": t, "by": by.0, "said": said})),

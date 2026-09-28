@@ -106,6 +106,7 @@ pub fn think(
     tick: Res<SimTick>,
     registry: Res<ActorRegistryRes>,
     factions: Res<FactionRegistryRes>,
+    episodes: Res<crate::content::EpisodeRegistryRes>,
     items: Res<ItemRegistryRes>,
     monuments: Res<MonumentRegistryRes>,
     tree: Res<crate::content::brain::BrainTreeRes>,
@@ -169,6 +170,38 @@ pub fn think(
             (e, actor.map_or(ActorId(0), |a| a.0), t.translation.ground(), faction)
         })
         .collect();
+    // How hearing words feels: the episode choice that says them.
+    let heard = |words: &str| episodes.0.felt(words);
+    // How each faction stands toward each person someone thinking now has
+    // in sight (life.md "How a person feels about others"): worked out
+    // here from its members' feelings, never stored.
+    let mut wanted: Vec<(String, ActorId)> = Vec::new();
+    for (entity, _, npc, transform, .., (_, _, _, _, next_think, dead, ..)) in thinkers.npcs.iter() {
+        let (Some(faction), Some(def)) = (npc.faction.as_ref(), registry.0.def(&npc.def)) else {
+            continue;
+        };
+        if tick.0 < next_think.0 || dead {
+            continue;
+        }
+        let here = transform.translation.ground();
+        for (e, id, at, _) in &everyone {
+            if *e != entity && at.distance(here) <= def.sight && !wanted.iter().any(|w| w.0 == *faction && w.1 == *id) {
+                wanted.push((faction.clone(), *id));
+            }
+        }
+    }
+    let standings: Vec<(String, ActorId, Option<f32>)> = wanted
+        .into_iter()
+        .map(|(faction, toward)| {
+            let feelings = thinkers
+                .npcs
+                .iter()
+                .filter(|member| member.2.faction.as_ref() == Some(&faction))
+                .map(|member| modforge::relationship::feeling(&member.9.0, toward, heard));
+            let standing = modforge::relationship::standing(feelings);
+            (faction, toward, standing)
+        })
+        .collect();
     for (
         entity,
         actor,
@@ -201,16 +234,27 @@ pub fn think(
             continue;
         };
         let here = transform.translation.ground();
-        // Sense: the nearest hostile by the faction table within the
-        // def's sight, inside the cone ahead, with nothing blocking the
-        // view (sight.rs).
+        // Sense: the nearest they stand hostile to (their own feeling,
+        // else their faction's standing, else the faction table) within
+        // the def's sight, inside the cone ahead, with nothing blocking
+        // the view (sight.rs).
+        let stands_hostile = |id: ActorId, faction: Option<&str>| {
+            let own = modforge::relationship::feeling(&memory.0, id, heard);
+            let standing = npc
+                .faction
+                .as_ref()
+                .and_then(|f| standings.iter().find(|s| s.0 == *f && s.1 == id))
+                .and_then(|s| s.2);
+            let table = factions.0.relation(npc.faction.as_deref(), faction);
+            modforge::relationship::stands(own, standing, table) == modforge::faction::Relation::Hostile
+        };
         let hostile = everyone
             .iter()
-            .filter(|(e, _, at, faction)| {
+            .filter(|(e, id, at, faction)| {
                 *e != entity
                     && at.distance(here) <= def.sight
-                    && factions.0.hostile(npc.faction.as_deref(), faction.as_deref())
                     && in_cone(facing, here, *at)
+                    && stands_hostile(*id, faction.as_deref())
                     && sight.clear(here, *at)
             })
             .min_by(|a, b| a.2.distance(here).total_cmp(&b.2.distance(here)))

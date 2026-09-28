@@ -164,6 +164,11 @@ pub fn conversations(
     if let Some((them, there, false)) = them {
         commands.entity(them).insert((crate::actor::Asked(there), HeldToTalk));
     }
+    // They face whoever they talk to, the same Aim the brain pushes.
+    let face = here.translation.ground();
+    if let Some((_, _, _, mut actions, _)) = people.iter_mut().find(|(_, a, ..)| a.0 == with) {
+        actions.0.push(tick.0, Action::Aim { x: face.x, y: face.y });
+    }
     let choices_open = episode.choices.iter().any(|(_, _, to)| *to == with);
     let since = |t: &u64| *t >= talking.started;
     let last_heard = memory.0.done.iter().rev().find_map(|(t, d)| (since(t) && matches!(d, Did::Heard(by, _) if *by == with)).then_some(*t));

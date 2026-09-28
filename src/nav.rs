@@ -46,6 +46,17 @@ const WAYPOINT_REACH: f32 = 0.6;
 #[derive(Resource, Default)]
 pub struct Walk(pub WalkMap);
 
+impl Walk {
+    /// A spot `off` metres from `at` that someone can stand on (never
+    /// inside a wall): the first of eight ways round, starting from the
+    /// angle `from`, that the walk grid can stand on.
+    pub fn stand_by(&mut self, at: Vec2, off: f32, from: f32) -> Option<Vec2> {
+        (0..8)
+            .map(|k| at + off * Vec2::from_angle(from + k as f32 * std::f32::consts::FRAC_PI_4))
+            .find(|p| self.0.standable(*p))
+    }
+}
+
 /// The people waiting for a way to be found, first come first served.
 #[derive(Resource, Default)]
 pub struct PlanQueue(pub VecDeque<Entity>);

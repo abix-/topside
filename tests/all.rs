@@ -20,6 +20,7 @@ mod names;
 mod night;
 mod people_drawn;
 mod reality;
+mod relationship;
 mod respawn;
 mod roads;
 mod screenshot;

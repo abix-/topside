@@ -24,6 +24,25 @@ pub fn people() -> Vec<Json> {
     op("people").as_array().cloned().unwrap_or_default()
 }
 
+/// The player alive: if dead, Enter, as the player respawns (the `key`
+/// op), at most 3 real seconds; who killed them is printed. The `player`
+/// op publishes once a game second.
+pub fn player_alive() {
+    let p = op("player");
+    if p["dead"] != true {
+        return;
+    }
+    eprintln!("the player was dead, killed by {}; respawning", p["killed_by"]);
+    op_with("key", json!({"key": "Enter"}));
+    for _ in 0..12 {
+        std::thread::sleep(std::time::Duration::from_millis(250));
+        if op("player")["dead"] == false {
+            return;
+        }
+    }
+    panic!("Enter did not respawn the player");
+}
+
 /// Whether a person belongs to a bunker.
 pub fn is_bunker_person(p: &Json) -> bool {
     p["faction"].as_str().is_some_and(|f| f.starts_with("bunker"))

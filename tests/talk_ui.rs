@@ -52,6 +52,7 @@ fn heard_from(id: u64) -> Vec<String> {
 /// conversation ends by itself. Played on a topside stranger.
 #[test]
 fn e_on_someone_with_nothing_to_say_gets_one_line_and_ends() {
+    crate::endpoint::player_alive();
     let people = crate::endpoint::people();
     // Someone not out to kill the player: a stranger of no faction.
     let Some(stranger) = people.iter().find(|p| !crate::endpoint::is_bunker_person(p) && p["dead"] != true && p["faction"].is_null()) else {
@@ -84,6 +85,7 @@ fn e_on_someone_with_nothing_to_say_gets_one_line_and_ends() {
 
 #[test]
 fn the_player_talks_to_dell_through_the_panel() {
+    crate::endpoint::player_alive();
     let w = op("world");
     let Some(dell) = w["cast"].as_array().and_then(|c| c.iter().find(|p| p["part"] == "Dell")).and_then(|p| p["id"].as_u64()) else {
         eprintln!("the episode is {}, with no Dell; not played this run", w["episode"]);

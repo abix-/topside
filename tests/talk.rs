@@ -51,6 +51,7 @@ fn dell_tells_the_player_of_the_tap() {
 /// closed it meanwhile.
 #[test]
 fn use_on_a_person_opens_the_talk_panel() {
+    crate::endpoint::player_alive();
     let w = op("world");
     let Some((dell, _)) = dell_and_the_tap(&w) else {
         eprintln!("the episode is {}, with no Dell; not read this run", w["episode"]);
@@ -84,6 +85,7 @@ fn use_on_a_person_opens_the_talk_panel() {
 /// The `talk` op: Dell tells the player of the tap again; both remember.
 #[test]
 fn the_talk_op_brings_a_talk_now() {
+    crate::endpoint::player_alive();
     let w = op("world");
     let Some((dell, tap)) = dell_and_the_tap(&w) else {
         eprintln!("the episode is {}, with no Dell and tap; not read this run", w["episode"]);
