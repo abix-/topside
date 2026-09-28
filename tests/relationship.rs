@@ -54,7 +54,17 @@ fn a_threat_turns_mara_and_not_her_bunker() {
     }
     assert!(near_tap(&at), "the use op did not bring Mara to the tap at {tap}: she is at {at}");
     op_with("use", serde_json::json!({"id": player, "person": mara}));
-    let talk = talk_after(|t| t["open"] == true && t["rows"].as_array().is_some_and(|r| r.iter().any(|r| r["words"] == "Step away from it.")));
+    // The meeting's line and choices, at most 8 real seconds (a game just
+    // started runs slow).
+    let has_threat = |t: &serde_json::Value| t["open"] == true && t["rows"].as_array().is_some_and(|r| r.iter().any(|r| r["words"] == "Step away from it."));
+    let mut talk = talk_after(has_threat);
+    for _ in 0..20 {
+        if has_threat(&talk) {
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(250));
+        talk = op("hud")["talk"].clone();
+    }
     shot("relationship_1_meeting");
     let Some(row) = talk["rows"].as_array().and_then(|r| r.iter().find(|r| r["words"] == "Step away from it.")).cloned() else {
         panic!(
@@ -89,8 +99,8 @@ fn a_threat_turns_mara_and_not_her_bunker() {
     eprintln!("Mara: feelings {}, last threat {}, doing {}", m["feelings"], m["last_threat"], m["doing"]);
     assert_eq!(relation_toward(&m, player), Some(serde_json::json!("Hostile")), "Mara is not hostile to the player after the threat");
     assert_eq!(m["last_threat"]["who"].as_u64(), Some(player), "Mara never turned on the player");
-    // Her bunker mates heard nothing: no feeling of their own, and their
-    // bunker's standing, one grudge among them, is not hostile.
+    // Her bunker mates were not threatened: none of them is hostile, and
+    // their bunker's standing, one grudge among them, is not hostile.
     let faction = m["faction"].clone();
     let standing = op("world")["factions"]
         .as_array()
@@ -100,6 +110,52 @@ fn a_threat_turns_mara_and_not_her_bunker() {
     assert_ne!(standing["relation"], "Hostile", "one threat to Mara turned her whole bunker");
     for mate in crate::endpoint::people().iter().filter(|p| p["faction"] == faction && p["id"].as_u64() != Some(mara)) {
         let id = mate["id"].as_u64().unwrap_or(0);
-        assert_eq!(relation_toward(&npc(id), player), None, "{id}, Mara's bunker mate, feels something toward the player without hearing anything");
+        assert_ne!(relation_toward(&npc(id), player), Some(serde_json::json!("Hostile")), "{id}, Mara's bunker mate, is hostile without being threatened");
     }
+}
+
+/// Word spreads: one of Mara's bunker mates, brought to her with the `use`
+/// op, is told by her what the player said to her, and feels it too, at
+/// half (modforge `talk::share`).
+#[test]
+fn word_of_the_threat_spreads_to_a_mate() {
+    let w = op("world");
+    let Some(mara) = w["cast"].as_array().and_then(|c| c.iter().find(|p| p["part"] == "Mara")).and_then(|p| p["id"].as_u64()) else {
+        eprintln!("the episode is {}, with no Mara; not played this run", w["episode"]);
+        return;
+    };
+    let player = op("player")["id"].as_u64().expect("the player op reports the player's id");
+    let m = npc(mara);
+    if relation_toward(&m, player).is_none() {
+        eprintln!("Mara feels nothing toward the player this episode; not played this run");
+        return;
+    }
+    let faction = m["faction"].clone();
+    let mates: Vec<u64> = crate::endpoint::people()
+        .iter()
+        .filter(|p| p["faction"] == faction && p["dead"] != true && p["id"].as_u64() != Some(mara))
+        .filter_map(|p| p["id"].as_u64())
+        .collect();
+    let Some(mate) = mates.iter().copied().find(|id| relation_toward(&npc(*id), player).is_none()) else {
+        eprintln!("every mate of Mara's already feels something toward the player; not played this run");
+        return;
+    };
+    op_with("use", serde_json::json!({"id": mate, "person": mara}));
+    let mut n = npc(mate);
+    for _ in 0..16 {
+        if relation_toward(&n, player).is_some() {
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(250));
+        n = npc(mate);
+    }
+    let told: Vec<String> = n["did"]
+        .as_array()
+        .map_or(Vec::new(), |d| d.iter().filter_map(|d| d["did"].as_str()).filter(|d| d.starts_with("was told")).map(str::to_string).collect());
+    eprintln!("mate {mate}: feelings {}; told {told:?}", n["feelings"]);
+    assert!(told.iter().any(|t| t.starts_with(&format!("was told by {mara}:"))), "Mara told her mate {mate} nothing");
+    let felt = n["feelings"].as_array().and_then(|f| f.iter().find(|f| f["toward"].as_u64() == Some(player))).and_then(|f| f["feeling"].as_f64());
+    let hers = m["feelings"].as_array().and_then(|f| f.iter().find(|f| f["toward"].as_u64() == Some(player))).and_then(|f| f["feeling"].as_f64());
+    assert!(felt.is_some_and(|f| f < 0.0), "mate {mate} feels nothing bad toward the player after being told: {felt:?}");
+    assert!(felt.zip(hers).is_some_and(|(f, h)| f > h), "being told is felt less than being threatened: {felt:?} against Mara's {hers:?}");
 }

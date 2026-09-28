@@ -222,3 +222,35 @@ pub fn end_conversations(
         }
     }
 }
+
+/// Word spreads (life.md "How a person feels about others"), once a game
+/// second: people of one faction within talking distance of each other
+/// tell each other what was done to them (modforge `talk::share`). The
+/// player tells only what they choose, by talking; people with no faction
+/// share nothing.
+pub fn word_spreads(
+    tick: Res<crate::SimTick>,
+    episodes: Res<crate::content::EpisodeRegistryRes>,
+    mut people: Query<(Entity, &Actor, &crate::actor::Npc, &Transform, &mut Memory), (Without<Player>, Without<Dead>)>,
+) {
+    if tick.0 % 60 != 0 {
+        return;
+    }
+    let at: Vec<(Entity, ActorId, String, Vec2)> = people
+        .iter()
+        .filter_map(|(e, a, npc, t, _)| npc.faction.clone().map(|f| (e, a.0, f, t.translation.ground())))
+        .collect();
+    for (i, (a, a_id, a_faction, a_at)) in at.iter().enumerate() {
+        for (b, b_id, b_faction, b_at) in &at[i + 1..] {
+            if a_faction != b_faction || a_at.distance(*b_at) > TALK_REACH * 2.0 {
+                continue;
+            }
+            let Ok([(_, _, _, _, mut a_memory), (_, _, _, _, mut b_memory)]) = people.get_many_mut([*a, *b]) else {
+                continue;
+            };
+            let heard = |w: &str| episodes.0.felt(w);
+            modforge::talk::share((*a_id, &a_memory.0), (*b_id, &mut b_memory.0), heard, tick.0);
+            modforge::talk::share((*b_id, &b_memory.0), (*a_id, &mut a_memory.0), heard, tick.0);
+        }
+    }
+}
