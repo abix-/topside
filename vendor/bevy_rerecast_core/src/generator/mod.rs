@@ -151,6 +151,15 @@ pub fn land(world: &mut World, id: AssetId<Navmesh>) -> bool {
     true
 }
 
+/// topside patch: every queued navmesh and every building under way
+/// dropped, never landed (a dropped task is cancelled). Called when the
+/// game's world is rolled again, so nothing built for the world before
+/// lands in the next.
+pub fn cancel_all(world: &mut World) {
+    world.resource_mut::<NavmeshQueue>().clear();
+    world.resource_mut::<NavmeshTaskQueue>().clear();
+}
+
 /// Triggered when a navmesh created by the [`NavmeshGenerator`] is ready.
 #[derive(Debug, Event, Deref, DerefMut)]
 pub struct NavmeshReady(pub AssetId<Navmesh>);

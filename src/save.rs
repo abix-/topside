@@ -112,6 +112,7 @@ saved! {
         crate::command::GivenThisRun,
         crate::command::Playing,
         crate::terrain::ThingsMade,
+        crate::navmesh::MeshesLanding,
     ]
 }
 
@@ -148,7 +149,7 @@ fn answer(result: Result<serde_json::Value, String>) {
 /// resource changes its fields, so an older save is refused plainly
 /// instead of failing halfway (todo 31a). Test saves are then made again
 /// by playing (9k).
-pub const VERSION: u32 = 2;
+pub const VERSION: u32 = 3;
 
 /// What a save says first, on its own line, before the saved world: the
 /// format's version and the world it was made in (the seed, the world's
@@ -252,6 +253,9 @@ fn start_save(world: &mut World, name: &str) -> Result<(), String> {
     let header = serde_json::to_string(&Header::of(world)).map_err(|e| e.to_string())?;
     let mut file = std::fs::File::create(&path).map_err(|e| format!("writing {}: {e}", path.display()))?;
     writeln!(file, "{HEADER}{header}").map_err(|e| format!("writing {}: {e}", path.display()))?;
+    // The chunk meshes still building now, saved with the rest.
+    let landing = crate::navmesh::landing_now(world);
+    world.insert_resource(landing);
     let mut save = SaveWorld::default_into_stream(file);
     save.components = components();
     save.resources = resources();
@@ -357,10 +361,22 @@ fn saved(_: On<Saved>, moment: Moment) {
     answer(Ok(moment.read()));
 }
 
-/// A load has finished: every person's entity in the actor map swapped for
-/// their new one (their ActorId kept), and the `load` op answered with what
-/// the game holds now (`Moment`), the saved moment.
-fn loaded(loaded: On<Loaded>, mut actors: ResMut<crate::actor::ActorMapRes>, moment: Moment) {
+/// A load has spawned the save: every person's entity in the actor map
+/// swapped for their new one (their ActorId kept); then, at the load's
+/// tick and without a tick passing, the chunks round the loaded people made
+/// by the chunk systems that make them in play (their own things only from
+/// the save, `terrain::ThingsMade`) and every chunk's mesh landed
+/// (`navmesh::mesh_the_loaded_world`); only then the `load` op answered
+/// with what the game holds (`Moment`), the saved moment.
+fn loaded(loaded: On<Loaded>, mut actors: ResMut<crate::actor::ActorMapRes>, mut commands: Commands) {
     actors.0.map_handles(|e| loaded.entity_map.get(&e).copied());
-    answer(Ok(moment.read()));
+    commands.queue(|world: &mut World| {
+        let _ = world.run_system_cached(crate::terrain::make_chunks);
+        let _ = world.run_system_cached(crate::structure::spawn_sites);
+        let _ = world.run_system_cached(crate::terrain::open_the_ground);
+        let _ = world.run_system_cached(crate::actor::populate_monuments);
+        let _ = world.run_system_cached(crate::actor::populate_topside_people);
+        crate::navmesh::mesh_the_loaded_world(world);
+        answer(world.run_system_cached(|moment: Moment| moment.read()).map_err(|e| format!("reading the loaded game: {e}")));
+    });
 }

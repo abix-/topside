@@ -42,9 +42,6 @@ const CELL_FRACTION: f32 = 3.0;
 /// (a building's deepest level and its highest: modforge MAX_LEVELS).
 const DEEPEST: f32 = 64.0;
 const HIGHEST: f32 = 64.0;
-/// Ticks after a chunk is made (or changes) before its mesh is built: its
-/// colliders are in the physics world by then.
-const SETTLE: u64 = 5;
 /// How near a doorway's middle someone standing is in the way of whoever
 /// comes through it: half the doorway and two bodies (theirs, and room for
 /// one to pass), metres; seen 2026-10-02, someone 1.1 m from a 1.2 m
@@ -62,11 +59,6 @@ const STEP_ASIDE: f32 = 1.0;
 const STUCK_STEPS: u32 = 30;
 /// Steps a walker stands aside before going on: a second.
 const STEP_ASIDE_FOR: u64 = 60;
-/// The most chunk meshes started in one tick, so making many chunks at
-/// once does not stall a step (the building itself runs in the
-/// background); counted in ticks, so how many are built by a tick is the
-/// same however many frames it took.
-const PER_TICK: usize = 8;
 
 pub struct NavPlugin;
 
@@ -84,6 +76,8 @@ impl Plugin for NavPlugin {
         app.add_systems(FixedUpdate, (wait_for_chunks, build_chunk_meshes, gather_meshes).chain().after(crate::actor::populate_topside_people));
         app.add_systems(FixedFirst, land_meshes);
         app.add_observer(mesh_failed);
+        app.add_observer(chunks_changed_by_a_building);
+        app.add_observer(chunks_changed_by_the_ground);
         app.add_systems(Update, answer_path);
     }
 }
@@ -97,6 +91,10 @@ pub struct Nav {
     waiting: BTreeMap<ChunkKey, u64>,
     /// Each chunk mesh being built: the tick it lands at (`land_meshes`).
     landing: BTreeMap<ChunkKey, (u64, AssetId<Navmesh>)>,
+    /// Chunks whose colliders changed since their mesh was asked (a
+    /// building stood up, the ground opened), written the moment it happens
+    /// (`chunks_changed_by_*`) and taken once by `wait_for_chunks`.
+    changed: BTreeSet<ChunkKey>,
 }
 
 impl Nav {
@@ -164,7 +162,7 @@ fn setup(mut commands: Commands) {
             ..ArchipelagoOptions::from_agent_radius(AGENT_RADIUS)
         }))
         .id();
-    commands.insert_resource(Nav { archipelago, islands: BTreeMap::new(), waiting: BTreeMap::new(), landing: BTreeMap::new() });
+    commands.insert_resource(Nav { archipelago, islands: BTreeMap::new(), waiting: BTreeMap::new(), landing: BTreeMap::new(), changed: BTreeSet::new() });
 }
 
 /// The chunks of a ground rectangle, and the eight round them (a building
@@ -183,13 +181,13 @@ fn wait_for_chunks(
     tick: Res<crate::SimTick>,
     mut nav: ResMut<Nav>,
     chunks: Option<Res<crate::terrain::Chunks>>,
-    buildings: Query<&crate::structure::Shelter, Added<crate::structure::StructureRoot>>,
-    opened: Query<&crate::terrain::GroundBody, Added<crate::terrain::GroundBody>>,
 ) {
     let Some(chunks) = chunks else {
         return;
     };
-    let ready = tick.0 + SETTLE;
+    // Asked this tick: a collider is in Avian's trees as soon as it is
+    // spawned (its insert observers), so the chunk's colliders are there.
+    let ready = tick.0;
     let gone: Vec<ChunkKey> = nav.islands.keys().filter(|k| !chunks.made.contains(k)).copied().collect();
     for key in gone {
         if let Some((_, island)) = nav.islands.remove(&key) {
@@ -201,22 +199,14 @@ fn wait_for_chunks(
     for key in new {
         nav.waiting.insert(key, ready);
     }
-    let mut again: BTreeSet<ChunkKey> = BTreeSet::new();
-    for shelter in &buildings {
-        for (lo, hi) in &shelter.0 {
-            again.extend(chunks_round(*lo, *hi));
-        }
-    }
-    for slab in &opened {
-        again.insert(slab.0);
-    }
-    let again: Vec<ChunkKey> = again.into_iter().filter(|k| nav.islands.contains_key(k)).collect();
+    // Taken once, whichever run comes first (in play, or the load's).
+    let again: Vec<ChunkKey> = std::mem::take(&mut nav.changed).into_iter().filter(|k| nav.islands.contains_key(k)).collect();
     for key in again {
         nav.waiting.insert(key, ready);
     }
 }
 
-/// The chunk meshes due, a few a frame: each built over its chunk's column
+/// The chunk meshes due, all of them this tick: each built over its chunk's column
 /// as one tile of Recast's tiled mesh, from the colliders reaching into it;
 /// a new chunk gets its island.
 fn build_chunk_meshes(
@@ -227,7 +217,7 @@ fn build_chunk_meshes(
     spatial: SpatialQuery,
     mut generator: NavmeshGenerator,
 ) {
-    let due: Vec<ChunkKey> = nav.waiting.iter().filter(|(_, t)| **t <= tick.0).map(|(k, _)| *k).take(PER_TICK).collect();
+    let due: Vec<ChunkKey> = nav.waiting.iter().filter(|(_, t)| **t <= tick.0).map(|(k, _)| *k).collect();
     let size = CHUNK as f32 * TILE;
     let cell = AGENT_RADIUS / CELL_FRACTION;
     // Recast's border round a tile: the agent's radius in cells, and 3.
@@ -281,7 +271,13 @@ const LAND_AFTER: u64 = 30;
 /// gathered from the world as it is now, and their building started in the
 /// background (the patched bevy_rerecast's `gather`).
 fn gather_meshes(world: &mut World) {
+    let start = std::time::Instant::now();
     bevy_rerecast::generator::gather(world);
+    let took = start.elapsed();
+    if took > std::time::Duration::from_millis(1) {
+        let tick = world.resource::<crate::SimTick>().0;
+        info!("tick {tick}: gathering chunk meshes took {:.1} ms", took.as_secs_f64() * 1000.0);
+    }
 }
 
 /// First in every fixed step: every chunk mesh due by the tick about to
@@ -306,9 +302,94 @@ fn land_meshes(world: &mut World) {
     }
 }
 
-/// A chunk mesh that failed to build: no mesh for that chunk, said.
-fn mesh_failed(failed: On<bevy_rerecast::generator::NavmeshFailed>) {
-    warn!("a chunk's navigation mesh failed to build, so that chunk has no mesh: {}", failed.1);
+/// A building stood up: the chunks round it changed, written the moment it
+/// is spawned.
+fn chunks_changed_by_a_building(add: On<Add, crate::structure::Shelter>, shelters: Query<&crate::structure::Shelter>, nav: Option<ResMut<Nav>>) {
+    let (Ok(shelter), Some(mut nav)) = (shelters.get(add.entity), nav) else {
+        return;
+    };
+    for (lo, hi) in &shelter.0 {
+        nav.changed.extend(chunks_round(*lo, *hi));
+    }
+}
+
+/// A chunk's ground slab made or made again (the ground opened over a way
+/// down): that chunk changed.
+fn chunks_changed_by_the_ground(add: On<Add, crate::terrain::GroundBody>, slabs: Query<&crate::terrain::GroundBody>, nav: Option<ResMut<Nav>>) {
+    if let (Ok(slab), Some(mut nav)) = (slabs.get(add.entity), nav) {
+        nav.changed.insert(slab.0);
+    }
+}
+
+/// The world rolled again (`terrain::roll`: the storm's next world, a
+/// load's saved one): every island gone, nothing waiting or landing, and
+/// nothing built for the world before ever lands; the mesh is built again
+/// from nothing as the new world's chunks are made.
+pub fn forget(world: &mut World) {
+    let Some(mut nav) = world.get_resource_mut::<Nav>() else {
+        return;
+    };
+    let islands: Vec<Entity> = std::mem::take(&mut nav.islands).into_values().map(|(_, island)| island).collect();
+    nav.waiting.clear();
+    nav.landing.clear();
+    nav.changed.clear();
+    for island in islands {
+        if let Ok(island) = world.get_entity_mut(island) {
+            island.despawn();
+        }
+    }
+    bevy_rerecast::generator::cancel_all(world);
+}
+
+/// Chunk meshes still building when a game was saved: each chunk with the
+/// tick it lands at. Saved, so after a load they land at those same ticks
+/// and every other chunk's mesh is there at once, as in the saved game.
+#[derive(Resource, Default, Clone, serde::Serialize, serde::Deserialize, Reflect)]
+#[reflect(opaque, Resource, Serialize, Deserialize)]
+pub struct MeshesLanding(pub BTreeMap<ChunkKey, u64>);
+
+/// The chunk meshes still building now, for a save.
+pub fn landing_now(world: &World) -> MeshesLanding {
+    MeshesLanding(world.get_resource::<Nav>().map(|nav| nav.landing.iter().map(|(k, (at, _))| (*k, *at)).collect()).unwrap_or_default())
+}
+
+/// After a load, at its tick, the game paused: the chunk systems made the
+/// chunks round the loaded people, and here every chunk's mesh is asked
+/// and gathered the same way as in play, then landed now, waited for,
+/// except those the saved game still had building (`MeshesLanding`, from
+/// the save), which land at their own ticks.
+pub fn mesh_the_loaded_world(world: &mut World) {
+    let _ = world.run_system_cached(wait_for_chunks);
+    let _ = world.run_system_cached(build_chunk_meshes);
+    gather_meshes(world);
+    let later = world.get_resource::<MeshesLanding>().map(|m| m.0.clone()).unwrap_or_default();
+    let now: Vec<(ChunkKey, AssetId<Navmesh>)> = {
+        let mut nav = world.resource_mut::<Nav>();
+        let mut now = Vec::new();
+        for (key, (at, id)) in nav.landing.iter_mut() {
+            match later.get(key) {
+                Some(saved) => *at = *saved,
+                None => now.push((*key, *id)),
+            }
+        }
+        for (key, _) in &now {
+            nav.landing.remove(key);
+        }
+        now
+    };
+    let start = std::time::Instant::now();
+    let count = now.len();
+    for (_, id) in now {
+        bevy_rerecast::generator::land(world, id);
+    }
+    info!("the loaded world's {count} chunk meshes landed in {:.0} ms", start.elapsed().as_secs_f64() * 1000.0);
+}
+
+/// A chunk mesh that failed to build: no mesh for that chunk, said with
+/// which chunk.
+fn mesh_failed(failed: On<bevy_rerecast::generator::NavmeshFailed>, nav: Res<Nav>) {
+    let key = nav.islands.iter().find(|(_, (h, _))| h.id() == failed.0).map(|(k, _)| *k);
+    warn!("chunk {key:?}'s navigation mesh failed to build, so that chunk has no mesh: {}", failed.1);
 }
 
 /// Every step, once the queues have drained: everyone sent somewhere this

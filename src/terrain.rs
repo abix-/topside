@@ -171,6 +171,8 @@ pub fn roll(
     commands.insert_resource(NewSites::default());
     commands.insert_resource(ThingsMade::default());
     commands.insert_resource(crate::structure::MonumentsRes::default());
+    // The mesh of the world before is forgotten with it.
+    commands.run_system_cached(crate::navmesh::forget);
 }
 
 /// The chunk a point is in.
