@@ -167,6 +167,48 @@ fn walks_the_stairs_up_and_down_three_times() {
     }
 }
 
+/// Roxanne leads the player from their room up to the entrance (a `lead`
+/// command), and the player follows her (a `follow` command): the lead is
+/// done once both are within 2 m of the spot (operator, 2026-10-02), and
+/// she is no longer leading.
+#[test]
+fn leads_the_player_from_their_room_up_to_the_entrance() {
+    let room = the_player_shut_in_their_room();
+    let id = roxanne()["id"].as_u64().expect("Roxanne's id");
+    let player = op("player")["id"].as_u64().expect("the player op reports the player's id");
+    // She comes down to the player first, to lead them from their room.
+    let (came, _) = {
+        op_with("command", json!({"id": id, "do": "move_to", "x": room.0 - 1.5, "y": room.2, "z": room.1 + 1.5}));
+        comes_to(|| npc_at(id), (room.0 - 1.5, room.1 + 1.5, room.2), 20)
+    };
+    assert!(came, "Roxanne never came down to the player's room");
+    let entrance = (1.5, 0.0, 0.0);
+    op_with("command", json!({"id": id, "do": "lead", "who": player, "x": entrance.0, "y": entrance.2, "z": entrance.1}));
+    op_with("command", json!({"do": "follow", "who": id}));
+    // Done when both are within 2 m of the spot (modforge `LEAD_DONE`).
+    let near = |p: (f64, f64, f64)| ((p.0 - entrance.0).powi(2) + (p.1 - entrance.1).powi(2)).sqrt() <= 2.0 && (p.2 - entrance.2).abs() < 0.5;
+    // Where both stand read the moment the lead is seen done (her brain
+    // walks her on at once).
+    let mut ended = None;
+    let start = std::time::Instant::now();
+    while ended.is_none() && start.elapsed() < Duration::from_secs(40) {
+        let her = op_with("npc", json!({"id": id}));
+        if her["leading"].is_null() {
+            ended = Some((player_at(), spot(&her)));
+        }
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    let done = ended.is_some();
+    let (me, her) = ended.unwrap_or_else(|| (player_at(), npc_at(id)));
+    eprintln!("the lead done: {done}; the player at {me:?}, Roxanne at {her:?}");
+    if !done || !near(me) || !near(her) {
+        crate::endpoint::why_stopped((entrance.0, entrance.2, entrance.1));
+        crate::endpoint::why_they_stopped(id, (entrance.0, entrance.2, entrance.1));
+    }
+    assert!(done, "Roxanne never finished leading the player to the entrance");
+    assert!(near(me) && near(her), "the lead ended with the player at {me:?} and Roxanne at {her:?}, not both within 2 m of the entrance");
+}
+
 /// The player walks past Roxanne standing in their way: she has knocked
 /// and stands outside their door, talking, and the player, sent up to the
 /// entrance by a command, steps around her (every person a landmass agent)

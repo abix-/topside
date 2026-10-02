@@ -13,7 +13,7 @@ use modforge::actor::ActorId;
 use modforge::command::{Command, Given, Replay, Step};
 
 use crate::actor::{Actor, Dead, Memory, Npc};
-use crate::ai::Following;
+use crate::ai::{Following, Leading};
 use crate::content::{ActorRegistryRes, EpisodeRegistryRes, FactionRegistryRes, PLAYER_FACTION};
 use crate::input::{Action, ThisTick};
 use crate::player::{Eyes, Player};
@@ -72,6 +72,7 @@ pub fn give(
     mut playing: ResMut<Playing>,
     player: Query<&Actor, With<Player>>,
     mut people: Query<(Entity, &Actor, Option<&mut Commanded>)>,
+    going_with: Query<Entity, Or<(With<Leading>, With<Following>)>>,
 ) {
     if let Some(ask) = REPLAY_ASK.lock().ok().and_then(|mut ask| ask.take()) {
         match ask {
@@ -108,6 +109,10 @@ pub fn give(
                         has.left.clear();
                         has.started = false;
                     }
+                }
+                // And the leading and following commands started.
+                for entity in &going_with {
+                    commands.entity(entity).remove::<(Leading, Following)>();
                 }
                 info!("replay stopped: every command left dropped");
             }
@@ -150,7 +155,7 @@ pub fn carry_out(
     episodes: Res<EpisodeRegistryRes>,
     mut people: Query<(
         (Entity, &Actor, &Transform, &mut ThisTick, &mut Commanded),
-        (Has<Following>, Has<Dead>, Option<&crate::interact::Hud>, Option<&crate::talk::LookingAt>, Option<&Children>),
+        (Has<Following>, Has<Dead>, Option<&crate::interact::Hud>, Option<&crate::talk::LookingAt>, Option<&Children>, Has<crate::ai::Leading>),
     )>,
     everyone: Query<(Entity, &Actor, &Transform, Option<&Npc>, &Memory, Has<Dead>, Has<Player>)>,
     eyes: Query<&Eyes>,
@@ -161,7 +166,7 @@ pub fn carry_out(
     let archipelago = archipelagos.get(nav.archipelago).ok();
     let on_mesh = |at: Vec3| archipelago.and_then(|a| crate::navmesh::on_mesh(a, at));
     let heard = |words: &str| episodes.0.felt(words);
-    for ((entity, actor, at, mut this_tick, mut commanded), (following, dead, hud, looking, children)) in &mut people {
+    for ((entity, actor, at, mut this_tick, mut commanded), (following, dead, hud, looking, children, leading)) in &mut people {
         let (x, y) = ActionQueue::movement(&this_tick.0);
         let own_move = (x != 0.0 || y != 0.0) && ActionQueue::aim(&this_tick.0).is_none();
         if dead || own_move {
@@ -183,6 +188,18 @@ pub fn carry_out(
                         commands.entity(entity).insert(Following(ActorId(who)));
                         commanded.started = true;
                     } else if !following {
+                        commanded.next();
+                        continue;
+                    }
+                    break;
+                }
+                // Leading does it, until both are there (ai::lead); then the
+                // next.
+                Command::Lead { who, x, y, z } => {
+                    if !commanded.started {
+                        commands.entity(entity).insert(Leading { who: ActorId(who), to: Vec3::new(x, y, z), waiting_at: None });
+                        commanded.started = true;
+                    } else if !leading {
                         commanded.next();
                         continue;
                     }
@@ -212,7 +229,7 @@ pub fn carry_out(
                 Command::TalkTo { who } | Command::Attack { who } => (alive_at(who), Some(who)),
                 // The spot beside the closed door between them.
                 Command::Knock { who } => (alive_at(who).and_then(|them| crate::interact::knock_spot(doors.iter(), them, on_mesh)), Some(who)),
-                Command::Follow { .. } | Command::AttackNearestEnemy => (None, None),
+                Command::Follow { .. } | Command::Lead { .. } | Command::AttackNearestEnemy => (None, None),
             };
             let talking_with = hud.and_then(|h| h.0.talking.as_ref()).map(|t| t.with);
             // Talking with them, or (a knock) knocked once.

@@ -97,33 +97,38 @@ pub struct Leading {
     pub waiting_at: Option<Vec3>,
 }
 
-/// Four times a game second, each leader is asked to where they lead, or,
-/// left behind by the one they lead, to wait where they are (modforge
-/// `brain::waits_for`): the same `Asked` errand the brain weighs.
+/// Every tick, once the queues have drained, as following: each leader is
+/// sent where they lead (`Action::Go`), or, left behind by the one they
+/// lead, stands where they are until they catch up (modforge
+/// `brain::waits_for`). Once both are there (`brain::led_there`), the lead
+/// is done.
 pub fn lead(
     mut commands: Commands,
     tick: Res<SimTick>,
-    mut leaders: Query<(Entity, &Transform, &mut Leading)>,
-    people: Query<(&Actor, &Transform), Without<Leading>>,
+    mut leaders: Query<(Entity, &Transform, &mut crate::input::ThisTick, &mut Leading), Without<Dead>>,
+    people: Query<(&Actor, &Transform), (Without<Leading>, Without<Dead>)>,
 ) {
-    if tick.0 % 15 != 0 {
-        return;
-    }
-    for (entity, at, mut leading) in &mut leaders {
+    use modforge::actions::Stamped;
+    for (entity, at, mut this_tick, mut leading) in &mut leaders {
         let here = crate::interact::feet_of(at);
         let Some(follower) = people.iter().find(|(a, _)| a.0 == leading.who).map(|(_, t)| crate::interact::feet_of(t)) else {
             continue;
         };
+        // Both there: the lead is done.
+        if modforge::brain::led_there(here, follower, leading.to) {
+            commands.entity(entity).remove::<Leading>();
+            continue;
+        }
+        this_tick.0.retain(|s| !matches!(s.action, Action::Go { .. }));
         // Waiting, where they stand (never walking back to where they
-        // noticed).
-        let to = if modforge::brain::waits_for(here, follower, leading.waiting_at.is_some()) {
+        // noticed): no Go, so they stop.
+        if modforge::brain::waits_for(here, follower, leading.waiting_at.is_some()) {
             leading.waiting_at = Some(here);
-            here
-        } else {
-            leading.waiting_at = None;
-            leading.to
-        };
-        commands.entity(entity).insert(crate::actor::Asked(to)).remove::<crate::talk::HeldToTalk>();
+            continue;
+        }
+        leading.waiting_at = None;
+        let to = leading.to;
+        this_tick.0.push(Stamped { tick: tick.0, action: Action::Go { x: to.x, y: to.y, z: to.z } });
     }
 }
 
@@ -140,24 +145,30 @@ pub struct Following(pub ActorId);
 pub fn follow(
     mut commands: Commands,
     tick: Res<SimTick>,
-    mut followers: Query<(Entity, &Transform, &mut crate::input::ThisTick, &Following, Has<Dead>)>,
-    people: Query<(&Actor, &Transform), (Without<Following>, Without<Dead>)>,
+    mut followers: Query<(Entity, &Actor, &Transform, &mut crate::input::ThisTick, &Following, Has<Dead>)>,
+    people: Query<(&Actor, &Transform, Option<&Leading>), (Without<Following>, Without<Dead>)>,
 ) {
     use modforge::actions::{ActionQueue, Stamped};
-    for (entity, at, mut this_tick, following, dead) in &mut followers {
+    for (entity, me, at, mut this_tick, following, dead) in &mut followers {
         let (x, y) = ActionQueue::movement(&this_tick.0);
-        let leader = people.iter().find(|(a, _)| a.0 == following.0).map(|(_, t)| crate::interact::feet_of(t));
+        let leader = people.iter().find(|(a, ..)| a.0 == following.0).map(|(_, t, leading)| (crate::interact::feet_of(t), leading));
         // Their own move, their death, or the one they follow gone: it ends.
         let own_move = (x != 0.0 || y != 0.0) && ActionQueue::aim(&this_tick.0).is_none();
-        let Some(leader) = leader.filter(|_| !own_move && !dead) else {
+        let Some((leader, leading)) = leader.filter(|_| !own_move && !dead) else {
             commands.entity(entity).remove::<Following>();
             continue;
         };
-        if !modforge::brain::follows(crate::interact::feet_of(at), leader) {
-            continue;
-        }
+        let feet = crate::interact::feet_of(at);
+        // Led somewhere and the leader there: to the spot itself, so both
+        // are there (modforge `brain::led_there`); else after the leader.
+        let to = match leading.filter(|l| l.who == me.0 && leader.distance(l.to) <= modforge::brain::LEAD_DONE) {
+            Some(l) if !modforge::brain::walk_toward(feet, l.to).is_empty() => l.to,
+            Some(_) => continue,
+            None if modforge::brain::follows(feet, leader) => leader,
+            None => continue,
+        };
         this_tick.0.retain(|s| !matches!(s.action, Action::Go { .. }));
-        this_tick.0.push(Stamped { tick: tick.0, action: Action::Go { x: leader.x, y: leader.y, z: leader.z } });
+        this_tick.0.push(Stamped { tick: tick.0, action: Action::Go { x: to.x, y: to.y, z: to.z } });
     }
 }
 

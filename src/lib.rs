@@ -191,7 +191,7 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind) -> App {
                     .chain(),
                 ai::think,
                 lap("think"),
-                (input::drain_actions, lap("drain_actions"), hud::learn_hints, command::give, command::carry_out, ai::follow).chain(),
+                (input::drain_actions, lap("drain_actions"), hud::learn_hints, command::give, command::carry_out, ai::follow, ai::lead).chain(),
                 (nav::record_solids, nav::record_doors),
                 // Everyone sent somewhere walks the way on the navigation
                 // mesh (docs/pathing.md).
@@ -208,7 +208,6 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind) -> App {
                     episode::the_taps_errands,
                     episode::the_first_drink,
                     talk::lines,
-                    ai::lead,
                 )
                     .chain(),
                 lap("storm"),

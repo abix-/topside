@@ -259,7 +259,7 @@ pub fn walk(
         (Entity, &Transform, &mut crate::input::ThisTick, Option<&crate::actor::Personality>, Option<&Walker>, Has<crate::player::Player>),
         Without<crate::actor::Dead>,
     >,
-    mut agents: Query<(&mut AgentTarget3d, Option<&AgentDesiredVelocity3d>, &mut Velocity3d)>,
+    mut agents: Query<(&mut AgentTarget3d, Option<&AgentDesiredVelocity3d>, &mut Velocity3d, &AgentState)>,
     archipelagos: Query<&Archipelago3d>,
 ) {
     use crate::input::Action;
@@ -270,7 +270,8 @@ pub fn walk(
     let walking: Vec<(Entity, Vec3, Vec2)> = people
         .iter()
         .filter_map(|(entity, at, _, _, walker, _)| {
-            let v = agents.get(walker?.0).ok()?.2.velocity;
+            let (_, _, velocity, _) = agents.get(walker?.0).ok()?;
+            let v = velocity.velocity;
             let way = Vec2::new(v.x, v.z);
             (way.length() > 0.1).then(|| (entity, crate::interact::feet_of(at), way.normalize()))
         })
@@ -281,6 +282,16 @@ pub fn walk(
             Action::Go { x, y, z } => Some(Vec3::new(x, y, z)),
             _ => None,
         });
+        // A Go is done once landmass has brought them there: it is held no
+        // longer (each step holds the last Go between decisions), and they
+        // stand.
+        let arrived = walker.and_then(|w| agents.get(w.0).ok()).is_some_and(|(target, .., state)| {
+            matches!(state, AgentState::ReachedTarget) && go.is_some_and(|to| matches!(*target, AgentTarget3d::Point(p) if p == to))
+        });
+        if arrived {
+            this_tick.0.retain(|s| !matches!(s.action, Action::Go { .. }));
+        }
+        let go = go.filter(|_| !arrived);
         // People standing make way (Bethesda's people step aside, RimWorld's
         // make way): someone not sent anywhere and not moving steps out of a
         // doorway they stand in the way of, to their own side, and out of
@@ -313,7 +324,7 @@ pub fn walk(
         // walkers step around each other and around whoever stands (landmass
         // steers every agent round the agents near it). The agent stands at
         // their feet.
-        let Some((mut target, desired, mut velocity)) = walker.and_then(|w| agents.get_mut(w.0).ok()) else {
+        let Some((mut target, desired, mut velocity, _)) = walker.and_then(|w| agents.get_mut(w.0).ok()) else {
             if walker.is_none() {
                 let agent = commands
                     .spawn((

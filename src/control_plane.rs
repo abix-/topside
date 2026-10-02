@@ -1332,7 +1332,7 @@ pub fn start() {
     ));
     OP_REGISTRY.register(OpDef::new(
         "command",
-        "give a person (`id`, the player when left out) a command on the game's next step, or a list of them (`commands`), carried out one after another with the brain's own actions (authority.md \"Commands and replays\"): {\"do\": \"move_to\", \"x\", \"y\", \"z\"} (y the height, as the world's), {\"do\": \"follow\", \"who\"}, {\"do\": \"talk_to\", \"who\"}, {\"do\": \"knock\", \"who\"} (on the closed door between them), {\"do\": \"attack\", \"who\"}, {\"do\": \"attack_nearest_enemy\"}; a move of their own ends them",
+        "give a person (`id`, the player when left out) a command on the game's next step, or a list of them (`commands`), carried out one after another with the brain's own actions (authority.md \"Commands and replays\"): {\"do\": \"move_to\", \"x\", \"y\", \"z\"} (y the height, as the world's), {\"do\": \"follow\", \"who\"}, {\"do\": \"lead\", \"who\", \"x\", \"y\", \"z\"} (to the point, until both are there),{\"do\": \"talk_to\", \"who\"}, {\"do\": \"knock\", \"who\"} (on the closed door between them), {\"do\": \"attack\", \"who\"}, {\"do\": \"attack_nearest_enemy\"}; a move of their own ends them",
         "{\"do\": \"talk_to\", \"who\": 3}",
         |args| {
             let id = args.get("id").and_then(Json::as_u64);
@@ -1371,7 +1371,7 @@ pub fn start() {
     ));
     OP_REGISTRY.register(OpDef::new(
         "replay",
-        "`save`: write every command given this run, with its tick and the world seed, to replays/<name>.json; `play`: give a saved replay's commands again from the game's next step, the same ticks apart; `stop`: stop playing, and every command anyone has left is dropped",
+        "`save`: write every command given this run, with its tick and the world seed, to replays/<name>.json; `play`: give a saved replay's commands again from the game's next step, the same ticks apart; `stop`: stop playing, and every command anyone has left is dropped, and all leading and following ended",
         "{\"save\": \"talk to dell\"}",
         |args| {
             let ask = match (args.get("save").and_then(Json::as_str), args.get("play").and_then(Json::as_str)) {
