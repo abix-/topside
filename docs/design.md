@@ -1406,7 +1406,10 @@ read against each other even when they are one colour (operator,
 2026-10-01). Prior art: Borderlands, Sable, Hi-Fi Rush. One full-screen
 pass after the scene (src/outline.rs, assets/shaders/outline.wgsl) draws a
 line where the depth bends or neighbouring surfaces face apart; flat runs
-of floor and wall tiles make no line. The line is about four pixels wide.
+of floor and wall tiles make no line. The line is about four pixels wide
+up close. A line stays the same pixels however far away its thing is, so
+far things would drown in lines: past 15 m it is half as wide, from 25 m
+it fades, and past 60 m there is none (operator, 2026-10-01).
 
 - Leaves get no lines: a material cut out by its alpha (scripts/models.py's
   leaf cut-outs) is marked not outlined in its prepass

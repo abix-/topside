@@ -17,8 +17,18 @@ const LINE: vec3<f32> = vec3<f32>(0.04, 0.04, 0.05);
 const DEPTH_BEND: f32 = 0.03;
 // How far two neighbouring surfaces may face apart (1 - their cosine).
 const FACING_TURN: f32 = 0.25;
-// How many pixels apart the neighbours are: the line's half width.
+// How many pixels apart the neighbours are, the line's half width: up
+// close, and past THIN_PAST metres. A line stays the same pixels however
+// far away, so far things would drown in their lines: they thin, then
+// fade from FADE_FROM metres to nothing at FADE_TO (operator, 2026-10-01).
 const WIDTH: i32 = 2;
+const WIDTH_FAR: i32 = 1;
+const THIN_PAST: f32 = 15.0;
+const FADE_FROM: f32 = 25.0;
+const FADE_TO: f32 = 60.0;
+// The camera's near plane (Bevy's default; topside sets none): depth is
+// NEAR over the distance.
+const NEAR: f32 = 0.1;
 
 fn depth_at(p: vec2<i32>) -> f32 {
     let size = vec2<i32>(textureDimensions(depth));
@@ -45,12 +55,19 @@ fn outlined_at(p: vec2<i32>) -> bool {
 fn fragment(in: FullscreenVertexOutput) -> @location(0) vec4<f32> {
     let color = textureSample(screen, screen_sampler, in.uv);
     let p = vec2<i32>(in.position.xy);
-    let offsets = array<vec2<i32>, 4>(vec2<i32>(WIDTH, 0), vec2<i32>(-WIDTH, 0), vec2<i32>(0, WIDTH), vec2<i32>(0, -WIDTH));
     let d = depth_at(p);
     // Nothing drawn here gets lines: no line.
     if d > 0.0 && !outlined_at(p) {
         return color;
     }
+    // How far away this pixel is, in metres (the sky: as far as can be).
+    let far = NEAR / max(d, 1e-6);
+    if far >= FADE_TO {
+        return color;
+    }
+    let w = select(WIDTH, WIDTH_FAR, far > THIN_PAST);
+    let offsets = array<vec2<i32>, 4>(vec2<i32>(w, 0), vec2<i32>(-w, 0), vec2<i32>(0, w), vec2<i32>(0, -w));
+    let strength = 1.0 - smoothstep(FADE_FROM, FADE_TO, far);
     var sum = 0.0;
     var nearest = d;
     for (var i = 0; i < 4; i++) {
@@ -75,5 +92,5 @@ fn fragment(in: FullscreenVertexOutput) -> @location(0) vec4<f32> {
         }
     }
     let edge = select(0.0, 1.0, bend > DEPTH_BEND || turn > FACING_TURN);
-    return vec4<f32>(mix(color.rgb, LINE, edge), color.a);
+    return vec4<f32>(mix(color.rgb, LINE, edge * strength), color.a);
 }
