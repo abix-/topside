@@ -22,6 +22,13 @@ These rules govern `docs/changelog.md`. Follow them exactly.
 - Use plain terms. Do not use vague descriptions, invented language, or design
   essays.
 
+## 2026-10-02
+
+| System | Item | Done when |
+|---|---|---|
+| Tests | [x] The test queue (authority.md "Running tests", operator 2026-10-02): modforge `test_queue` and its `tests` op, registered in `control_plane::start`; tests/queue.rs `run_the_queue` takes the queued tests one at a time, each stopped at 2 min, reports each result to the game, and fails when any failed; `build.ps1 queue <test file> [...]` runs it | The runner ran groups queued through the `tests` op on the running game: run 3 (episode, the_tap, leading) 3 passed and 1 failed, each result in the op's status, exit 100; run 4 (control_plane, episode) 3 passed, exit 0 |
+| Tests | [x] No test passes without playing what it tests: the 22 early returns that passed ("not played this run" and the like) in bunker, episode, leading, reality, relationship, talk, talk_ui and the_tap fail instead | No test in tests/ returns early as passed (a search for a print followed by `return` finds none) |
+
 ## 2026-09-27
 
 | System | Item | Done when |

@@ -1252,6 +1252,7 @@ fn snapshot() -> Json {
 
 pub fn start() {
     OP_REGISTRY.register(OpDef::new("status", "current simulation snapshot", "", |_| Ok(snapshot())));
+    modforge::test_queue::register_ops();
     OP_REGISTRY.register(OpDef::new(
         "diagnostics",
         "every engine diagnostic: frame time, entity count",

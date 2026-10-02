@@ -32,13 +32,11 @@ fn the_player_follows_dell_to_the_tap() {
     crate::endpoint::player_alive();
     let w = op("world");
     let Some(dell) = w["cast"].as_array().and_then(|c| c.iter().find(|p| p["part"] == "Dell")).and_then(|p| p["id"].as_u64()) else {
-        eprintln!("the episode is {}, with no Dell; not played this run", w["episode"]);
-        return;
+        panic!("the episode is {}, with no Dell; not played this run", w["episode"]);
     };
     let tap = xy(&w["things"].as_array().and_then(|t| t.iter().find(|t| t["name"] == "tap")).expect("The Tap has its tap")["at"]);
     if reached("does not believe it") || reached("sends Dell") {
-        eprintln!("the opening was answered another way this episode; not played this run");
-        return;
+        panic!("the opening was answered another way this episode; not played this run");
     }
     let player = op("player")["id"].as_u64().expect("the player op reports the player's id");
     if !reached("believes Dell") {
@@ -53,8 +51,7 @@ fn the_player_follows_dell_to_the_tap() {
         shot("leading_1_show_me");
         assert!(reached("believes Dell"), "{chosen:?} reached nothing");
     } else if op("player")["following"].as_u64() != Some(dell) {
-        eprintln!("\"Show me.\" was chosen earlier and the player no longer follows Dell; not played this run");
-        return;
+        panic!("\"Show me.\" was chosen earlier and the player no longer follows Dell; not played this run");
     }
     // The player follows Dell with no key pressed: both go toward the tap.
     let start = xy(&op("player")["at"]);

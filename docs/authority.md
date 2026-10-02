@@ -62,7 +62,7 @@ Rules:
 | Bunkers and their stores | a building (Monuments and buildings) | The bunker building's entity; its store a box, known through `Store` on each bunker person | As Monuments and buildings; the store is a box (Items) | Not audited |
 | Sight | the walls' colliders | `BlocksSight` on each thing that hides what is past it | `sight` (`Sight`), for `ai::think`'s cone and `sight::player_sight` | Not audited |
 | Copies | the JSON each op returns | The control plane's statics in `control_plane.rs` | Published by `control_plane.rs` for tests and watching, never read back by the game | Not audited |
-| Tests | a test function | `tests/`, one binary `all` | Every test reads the running game through the control plane; no headless tests | Built |
+| Tests | a test function | `tests/`, one binary `all`; the queue of tests to run and their results: the game's test queue | Every test reads the running game through the control plane; no headless tests; started one, a list, or a group at a time through the test queue ("Running tests" below) | Built; the test queue not yet |
 | Commands and replays | modforge `command::Command` (move to, follow, talk to, attack, attack the nearest enemy), `command::Replay` (the world seed and each command with the tick it was given) | The commands a person has left: `command::Commanded` on them; every command given this run, in order: `command::GivenThisRun`; a replay playing: `command::Playing`; saved replays in `replays/` | Given only by `command::give`, from the control plane's `command` op or a replay played by the `replay` op; carried out only by `command::carry_out` through modforge `command::step`, which pushes the same actions a person's brain pushes (modforge `brain::walk_toward`, `turn_toward`), walked by `nav::steer`; follow hands over to `Following`, talk to ends in the same Use as E on the one looked at, attack in the same Attack; an enemy is whoever the person stands hostile to by the brain's one rule, modforge `relationship::stands` | tests/command.rs passes on the running game (2026-10-01): move to walked 52 m and stopped there, talk to walked 72 m and the talk box opened with them, a saved replay played gave its first command again. Follow, attack, and attack the nearest enemy not tested yet |
 
 ## Commands and replays (operator, 2026-10-01)
@@ -95,6 +95,31 @@ engine plays them again).
   given. Saved, it is a replay (`replays/<name>.json`, with the world
   seed); played, each command is given again at the same distance in
   ticks from the first. On the same world it does the same things again.
+
+## Running tests (operator, 2026-10-02)
+
+Tests are run from a queue the game holds: one test, a list of them, or a
+group (every test of an episode) is queued, the queue is watched while it
+runs, and the results are read when all are done. Prior art: Unreal's
+automation tab (pick tests, they queue and run, results at the end) and a
+CI runner taking jobs from a queue and reporting each back.
+
+- The tests stay in `tests/`. The game holds only the queue and each
+  test's result: queued, running, passed or failed, with its output. The
+  `tests` op queues tests and reports the queue.
+- A runner process takes the next queued test, runs it against the
+  running game, and reports its result, one test at a time, as there is
+  one world. It exits 0 only if every test it ran passed, so one command
+  proves a goal.
+- A test that cannot play what it tests fails. It never returns early
+  as passed.
+- Each test starts from its own saved game (Saving, todo 31a): its
+  starting point is reached once by playing and saved, and the test loads
+  that save before every run, as speedrunners practise one part of a run
+  from a savestate. Until saving lands, a test starts from the running
+  game as it is.
+- While tests run, nobody plays that game: the tests drive the world, the
+  player and the camera.
 
 ## The one boundary: modforge owns the systems, topside uses them
 

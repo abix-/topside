@@ -28,12 +28,10 @@ fn relation_toward(n: &serde_json::Value, id: u64) -> Option<serde_json::Value> 
 fn a_threat_turns_mara_and_not_her_bunker() {
     let w = op("world");
     let Some(mara) = w["cast"].as_array().and_then(|c| c.iter().find(|p| p["part"] == "Mara")).and_then(|p| p["id"].as_u64()) else {
-        eprintln!("the episode is {}, with no Mara; not played this run", w["episode"]);
-        return;
+        panic!("the episode is {}, with no Mara; not played this run", w["episode"]);
     };
     if reached("the meeting") {
-        eprintln!("the meeting was already played this episode; not played this run");
-        return;
+        panic!("the meeting was already played this episode; not played this run");
     }
     let tap = w["things"].as_array().and_then(|t| t.iter().find(|t| t["name"] == "tap")).expect("The Tap has its tap")["at"].clone();
     crate::endpoint::player_alive();
@@ -121,14 +119,12 @@ fn a_threat_turns_mara_and_not_her_bunker() {
 fn word_of_the_threat_spreads_to_a_mate() {
     let w = op("world");
     let Some(mara) = w["cast"].as_array().and_then(|c| c.iter().find(|p| p["part"] == "Mara")).and_then(|p| p["id"].as_u64()) else {
-        eprintln!("the episode is {}, with no Mara; not played this run", w["episode"]);
-        return;
+        panic!("the episode is {}, with no Mara; not played this run", w["episode"]);
     };
     let player = op("player")["id"].as_u64().expect("the player op reports the player's id");
     let m = npc(mara);
     if relation_toward(&m, player).is_none() {
-        eprintln!("Mara feels nothing toward the player this episode; not played this run");
-        return;
+        panic!("Mara feels nothing toward the player this episode; not played this run");
     }
     let faction = m["faction"].clone();
     let mates: Vec<u64> = crate::endpoint::people()
@@ -137,8 +133,7 @@ fn word_of_the_threat_spreads_to_a_mate() {
         .filter_map(|p| p["id"].as_u64())
         .collect();
     let Some(mate) = mates.iter().copied().find(|id| relation_toward(&npc(*id), player).is_none()) else {
-        eprintln!("every mate of Mara's already feels something toward the player; not played this run");
-        return;
+        panic!("every mate of Mara's already feels something toward the player; not played this run");
     };
     op_with("use", serde_json::json!({"id": mate, "person": mara}));
     let mut n = npc(mate);
@@ -173,8 +168,7 @@ fn dell_keeps_the_tap_quiet() {
     let w = op("world");
     let cast = |part: &str| w["cast"].as_array().and_then(|c| c.iter().find(|p| p["part"] == part)).and_then(|p| p["id"].as_u64());
     let (Some(dell), Some(tap)) = (cast("Dell"), w["things"].as_array().and_then(|t| t.iter().find(|t| t["name"] == "tap")).and_then(|t| t["key"].as_u64())) else {
-        eprintln!("the episode is {}, with no Dell and tap; not played this run", w["episode"]);
-        return;
+        panic!("the episode is {}, with no Dell and tap; not played this run", w["episode"]);
     };
     let d = npc(dell);
     assert!(d["quiet"].as_array().is_some_and(|q| q.iter().any(|k| k.as_u64() == Some(tap))), "Dell does not keep the tap quiet: {}", d["quiet"]);
@@ -184,8 +178,7 @@ fn dell_keeps_the_tap_quiet() {
         .filter(|p| p["faction"] == faction && p["dead"] != true && p["id"].as_u64() != Some(dell))
         .find_map(|p| p["id"].as_u64())
     else {
-        eprintln!("Dell has no living bunker mate; not played this run");
-        return;
+        panic!("Dell has no living bunker mate; not played this run");
     };
     let knows = |n: &serde_json::Value, key: u64| n["knows"].as_array().is_some_and(|k| k.iter().any(|k| k["key"].as_u64() == Some(key)));
     let dells: Vec<u64> = d["knows"].as_array().map_or(Vec::new(), |k| k.iter().filter_map(|k| k["key"].as_u64()).collect());

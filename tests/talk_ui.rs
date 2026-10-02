@@ -56,8 +56,7 @@ fn e_on_someone_with_nothing_to_say_gets_one_line_and_ends() {
     let people = crate::endpoint::people();
     // Someone not out to kill the player: a stranger of no faction.
     let Some(stranger) = people.iter().find(|p| !crate::endpoint::is_bunker_person(p) && p["dead"] != true && p["faction"].is_null()) else {
-        eprintln!("no living stranger this run");
-        return;
+        panic!("no living stranger this run");
     };
     let (id, name) = (stranger["id"].as_u64().unwrap_or(0), stranger["name"].as_str().unwrap_or_default().to_string());
     let player = op("player")["id"].as_u64().expect("the player op reports the player's id");
@@ -88,8 +87,7 @@ fn the_player_talks_to_dell_through_the_panel() {
     crate::endpoint::player_alive();
     let w = op("world");
     let Some(dell) = w["cast"].as_array().and_then(|c| c.iter().find(|p| p["part"] == "Dell")).and_then(|p| p["id"].as_u64()) else {
-        eprintln!("the episode is {}, with no Dell; not played this run", w["episode"]);
-        return;
+        panic!("the episode is {}, with no Dell; not played this run", w["episode"]);
     };
     let player = op("player")["id"].as_u64().expect("the player op reports the player's id");
     // Stand by Dell looking at her and use (the `use` op: E, as the
@@ -116,8 +114,7 @@ fn the_player_talks_to_dell_through_the_panel() {
     let believe = ["Show me.", "Let's go."];
     let choosing = talk_after(|t| t["choices"].as_array().is_some_and(|c| c.iter().any(|c| believe.iter().any(|b| c == *b))));
     let Some(number) = choosing["choices"].as_array().and_then(|c| c.iter().position(|c| believe.iter().any(|b| c == *b))) else {
-        eprintln!("the opening's choices are closed (already chosen this episode); the choices: {}", choosing["choices"]);
-        return;
+        panic!("the opening's choices are closed (already chosen this episode); the choices: {}", choosing["choices"]);
     };
     let words = choosing["choices"][number].as_str().unwrap_or_default().to_string();
     // The box (episodes.md "How a conversation looks"): the last line of

@@ -29,6 +29,13 @@ store-failure-output = true
 max-threads = 1
 
 [[profile.default.overrides]]
+# The test queue's runner (build.ps1 queue) runs many tests one after
+# another, each stopped at 2 min by the runner itself; the run as a whole
+# is stopped at 2 hours.
+filter = 'test(=queue::run_the_queue)'
+slow-timeout = { period = "60s", terminate-after = 120 }
+
+[[profile.default.overrides]]
 # And the tests that move the player (the `use` op) or drive the mouse:
 # one at a time, or they pull the one player two ways.
 filter = 'test(/^game::/) | test(/^control_plane::/) | test(/^talk::/) | test(/^talk_ui::/) | test(/^the_tap::/) | test(/^episode::/) | test(/^relationship::/) | test(/^leading::/) | test(/^command::/) | test(/^bunker::/) | test(/^navmesh::/) | test(/^roxanne::/) | test(/^trade::/)'

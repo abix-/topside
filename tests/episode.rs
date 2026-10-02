@@ -10,8 +10,7 @@ use crate::endpoint::{op, op_with, people};
 fn a_drink_at_the_tap_takes_from_maras_store_and_is_the_first_drink() {
     let w = op("world");
     if w["episode"] != "The Tap" {
-        eprintln!("the episode is {}, not The Tap; the tap is not read this run", w["episode"]);
-        return;
+        panic!("the episode is {}, not The Tap; the tap is not read this run", w["episode"]);
     }
     let cast = |part: &str| {
         w["cast"].as_array().and_then(|c| c.iter().find(|p| p["part"] == part)).and_then(|p| p["id"].as_u64()).unwrap_or_else(|| panic!("no {part} cast"))
@@ -50,8 +49,7 @@ fn the_taps_cast_comes_from_the_bunkers() {
     let w = op("world");
     eprintln!("world op, tick {}: episode {}, cast {}", w["tick"], w["episode"], w["cast"]);
     if w["episode"] != "The Tap" {
-        eprintln!("the episode is {}, not The Tap; its cast is not read this run", w["episode"]);
-        return;
+        panic!("the episode is {}, not The Tap; its cast is not read this run", w["episode"]);
     }
     let list = people();
     let faction_of = |part: &str| {

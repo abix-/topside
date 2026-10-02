@@ -18,14 +18,21 @@ through cargo-nextest (.config/nextest.toml), all of them or one
 tests/<Name>.rs; every test's time is printed, the run is in
 logs/test.log, and every test's time and output in
 logs/nextest/default/junit.xml.
+queue: run the tests named in Name through the running game's test
+queue (authority.md "Running tests", tests/queue.rs): queued on the game,
+run one at a time, each result reported to the game's `tests` op; fails
+when any test failed. The run is in logs/queue.log.
 build: build only (logs/build.log).
 .PARAMETER Name
 For test: one test file under tests/, without .rs. Empty runs every
-test.
+test. For queue: the first test file or full test name to queue; more
+follow it, separated by spaces (build.ps1 queue the_tap leading queues
+every test in tests/the_tap.rs and tests/leading.rs).
 .PARAMETER StallMinutes
 Minutes without new output before a cargo run counts as stalled.
 .PARAMETER GameArgs
-For run: passed to the game, for example --world labyrinth.
+For run: passed to the game, for example --world labyrinth. For queue:
+the tests to queue after the first.
 .EXAMPLE
 pwsh -NoProfile -File scripts/build.ps1 test
 .EXAMPLE
@@ -38,7 +45,7 @@ Never build, test, or launch topside any other way.
 [CmdletBinding()]
 param (
     [Parameter(Position = 0)]
-    [ValidateSet('run', 'test', 'build')]
+    [ValidateSet('run', 'test', 'queue', 'build')]
     [string]$Action = 'run',
     [Parameter(Position = 1)]
     [string]$Name = '',
@@ -136,6 +143,23 @@ switch ($Action) {
                 Write-Host $_.Line -ForegroundColor $color
             }
         Write-Host "[build] every test's time and output: $(Join-Path $logs 'nextest\default\junit.xml')"
+    }
+    'queue' {
+        $log = Join-Path $logs 'queue.log'
+        if (-not $Name) {
+            Write-Host '[build] queue needs the tests to queue, for example: build.ps1 queue the_tap leading' -ForegroundColor Red
+            exit 1
+        }
+        # The runner (tests/queue.rs) is ignored so a whole run never
+        # starts it; here it is the one test run, with its output kept.
+        $env:TOPSIDE_QUEUE = (@($Name) + $GameArgs) -join ' '
+        $code = Invoke-Cargo 'nextest run -p topside-tests --no-capture --run-ignored only -E test(=queue::run_the_queue)' $log
+        Show-Problems $log
+        Select-String -Path $log -Pattern '^run \d+:|^running |^\s+(passed|FAILED)$|^(queued|running|passed|failed)\s+\S|^error: ' |
+            ForEach-Object {
+                $color = if ($_.Line -match 'FAILED|^failed|^error') { 'Red' } else { 'Gray' }
+                Write-Host $_.Line -ForegroundColor $color
+            }
     }
     'run' {
         Stop-Game

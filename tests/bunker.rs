@@ -122,8 +122,7 @@ fn the_controls_show_in_the_room_and_each_goes_once_done() {
     eprintln!("feet {feet:.2}; the controls shown: {shown:?}");
     if feet > -0.5 {
         assert!(shown.is_empty(), "controls shown topside: {shown:?}");
-        eprintln!("the player is topside: none shown, as it should be; the rest not played this run");
-        return;
+        panic!("the player is topside: none shown, as it should be; the rest not played this run");
     }
     op_with("key", serde_json::json!({"key": "E"}));
     let gone = within(3, || op("hud")["hints"].as_array().is_some_and(|h| !h.iter().any(|t| t == "E  use")));

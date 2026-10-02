@@ -23,6 +23,7 @@ mod names;
 mod night;
 mod people_drawn;
 mod leading;
+mod queue;
 mod reality;
 mod relationship;
 mod respawn;

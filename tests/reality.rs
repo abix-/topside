@@ -43,12 +43,11 @@ fn no_night_in_a_reality_without_night() {
     );
     if reality["night"] == true {
         assert_eq!(w["night"], w["night_hours"], "{} has night, and it should be night in the night hours", reality["name"]);
-        eprintln!("{} has night; the rule for a reality without one is not read this run", reality["name"]);
-        return;
+        panic!("{} has night; the rule for a reality without one is not read this run", reality["name"]);
     }
     assert_eq!(w["night"], false, "{} has no night, yet the world op reports night", reality["name"]);
     if w["night_hours"] != true {
-        eprintln!("not the night hours; no night here proves nothing yet this run");
+        panic!("not the night hours; no night here proves nothing yet this run");
     }
 }
 

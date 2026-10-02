@@ -50,8 +50,7 @@ fn the_taps_first_day() {
     let w = op("world");
     let cast = |part: &str| w["cast"].as_array().and_then(|c| c.iter().find(|p| p["part"] == part)).and_then(|p| p["id"].as_u64());
     let (Some(dell), Some(mara)) = (cast("Dell"), cast("Mara")) else {
-        eprintln!("the episode is {}, with no Dell and Mara; not played this run", w["episode"]);
-        return;
+        panic!("the episode is {}, with no Dell and Mara; not played this run", w["episode"]);
     };
     let tap = w["things"].as_array().and_then(|t| t.iter().find(|t| t["name"] == "tap")).expect("The Tap has its tap");
     let tap = [tap["at"][0].as_f64().unwrap_or(0.0), tap["at"][1].as_f64().unwrap_or(0.0)];

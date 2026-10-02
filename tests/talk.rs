@@ -34,8 +34,7 @@ fn told_by(p: &serde_json::Value, key: u64) -> Option<u64> {
 fn dell_tells_the_player_of_the_tap() {
     let w = op("world");
     if w["episode"] != "The Tap" {
-        eprintln!("the episode is {}, not The Tap; its opening is not read this run", w["episode"]);
-        return;
+        panic!("the episode is {}, not The Tap; its opening is not read this run", w["episode"]);
     }
     let (dell, tap) = dell_and_the_tap(&w).expect("The Tap has Dell and the tap");
     let player = op("player")["id"].as_u64().expect("the player op reports the player's id");
@@ -54,8 +53,7 @@ fn use_on_a_person_opens_the_talk_panel() {
     crate::endpoint::player_alive();
     let w = op("world");
     let Some((dell, _)) = dell_and_the_tap(&w) else {
-        eprintln!("the episode is {}, with no Dell; not read this run", w["episode"]);
-        return;
+        panic!("the episode is {}, with no Dell; not read this run", w["episode"]);
     };
     let player = op("player")["id"].as_u64().expect("the player op reports the player's id");
     let mut talk = serde_json::Value::Null;
@@ -88,8 +86,7 @@ fn the_talk_op_brings_a_talk_now() {
     crate::endpoint::player_alive();
     let w = op("world");
     let Some((dell, tap)) = dell_and_the_tap(&w) else {
-        eprintln!("the episode is {}, with no Dell and tap; not read this run", w["episode"]);
-        return;
+        panic!("the episode is {}, with no Dell and tap; not read this run", w["episode"]);
     };
     let player = op("player")["id"].as_u64().expect("the player op reports the player's id");
         op_with("use", serde_json::json!({"id": player, "person": dell}));
