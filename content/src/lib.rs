@@ -235,6 +235,31 @@ impl Default for ItemRegistryRes {
     }
 }
 
+/// Every item's one fixed value, in scrap (operator, 2026-10-02; modforge
+/// `trade`): what trading weighs. Scrap, the currency, is worth 1. Tuning.
+#[derive(Resource)]
+pub struct ItemValuesRes(pub modforge::trade::Values);
+
+impl Default for ItemValuesRes {
+    fn default() -> Self {
+        let values = [
+            ("scrap", 1),
+            ("cloth", 2),
+            ("shotgun shell", 3),
+            ("wooden handle", 3),
+            ("long pole", 3),
+            ("pipe", 4),
+            ("bandage", 8),
+            ("water bottle", 10),
+            ("canned food", 12),
+            ("storage box", 15),
+            ("road sign vest", 25),
+            ("pipe shotgun", 60),
+        ];
+        Self(modforge::trade::Values(values.into_iter().map(|(item, value)| (item.to_string(), value)).collect()))
+    }
+}
+
 /// The layer registry as an app resource (design.md "What 2D changes":
 /// every item is made in layers): every layer a stack carries is a def
 /// from here.

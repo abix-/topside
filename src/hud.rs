@@ -36,6 +36,22 @@ const PANEL_COLOR: Color = Color::srgba(0.05, 0.05, 0.05, 0.8);
 const SLOT_COLOR: Color = Color::srgba(0.12, 0.11, 0.1, 0.85);
 const HELD_COLOR: Color = Color::srgba(0.45, 0.38, 0.2, 0.95);
 const HOVER_COLOR: Color = Color::srgba(0.3, 0.3, 0.32, 0.95);
+/// A stack put on the table in a trade.
+const OFFER_COLOR: Color = Color::srgba(0.2, 0.42, 0.25, 0.95);
+
+/// The trade screen (trade.rs): the player's inventory and the other's,
+/// side by side, the deal between them.
+#[derive(Component)]
+pub struct TradeScreen;
+
+/// The trade screen's words: what each side puts on the table, what it is
+/// worth, and their answer.
+#[derive(Component)]
+pub struct TradeText;
+
+/// The trade screen's Deal button.
+#[derive(Component)]
+pub struct DealButton;
 
 /// One slot on screen and which holder's slot it shows.
 #[derive(Component)]
@@ -66,19 +82,22 @@ pub fn icons_of(
         .unwrap_or_default()
 }
 
-/// What is in `slot` of the player's holders, if anything.
+/// What is in `slot` of the player's holders, or of the one they trade
+/// with (`theirs`), if anything.
 fn stack_at<'a>(
     slot: SlotRef,
     inventory: &'a Inventory,
     hotbar: &'a Hotbar,
     worn: &'a Equipment,
     container: Option<&'a Container>,
+    theirs: Option<&'a Inventory>,
 ) -> Option<&'a modforge::item::ItemStack> {
     let holder = match slot.holder {
         Holder::Inventory => &inventory.0,
         Holder::Hotbar => &hotbar.0.slots,
         Holder::Container => &container?.0,
         Holder::Equipment => return worn.0.get(slot.index),
+        Holder::Theirs => &theirs?.0,
     };
     holder.slots.get(slot.index).and_then(|s| s.as_ref())
 }
@@ -489,6 +508,90 @@ pub fn setup(mut commands: Commands) {
                     });
                 });
         });
+    // The trade screen: the player's inventory left of the middle, the
+    // other's right of it, the deal over them (Fallout's barter screen).
+    commands
+        .spawn((TradeScreen, whole_screen(), Pickable::IGNORE, Visibility::Hidden))
+        .with_children(|screen| {
+            let side = |left: bool| Node {
+                position_type: PositionType::Absolute,
+                bottom: Val::Px(over_belt),
+                left: if left { Val::Auto } else { Val::Percent(50.0) },
+                right: if left { Val::Percent(50.0) } else { Val::Auto },
+                margin: if left { UiRect::right(Val::Px(MARGIN_PX / 2.0)) } else { UiRect::left(Val::Px(MARGIN_PX / 2.0)) },
+                ..default()
+            };
+            panel(screen, Holder::Inventory, INVENTORY_SLOTS, ACROSS, side(true));
+            panel(screen, Holder::Theirs, INVENTORY_SLOTS, ACROSS, side(false));
+            let inventory_tall = (INVENTORY_SLOTS / ACROSS) as f32 * (SLOT_PX + GAP_PX) - GAP_PX + 2.0 * PAD_PX;
+            screen
+                .spawn((
+                    Node {
+                        position_type: PositionType::Absolute,
+                        bottom: Val::Px(over_belt + inventory_tall + MARGIN_PX),
+                        left: Val::Percent(50.0),
+                        margin: UiRect::left(Val::Px(-panel_width(ACROSS))),
+                        width: Val::Px(2.0 * panel_width(ACROSS)),
+                        flex_direction: FlexDirection::Column,
+                        row_gap: Val::Px(6.0),
+                        padding: UiRect::all(Val::Px(PAD_PX)),
+                        ..default()
+                    },
+                    BackgroundColor(PANEL_COLOR),
+                ))
+                .with_children(|bar| {
+                    bar.spawn((TradeText, Text::new(""), TextFont::from_font_size(14.0)));
+                    bar.spawn((DealButton, button_node(), BackgroundColor(HELD_COLOR)))
+                        .with_child((Text::new("Deal"), TextFont::from_font_size(14.0), Pickable::IGNORE))
+                        .observe(click_deal);
+                });
+        });
+}
+
+/// The Deal button clicked: the player puts the deal to the one they trade
+/// with.
+fn click_deal(_: On<Pointer<Click>>, tick: Res<crate::SimTick>, mut players: Query<&mut Actions, With<Player>>) {
+    if let Ok(mut actions) = players.single_mut() {
+        actions.0.push(tick.0 + 1, Action::Deal);
+    }
+}
+
+/// The trade screen, shown while trading: what each side puts on the table
+/// and what it is worth (modforge `trade::Values`), and whether the last
+/// deal put was refused.
+pub fn render_trade(
+    values: Res<crate::content::ItemValuesRes>,
+    players: Query<(&Hud, &Inventory), With<Player>>,
+    people: Query<(&crate::actor::Actor, &Inventory), Without<Player>>,
+    mut screen: Query<&mut Visibility, With<TradeScreen>>,
+    mut words: Query<&mut Text, With<TradeText>>,
+) {
+    let Ok((hud, mine)) = players.single() else {
+        return;
+    };
+    let trading = hud.0.trading.as_ref().filter(|_| hud.0.open_panel == OpenPanel::Trade);
+    if let Ok(mut v) = screen.single_mut() {
+        *v = if trading.is_some() { Visibility::Visible } else { Visibility::Hidden };
+    }
+    let (Some(t), Ok(mut text)) = (trading, words.single_mut()) else {
+        return;
+    };
+    let theirs = people.iter().find(|(a, _)| a.0.0 == t.with).map(|(_, i)| i);
+    let side = |inventory: Option<&Inventory>, offer: &modforge::trade::Offer| {
+        let stacks = inventory.and_then(|i| modforge::trade::offered(&i.0, offer)).unwrap_or_default();
+        let names: Vec<String> = stacks.iter().map(|s| if s.count > 1 { format!("{} x{}", s.item, s.count) } else { s.item.clone() }).collect();
+        (if names.is_empty() { "nothing".to_string() } else { names.join(", ") }, values.0.worth(&stacks))
+    };
+    let (give, give_worth) = side(Some(mine), &t.mine);
+    let (get, get_worth) = side(theirs, &t.theirs);
+    let answer = if t.refused {
+        format!("\n{}: \"Not for that.\"", t.name)
+    } else if t.no_room {
+        "\nNo room to carry it all.".to_string()
+    } else {
+        String::new()
+    };
+    text.0 = format!("Trading with {}\nYou give: {give} (worth {give_worth})\nYou get: {get} (worth {get_worth}){answer}", t.name);
 }
 
 /// A button of the item information panel.
@@ -554,11 +657,22 @@ pub fn render(
     mut screen: Query<&mut Visibility, (With<InventoryScreen>, Without<SlotUi>, Without<Panel>)>,
     mut panels: Query<(&Panel, &mut Visibility), (Without<SlotUi>, Without<InventoryScreen>)>,
     mut note: Query<(&mut Text, &mut Visibility), (With<NotePanel>, Without<SlotUi>, Without<InventoryScreen>, Without<Panel>)>,
+    people: Query<(&crate::actor::Actor, &Inventory), Without<Player>>,
 ) {
     let Ok((inventory, hotbar, worn, hud, open)) = players.single() else {
         return;
     };
     let container = open.0.and_then(|e| containers.get(e).ok());
+    // The one traded with, and what is on the table.
+    let trading = hud.0.trading.as_ref();
+    let theirs = trading.and_then(|t| people.iter().find(|(a, _)| a.0.0 == t.with)).map(|(_, i)| i);
+    let on_table = |slot: SlotRef| {
+        trading.is_some_and(|t| match slot.holder {
+            Holder::Inventory => t.mine.iter().any(|&(s, _)| s == slot.index),
+            Holder::Theirs => t.theirs.iter().any(|&(s, _)| s == slot.index),
+            _ => false,
+        })
+    };
     let inventory_open = hud.0.open_panel == OpenPanel::Inventory;
     if let Ok(mut v) = screen.single_mut() {
         *v = if inventory_open { Visibility::Visible } else { Visibility::Hidden };
@@ -573,7 +687,11 @@ pub fn render(
             let exists = container.is_some_and(|c| slot.0.index < c.0.slots.len());
             *visibility = if exists { Visibility::Inherited } else { Visibility::Hidden };
         }
-        let stack = stack_at(slot.0, inventory, hotbar, worn, container);
+        if slot.0.holder == Holder::Theirs {
+            let exists = theirs.is_some_and(|i| slot.0.index < i.0.slots.len());
+            *visibility = if exists { Visibility::Inherited } else { Visibility::Hidden };
+        }
+        let stack = stack_at(slot.0, inventory, hotbar, worn, container, theirs);
         let item = stack.map(|s| s.item.clone());
         if icons.item != item {
             icons.item = item;
@@ -596,6 +714,8 @@ pub fn render(
         let held = slot.0.holder == Holder::Hotbar && hotbar.0.held == Some(slot.0.index);
         color.0 = if hovered.0 == Some(slot.0) || hud.0.selected == Some(slot.0) {
             HOVER_COLOR
+        } else if on_table(slot.0) {
+            OFFER_COLOR
         } else if held {
             HELD_COLOR
         } else {
@@ -634,7 +754,7 @@ pub fn render_item_panel(
     };
     let container = open.0.and_then(|e| containers.get(e).ok());
     let shown = hud.0.selected.and_then(|slot| {
-        let stack = stack_at(slot, inventory, hotbar, worn, container)?;
+        let stack = stack_at(slot, inventory, hotbar, worn, container, None)?;
         let def = items.0.def(&stack.item)?;
         Some((
             Shown {
@@ -764,11 +884,25 @@ pub fn render_sky(
 
 /// A click on a slot selects it (modforge's `select_slot`): its item
 /// shows in the item information panel, Rust's. Using it is the panel's
-/// Eat, Drink, Use, or Wear.
-fn click_slot(click: On<Pointer<Click>>, slots: Query<&SlotUi>, mut commands: Commands) {
-    if let Ok(slot) = slots.get(click.entity) {
-        commands.run_system_cached_with(select, slot.0);
+/// Eat, Drink, Use, or Wear. While trading, a click puts its stack on the
+/// table or takes it off (`Action::OfferSlot`, trade.rs).
+fn click_slot(
+    click: On<Pointer<Click>>,
+    slots: Query<&SlotUi>,
+    tick: Res<crate::SimTick>,
+    mut players: Query<(&Hud, &mut Actions), With<Player>>,
+    mut commands: Commands,
+) {
+    let Ok(slot) = slots.get(click.entity) else {
+        return;
+    };
+    if let Ok((hud, mut actions)) = players.single_mut()
+        && hud.0.open_panel == OpenPanel::Trade
+    {
+        actions.0.push(tick.0 + 1, Action::OfferSlot { slot: slot.0 });
+        return;
     }
+    commands.run_system_cached_with(select, slot.0);
 }
 
 /// The player selects `slot`.
@@ -1011,8 +1145,9 @@ pub fn hud_keys(
                             Some(c) => &mut c.0,
                             None => continue,
                         },
-                        // Worn gear comes off by dragging, not by a click.
-                        Holder::Equipment => continue,
+                        // Worn gear comes off by dragging, not by a click;
+                        // what someone else carries is not the player's to use.
+                        Holder::Equipment | Holder::Theirs => continue,
                     };
                     let item = holder.slots.get(slot.index).and_then(|s| s.as_ref()).map(|s| s.item.clone());
                     if let Ok(heal) = use_slot(&mut needs.0, holder, slot.index, &registry.0, &mut worn.0)

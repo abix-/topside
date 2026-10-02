@@ -42,6 +42,28 @@ static PLAYER: Mutex<Json> = Mutex::new(Json::Null);
 static WAYS: Mutex<Json> = Mutex::new(Json::Null);
 /// The `kill` op's request: the ActorId to kill on the game's next step.
 static KILL_ASK: Mutex<Option<u64>> = Mutex::new(None);
+/// The `give` op's requests: to whom (ActorId), what item, how many, and
+/// whether their inventory is emptied first.
+static GIVE_ASK: Mutex<Vec<(u64, String, u32, bool)>> = Mutex::new(Vec::new());
+
+/// The `give` op's requests, on the game's next step: the inventory emptied
+/// if asked, then each item made (modforge `item::create`, the one way
+/// things come into being) into it, as far as it has room.
+pub fn answer_give(items: Res<crate::content::ItemRegistryRes>, mut people: Query<(&Actor, &mut crate::actor::Inventory)>) {
+    let asks: Vec<(u64, String, u32, bool)> = GIVE_ASK.lock().map(|mut ask| ask.drain(..).collect()).unwrap_or_default();
+    for (id, item, count, clear) in asks {
+        let (Some(def), Some((_, mut inventory))) = (items.0.def(&item), people.iter_mut().find(|(a, _)| a.0.0 == id)) else {
+            warn!("give: no item {item}, or nobody by id {id}");
+            continue;
+        };
+        if clear {
+            inventory.0.drain_all();
+        }
+        if let Some(left) = inventory.0.add(modforge::item::create(def, count, &[], 0.0, 0), def.max_stack) {
+            warn!("give: no room for {} {item}", left.count);
+        }
+    }
+}
 /// Where the `use` op's person uses: a point, or wherever a person stands
 /// when the game takes the request (people keep walking).
 #[derive(Clone, Copy)]
@@ -671,7 +693,8 @@ pub fn publish_hud(
     windows: Query<&Window, With<bevy::window::PrimaryWindow>>,
     screen: Query<&Visibility, With<crate::hud::InventoryScreen>>,
     panels: Query<(&crate::hud::Panel, &UiGlobalTransform)>,
-    slots: Query<(&crate::hud::SlotUi, &crate::hud::SlotIcons)>,
+    slots: Query<(&crate::hud::SlotUi, &crate::hud::SlotIcons, &UiGlobalTransform, &InheritedVisibility)>,
+    deal: Query<(&UiGlobalTransform, &InheritedVisibility), With<crate::hud::DealButton>>,
     item_panel: Query<&crate::hud::ItemPanel>,
     talk_box: Query<&Visibility, With<crate::hud::TalkBox>>,
     choice_list: Query<&Node, With<crate::hud::ChoiceList>>,
@@ -705,25 +728,31 @@ pub fn publish_hud(
         .map(|(panel, at)| {
             json!({
                 "holder": format!("{:?}", panel.0),
-                "slots": slots.iter().filter(|(s, _)| s.0.holder == panel.0).count(),
+                "slots": slots.iter().filter(|(s, ..)| s.0.holder == panel.0).count(),
                 "x": at.translation.x / w,
                 "y": at.translation.y / h,
             })
         })
         .collect();
-    // Every slot with something in it, and the icons it shows.
+    // Every slot with something in it, the icons it shows, and, while it
+    // is shown, where it is on screen in logical pixels (for the `pointer`
+    // op).
+    let scale = window.scale_factor();
+    let on_screen = |at: &UiGlobalTransform, shown: &InheritedVisibility| shown.get().then(|| [at.translation.x / scale, at.translation.y / scale]);
     let filled: Vec<Json> = slots
         .iter()
-        .filter_map(|(slot, icons)| {
+        .filter_map(|(slot, icons, at, shown)| {
             let item = icons.item.as_ref()?;
             Some(json!({
                 "holder": format!("{:?}", slot.0.holder),
                 "index": slot.0.index,
                 "item": item,
                 "icons": icons.shown,
+                "at": on_screen(at, shown),
             }))
         })
         .collect();
+    let deal_at = deal.single().ok().and_then(|(at, shown)| on_screen(at, shown));
     // The item information panel: the selected slot and what it shows.
     let selected = item_panel.single().ok().and_then(|p| p.shown.as_ref()).map(|s| {
         json!({
@@ -748,6 +777,12 @@ pub fn publish_hud(
             "prompt": players.single().map_or(String::new(), |h| h.0.prompt.text.clone()),
             // Whether a note is open, being read.
             "reading": players.single().is_ok_and(|h| h.0.reading.is_some()),
+            // The trade being made: with whom, the slots each side puts on
+            // the table, and whether the last deal was refused.
+            "trading": players.single().ok().and_then(|h| h.0.trading.as_ref()).map(|t| json!({
+                "with": t.with, "name": t.name, "mine": t.mine, "theirs": t.theirs, "refused": t.refused, "no_room": t.no_room,
+                "deal_at": deal_at,
+            })),
             // The controls still shown, one a line.
             "hints": shown_hints,
             // Where Bevy picking has the `pointer` op's pointer now, in
@@ -972,7 +1007,10 @@ pub fn publish(
     items: Res<crate::content::ItemRegistryRes>,
     layers: Res<crate::content::LayerRegistryRes>,
     tree: Res<crate::content::brain::BrainTreeRes>,
-    players: Query<(&Transform, &Health, &Survival, &Actor, &crate::actor::Memory, Has<crate::actor::Dead>, Option<&crate::ai::Following>), With<Player>>,
+    players: Query<
+        (&Transform, &Health, &Survival, &Actor, &crate::actor::Memory, Has<crate::actor::Dead>, Option<&crate::ai::Following>, &crate::actor::Inventory),
+        With<Player>,
+    >,
     player_walk: (Query<(Option<&crate::navmesh::Walker>, &ThisTick, Option<&crate::command::Commanded>), With<Player>>, crate::navmesh::Ways),
     npcs: Query<(
         (&Actor, &Npc, &Transform, &Health, &Survival, &Personality, &ThisTick, Option<&Name>),
@@ -994,7 +1032,7 @@ pub fn publish(
         }
         *last_second = Some((tick.0, now));
     }
-    if let Ok((at, health, needs, actor, memory, dead, following)) = players.single() {
+    if let Ok((at, health, needs, actor, memory, dead, following, inventory)) = players.single() {
         // Who the player is and what they know, once a second, for the
         // `player` op: every thing known (and who told them, if told), and
         // everything they heard said.
@@ -1006,6 +1044,8 @@ pub fn publish(
                 "at": [at.translation.x, at.translation.z],
                 "dead": dead,
                 "following": following.map(|f| f.0.0),
+                // What they carry, as the npc op's "carrying".
+                "carrying": inventory.0.slots.iter().flatten().map(|s| json!({"item": s.item, "count": s.count})).collect::<Vec<_>>(),
                 // Their walk on the navigation mesh, as the npc op's "way",
                 // their commands left, and what they do this tick.
                 "way": player_walk.0.single().ok().and_then(|(walker, ..)| crate::navmesh::way_of(walker, &player_walk.1)).map(|(state, target)| json!({
@@ -1306,6 +1346,21 @@ pub fn start() {
                 *ask = Some(id);
             }
             Ok(json!({"kill": id}))
+        },
+    ));
+    OP_REGISTRY.register(OpDef::new(
+        "give",
+        "put `count` (1 when left out) of `item` into the inventory of the living person `id` (see `people`) on the game's next step, made as every item is made, so a test sets up what someone carries; `clear` empties their inventory first",
+        "{\"id\": 1, \"item\": \"scrap\", \"count\": 20, \"clear\": true}",
+        |args| {
+            let id = args.get("id").and_then(Json::as_u64).ok_or_else(|| "id: a number".to_string())?;
+            let item = args.get("item").and_then(Json::as_str).ok_or_else(|| "item: a name".to_string())?.to_string();
+            let count = args.get("count").and_then(Json::as_u64).unwrap_or(1) as u32;
+            let clear = args.get("clear").and_then(Json::as_bool).unwrap_or(false);
+            if let Ok(mut ask) = GIVE_ASK.lock() {
+                ask.push((id, item.clone(), count, clear));
+            }
+            Ok(json!({"give": id, "item": item, "count": count}))
         },
     ));
     OP_REGISTRY.register(OpDef::new(

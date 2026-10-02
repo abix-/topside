@@ -36,6 +36,7 @@ mod talk_ui;
 mod the_dead;
 mod the_tap;
 mod thirst;
+mod trade;
 mod view;
 mod wander;
 mod weapons;

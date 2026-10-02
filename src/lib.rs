@@ -26,6 +26,7 @@ pub mod structure;
 pub mod survival;
 pub mod talk;
 pub mod terrain;
+pub mod trade;
 
 pub use topside_content as content;
 
@@ -134,6 +135,7 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind) -> App {
     app.init_resource::<content::BiomeRegistryRes>();
     app.init_resource::<content::MonumentRegistryRes>();
     app.init_resource::<content::ItemRegistryRes>();
+    app.init_resource::<content::ItemValuesRes>();
     app.init_resource::<content::LayerRegistryRes>();
     app.init_resource::<content::DamageRegistryRes>();
     app.init_resource::<content::ActorRegistryRes>();
@@ -219,7 +221,7 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind) -> App {
             )
                 .chain(),
             (
-                (talk::look_at, interact::interact_on_use, interact::knock, talk::talk, talk::conversations, talk::speak_up, talk::word_spreads).chain(),
+                (talk::look_at, interact::interact_on_use, interact::knock, talk::talk, trade::trade, talk::conversations, talk::speak_up, talk::word_spreads).chain(),
                 lap("interact"),
                 (player::movement, sight::look_around, sight::share_maps).chain(),
                 lap("movement"),
@@ -236,7 +238,7 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind) -> App {
                 control_plane::publish,
                 control_plane::publish_world,
                 control_plane::publish_ways,
-                (control_plane::answer_npc, control_plane::answer_kill, control_plane::answer_use, control_plane::answer_talk, control_plane::answer_walk).chain(),
+                (control_plane::answer_npc, control_plane::answer_kill, control_plane::answer_give, control_plane::answer_use, control_plane::answer_talk, control_plane::answer_walk).chain(),
                 lap("publish"),
             )
                 .chain(),
@@ -312,6 +314,7 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind) -> App {
                 input::read_input,
                 hud::render,
                 hud::render_item_panel,
+                hud::render_trade,
                 hud::render_death,
                 hud::render_vitals,
                 hud::render_station,

@@ -292,14 +292,9 @@ fn nearest_enemy(
             if *e == me || *d || a.0 == my_id || crate::interact::feet_of(t).distance(here) > def.sight {
                 return false;
             }
-            let own = modforge::relationship::feeling(&memory.0, a.0, heard);
-            let feelings = everyone
-                .iter()
-                .filter(|m| !m.5 && faction_of(m.3, m.6).is_some() && faction_of(m.3, m.6) == mine)
-                .map(|m| modforge::relationship::feeling(&m.4.0, a.0, heard));
-            let standing = modforge::relationship::standing(feelings);
-            let table = factions.0.relation(mine.as_deref(), faction_of(*them, *p).as_deref());
-            modforge::relationship::stands(own, standing, table) == modforge::faction::Relation::Hostile
+            let members = everyone.iter().filter(|m| !m.5 && faction_of(m.3, m.6).is_some() && faction_of(m.3, m.6) == mine).map(|m| m.4);
+            crate::actor::stands_toward((memory, mine.as_deref()), members, (a.0, faction_of(*them, *p).as_deref()), &factions.0, heard)
+                == modforge::faction::Relation::Hostile
         })
         .min_by(|a, b| crate::interact::feet_of(a.2).distance(here).total_cmp(&crate::interact::feet_of(b.2).distance(here)))
         .map(|(_, a, ..)| a.0.0)

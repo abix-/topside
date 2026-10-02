@@ -73,10 +73,21 @@ pub fn talking_with(with: u64, name: &str) -> modforge::hud::Talking {
     modforge::hud::Talking { with, name: name.to_string(), ..Default::default() }
 }
 
-/// A person held where they stand while the player talks to them (they
-/// stop to talk, as anyone would); let go when the conversation ends.
+/// A person held where they stand while the player talks or trades with
+/// them (they stop to talk, as anyone would); let go when it ends.
 #[derive(Component)]
 pub struct HeldToTalk;
+
+/// Hold `them` where their feet are (`at`), to talk or trade: asked to be
+/// there, the same `Asked` the brain weighs.
+pub fn hold(commands: &mut Commands, them: Entity, at: Vec3) {
+    commands.entity(them).insert((crate::actor::Asked(at), HeldToTalk));
+}
+
+/// Let `them` go back to what they were doing, if they were held.
+pub fn let_go(commands: &mut Commands, them: Entity) {
+    commands.entity(them).remove::<(crate::actor::Asked, HeldToTalk)>();
+}
 
 /// Every line anyone can say now: the running episode's, then plain talk
 /// (content). A `Said::Line` names its line by its place here.
@@ -314,8 +325,10 @@ pub fn conversations(
         modforge::memory::Did::Heard(by, l) if *t >= talking.started && *by == with => Some((their_name.clone(), l.words.clone())),
         _ => None,
     });
+    // Ending: nothing more to say, but anyone can still be asked to trade
+    // until the box closes.
     if talking.ends_at.is_some() {
-        shown.choices.clear();
+        shown.choices.retain(|c| matches!(c.said, Said::Trade));
         return;
     }
     let Some((them, _, there, their_memory, their_survival, mut actions, asked)) = people.iter_mut().find(|(_, a, ..)| a.0 == with) else {
@@ -332,7 +345,7 @@ pub fn conversations(
     let their_at = crate::interact::feet_of(there);
     // They stop to talk, unless something already has them going somewhere.
     if !asked {
-        commands.entity(them).insert((crate::actor::Asked(their_at), HeldToTalk));
+        hold(&mut commands, them, their_at);
     }
     // They face whoever they talk to, the same Aim the brain pushes.
     actions.0.push(tick.0, Action::Aim { x: here.x, y: here.z });
@@ -360,7 +373,7 @@ pub fn conversations(
     let (rows, silence) = modforge::talk::shown_and_silence(&lines.0, &open);
     // A threat is a line heard below hostile (life.md "How a person feels
     // about others"), shown <Threaten>.
-    let choices: Vec<modforge::hud::Choice> = rows
+    let mut choices: Vec<modforge::hud::Choice> = rows
         .into_iter()
         .filter_map(|i| {
             let (words, _) = words_of(&lines.0[i], i, (player.0, &memory.0), talking.started, &episode, world.bunker, seed.0)?;
@@ -371,6 +384,9 @@ pub fn conversations(
             })
         })
         .collect();
+    // Anyone can be asked to trade (design.md "Trading"); whether they will
+    // is how they stand toward the player (trade::trade).
+    choices.push(modforge::hud::Choice { said: Said::Trade, words: "Let's trade.".to_string(), threat: false });
     if choices != shown.choices {
         shown.choices = choices;
     }
@@ -445,7 +461,7 @@ pub fn end_conversations(
         if let Some(them) = map.0.handle_of(ActorId(talking.with))
             && held.contains(them)
         {
-            commands.entity(them).remove::<(crate::actor::Asked, HeldToTalk)>();
+            let_go(&mut commands, them);
         }
     }
 }

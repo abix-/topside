@@ -111,6 +111,22 @@ pub struct Personality(pub modforge::actor::Personality);
 #[derive(Component, Default, Debug, Clone, PartialEq)]
 pub struct Memory(pub modforge::memory::Memory);
 
+/// How someone stands toward `them`, by the one rule (modforge
+/// `relationship::stands`): their own feeling (`memory`), else their
+/// faction's standing (every living member's feeling, `members`), else the
+/// faction table between `faction` and theirs.
+pub fn stands_toward<'a>(
+    (memory, faction): (&Memory, Option<&str>),
+    members: impl Iterator<Item = &'a Memory>,
+    (them, their_faction): (ActorId, Option<&str>),
+    factions: &modforge::faction::FactionRegistry,
+    heard: impl Fn(&str) -> f32 + Copy,
+) -> modforge::faction::Relation {
+    let own = modforge::relationship::feeling(&memory.0, them, heard);
+    let standing = modforge::relationship::standing(members.map(|m| modforge::relationship::feeling(&m.0, them, heard)));
+    modforge::relationship::stands(own, standing, factions.relation(faction, their_faction))
+}
+
 /// The map this person carries (modforge `map`, life.md "The map each
 /// person carries"): every tile they have seen; the tile they last looked
 /// around from; and how many tiles their bunker told them of that they

@@ -35,6 +35,13 @@ fn npc_at(id: u64) -> (f64, f64, f64) {
     spot(&op_with("npc", json!({"id": id})))
 }
 
+/// Person `id`'s walk, commands and actions now, one line, to read a stop
+/// by.
+fn npc_doing(id: u64) -> String {
+    let p = op_with("npc", json!({"id": id}));
+    format!("way {}, commands {}, acting {}", p["way"], p["commands"], p["this_tick"])
+}
+
 /// Where the player stands now (the `status` op, every step).
 fn player_at() -> (f64, f64, f64) {
     let s = op("status");
@@ -45,16 +52,17 @@ fn player_at() -> (f64, f64, f64) {
 /// 1.5 m of `to` on its level within `secs` real seconds, and the nearest
 /// they came: a command ends on arrival and a person's brain walks them on
 /// at once, faster than the once-a-second `people` op shows.
-fn comes_to(at: impl Fn() -> (f64, f64, f64), to: (f64, f64, f64), secs: u64) -> (bool, f64) {
+fn comes_to(at: impl Fn() -> (f64, f64, f64), doing: impl Fn() -> String, to: (f64, f64, f64), secs: u64) -> (bool, f64) {
     let start = std::time::Instant::now();
     let mut nearest = f64::INFINITY;
     let mut traced = 0;
     while start.elapsed() < Duration::from_secs(secs) {
         let (x, z, feet) = at();
-        // Where they are, every two seconds, to read a stop by.
+        // Where they are and what they do, every two seconds, to read a
+        // stop by.
         if start.elapsed().as_secs() / 2 >= traced {
             traced += 1;
-            eprintln!("    {:.1} s: at ({x:.2}, {z:.2}), feet {feet:.2}", start.elapsed().as_secs_f64());
+            eprintln!("    {:.1} s: at ({x:.2}, {z:.2}), feet {feet:.2}; {}", start.elapsed().as_secs_f64(), doing());
         }
         if (feet - to.2).abs() < 0.5 {
             nearest = nearest.min(((x - to.0).powi(2) + (z - to.1).powi(2)).sqrt());
@@ -75,6 +83,12 @@ fn the_player_shut_in_their_room() -> (f64, f64, f64) {
     crate::endpoint::player_alive();
     // No commands left from an earlier test.
     op_with("replay", json!({"stop": true}));
+    // Roxanne out of the room first, up in the entrance (an earlier test
+    // can leave her in it with the player).
+    let id = roxanne()["id"].as_u64().expect("Roxanne's id");
+    op_with("command", json!({"id": id, "do": "move_to", "x": 1.5, "y": 0.0, "z": 0.0}));
+    let (out, _) = comes_to(|| npc_at(id), || npc_doing(id),(1.5, 0.0, 0.0), 20);
+    assert!(out, "Roxanne never went up to the entrance before the test");
     let player = op("player")["id"].as_u64().expect("the player op reports the player's id");
     let wake = |_: ()| {
         op_with("kill", json!({"id": player}));
@@ -157,7 +171,7 @@ fn walks_the_stairs_up_and_down_three_times() {
     for trip in 1..=3 {
         for (name, to) in [("down to the room", in_the_room), ("up to the entrance", entrance)] {
             op_with("command", json!({"id": id, "do": "move_to", "x": to.0, "y": to.2, "z": to.1}));
-            let (got, nearest) = comes_to(|| npc_at(id), to, 20);
+            let (got, nearest) = comes_to(|| npc_at(id), || npc_doing(id),to, 20);
             eprintln!("trip {trip}, {name}: {got}, nearest {nearest:.2} m, Roxanne at {:?}", npc_at(id));
             if !got {
                 crate::endpoint::why_they_stopped(id, (to.0, to.2, to.1));
@@ -179,7 +193,7 @@ fn leads_the_player_from_their_room_up_to_the_entrance() {
     // She comes down to the player first, to lead them from their room.
     let (came, _) = {
         op_with("command", json!({"id": id, "do": "move_to", "x": room.0 - 1.5, "y": room.2, "z": room.1 + 1.5}));
-        comes_to(|| npc_at(id), (room.0 - 1.5, room.1 + 1.5, room.2), 20)
+        comes_to(|| npc_at(id), || npc_doing(id),(room.0 - 1.5, room.1 + 1.5, room.2), 20)
     };
     assert!(came, "Roxanne never came down to the player's room");
     let entrance = (1.5, 0.0, 0.0);
@@ -209,6 +223,43 @@ fn leads_the_player_from_their_room_up_to_the_entrance() {
     assert!(near(me) && near(her), "the lead ended with the player at {me:?} and Roxanne at {her:?}, not both within 2 m of the entrance");
 }
 
+/// Roxanne and the player pass each other: she sent up from the player's
+/// room to the entrance and the player down from the entrance to the room
+/// at once, through the same doorways and stairs; both get there (walkers
+/// stuck in each other's way step aside).
+#[test]
+fn she_and_the_player_pass_each_other_on_the_way() {
+    let room = the_player_shut_in_their_room();
+    let id = roxanne()["id"].as_u64().expect("Roxanne's id");
+    let player = op("player")["id"].as_u64().expect("the player op reports the player's id");
+    let entrance = (1.5, 0.0, 0.0);
+    let in_the_room = (room.0 - 1.5, room.1 + 1.5, room.2);
+    // Her in the room, the player up in the entrance.
+    op_with("command", json!({"id": id, "do": "move_to", "x": in_the_room.0, "y": in_the_room.2, "z": in_the_room.1}));
+    let (in_room, _) = comes_to(|| npc_at(id), || npc_doing(id), in_the_room, 20);
+    op_with("use", json!({"id": player, "at": [entrance.0, entrance.1]}));
+    assert!(in_room, "Roxanne never came down to the player's room");
+    // Both at once, past each other.
+    op_with("command", json!({"id": id, "do": "move_to", "x": entrance.0, "y": entrance.2, "z": entrance.1}));
+    op_with("command", json!({"do": "move_to", "x": in_the_room.0, "y": in_the_room.2, "z": in_the_room.1}));
+    let start = std::time::Instant::now();
+    let (mut she, mut he) = (false, false);
+    while start.elapsed() < Duration::from_secs(30) && !(she && he) {
+        let near = |p: (f64, f64, f64), to: (f64, f64, f64)| ((p.0 - to.0).powi(2) + (p.1 - to.1).powi(2)).sqrt() <= 1.5 && (p.2 - to.2).abs() < 0.5;
+        she |= near(npc_at(id), entrance);
+        he |= near(player_at(), in_the_room);
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    eprintln!("Roxanne up: {she}, the player down: {he}; Roxanne at {:?}, the player at {:?}", npc_at(id), player_at());
+    if !she {
+        crate::endpoint::why_they_stopped(id, (entrance.0, entrance.2, entrance.1));
+    }
+    if !he {
+        crate::endpoint::why_stopped((in_the_room.0, in_the_room.2, in_the_room.1));
+    }
+    assert!(she && he, "they never got past each other");
+}
+
 /// The player walks past Roxanne standing in their way: she has knocked
 /// and stands outside their door, talking, and the player, sent up to the
 /// entrance by a command, steps around her (every person a landmass agent)
@@ -227,7 +278,7 @@ fn the_player_steps_around_her_standing_at_their_door() {
     let entrance = (1.5, 0.0, 0.0);
     let entrance_3d = (entrance.0, entrance.2, entrance.1);
     op_with("command", json!({"do": "move_to", "x": entrance.0, "y": entrance.2, "z": entrance.1}));
-    let (there, nearest) = comes_to(player_at, entrance, 30);
+    let (there, nearest) = comes_to(player_at, || format!("way {}", op("player")["way"]), entrance, 30);
     crate::talk_ui::shot("stepped_around");
     eprintln!("there: {there}, nearest {nearest:.2} m; the player at {:?}, Roxanne at {:?}", player_at(), npc_at(id));
     if !there {
@@ -262,7 +313,7 @@ fn walks_down_to_the_players_room_and_back() {
     let from = npc_at(id);
     eprintln!("Roxanne ({id}) at {from:?}; the player's room at {room:?}");
     op_with("command", json!({"id": id, "do": "move_to", "x": room.0, "y": room.2, "z": room.1}));
-    let (down, nearest) = comes_to(|| npc_at(id), room, 30);
+    let (down, nearest) = comes_to(|| npc_at(id), || npc_doing(id),room, 30);
     crate::talk_ui::shot("roxanne_down");
     eprintln!("down: {down}, nearest {nearest:.2} m; Roxanne now at {:?}, doing {}", spot(&roxanne()), roxanne()["doing"]);
     if !down {
@@ -272,7 +323,7 @@ fn walks_down_to_the_players_room_and_back() {
     assert!(down, "Roxanne never reached the player's room at {room:?}");
 
     op_with("command", json!({"id": id, "do": "move_to", "x": from.0, "y": from.2, "z": from.1}));
-    let (back, nearest) = comes_to(|| npc_at(id), from, 30);
+    let (back, nearest) = comes_to(|| npc_at(id), || npc_doing(id),from, 30);
     eprintln!("back: {back}, nearest {nearest:.2} m; Roxanne now at {:?}", spot(&roxanne()));
     if !back {
         let her = op_with("npc", json!({"id": id}));

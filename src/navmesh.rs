@@ -54,6 +54,11 @@ const STEP_OUT_OF_A_DOORWAY: f32 = IN_THE_WAY_OF_A_DOORWAY + 0.6;
 const IN_A_WALKERS_WAY: f32 = 1.2;
 /// How far sideways someone in a walker's way steps, metres.
 const STEP_ASIDE: f32 = 1.0;
+/// Steps a walker makes no way, wanting to, before they step aside: half a
+/// second at 60 a second.
+const STUCK_STEPS: u32 = 30;
+/// Steps a walker stands aside before going on: a second.
+const STEP_ASIDE_FOR: u64 = 60;
 /// The most chunk meshes started in one frame, so making many chunks at
 /// once does not stall a frame (the building itself runs in the
 /// background).
@@ -259,33 +264,58 @@ pub fn walk(
         (Entity, &Transform, &mut crate::input::ThisTick, Option<&crate::actor::Personality>, Option<&Walker>, Has<crate::player::Player>),
         Without<crate::actor::Dead>,
     >,
-    mut agents: Query<(&mut AgentTarget3d, Option<&AgentDesiredVelocity3d>, &mut Velocity3d, &AgentState)>,
+    mut velocities: Query<&mut Velocity3d>,
+    mut agents: Query<(&mut AgentTarget3d, Option<&AgentDesiredVelocity3d>, &AgentState)>,
     archipelagos: Query<&Archipelago3d>,
+    // Each walker's feet last step, how many steps they have made no way,
+    // and the spot they step aside to, until the tick they go on.
+    mut stuck: Local<HashMap<Entity, (Vec3, u32)>>,
+    mut aside: Local<HashMap<Entity, (Vec3, u64)>>,
 ) {
     use crate::input::Action;
     use modforge::actions::{ActionQueue, Stamped};
     let archipelago = archipelagos.get(nav.archipelago).ok();
     // Everyone walking now: who, their feet, and the way they head (their
-    // agent's velocity, set below from their way or their keys).
+    // velocity, set below from their way or their keys).
     let walking: Vec<(Entity, Vec3, Vec2)> = people
         .iter()
         .filter_map(|(entity, at, _, _, walker, _)| {
-            let (_, _, velocity, _) = agents.get(walker?.0).ok()?;
-            let v = velocity.velocity;
+            let v = velocities.get(walker?.0).ok()?.velocity;
             let way = Vec2::new(v.x, v.z);
             (way.length() > 0.1).then(|| (entity, crate::interact::feet_of(at), way.normalize()))
         })
         .collect();
+    // Everyone's feet, walking or standing.
+    let everyone: Vec<(Entity, Vec3)> = people.iter().map(|(entity, at, ..)| (entity, crate::interact::feet_of(at))).collect();
     for (entity, at, mut this_tick, personality, walker, is_player) in &mut people {
         let speed = crate::player::WALK_SPEED * personality.map_or(1.0, |p| p.0.speed_mult());
+        // Everyone living has a landmass stand-in at their feet: a character
+        // while they stand (walkers steer round them), an agent while they
+        // walk (the way found and steered). Only walkers are agents: two
+        // people standing on one spot (put there together) as agents gave
+        // landmass's steering no way between them, and it failed.
+        let Some(stand_in) = walker.map(|w| w.0) else {
+            let stand_in = commands
+                .spawn((
+                    Transform::from_xyz(0.0, -crate::player::BODY_CENTRE, 0.0),
+                    character(nav.archipelago),
+                    Velocity3d::default(),
+                    ChildOf(entity),
+                ))
+                .id();
+            commands.entity(entity).insert(Walker(stand_in));
+            continue;
+        };
         let go = this_tick.0.iter().rev().find_map(|s| match s.action {
             Action::Go { x, y, z } => Some(Vec3::new(x, y, z)),
             _ => None,
         });
+        let walked = agents.get(stand_in).ok();
+        let was_walking = walked.is_some();
         // A Go is done once landmass has brought them there: it is held no
         // longer (each step holds the last Go between decisions), and they
         // stand.
-        let arrived = walker.and_then(|w| agents.get(w.0).ok()).is_some_and(|(target, .., state)| {
+        let arrived = walked.is_some_and(|(target, _, state)| {
             matches!(state, AgentState::ReachedTarget) && go.is_some_and(|to| matches!(*target, AgentTarget3d::Point(p) if p == to))
         });
         if arrived {
@@ -320,49 +350,77 @@ pub fn walk(
             let aside = out_of_a_doorway().or_else(out_of_a_walkers_way)?;
             archipelago.and_then(|a| on_mesh(a, aside))
         });
-        // Everyone living is a landmass agent, sent somewhere or not: the
-        // walkers step around each other and around whoever stands (landmass
-        // steers every agent round the agents near it). The agent stands at
-        // their feet.
-        let Some((mut target, desired, mut velocity, _)) = walker.and_then(|w| agents.get_mut(w.0).ok()) else {
-            if walker.is_none() {
-                let agent = commands
-                    .spawn((
-                        Transform::from_xyz(0.0, -crate::player::BODY_CENTRE, 0.0),
-                        Agent3dBundle {
-                            agent: Default::default(),
-                            settings: AgentSettings { radius: AGENT_RADIUS, desired_speed: speed, max_speed: speed * 1.2 },
-                            archipelago_ref: ArchipelagoRef3d::new(nav.archipelago),
-                        },
-                        AgentTarget3d::None,
-                        Velocity3d::default(),
-                        ChildOf(entity),
-                    ))
-                    .id();
-                commands.entity(entity).insert(Walker(agent));
-            }
-            continue;
-        };
         let Some(to) = go else {
             // Not sent anywhere: walking by their own move (the keys) or
             // standing, which the others steer by. Sent somewhere until now:
-            // they stop, or the Move this walker pushed is held on (each step
-            // keeps the last move: input::drain_actions) and they walk on
-            // into a wall.
-            if matches!(*target, AgentTarget3d::Point(_)) {
+            // they stop (or the Move this walker pushed is held on, each step
+            // keeping the last move, input::drain_actions, and they walk on
+            // into a wall), and stand as a character.
+            if was_walking {
                 this_tick.0.retain(|s| !matches!(s.action, Action::Move { .. }));
                 this_tick.0.push(Stamped { tick: tick.0, action: Action::Move { x: 0.0, y: 0.0 } });
+                commands
+                    .entity(stand_in)
+                    .remove::<(bevy_landmass::Agent3d, AgentSettings, AgentTarget3d, AgentState, AgentDesiredVelocity3d)>()
+                    .insert(character(nav.archipelago));
             }
-            *target = AgentTarget3d::None;
-            let (x, y) = ActionQueue::movement(&this_tick.0);
-            let way = Vec2::new(x, y).normalize_or_zero() * speed;
-            velocity.velocity = Vec3::new(way.x, 0.0, way.y);
+            if let Ok(mut velocity) = velocities.get_mut(stand_in) {
+                let (x, y) = ActionQueue::movement(&this_tick.0);
+                let way = Vec2::new(x, y).normalize_or_zero() * speed;
+                velocity.velocity = Vec3::new(way.x, 0.0, way.y);
+            }
             continue;
         };
-        *target = AgentTarget3d::Point(to);
+        // Sent somewhere: an agent, heading there (from the next step, the
+        // first time).
+        let Ok((mut target, desired, _)) = agents.get_mut(stand_in) else {
+            commands.entity(stand_in).remove::<(bevy_landmass::Character<ThreeD>, CharacterSettings)>().insert((
+                Agent3dBundle {
+                    agent: Default::default(),
+                    settings: AgentSettings { radius: AGENT_RADIUS, desired_speed: speed, max_speed: speed * 1.2 },
+                    archipelago_ref: ArchipelagoRef3d::new(nav.archipelago),
+                },
+                AgentTarget3d::Point(to),
+            ));
+            continue;
+        };
         let feet = crate::interact::feet_of(at);
+        // Stepping aside for someone in a narrow way: to that spot for a
+        // moment, then on.
+        let to = match aside.get(&entity) {
+            Some(&(spot, until)) if tick.0 < until && !modforge::brain::walk_toward(feet, spot).is_empty() => spot,
+            _ => {
+                aside.remove(&entity);
+                to
+            }
+        };
+        *target = AgentTarget3d::Point(to);
         let v = desired.map_or(Vec3::ZERO, |d| d.velocity());
-        velocity.velocity = v;
+        if let Ok(mut velocity) = velocities.get_mut(stand_in) {
+            velocity.velocity = v;
+        }
+        // Stuck (RimWorld's pawns, Bethesda's people): wanting to walk and
+        // making no way for half a second with someone right ahead (two
+        // walkers in a doorway, each in the other's way; landmass's steering
+        // does not part them), they step aside, away from that person, and
+        // then go on.
+        let (last, steps) = stuck.get(&entity).copied().unwrap_or((feet, 0));
+        let steps = if v.length() > 0.1 && feet.distance(last) < 0.005 { steps + 1 } else { 0 };
+        stuck.insert(entity, (feet, steps));
+        if steps > STUCK_STEPS && !aside.contains_key(&entity) {
+            let dir = Vec2::new(v.x, v.z).normalize_or_zero();
+            let ahead = everyone.iter().find(|(other, their_feet)| {
+                let to_them = their_feet.ground() - feet.ground();
+                *other != entity && (their_feet.y - feet.y).abs() < 1.5 && to_them.length() < IN_A_WALKERS_WAY && to_them.dot(dir) > 0.0
+            });
+            if let Some((_, their_feet)) = ahead {
+                let away = if (their_feet.ground() - feet.ground()).dot(dir.perp()) >= 0.0 { -1.0 } else { 1.0 };
+                let spot = crate::on_ground(feet.ground() + dir.perp() * away * STEP_ASIDE, feet.y);
+                if let Some(spot) = archipelago.and_then(|a| on_mesh(a, spot)) {
+                    aside.insert(entity, (spot, tick.0 + STEP_ASIDE_FOR));
+                }
+            }
+        }
         let way = Vec2::new(v.x, v.z);
         let dir = way.normalize_or_zero();
         this_tick.0.retain(|s| !matches!(s.action, Action::Move { .. } | Action::Aim { .. }));
@@ -374,6 +432,16 @@ pub fn walk(
         if dir != Vec2::ZERO && crate::nav::closed_door_ahead(&door_index, &doors, feet, dir, to) && !ActionQueue::has(&this_tick.0, Action::Use) {
             this_tick.0.push(Stamped { tick: tick.0, action: Action::Use });
         }
+    }
+}
+
+/// A person standing, as landmass knows them: a character the walkers
+/// steer round, as wide as a body.
+fn character(archipelago: Entity) -> Character3dBundle {
+    Character3dBundle {
+        character: Default::default(),
+        settings: CharacterSettings { radius: AGENT_RADIUS },
+        archipelago_ref: ArchipelagoRef3d::new(archipelago),
     }
 }
 

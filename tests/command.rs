@@ -53,9 +53,11 @@ fn way_to(to: (f64, f64, f64)) -> bool {
 }
 
 /// Real seconds to walk `metres` and then some: the player walks
-/// `player::WALK_SPEED`, 15 m a second.
+/// `player::WALK_SPEED`, 15 m a second, but the way is longer than the
+/// straight line (up two levels of stairs, out of the bunker) and people
+/// walk on.
 fn walk_secs(metres: f64) -> u64 {
-    (metres / 10.0) as u64 + 10
+    (metres / 5.0) as u64 + 15
 }
 
 /// Up to `secs` real seconds for `done`, a quarter second apart.
