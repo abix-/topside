@@ -122,8 +122,10 @@ fn read_the_note() {
     let (x, z, feet) = player_spot();
     let note = (x - 1.4, z + 3.6);
     op_with("command", json!({"do": "move_to", "x": note.0, "y": feet, "z": note.1}));
-    // Within Use's reach (1.5 m, interact.rs REACH), with room to spare.
-    let there = within(10, || apart(player_spot(), (note.0, note.1, feet)).0 < 1.2);
+    // A walk is done anywhere within the brain's REACH (1.5 m, modforge
+    // brain.rs), which is also Use's reach (interact.rs REACH): wait for the
+    // command to end there.
+    let there = within(10, || op("player")["commands"].is_null() && apart(player_spot(), (note.0, note.1, feet)).0 <= 1.5);
     if !there {
         crate::endpoint::why_stopped((note.0, feet, note.1));
     }
