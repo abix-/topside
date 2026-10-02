@@ -51,6 +51,8 @@ pub static COMMAND_ASK: Mutex<Vec<(Option<u64>, Command)>> = Mutex::new(Vec::new
 pub enum ReplayAsk {
     Save(String),
     Play(String),
+    /// Stop playing, and drop every command anyone has left.
+    Stop,
 }
 pub static REPLAY_ASK: Mutex<Option<ReplayAsk>> = Mutex::new(None);
 
@@ -97,6 +99,18 @@ pub fn give(
                     None => warn!("no replay {name} at {}", replay_path(&name)),
                 }
             }
+            ReplayAsk::Stop => {
+                playing.0.clear();
+                // Emptied now, not removed at the step's end: a command given
+                // in this same step goes on after the stop, not with it.
+                for (_, _, has) in &mut people {
+                    if let Some(mut has) = has {
+                        has.left.clear();
+                        has.started = false;
+                    }
+                }
+                info!("replay stopped: every command left dropped");
+            }
         }
     }
     let the_player = player.single().ok().map(|a| a.0.0);
@@ -141,7 +155,11 @@ pub fn carry_out(
     everyone: Query<(Entity, &Actor, &Transform, Option<&Npc>, &Memory, Has<Dead>, Has<Player>)>,
     eyes: Query<&Eyes>,
     doors: Query<(&crate::interact::Door, &Transform)>,
+    nav: Res<crate::navmesh::Nav>,
+    archipelagos: Query<&bevy_landmass::prelude::Archipelago3d>,
 ) {
+    let archipelago = archipelagos.get(nav.archipelago).ok();
+    let on_mesh = |at: Vec3| archipelago.and_then(|a| crate::navmesh::on_mesh(a, at));
     let heard = |words: &str| episodes.0.felt(words);
     for ((entity, actor, at, mut this_tick, mut commanded), (following, dead, hud, looking, children)) in &mut people {
         let (x, y) = ActionQueue::movement(&this_tick.0);
@@ -192,8 +210,8 @@ pub fn carry_out(
             let (target, who) = match command {
                 Command::MoveTo { x, y, z } => (Some(Vec3::new(x, y, z)), None),
                 Command::TalkTo { who } | Command::Attack { who } => (alive_at(who), Some(who)),
-                // The spot before the closed door between them.
-                Command::Knock { who } => (alive_at(who).and_then(|them| crate::interact::knock_spot(doors.iter(), them)), Some(who)),
+                // The spot beside the closed door between them.
+                Command::Knock { who } => (alive_at(who).and_then(|them| crate::interact::knock_spot(doors.iter(), them, on_mesh)), Some(who)),
                 Command::Follow { .. } | Command::AttackNearestEnemy => (None, None),
             };
             let talking_with = hud.and_then(|h| h.0.talking.as_ref()).map(|t| t.with);
@@ -203,7 +221,8 @@ pub fn carry_out(
                 Command::Knock { .. } => commanded.started,
                 _ => false,
             };
-            let actions = match modforge::command::step(&command, here, target, ended, crate::talk::TALK_REACH) {
+            let looking_at_them = who.is_some() && looking.and_then(|l| l.0).map(|(_, id)| id) == who;
+            let actions = match modforge::command::step(&command, here, target, ended, looking_at_them, crate::talk::TALK_REACH) {
                 Step::Done => {
                     commanded.next();
                     continue;
@@ -211,7 +230,6 @@ pub fn carry_out(
                 Step::Act(actions) => actions,
             };
             this_tick.0.retain(|s| !matches!(s.action, Action::Go { .. } | Action::Aim { .. }));
-            let looking_at_them = who.is_some() && looking.and_then(|l| l.0).map(|(_, id)| id) == who;
             for action in actions {
                 // Use only on them, as E on the one looked at; until then,
                 // the eyes turn onto them.

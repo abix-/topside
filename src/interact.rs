@@ -58,23 +58,41 @@ impl Door {
     }
 }
 
-/// How far before a door a person stands to knock on it, metres.
-pub const KNOCK_STAND: f32 = 0.8;
+/// Where a knocker stands, from the doorway's middle: this far out from the
+/// door, and this far along the wall beside the doorway, so they stand
+/// clear of it (a 1.2 m doorway holds one body, and someone knocking in it
+/// once blocked the way out), metres.
+pub const KNOCK_OUT: f32 = 0.7;
+pub const KNOCK_ASIDE: f32 = 1.2;
+/// With no room beside the doorway: straight out from it this far, leaving
+/// room for someone to come out past them, metres.
+pub const KNOCK_OUT_FAR: f32 = 1.8;
+/// How far from a door's middle a knock reaches it: the farthest spot and
+/// as near as standing there counts (modforge `KNOCK_ARRIVE`), metres.
+pub const KNOCK_REACH: f32 = 2.4;
 /// How far a knock is heard on the door's other side, on its level, metres
 /// (operator, 2026-10-02).
 pub const KNOCK_HEARD: f32 = 6.0;
 
 /// Where to stand to knock on the door between `them` and a knocker: the
 /// closed door on their level nearest them within a knock's hearing, and
-/// the spot before it on the side away from them, at its floor.
-pub fn knock_spot<'a>(doors: impl Iterator<Item = (&'a Door, &'a Transform)>, them: Vec3) -> Option<Vec3> {
+/// on its side away from them the first spot on the mesh there (`on_mesh`
+/// gives the mesh's point for a spot, which must be the spot itself, not
+/// somewhere near it): beside the doorway away from the hinge (where the
+/// door does not swing), beside it on the hinge's side, straight out from
+/// it far enough to pass; at its floor.
+pub fn knock_spot<'a>(doors: impl Iterator<Item = (&'a Door, &'a Transform)>, them: Vec3, on_mesh: impl Fn(Vec3) -> Option<Vec3>) -> Option<Vec3> {
     let (door, floor) = doors
         .filter(|(d, at)| !d.open && (at.translation.y - them.y).abs() < 1.5)
         .map(|(d, at)| (d, at.translation.y))
         .filter(|(d, _)| d.closed_center.distance(them.ground()) <= KNOCK_HEARD)
         .min_by(|a, b| a.0.closed_center.distance(them.ground()).total_cmp(&b.0.closed_center.distance(them.ground())))?;
-    let away = -door.side_of(them.ground());
-    Some(on_ground(door.closed_center + door.across() * away * KNOCK_STAND, floor))
+    let away = door.across() * -door.side_of(them.ground());
+    let along = (door.closed_center - door.hinge).normalize_or_zero() * KNOCK_ASIDE;
+    [away * KNOCK_OUT + along, away * KNOCK_OUT - along, away * KNOCK_OUT_FAR]
+        .into_iter()
+        .map(|off| on_ground(door.closed_center + off, floor))
+        .find_map(|spot| on_mesh(spot).filter(|p| p.ground().distance(spot.ground()) <= modforge::command::KNOCK_ARRIVE / 2.0))
 }
 
 /// Every person's Knock this tick: on the closed door in their reach, heard
@@ -95,11 +113,7 @@ pub fn knock(
         let feet = feet_of(at);
         let Some((door, floor)) = doors
             .iter()
-            // As far as the spot before it is from the door, and as near to
-            // that spot as walking there counts as there (modforge `REACH`).
-            .filter(|(d, door_at)| {
-                !d.open && (door_at.translation.y - feet.y).abs() < 1.5 && d.closed_center.distance(feet.ground()) <= KNOCK_STAND + modforge::brain::REACH
-            })
+            .filter(|(d, door_at)| !d.open && (door_at.translation.y - feet.y).abs() < 1.5 && d.closed_center.distance(feet.ground()) <= KNOCK_REACH)
             .map(|(d, door_at)| (d, door_at.translation.y))
             .min_by(|a, b| a.0.closed_center.distance(feet.ground()).total_cmp(&b.0.closed_center.distance(feet.ground())))
         else {

@@ -68,10 +68,16 @@ flat tile grid cannot see.
   things, where a person respawns. Proved on the running game by
   tests/command.rs (2026-10-02): a command walked the player from their
   room 6 m down up the stairwell to the ground (feet -6.00 to 0.00).
-- Left: people in the way. The mesh does not know where people stand, so a
-  walker pushes into someone standing in their way (seen: Roxanne talking
-  to the player in the entrance's doorway). landmass steers agents around
-  each other and around `Character3d`s; no one is a character yet.
+- People in the way (2026-10-02): every living person is a landmass agent,
+  walking or standing, so walkers steer round each other; each person's
+  agent is its own entity at their feet (`navmesh::Walker`), because
+  landmass reads an agent's place from its entity and every point asked
+  of the mesh is at someone's feet. landmass's steering does not part two
+  people already touching, nor get anyone past someone standing in a
+  1.2 m doorway, so people standing make way (Bethesda's people step
+  aside, RimWorld's make way): out of a doorway they stand in the way of,
+  and sideways out of the way of anyone walking into them. Proved by
+  tests/roxanne.rs on the running game.
 - Checked first (2026-10-01, GitHub and crates.io): bevy_rerecast 0.5
   (Bevy 0.19), avian_rerecast 0.6 (Avian 0.7), bevy_landmass 0.12.1
   (Bevy 0.19), landmass_rerecast 0.3. Set aside: vleue_navigator (floors

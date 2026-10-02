@@ -100,10 +100,16 @@ pub fn record_doors(
     }
 }
 
-/// A closed door within reach ahead of someone whose feet are at `feet`,
-/// stepping along `way` on the ground, on their level: only the doors in
-/// the chunks around them are looked at.
-pub fn closed_door_ahead(index: &DoorIndex, doors: &Query<(&Door, &Transform)>, feet: Vec3, way: Vec2) -> bool {
+/// How near a door, on the walker's own side of it, the place they go to
+/// can be and they have come to the door, not through it (to knock on it),
+/// metres.
+const COME_TO_A_DOOR: f32 = 3.0;
+
+/// A closed door to go through: within reach ahead of someone whose feet
+/// are at `feet`, stepping along `way` on the ground, on their level, unless
+/// where they go (`to`) is near it on their own side, on its level. Only the doors in the
+/// chunks around them are looked at.
+pub fn closed_door_ahead(index: &DoorIndex, doors: &Query<(&Door, &Transform)>, feet: Vec3, way: Vec2, to: Vec3) -> bool {
     let (cx, cy) = chunk_at(feet.ground());
     (cy - 1..=cy + 1)
         .flat_map(|y| (cx - 1..=cx + 1).map(move |x| (x, y)))
@@ -111,26 +117,27 @@ pub fn closed_door_ahead(index: &DoorIndex, doors: &Query<(&Door, &Transform)>, 
         .flatten()
         .filter_map(|e| doors.get(*e).ok())
         .any(|(d, t)| {
-            let to = d.closed_center - feet.ground();
-            !d.open && crate::interact::in_reach(feet, crate::on_ground(d.closed_center, t.translation.y)) && to.dot(way) > 0.0
+            let ahead = d.closed_center - feet.ground();
+            let come_to = (to.y - t.translation.y).abs() < 1.5
+                && d.side_of(to.ground()) == d.side_of(feet.ground())
+                && d.closed_center.distance(to.ground()) <= COME_TO_A_DOOR;
+            !d.open && !come_to && crate::interact::in_reach(feet, crate::on_ground(d.closed_center, t.translation.y)) && ahead.dot(way) > 0.0
         })
 }
 
 /// How near a door's closed place someone stands to be in its doorway.
-const IN_DOORWAY: f32 = 0.6;
+pub const IN_DOORWAY: f32 = 0.6;
 
-/// The door whose doorway someone with feet at `feet` stands in, on their
-/// level, if any.
-fn doorway_at(index: &DoorIndex, doors: &Query<(&Door, &Transform)>, feet: Vec3) -> Option<Entity> {
+/// The door whose doorway someone with feet at `feet` is within `within`
+/// of, on their level, if any.
+pub fn doorway_at(index: &DoorIndex, doors: &Query<(&Door, &Transform)>, feet: Vec3, within: f32) -> Option<Entity> {
     let (cx, cy) = chunk_at(feet.ground());
     (cy - 1..=cy + 1)
         .flat_map(|y| (cx - 1..=cx + 1).map(move |x| (x, y)))
         .filter_map(|key| index.by_chunk.get(&key))
         .flatten()
         .copied()
-        .find(|e| {
-            doors.get(*e).is_ok_and(|(d, t)| d.closed_center.distance(feet.ground()) <= IN_DOORWAY && (t.translation.y - feet.y).abs() < 1.0)
-        })
+        .find(|e| doors.get(*e).is_ok_and(|(d, t)| d.closed_center.distance(feet.ground()) <= within && (t.translation.y - feet.y).abs() < 1.0))
 }
 
 /// Going through a doorway goes into the person's memory (life.md "What
@@ -144,7 +151,7 @@ pub fn doorways(
     mut inside: Local<std::collections::HashMap<Entity, Entity>>,
 ) {
     for (person, at, mut memory) in &mut people {
-        match doorway_at(&index, &doors, crate::interact::feet_of(at)) {
+        match doorway_at(&index, &doors, crate::interact::feet_of(at), IN_DOORWAY) {
             Some(door) => {
                 if inside.insert(person, door) != Some(door) {
                     memory.0.did(modforge::memory::Did::Doorway, tick.0);

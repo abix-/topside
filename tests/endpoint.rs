@@ -24,6 +24,48 @@ pub fn people() -> Vec<Json> {
     op("people").as_array().cloned().unwrap_or_default()
 }
 
+/// Why the player stopped short of `to` (x, height, z), printed.
+pub fn why_stopped(to: (f64, f64, f64)) {
+    let s = op("status");
+    let at = (s["player"][0].as_f64().unwrap_or(0.0), s["player"][1].as_f64().unwrap_or(0.0), s["player_feet"].as_f64().unwrap_or(0.0));
+    why_stopped_at("the player", &op("player"), at, to);
+}
+
+/// Why person `id` stopped short of `to` (x, height, z), printed.
+pub fn why_they_stopped(id: u64, to: (f64, f64, f64)) {
+    let p = op_with("npc", json!({"id": id}));
+    let at = (p["at"][0].as_f64().unwrap_or(0.0), p["at"][1].as_f64().unwrap_or(0.0), p["feet"].as_f64().unwrap_or(0.0));
+    why_stopped_at(&format!("person {id}"), &p, at, to);
+}
+
+/// Someone (`me`, as the player or npc op reports them) at `at` (x, z,
+/// feet) stopped short of `to`: their walk on the mesh, their commands left
+/// and what they do this tick, the mesh's way from where they stand, and
+/// who stands near.
+fn why_stopped_at(who: &str, me: &Json, at: (f64, f64, f64), to: (f64, f64, f64)) {
+    let (px, pz, pf) = at;
+    eprintln!("{who} at ({px:.2}, {pz:.2}), feet {pf:.2}; way {}, commands {}, acting {}, the talk box {}", me["way"], me["commands"], me["this_tick"], op("hud")["talk"]);
+    let s = op("status");
+    eprintln!("  the game runs at {} of real time, {} frames a second; the player looks at {}", s["speed"], s["fps"], op("hud")["prompt"]);
+    op_with("nav_path", json!({"from": [px, pf, pz], "to": [to.0, to.1, to.2]}));
+    std::thread::sleep(std::time::Duration::from_millis(300));
+    eprintln!("the mesh's way from there: {}", op("nav_path"));
+    for p in people() {
+        let (x, z) = (p["at"][0].as_f64().unwrap_or(1e9), p["at"][1].as_f64().unwrap_or(1e9));
+        if ((x - px).powi(2) + (z - pz).powi(2)).sqrt() < 20.0 {
+            eprintln!("  near: {} ({}) at {} feet {}, doing {}", p["name"], p["id"], p["at"], p["feet"], p["doing"]);
+        }
+    }
+    // The doors near (doors are left out of the mesh; an open one stands
+    // out from its doorway).
+    for d in op("world")["bunker_doors"].as_array().cloned().unwrap_or_default() {
+        let (x, z) = (d["at"][0].as_f64().unwrap_or(1e9), d["at"][1].as_f64().unwrap_or(1e9));
+        if ((x - px).powi(2) + (z - pz).powi(2)).sqrt() < 4.0 && (d["floor"].as_f64().unwrap_or(1e9) - pf).abs() < 1.5 {
+            eprintln!("  door: {d}");
+        }
+    }
+}
+
 /// The player alive: if dead, Enter, as the player respawns (the `key`
 /// op), at most 3 real seconds; who killed them is printed. The `player`
 /// op publishes once a game second.

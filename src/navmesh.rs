@@ -42,6 +42,18 @@ const HIGHEST: f32 = 64.0;
 /// Ticks after a chunk is made (or changes) before its mesh is built: its
 /// colliders are in the physics world by then.
 const SETTLE: u64 = 5;
+/// How near a doorway's middle someone standing is in the way of whoever
+/// comes through it: half the doorway and two bodies (theirs, and room for
+/// one to pass), metres; seen 2026-10-02, someone 1.1 m from a 1.2 m
+/// doorway's middle left no way through.
+const IN_THE_WAY_OF_A_DOORWAY: f32 = crate::nav::IN_DOORWAY + 2.0 * AGENT_RADIUS;
+/// How far from a doorway's middle someone in its way steps out to, metres.
+const STEP_OUT_OF_A_DOORWAY: f32 = IN_THE_WAY_OF_A_DOORWAY + 0.6;
+/// How near ahead of a walker, heading at them, someone standing is in
+/// their way (two bodies touch at 0.8 m), metres.
+const IN_A_WALKERS_WAY: f32 = 1.2;
+/// How far sideways someone in a walker's way steps, metres.
+const STEP_ASIDE: f32 = 1.0;
 /// The most chunk meshes started in one frame, so making many chunks at
 /// once does not stall a frame (the building itself runs in the
 /// background).
@@ -71,21 +83,58 @@ pub struct Nav {
     waiting: HashMap<ChunkKey, u64>,
 }
 
-/// How far from the mesh a point may be and still be on it.
+/// How far from the mesh a point may be and still be on it. Every point
+/// landmass is asked about is at someone's feet, an agent's too (its own
+/// entity stands at its person's feet, `Walker`): the floor is the surface
+/// nearest the feet, from a step up (0.5 m) to a shelf's height down
+/// (1.5 m: a thing on a shelf is reached from the floor under it). Asked at
+/// the middle of the body, the first step of a flight going up beside a
+/// landing was nearer than the landing, and people on it swung between the
+/// two; a flight overhead was taken for the floor.
 fn sample_distance() -> PointSampleDistance3d {
     PointSampleDistance3d {
-        horizontal_distance: 0.5,
-        distance_above: 1.0,
-        distance_below: 1.0,
+        // The mesh keeps a body's radius (0.4 m) off every wall, to its
+        // cells: someone standing against a wall is up to about 0.55 m off it.
+        horizontal_distance: 1.0,
+        distance_above: 0.5,
+        distance_below: 1.5,
         vertical_preference_ratio: 1.0,
         animation_link_max_vertical_distance: 1.0,
     }
+}
+
+/// Where an agent is going.
+pub fn going_to(target: &AgentTarget3d) -> Option<Vec3> {
+    match target {
+        AgentTarget3d::Point(p) => Some(*p),
+        _ => None,
+    }
+}
+
+/// A person's landmass agent: its own entity, a child standing at their
+/// feet, because landmass reads an agent's place from its entity and a
+/// person's own place is the middle of their body.
+#[derive(Component)]
+pub struct Walker(pub Entity);
+
+/// Every agent's walk: landmass's state and where it is going.
+pub type Ways<'w, 's> = Query<'w, 's, (&'static AgentState, &'static AgentTarget3d)>;
+
+/// A person's walk on the mesh, through their `Walker`: landmass's state
+/// and where they are going; None before their agent stands.
+pub fn way_of<'a>(walker: Option<&Walker>, ways: &'a Ways) -> Option<(&'a AgentState, &'a AgentTarget3d)> {
+    walker.and_then(|w| ways.get(w.0).ok())
 }
 
 fn setup(mut commands: Commands) {
     let archipelago = commands
         .spawn(Archipelago3d::new(ArchipelagoOptions {
             point_sample_distance: sample_distance(),
+            // How far ahead the mesh's edges are steered away from, in
+            // seconds: at a walk of 15 m/s, landmass's 0.25 s reaches 3.75 m,
+            // every edge of a stairwell, and turned people back at the top
+            // of the stairs; 0.05 s is 0.75 m.
+            obstacle_avoidance_time_horizon: 0.05,
             ..ArchipelagoOptions::from_agent_radius(AGENT_RADIUS)
         }))
         .id();
@@ -207,45 +256,102 @@ pub fn walk(
     door_index: Res<crate::nav::DoorIndex>,
     doors: Query<(&crate::interact::Door, &Transform)>,
     mut people: Query<
-        (
-            (Entity, &Transform, &mut crate::input::ThisTick, Option<&crate::actor::Personality>),
-            (Option<&mut AgentTarget3d>, Option<&AgentDesiredVelocity3d>, Option<&mut Velocity3d>),
-        ),
+        (Entity, &Transform, &mut crate::input::ThisTick, Option<&crate::actor::Personality>, Option<&Walker>, Has<crate::player::Player>),
         Without<crate::actor::Dead>,
     >,
+    mut agents: Query<(&mut AgentTarget3d, Option<&AgentDesiredVelocity3d>, &mut Velocity3d)>,
+    archipelagos: Query<&Archipelago3d>,
 ) {
     use crate::input::Action;
     use modforge::actions::{ActionQueue, Stamped};
-    for ((entity, at, mut this_tick, personality), (target, desired, velocity)) in &mut people {
+    let archipelago = archipelagos.get(nav.archipelago).ok();
+    // Everyone walking now: who, their feet, and the way they head (their
+    // agent's velocity, set below from their way or their keys).
+    let walking: Vec<(Entity, Vec3, Vec2)> = people
+        .iter()
+        .filter_map(|(entity, at, _, _, walker, _)| {
+            let v = agents.get(walker?.0).ok()?.2.velocity;
+            let way = Vec2::new(v.x, v.z);
+            (way.length() > 0.1).then(|| (entity, crate::interact::feet_of(at), way.normalize()))
+        })
+        .collect();
+    for (entity, at, mut this_tick, personality, walker, is_player) in &mut people {
+        let speed = crate::player::WALK_SPEED * personality.map_or(1.0, |p| p.0.speed_mult());
         let go = this_tick.0.iter().rev().find_map(|s| match s.action {
             Action::Go { x, y, z } => Some(Vec3::new(x, y, z)),
             _ => None,
         });
-        match (go, target) {
-            (Some(to), None) => {
-                let speed = crate::player::WALK_SPEED * personality.map_or(1.0, |p| p.0.speed_mult());
-                commands.entity(entity).insert((
-                    Agent3dBundle {
-                        agent: Default::default(),
-                        settings: AgentSettings { radius: AGENT_RADIUS, desired_speed: speed, max_speed: speed * 1.2 },
-                        archipelago_ref: ArchipelagoRef3d::new(nav.archipelago),
-                    },
-                    AgentTarget3d::Point(to),
-                    Velocity3d::default(),
-                ));
+        // People standing make way (Bethesda's people step aside, RimWorld's
+        // make way): someone not sent anywhere and not moving steps out of a
+        // doorway they stand in the way of, to their own side, and out of
+        // the way of anyone walking into them, sideways to their own side
+        // of that walker's way. The player's keys are their own.
+        let go = go.or_else(|| {
+            let (x, y) = ActionQueue::movement(&this_tick.0);
+            if is_player || x != 0.0 || y != 0.0 {
+                return None;
             }
-            (Some(to), Some(mut target)) => *target = AgentTarget3d::Point(to),
-            (None, Some(mut target)) => {
-                *target = AgentTarget3d::None;
-                continue;
+            let feet = crate::interact::feet_of(at);
+            let out_of_a_doorway = || {
+                let door = crate::nav::doorway_at(&door_index, &doors, feet, IN_THE_WAY_OF_A_DOORWAY)?;
+                let (d, door_at) = doors.get(door).ok()?;
+                let out = d.closed_center + d.across() * d.side_of(feet.ground()) * STEP_OUT_OF_A_DOORWAY;
+                Some(crate::on_ground(out, door_at.translation.y))
+            };
+            let out_of_a_walkers_way = || {
+                let (_, their_feet, way) = walking.iter().find(|(other, their_feet, way)| {
+                    let to_me = feet.ground() - their_feet.ground();
+                    *other != entity && (their_feet.y - feet.y).abs() < 1.5 && to_me.length() < IN_A_WALKERS_WAY && to_me.dot(*way) > 0.0
+                })?;
+                let side = if (feet.ground() - their_feet.ground()).dot(way.perp()) >= 0.0 { 1.0 } else { -1.0 };
+                Some(crate::on_ground(feet.ground() + way.perp() * side * STEP_ASIDE, feet.y))
+            };
+            let aside = out_of_a_doorway().or_else(out_of_a_walkers_way)?;
+            archipelago.and_then(|a| on_mesh(a, aside))
+        });
+        // Everyone living is a landmass agent, sent somewhere or not: the
+        // walkers step around each other and around whoever stands (landmass
+        // steers every agent round the agents near it). The agent stands at
+        // their feet.
+        let Some((mut target, desired, mut velocity)) = walker.and_then(|w| agents.get_mut(w.0).ok()) else {
+            if walker.is_none() {
+                let agent = commands
+                    .spawn((
+                        Transform::from_xyz(0.0, -crate::player::BODY_CENTRE, 0.0),
+                        Agent3dBundle {
+                            agent: Default::default(),
+                            settings: AgentSettings { radius: AGENT_RADIUS, desired_speed: speed, max_speed: speed * 1.2 },
+                            archipelago_ref: ArchipelagoRef3d::new(nav.archipelago),
+                        },
+                        AgentTarget3d::None,
+                        Velocity3d::default(),
+                        ChildOf(entity),
+                    ))
+                    .id();
+                commands.entity(entity).insert(Walker(agent));
             }
-            (None, None) => continue,
-        }
+            continue;
+        };
+        let Some(to) = go else {
+            // Not sent anywhere: walking by their own move (the keys) or
+            // standing, which the others steer by. Sent somewhere until now:
+            // they stop, or the Move this walker pushed is held on (each step
+            // keeps the last move: input::drain_actions) and they walk on
+            // into a wall.
+            if matches!(*target, AgentTarget3d::Point(_)) {
+                this_tick.0.retain(|s| !matches!(s.action, Action::Move { .. }));
+                this_tick.0.push(Stamped { tick: tick.0, action: Action::Move { x: 0.0, y: 0.0 } });
+            }
+            *target = AgentTarget3d::None;
+            let (x, y) = ActionQueue::movement(&this_tick.0);
+            let way = Vec2::new(x, y).normalize_or_zero() * speed;
+            velocity.velocity = Vec3::new(way.x, 0.0, way.y);
+            continue;
+        };
+        *target = AgentTarget3d::Point(to);
         let feet = crate::interact::feet_of(at);
         let v = desired.map_or(Vec3::ZERO, |d| d.velocity());
-        if let Some(mut velocity) = velocity {
-            velocity.velocity = v;
-        }
+        velocity.velocity = v;
         let way = Vec2::new(v.x, v.z);
         let dir = way.normalize_or_zero();
         this_tick.0.retain(|s| !matches!(s.action, Action::Move { .. } | Action::Aim { .. }));
@@ -254,15 +360,28 @@ pub fn walk(
             this_tick.0.push(Stamped { tick: tick.0, action: Action::Aim { x: ahead.x, y: ahead.y } });
         }
         this_tick.0.push(Stamped { tick: tick.0, action: Action::Move { x: dir.x, y: dir.y } });
-        if dir != Vec2::ZERO && crate::nav::closed_door_ahead(&door_index, &doors, feet, dir) && !ActionQueue::has(&this_tick.0, Action::Use) {
+        if dir != Vec2::ZERO && crate::nav::closed_door_ahead(&door_index, &doors, feet, dir, to) && !ActionQueue::has(&this_tick.0, Action::Use) {
             this_tick.0.push(Stamped { tick: tick.0, action: Action::Use });
         }
     }
 }
 
-/// Whether someone can stand at `at` (x, height, z): the mesh is there.
+/// Where on the mesh someone with their feet at `feet` stands, if anywhere:
+/// the one way a point is put on the mesh.
+fn sample<'a>(archipelago: &'a Archipelago3d, feet: Vec3) -> Option<bevy_landmass::SampledPoint<'a, ThreeD>> {
+    archipelago.sample_point(feet, &sample_distance()).ok()
+}
+
+/// Whether someone can stand with their feet at `at` (x, height, z): the
+/// mesh is there.
 pub fn standable(archipelago: &Archipelago3d, at: Vec3) -> bool {
-    archipelago.sample_point(at, &sample_distance()).is_ok()
+    sample(archipelago, at).is_some()
+}
+
+/// The point on the mesh where someone with their feet at `at` would stand
+/// (it can be up to `sample_distance` off `at`).
+pub fn on_mesh(archipelago: &Archipelago3d, at: Vec3) -> Option<Vec3> {
+    sample(archipelago, at).map(|s| s.point())
 }
 
 /// A spot `off` metres from `at` that someone can stand on, on the mesh at
@@ -274,7 +393,7 @@ pub fn stand_by(archipelago: &Archipelago3d, at: Vec3, off: f32, from: f32) -> O
             let d = off * Vec2::from_angle(from + k as f32 * std::f32::consts::FRAC_PI_4);
             at + Vec3::new(d.x, 0.0, d.y)
         })
-        .find_map(|p| archipelago.sample_point(p, &sample_distance()).ok().map(|s| s.point()))
+        .find_map(|p| sample(archipelago, p).map(|s| s.point()))
 }
 
 /// The `nav_path` op's question (from, to, in the world: x, height, z), and
@@ -291,9 +410,8 @@ fn answer_path(nav: Res<Nav>, archipelagos: Query<&Archipelago3d>) {
     let mut answer = match archipelagos.get(nav.archipelago) {
         Err(_) => json!({"error": "no archipelago"}),
         Ok(archipelago) => {
-            let distance = sample_distance();
-            match (archipelago.sample_point(from, &distance), archipelago.sample_point(to, &distance)) {
-                (Ok(start), Ok(end)) => match archipelago.find_path(&start, &end, &HashMap::new(), bevy_landmass::PermittedAnimationLinks::All) {
+            match (sample(archipelago, from), sample(archipelago, to)) {
+                (Some(start), Some(end)) => match archipelago.find_path(&start, &end, &HashMap::new(), bevy_landmass::PermittedAnimationLinks::All) {
                     Ok(steps) => {
                         let points: Vec<Json> = steps
                             .iter()
@@ -306,7 +424,7 @@ fn answer_path(nav: Res<Nav>, archipelagos: Query<&Archipelago3d>) {
                     }
                     Err(e) => json!({"error": format!("no way: {e:?}")}),
                 },
-                (start, end) => json!({"error": format!("not on the mesh: from {:?}, to {:?}", start.err(), end.err())}),
+                (start, end) => json!({"error": format!("not on the mesh: from {}, to {}", start.is_some(), end.is_some())}),
             }
         }
     };

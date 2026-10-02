@@ -70,7 +70,7 @@ pub struct Thinkers<'w, 's> {
                 &'static mut NextThink,
                 Has<Dead>,
                 Option<&'static Store>,
-                Option<&'static bevy_landmass::AgentState>,
+                Option<&'static crate::navmesh::Walker>,
                 Option<&'static crate::actor::Map>,
                 Option<&'static crate::actor::Asked>,
             ),
@@ -78,6 +78,8 @@ pub struct Thinkers<'w, 's> {
         // The dead for good never think again.
         Without<crate::actor::Gone>,
     >,
+    /// Their walks on the mesh, through their `Walker`.
+    ways: crate::navmesh::Ways<'w, 's>,
     others: Query<
         'w,
         's,
@@ -411,7 +413,8 @@ pub fn think(
             modforge::statetree::Target::Thing { key, .. } => Some(Some(key)),
             _ => None,
         };
-        let no_way = way.is_some_and(|s| matches!(s, bevy_landmass::AgentState::NoPath | bevy_landmass::AgentState::TargetNotOnNavMesh));
+        let no_way = crate::navmesh::way_of(way, &thinkers.ways)
+            .is_some_and(|(s, _)| matches!(s, bevy_landmass::AgentState::NoPath | bevy_landmass::AgentState::TargetNotOnNavMesh));
         if let Some(thing) = unreached
             && no_way
         {

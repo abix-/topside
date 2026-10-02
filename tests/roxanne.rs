@@ -30,16 +30,32 @@ fn spot(p: &Json) -> (f64, f64, f64) {
     (p["at"][0].as_f64().unwrap_or(f64::NAN), p["at"][1].as_f64().unwrap_or(f64::NAN), p["feet"].as_f64().unwrap_or(f64::NAN))
 }
 
-/// Whether person `id` comes within 1.5 m of `to` on its level within
-/// `secs` real seconds, and the nearest they came. Read from the `npc` op,
-/// answered live: a command ends on arrival and the person's brain walks
-/// them on at once, faster than the once-a-second `people` op shows.
-fn comes_to(id: u64, to: (f64, f64, f64), secs: u64) -> (bool, f64) {
+/// Where person `id` stands now, read from the `npc` op, answered live.
+fn npc_at(id: u64) -> (f64, f64, f64) {
+    spot(&op_with("npc", json!({"id": id})))
+}
+
+/// Where the player stands now (the `status` op, every step).
+fn player_at() -> (f64, f64, f64) {
+    let s = op("status");
+    (s["player"][0].as_f64().unwrap_or(f64::NAN), s["player"][1].as_f64().unwrap_or(f64::NAN), s["player_feet"].as_f64().unwrap_or(f64::NAN))
+}
+
+/// Whether someone (where they stand, read live by `at`) comes within
+/// 1.5 m of `to` on its level within `secs` real seconds, and the nearest
+/// they came: a command ends on arrival and a person's brain walks them on
+/// at once, faster than the once-a-second `people` op shows.
+fn comes_to(at: impl Fn() -> (f64, f64, f64), to: (f64, f64, f64), secs: u64) -> (bool, f64) {
     let start = std::time::Instant::now();
     let mut nearest = f64::INFINITY;
+    let mut traced = 0;
     while start.elapsed() < Duration::from_secs(secs) {
-        let p = op_with("npc", json!({"id": id}));
-        let (x, z, feet) = (p["at"][0].as_f64().unwrap_or(f64::NAN), p["at"][1].as_f64().unwrap_or(f64::NAN), p["feet"].as_f64().unwrap_or(f64::NAN));
+        let (x, z, feet) = at();
+        // Where they are, every two seconds, to read a stop by.
+        if start.elapsed().as_secs() / 2 >= traced {
+            traced += 1;
+            eprintln!("    {:.1} s: at ({x:.2}, {z:.2}), feet {feet:.2}", start.elapsed().as_secs_f64());
+        }
         if (feet - to.2).abs() < 0.5 {
             nearest = nearest.min(((x - to.0).powi(2) + (z - to.1).powi(2)).sqrt());
         }
@@ -57,6 +73,8 @@ fn comes_to(id: u64, to: (f64, f64, f64), secs: u64) -> (bool, f64) {
 /// player wakes.
 fn the_player_shut_in_their_room() -> (f64, f64, f64) {
     crate::endpoint::player_alive();
+    // No commands left from an earlier test.
+    op_with("replay", json!({"stop": true}));
     let player = op("player")["id"].as_u64().expect("the player op reports the player's id");
     let wake = |_: ()| {
         op_with("kill", json!({"id": player}));
@@ -98,9 +116,19 @@ fn knocks_on_the_players_door_and_the_talk_box_opens() {
     let heard_before = op("player")["heard_knocking"].as_array().map_or(0, |h| h.len());
     eprintln!("Roxanne ({id}) at {:?}; the player in their room at {room:?}, heard {heard_before} knocks before", spot(&her));
     op_with("command", json!({"id": id, "do": "knock", "who": op("player")["id"]}));
-    let heard = within(30, || {
-        op("player")["heard_knocking"].as_array().is_some_and(|h| h.len() > heard_before && h.last().is_some_and(|k| k["by"].as_u64() == Some(id)))
-    });
+    let mut heard = false;
+    for i in 0..120 {
+        heard = op("player")["heard_knocking"].as_array().is_some_and(|h| h.len() > heard_before && h.last().is_some_and(|k| k["by"].as_u64() == Some(id)));
+        if heard {
+            break;
+        }
+        // Where she is and what she does, every two seconds.
+        if i % 8 == 0 {
+            let her = op_with("npc", json!({"id": id}));
+            eprintln!("  {:.0} s: Roxanne at {:?}, way {}, commands {}, acting {}", i as f64 / 4.0, spot(&her), her["way"], her["commands"], her["this_tick"]);
+        }
+        std::thread::sleep(Duration::from_millis(250));
+    }
     let opened = within(5, || op("hud")["talk"]["to"].as_u64() == Some(id));
     crate::talk_ui::shot("roxanne_knocks");
     let talk = op("hud")["talk"].clone();
@@ -115,6 +143,57 @@ fn knocks_on_the_players_door_and_the_talk_box_opens() {
     assert!(opened, "the talk box never opened with Roxanne after her knock: {talk}");
 }
 
+/// Roxanne walks the stairs again and again: from the entrance on the
+/// ground down to the player's room 6 m down and back up, three times, each
+/// by a command, never stalling on a flight or a landing (people were seen
+/// pressed against the stairwell's wall on a landing).
+#[test]
+fn walks_the_stairs_up_and_down_three_times() {
+    let room = the_player_shut_in_their_room();
+    let id = roxanne()["id"].as_u64().expect("Roxanne's id");
+    let entrance = (1.5, 0.0, 0.0);
+    // In the room off to one side of the player, who wakes in its middle.
+    let in_the_room = (room.0 - 1.5, room.1 + 1.5, room.2);
+    for trip in 1..=3 {
+        for (name, to) in [("down to the room", in_the_room), ("up to the entrance", entrance)] {
+            op_with("command", json!({"id": id, "do": "move_to", "x": to.0, "y": to.2, "z": to.1}));
+            let (got, nearest) = comes_to(|| npc_at(id), to, 20);
+            eprintln!("trip {trip}, {name}: {got}, nearest {nearest:.2} m, Roxanne at {:?}", npc_at(id));
+            if !got {
+                crate::endpoint::why_they_stopped(id, (to.0, to.2, to.1));
+            }
+            assert!(got, "trip {trip}: Roxanne never got {name}");
+        }
+    }
+}
+
+/// The player walks past Roxanne standing in their way: she has knocked
+/// and stands outside their door, talking, and the player, sent up to the
+/// entrance by a command, steps around her (every person a landmass agent)
+/// and gets there.
+#[test]
+fn the_player_steps_around_her_standing_at_their_door() {
+    let room = the_player_shut_in_their_room();
+    let id = roxanne()["id"].as_u64().expect("Roxanne's id");
+    let player = op("player")["id"].as_u64().expect("the player op reports the player's id");
+    op_with("command", json!({"id": id, "do": "knock", "who": player}));
+    let knocked = within(30, || op("hud")["talk"]["to"].as_u64() == Some(id));
+    let her = npc_at(id);
+    eprintln!("knocked: {knocked}; Roxanne stands at {her:?}, the player at {room:?}");
+    assert!(knocked, "Roxanne never knocked, so never stood in the way");
+    // The entrance, on the ground: where she stood before going down.
+    let entrance = (1.5, 0.0, 0.0);
+    let entrance_3d = (entrance.0, entrance.2, entrance.1);
+    op_with("command", json!({"do": "move_to", "x": entrance.0, "y": entrance.2, "z": entrance.1}));
+    let (there, nearest) = comes_to(player_at, entrance, 30);
+    crate::talk_ui::shot("stepped_around");
+    eprintln!("there: {there}, nearest {nearest:.2} m; the player at {:?}, Roxanne at {:?}", player_at(), npc_at(id));
+    if !there {
+        crate::endpoint::why_stopped(entrance_3d);
+    }
+    assert!(there, "the player never got past Roxanne to the entrance");
+}
+
 /// Roxanne walks from where she is down to the player's room, 6 m down
 /// through its shut door, and back up to where she stood, each by a
 /// command on the navigation mesh. The player is stood topside first, so
@@ -122,6 +201,8 @@ fn knocks_on_the_players_door_and_the_talk_box_opens() {
 #[test]
 fn walks_down_to_the_players_room_and_back() {
     crate::endpoint::player_alive();
+    // No commands left from an earlier test.
+    op_with("replay", json!({"stop": true}));
     let player = op("player")["id"].as_u64().expect("the player op reports the player's id");
     // Where the player wakes: in their room.
     op_with("kill", json!({"id": player}));
@@ -136,10 +217,10 @@ fn walks_down_to_the_players_room_and_back() {
 
     let her = roxanne();
     let id = her["id"].as_u64().expect("Roxanne's id");
-    let from = spot(&op_with("npc", json!({"id": id})));
+    let from = npc_at(id);
     eprintln!("Roxanne ({id}) at {from:?}; the player's room at {room:?}");
     op_with("command", json!({"id": id, "do": "move_to", "x": room.0, "y": room.2, "z": room.1}));
-    let (down, nearest) = comes_to(id, room, 30);
+    let (down, nearest) = comes_to(|| npc_at(id), room, 30);
     crate::talk_ui::shot("roxanne_down");
     eprintln!("down: {down}, nearest {nearest:.2} m; Roxanne now at {:?}, doing {}", spot(&roxanne()), roxanne()["doing"]);
     if !down {
@@ -149,7 +230,7 @@ fn walks_down_to_the_players_room_and_back() {
     assert!(down, "Roxanne never reached the player's room at {room:?}");
 
     op_with("command", json!({"id": id, "do": "move_to", "x": from.0, "y": from.2, "z": from.1}));
-    let (back, nearest) = comes_to(id, from, 30);
+    let (back, nearest) = comes_to(|| npc_at(id), from, 30);
     eprintln!("back: {back}, nearest {nearest:.2} m; Roxanne now at {:?}", spot(&roxanne()));
     if !back {
         let her = op_with("npc", json!({"id": id}));

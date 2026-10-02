@@ -7,7 +7,7 @@ use std::time::Duration;
 
 use serde_json::{Value as Json, json};
 
-use crate::endpoint::{op, op_with, people};
+use crate::endpoint::{op, op_with, people, why_stopped};
 
 fn player_at() -> (f64, f64) {
     let s = op("status");
@@ -29,13 +29,27 @@ fn apart(a: (f64, f64), b: (f64, f64)) -> f64 {
 fn someone_near(beyond: f64, still: bool) -> Option<(u64, String, (f64, f64))> {
     let me = player_at();
     let standing = |p: &Json| p["actions"].as_array().is_some_and(|a| a.iter().all(|s| s.as_str().is_none_or(|s| !s.starts_with("Move") || s.contains("x: 0.0, y: 0.0"))));
-    people()
+    let mut near: Vec<(u64, String, (f64, f64), f64)> = people()
         .into_iter()
         .filter(|p| p["dead"] != true && (crate::endpoint::is_bunker_person(p) || p["faction"].is_null()))
         .filter(|p| !still || standing(p))
-        .filter_map(|p| Some((p["id"].as_u64()?, p["name"].as_str().unwrap_or_default().to_string(), at(&p)?)))
-        .filter(|(_, _, there)| apart(*there, me) > beyond)
-        .min_by(|a, b| apart(a.2, me).total_cmp(&apart(b.2, me)))
+        .filter_map(|p| Some((p["id"].as_u64()?, p["name"].as_str().unwrap_or_default().to_string(), at(&p)?, p["feet"].as_f64()?)))
+        .filter(|(_, _, there, _)| apart(*there, me) > beyond)
+        .collect();
+    near.sort_by(|a, b| apart(a.2, me).total_cmp(&apart(b.2, me)));
+    // The nearest the navigation mesh has a way to (someone can stand where
+    // no way reaches: on a roof, in a shut building).
+    near.into_iter().take(8).find(|(_, _, there, feet)| way_to((there.0, *feet, there.1))).map(|(id, name, there, _)| (id, name, there))
+}
+
+/// Whether the navigation mesh has a way from where the player stands to
+/// `to` (x, height, z), asked of the `nav_path` op.
+fn way_to(to: (f64, f64, f64)) -> bool {
+    let (px, pz) = player_at();
+    let pf = op("status")["player_feet"].as_f64().unwrap_or(0.0);
+    op_with("nav_path", json!({"from": [px, pf, pz], "to": [to.0, to.1, to.2]}));
+    std::thread::sleep(Duration::from_millis(150));
+    op("nav_path")["path"].is_array()
 }
 
 /// Real seconds to walk `metres` and then some: the player walks
@@ -58,6 +72,8 @@ fn within(secs: u64, done: impl Fn() -> bool) -> bool {
 #[test]
 fn talk_to_walks_the_player_over_and_the_talk_box_opens() {
     crate::endpoint::player_alive();
+    // No commands left from an earlier test.
+    op_with("replay", json!({"stop": true}));
     // Farther than talking distance, so the player walks over first.
     let (id, name, there) = someone_near(5.0, true).expect("a living bunker person or stranger standing somewhere");
     let from = player_at();
@@ -73,6 +89,10 @@ fn talk_to_walks_the_player_over_and_the_talk_box_opens() {
     crate::talk_ui::shot("command_talk_to");
     let talk = op("hud")["talk"].clone();
     eprintln!("the player now at {:?}, walked {:.1} m; the talk box: {talk}", player_at(), apart(player_at(), from));
+    if !opened && let Some(p) = people().into_iter().find(|p| p["id"].as_u64() == Some(id)) {
+        let (x, z) = at(&p).unwrap_or((0.0, 0.0));
+        why_stopped((x, p["feet"].as_f64().unwrap_or(0.0), z));
+    }
     op_with("key", json!({"key": "Escape"}));
     assert!(opened, "talk to {name} never opened the talk box with them");
 }
@@ -80,6 +100,8 @@ fn talk_to_walks_the_player_over_and_the_talk_box_opens() {
 #[test]
 fn move_to_walks_the_player_there() {
     crate::endpoint::player_alive();
+    // No commands left from an earlier test.
+    op_with("replay", json!({"stop": true}));
     // Where someone stands is ground someone can stand on, at their height
     // (the player wakes two levels down, so most ways climb the stairs).
     let (id, name, there) = someone_near(2.0, false).expect("a living bunker person or stranger somewhere");
@@ -93,8 +115,9 @@ fn move_to_walks_the_player_there() {
     });
     crate::talk_ui::shot("command_move_to");
     eprintln!("the player now at {:?}, height {}, {:.1} m from the point", player_at(), op("status")["player_feet"], apart(player_at(), there));
-    let me = op("player");
-    eprintln!("their way: {}, commands: {}, acting: {}, the talk box: {}", me["way"], me["commands"], me["this_tick"], op("hud")["talk"]);
+    if !arrived {
+        why_stopped((there.0, feet, there.1));
+    }
     assert!(arrived, "the player never reached {there:?} at height {feet:.2}");
 }
 
@@ -129,6 +152,9 @@ fn a_saved_replay_played_again_gives_the_same_commands() {
     let again = within(3, || replay("command test again").is_some_and(|r| r["given"].as_array().is_some_and(|g| g.len() > given.len())));
     let after = replay("command test again").unwrap_or(Json::Null);
     let replayed = after["given"][given.len()].clone();
+    // The rest of the replay would give every command of this run again,
+    // to the tests after this one: stopped.
+    op_with("replay", json!({"stop": true}));
     eprintln!("the first command given again: {replayed}; the replay's first: {}", given[0]);
     assert!(again, "playing the replay gave no command");
     assert_eq!((&replayed["who"], &replayed["command"]), (&given[0]["who"], &given[0]["command"]), "the replay gave a different command");
