@@ -9,8 +9,8 @@ use avian3d::prelude::*;
 use bevy::prelude::*;
 use modforge::hud::InteractKind;
 use modforge::structure::{
-    MonumentDef, Part, PartKind, SLAB, StructureDef, TileKind, TileRun, levels, open_to_below, parts_of, tile_plan,
-    tile_plan_at,
+    DOORWAY_HEIGHT, DoorBlock, MonumentDef, Part, PartKind, SLAB, StructureDef, TileKind, TileRun, door_blocks, levels,
+    open_to_below, parts_of, tile_plan, tile_plan_at,
 };
 
 use modforge::crafting::StationKind;
@@ -89,13 +89,15 @@ pub fn lowest_at(below: &Query<&Below>, point: Vec2) -> f32 {
 /// on the tile grid (docs/pathing.md "One grid"): each level from
 /// modforge's `tile_plan_at`, standing at its floor's height, its walls as
 /// tall as the level, its furniture, a slab under every tile walked on
-/// above the lowest floor, a closed door on every door tile run; the stair
-/// tower's steps and landings from `parts_of`. Everything solid is one
+/// above the lowest floor, every door block (modforge `door_blocks`) its
+/// frame and a closed door of the model `door_model` ("steel door" the
+/// bunker's, "door" in the wild); the stair tower's steps and landings
+/// from `parts_of`. Everything solid is one
 /// compound collider on a static root; the ground floor is its `Shelter`;
 /// what it has below the ground is its `Below`. A building of this
 /// reality (`of_world`) is a `WorldPiece`, gone when the storm shifts the
 /// world; the bunker is not. Returns the root.
-pub fn spawn_structure(commands: &mut Commands, def: &StructureDef, at: Vec2, of_world: bool) -> Entity {
+pub fn spawn_structure(commands: &mut Commands, def: &StructureDef, at: Vec2, of_world: bool, door_model: &str) -> Entity {
     let at = at.round();
     let rect = |r: &TileRun| {
         (
@@ -115,12 +117,11 @@ pub fn spawn_structure(commands: &mut Commands, def: &StructureDef, at: Vec2, of
     );
     let mut shapes: Vec<(Vec3, Rotation, Collider)> = Vec::new();
     let mut pieces: Vec<(Model, Tint, Transform)> = Vec::new();
-    let mut doors: Vec<(Vec2, Vec2, f32, f32)> = Vec::new();
     let levels = levels(def);
     // The lowest floor: the ground, or the deepest level below it.
     let bottom = levels.first().map_or(0.0, |(y, _)| y.min(0.0));
     let mut below: Vec<(Vec2, Vec2)> = Vec::new();
-    for (y, height) in levels {
+    for &(y, height) in &levels {
         let runs = tile_plan_at(def, y);
         if y < -0.5 {
             below.extend(runs.iter().map(|r| {
@@ -145,7 +146,8 @@ pub fn spawn_structure(commands: &mut Commands, def: &StructureDef, at: Vec2, of
                 shapes.push((on_ground(centre, y - SLAB / 2.0), Rotation::IDENTITY, Collider::cuboid(size.x, SLAB, size.y)));
             }
             match r.kind {
-                TileKind::Door => doors.push((at + centre, Vec2::X * size.x, y, height)),
+                // The doors themselves stand below, from the doorways.
+                TileKind::Door => {}
                 kind => {
                     let (model, scale) = match kind {
                         TileKind::Floor => ("floor", Vec3::ONE),
@@ -182,6 +184,38 @@ pub fn spawn_structure(commands: &mut Commands, def: &StructureDef, at: Vec2, of
             Transform::from_translation(on_ground(at + local, part.center.y - part.size.y / 2.0)).with_scale(scale),
         ));
     }
+    // Every door block (modforge `door_blocks`): its frame, two posts either
+    // side of the doorway and a head over it up to the level's top, solid
+    // and drawn as the building's wall, filling the wall tile's depth.
+    let blocks: Vec<(DoorBlock, f32, f32)> = door_blocks(def)
+        .into_iter()
+        .filter_map(|b| {
+            let &(level, tall) = levels.iter().find(|(y, h)| b.floor > y - 0.5 && b.floor < y + h - 0.5)?;
+            let floor = b.floor;
+            Some((b, floor, level + tall - floor))
+        })
+        .collect();
+    let wall_tint = Tint(Color::srgb(def.wall_color[0], def.wall_color[1], def.wall_color[2]));
+    for (block, floor, height) in &blocks {
+        // A piece of the frame: its middle on the ground, its width along the
+        // wall, its bottom and how tall.
+        let mut frame = |middle: Vec2, along: f32, bottom: f32, tall: f32| {
+            if tall <= 0.0 || along <= 0.0 {
+                return;
+            }
+            let size = block.along * along + Vec2::new(block.along.y, block.along.x);
+            shapes.push((on_ground(middle, bottom + tall / 2.0), Rotation::IDENTITY, Collider::cuboid(size.x, tall, size.y)));
+            pieces.push((
+                Model("wall".to_string()),
+                wall_tint,
+                Transform::from_translation(on_ground(at + middle, bottom)).with_scale(Vec3::new(size.x, tall / WALL_HEIGHT, size.y)),
+            ));
+        };
+        for (middle, along) in block.posts() {
+            frame(middle, along, *floor, *height);
+        }
+        frame(block.centre, block.doorway(), floor + DOORWAY_HEIGHT, height - DOORWAY_HEIGHT);
+    }
     let mut root = commands.spawn((
         StructureRoot,
         shelter,
@@ -205,27 +239,35 @@ pub fn spawn_structure(commands: &mut Commands, def: &StructureDef, at: Vec2, of
             piece.insert(WorldPiece);
         }
     }
-    for (centre, along, y, height) in doors {
+    // Every door in its doorway, hung on its block's hinge (modforge
+    // `door_blocks`), the model of the building's doors. The door's own
+    // place is the hinge; the panel and its collider reach from it across
+    // the doorway, so opening is a quarter turn about the hinge.
+    for (block, floor, _) in &blocks {
+        let width = block.doorway();
+        let centre = at + block.centre;
+        let hinge = at + block.hinge();
+        let closed = Door::facing(hinge, centre);
         let mut door = commands.spawn((
-            Door {
-                open: false,
-                closed_center: centre,
-                // The hinge is at one end of the door, along the run.
-                hinge: centre - along / 2.0,
-            },
+            Door { open: false, closed_center: centre, hinge, closed },
             Interactable {
                 kind: InteractKind::Door { open: false },
             },
             RigidBody::Static,
-            // Standing on its floor: the box raised by half its height.
+            // From the hinge across the doorway, standing on its floor.
             Collider::compound(vec![(
-                Vec3::Y * height / 2.0,
+                Vec3::new(width / 2.0, DOORWAY_HEIGHT / 2.0, 0.0),
                 Rotation::IDENTITY,
-                Collider::cuboid(along.x.max(1.0), height, 1.0),
+                Collider::cuboid(width, DOORWAY_HEIGHT, DOOR_THICK),
             )]),
-            Model("door".to_string()),
-            // Not scaled: Avian would scale its collider too.
-            Transform::from_translation(on_ground(centre, y)),
+            Transform::from_translation(on_ground(hinge, *floor)).with_rotation(closed),
+            Visibility::default(),
+        ));
+        // The panel, its model (made 1 m wide and a wall tall) stretched to
+        // the doorway, a child so the collider is not stretched with it.
+        door.with_child((
+            Model(door_model.to_string()),
+            Transform::from_xyz(width / 2.0, 0.0, 0.0).with_scale(Vec3::new(width, DOORWAY_HEIGHT / WALL_HEIGHT, 1.0)),
         ));
         if of_world {
             door.insert(WorldPiece);
@@ -233,6 +275,14 @@ pub fn spawn_structure(commands: &mut Commands, def: &StructureDef, at: Vec2, of
     }
     root
 }
+
+/// How thick a door is, in metres (scripts/models.py's panel).
+const DOOR_THICK: f32 = 0.12;
+
+/// The bunker's doors are steel; doors in the wild are wood for now
+/// (design.md "Built in 1 m blocks, doors as blocks").
+pub const BUNKER_DOOR: &str = "steel door";
+pub const WILD_DOOR: &str = "door";
 
 /// The starting bunker at the world's bunker point (design.md "The bunker
 /// you start in"): the starting items and the note on the floor of the
@@ -244,7 +294,7 @@ pub fn spawn_bunker(
     layers: Res<crate::content::LayerRegistryRes>,
 ) {
     let at = world.bunker;
-    spawn_structure(&mut commands, &starting_bunker(), at, false);
+    spawn_structure(&mut commands, &starting_bunker(), at, false, BUNKER_DOOR);
     let def = |name: &str| {
         items
             .0
@@ -276,7 +326,7 @@ pub fn spawn_bunker(
 pub fn spawn_other_bunkers(mut commands: Commands, world: Res<WorldRes>, items: Res<ItemRegistryRes>) {
     let box_def = items.0.def("storage box").expect("the storage box is registered");
     for (i, &at) in world.bunkers.iter().enumerate() {
-        spawn_structure(&mut commands, &starting_bunker(), at, false);
+        spawn_structure(&mut commands, &starting_bunker(), at, false, BUNKER_DOOR);
         let mut contents = item::Inventory::new(box_def.storage.unwrap_or(12));
         for (name, count) in BUNKER_STORE {
             if let Some(def) = items.0.def(name) {
@@ -319,7 +369,7 @@ pub fn spawn_sites(
         let monument = site.rolled.clone();
         for member in &monument.members {
             let at = site.position + Vec2::new(member.offset.x, member.offset.z);
-            spawn_structure(&mut commands, &member.structure, at, true);
+            spawn_structure(&mut commands, &member.structure, at, true, WILD_DOOR);
         }
         if !monument.props.is_empty() {
             let shapes: Vec<(Vec3, Rotation, Collider)> = monument

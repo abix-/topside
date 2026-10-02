@@ -1418,6 +1418,18 @@ it fades, and past 60 m there is none (operator, 2026-10-01).
 - Something outlined in front of the leaves still has its edge against
   them; leaves in front of something put no line on it.
 
+### Built in 1 m blocks, doors as blocks
+
+The world is assembled in 1 m blocks, as 7 Days to Die's is (operator,
+2026-10-01). A door is a block of whole tiles, as 7 Days to Die's are
+(1 by 2 single doors, 2 by 2 double doors, garage and roll-up doors 3 to
+7 wide, read from its blocks.xml): inside the block a frame, and in the
+frame the doorway and its door. The standard door, everywhere, is a door
+block 2 tiles wide with a doorway 1.2 m wide in its frame (operator,
+2026-10-01). The bunker's doors (its front door, the stairwell's doors
+on every level, the player's room) are steel; doors in the wild are wood
+for now.
+
 ### Walls and floors by what they are made of
 
 Each building material has its own low poly look, so a wall reads apart

@@ -90,6 +90,27 @@ fn the_entrance_has_one_doorway_into_the_stairwell() {
     assert!(there && pf.abs() < 0.3, "the player never stood in the entrance facing the stairwell");
 }
 
+/// The bunker's front door, from inside the entrance: closed, then used,
+/// turned a quarter turn on its hinge at one end of the doorway; in
+/// logs/bunker_door_closed.png and logs/bunker_door_open.png.
+#[test]
+fn the_front_door_turns_on_its_hinge() {
+    crate::endpoint::player_alive();
+    let player = op("player")["id"].as_u64().expect("the player op reports the player's id");
+    // The door block's middle, its 2 tiles in the south wall.
+    let door = (0.0, 4.5);
+    op_with("use", serde_json::json!({"id": player, "at": [door.0, door.1 - 2.5]}));
+    within(3, || status().2.abs() < 0.1 && status().1 < 3.0);
+    std::thread::sleep(std::time::Duration::from_millis(400));
+    crate::talk_ui::shot("bunker_door_closed");
+    op_with("use", serde_json::json!({"id": player, "at": [door.0, door.1]}));
+    std::thread::sleep(std::time::Duration::from_millis(600));
+    crate::talk_ui::shot("bunker_door_open");
+    let (px, py, pf) = status();
+    eprintln!("by the front door at ({px:.1}, {py:.1}), feet {pf:.2}");
+    assert!(pf.abs() < 0.3 && (py - door.1).abs() < 2.0, "the player was not by the front door");
+}
+
 /// The basic controls in the player's room (design.md "The bunker you
 /// start in"): each shown until done; E pressed, its line goes and the
 /// rest stay.

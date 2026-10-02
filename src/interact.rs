@@ -14,7 +14,7 @@ use modforge::walk::centre;
 
 use crate::actor::{Dead, Facing, Inventory, Memory, Survival};
 use crate::model::Model;
-use crate::{Ground, on_ground, turned};
+use crate::{Ground, on_ground};
 use crate::combat::Health;
 use crate::content::ItemRegistryRes;
 use crate::input::{Action, ActionQueue, ThisTick};
@@ -28,13 +28,24 @@ pub struct Interactable {
     pub kind: InteractKind,
 }
 
-/// A door. Open, it swings a quarter turn about its hinge and stops
-/// nothing.
+/// A door, its own place its hinge (structure::spawn_structure): open, it
+/// turns a quarter turn about the hinge and stops nothing. Where it stands
+/// closed, its middle in the doorway, and which way it faces closed.
 #[derive(Component)]
 pub struct Door {
     pub open: bool,
     pub closed_center: Vec2,
     pub hinge: Vec2,
+    pub closed: Quat,
+}
+
+impl Door {
+    /// The turn that lays a door from `hinge` across to `centre`: its panel
+    /// reaches along its own +x.
+    pub fn facing(hinge: Vec2, centre: Vec2) -> Quat {
+        let d = centre - hinge;
+        Quat::from_rotation_y((-d.y).atan2(d.x))
+    }
 }
 
 /// Anything from the item system lying in the world: a dropped can, a
@@ -327,11 +338,9 @@ fn use_thing(
             };
             door.open = !door.open;
             thing.kind = InteractKind::Door { open: door.open };
-            // A quarter turn about the hinge, on the ground.
+            // A quarter turn about the hinge, where the door stands.
             let turn = if door.open { FRAC_PI_2 } else { 0.0 };
-            let from_hinge = Vec2::from_angle(turn).rotate(door.closed_center - door.hinge);
-            transform.translation = on_ground(door.hinge + from_hinge, transform.translation.y);
-            transform.rotation = turned(turn);
+            transform.rotation = Quat::from_rotation_y(turn) * door.closed;
             if door.open {
                 commands.entity(entity).insert(ColliderDisabled);
             } else {

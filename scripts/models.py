@@ -1751,6 +1751,21 @@ def door():
     return join(parts, "door")
 
 
+def steel_door():
+    """one tile of a closed steel door, the bunker's (design.md "Built in
+    1 m blocks, doors as blocks"): a grey steel panel across the tile, as
+    tall as a wall, with raised bands across it and a heavy lever handle.
+    Made the wooden door's size; the game stretches both to the doorway."""
+    steel = material("steel", (0.42, 0.44, 0.46))
+    band = material("band", (0.3, 0.32, 0.34))
+    metal = material("handle", (0.7, 0.7, 0.68))
+    parts = [box("panel", (1.0, 0.12, WALL_HEIGHT), at=(0, 0, WALL_HEIGHT / 2), mat=steel)]
+    for i, z in enumerate((0.15, 0.5, 0.85)):
+        parts.append(box(f"band_{i}", (0.96, 0.15, 0.08), at=(0, 0, WALL_HEIGHT * z), mat=band))
+    parts.append(box("handle", (0.2, 0.18, 0.05), at=(0.32, 0, WALL_HEIGHT * 0.5), mat=metal))
+    return join(parts, "steel door")
+
+
 def floor():
     """one tile of floor, with darker seams along its edges so the tiles
     show."""
@@ -1917,6 +1932,7 @@ MODELS = {
     "furniture": furniture,
     "floor": floor,
     "door": door,
+    "steel door": steel_door,
     # The minor sites' props, named as in content/src/lib.rs.
     # A wrecked car: Kenney's sedan all in rust, lying along x (4.2 m long).
     "car wreck": lambda: kenney("car", "sedan", "car wreck", 4.2, rgb=(0.45, 0.2, 0.15), turn=90),

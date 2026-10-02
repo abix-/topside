@@ -159,8 +159,8 @@ pub fn def_for_danger(danger: u32) -> &'static str {
 /// below it, one room each, joined by the stair tower; built by modforge
 /// `generate_building` like every building with floors below the ground,
 /// the same every time (every bunker is the same building). The bed and
-/// the food crate in the player's room, the deepest, its doorway to the
-/// stair tower a door, shut; the crafting bench in the common room above.
+/// the food crate in the player's room, the deepest; every doorway into
+/// the stair tower a door; the crafting bench in the common room above.
 pub fn starting_bunker() -> StructureDef {
     let kind = BuildingTypeDef {
         name: "the bunker you start in".to_string(),
@@ -180,10 +180,11 @@ pub fn starting_bunker() -> StructureDef {
         palette: vec![CONCRETE_WALL],
     };
     let mut built = modforge::monument::generate_building(&kind, &mut Roll::new(1));
-    // The player's room shut: the stair tower's doorway on the deepest
-    // level a door (its sill on the tower's own floor).
+    // The stairwell's doorway on every level a door (design.md "Built in 1 m
+    // blocks, doors as blocks": the bunker's doors), the player's room's
+    // shut on the deepest.
     for room in built.rooms.iter_mut().filter(|r| (r.origin.y - PLAYER_ROOM_FLOOR).abs() < 0.5 && r.interior.y > BUNKER_LEVEL + 0.5) {
-        for opening in room.openings.iter_mut().filter(|o| o.sill < 0.5) {
+        for opening in room.openings.iter_mut() {
             opening.door = true;
         }
     }
