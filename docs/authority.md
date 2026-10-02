@@ -33,11 +33,23 @@ Rules:
 
 1. Before building anything, find its system below and do it that way.
    Never a second path, a second record, or a second answer, even when every
-   test passes.
+   test passes. One authoritative system for every thing (operator,
+   2026-10-02): no path only for loads, only for tests, only for the
+   player, or only while paused. When one case misbehaves, the one path is
+   fixed for every case.
 2. Something with no system here: ask the operator, then add it here.
 3. A change that breaks a system here is undone, not worked around.
 4. Modforge holds every rule that needs no engine, with its test; topside
    senses, acts, and holds content (topside skill: modforge first).
+5. Every tick is a pure result of the game's state and the ops given at
+   ticks (operator, 2026-10-02; lockstep games and Factorio): the same
+   save played the same ticks ends the same, in play, in steps, and after
+   a load. Work done off the main loop (a background task, another thread)
+   lands at a fixed tick, and the loop waits for it if it is late; it never
+   lands whenever it happens to finish. Nothing that decides anything is
+   ordered by a hash map's iteration or counted per frame. A failure lands
+   too, as its own plain result, never a hang. The Pathing row is the
+   first system held to this.
 
 | System | Def | Registry | How | Status |
 |---|---|---|---|---|
@@ -52,7 +64,7 @@ Rules:
 | Using things | modforge `hud::InteractKind` | `Interactable` on each thing; doors indexed by chunk in `nav::DoorIndex` | `interact::interact_on_use` (Use reaches the thing in reach nearest the aim), decided by modforge `hud::interact` | Not audited |
 | Crafting | modforge `RecipeDef` | `RecipeRegistryRes` | Stations made by `interact::spawn_station`; items made only by the Craft action through modforge `crafting::craft` | Not audited |
 | The world and its ground | modforge `GroundDef` (content `small_ground_def`, `ground_def`), `BiomeDef` with its scatter | Kinds: `BiomeRegistryRes`. The world: `terrain::WorldRes` and the made chunks in `terrain::Chunks` | Rolled by `terrain::roll` (content `roll_world2d`), made by `terrain::make_chunks`; a tile's ground only from the made chunk, modforge `World2d::chunk` | One answer: drinking reads the made chunks' shores (land and water tile); tests/sources.rs passes on the running game with river water drunk (2026-09-26) |
-| Pathing | Decided 2026-10-01 (pathing.md "A navigation mesh"): a Recast navigation mesh, `bevy_rerecast` built from the Avian colliders by `avian_rerecast`, walked with `bevy_landmass` (joined by `landmass_rerecast`); where to go is modforge `Action::Go`, a point in 3D | The mesh: bevy_rerecast's; each walker's way: landmass's agent (`AgentTarget3d`, `AgentState`). The walk grid `nav::Walk` stays only as the wall map for sight maps and the minimap | The mesh built from the colliders, one per chunk joined into one world (src/navmesh.rs); the brain, commands, following and leading push Go; `navmesh::walk` makes the walker a landmass agent and turns its desired velocity into Aim and Move | Moving: people walk the mesh (2026-10-02: tests/command.rs walked the player from 6 m down up the stairwell to the ground); RED until people step around each other (no one is a landmass character yet, so a walker pushes into someone standing in the way) |
+| Pathing | Decided 2026-10-01 (pathing.md "A navigation mesh"): a Recast navigation mesh, `bevy_rerecast` built from the Avian colliders by `avian_rerecast`, walked with `bevy_landmass` (joined by `landmass_rerecast`); where to go is modforge `Action::Go`, a point in 3D | The mesh: bevy_rerecast's; each walker's way: landmass's agent (`AgentTarget3d`, `AgentState`). The walk grid `nav::Walk` stays only as the wall map for sight maps and the minimap | The mesh built from the colliders, one per chunk joined into one world (src/navmesh.rs). The mesh at every tick is a pure result of the game's state (decided 2026-10-02, the lockstep and Factorio rule: work off the main loop lands at a fixed tick, and the loop waits for it if it is late): chunks are taken in a fixed order, a set number a tick; a chunk's mesh asked at tick T lands at tick T + SETTLE exactly, with its landmass island; if it is not done by then, the fixed step waits for it before running that tick (logged with how long), paused or not, in play, in steps and after a load alike; a tile that fails to build or to join landmass lands as no mesh for that chunk, logged, never a hang. The brain, commands, following and leading push Go; `navmesh::walk` makes the walker a landmass agent and turns its desired velocity into Aim and Move | Moving: people walk the mesh (2026-10-02: tests/command.rs walked the player from 6 m down up the stairwell to the ground); RED until people step around each other (no one is a landmass character yet, so a walker pushes into someone standing in the way) |
 | Monuments and buildings | modforge `MonumentTypeDef`, `BuildingTypeDef`, `StructureDef`; content `SMALL_SITES` | Kinds: `MonumentRegistryRes`. Standing: each building an entity; the monuments standing in `structure::MonumentsRes` | Every building through `structure::spawn_structure` (the bunkers too); sites through `structure::spawn_sites` | Not audited |
 | Factions | modforge `FactionDef` | `FactionRegistryRes` (content `register_factions`); a person's faction in their `Npc` | Hostility: modforge `relationship::stands` (own feeling from memory, else the faction's standing from its members, else the registry's table), read in `ai::think` | tests/relationship.rs (2026-09-27) |
 | The storm | modforge `StormDef` (content `STORM`) | `storm::StormRes` | `storm::storm` hits the open through `hit_actor` (a `Shelter` is safe); `storm::shift_world` rolls the world again through `terrain::roll`, bunkers and bunker people kept; topside people die with the world and stay, dead, the storm in their memory | tests/storm.rs passed on the running game |
