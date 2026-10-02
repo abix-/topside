@@ -505,6 +505,17 @@ pub fn register_episodes(reg: &mut EpisodeRegistry) {
                 part("Mara's child", CastFrom::SameBunkerAs("Mara".to_string())),
             ],
             lines: vec![
+                // Called through the shut door with her knock, once, before
+                // the opening (authority.md "Talking", operator 2026-10-02):
+                // heard like the knock, no conversation yet.
+                line(
+                    "you awake",
+                    "Dell",
+                    vec![When::To(s("player")), When::Knocking, not(When::Said(s("you awake")))],
+                    &["You awake in there?"],
+                    "",
+                    0.0,
+                ),
                 // Pivot point 1, how it opens: Dell speaks up, once.
                 line(
                     "the opening",

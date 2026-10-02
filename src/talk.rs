@@ -79,6 +79,24 @@ pub fn talking_with(with: u64, name: &str) -> modforge::hud::Talking {
     modforge::hud::Talking { with, name: name.to_string(), ..Default::default() }
 }
 
+/// The line a knocker calls through the shut door to `to` with their knock,
+/// if one fits (authority.md "Talking": one called line, heard like the
+/// knock; a line rule with `When::Knocking`, picked as any line is; The
+/// Tap: "You awake in there?"): its name and words, as they say it now.
+pub fn called_line(
+    (episode, lines, bunker, seed): (&Episode, &Lines, Vec2, u64),
+    (knocker, memory, at, survival): (ActorId, &Memory, Vec3, Option<&Survival>),
+    to: (ActorId, bool),
+    tick: u64,
+) -> Option<modforge::memory::Line> {
+    let moment = Moment::of(episode, (knocker, false), to, at, survival);
+    let mut speaking = moment.speaking(to.0, &memory.0, tick, false);
+    speaking.knocking = true;
+    let line = modforge::talk::pick(&lines.0, &speaking, seed ^ tick)?;
+    let (words, _) = words_of(&lines.0[line], line, (knocker, &memory.0), tick, episode, bunker, seed)?;
+    Some(modforge::memory::Line { name: lines.0[line].name.clone(), words })
+}
+
 /// A person held where they stand while the player talks or trades with
 /// them (they stop to talk, as anyone would); let go when it ends.
 #[derive(Component, Default, Clone, serde::Serialize, serde::Deserialize, Reflect)]
@@ -146,6 +164,7 @@ impl Moment {
             reached: &self.reached,
             near: &self.near,
             needs: &self.needs,
+            knocking: false,
         }
     }
 }

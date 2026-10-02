@@ -203,19 +203,21 @@ pub fn knock_spot<'a>(doors: impl Iterator<Item = (&'a Door, &'a Transform)>, th
 
 /// Every person's Knock this tick: on the closed door in their reach, heard
 /// by everyone on its other side within `KNOCK_HEARD` on its level, each
-/// remembering who knocked; a player who hears it is in a conversation with
-/// the one who knocked (talk::spoken_to), as being spoken to.
+/// remembering who knocked, and the one line the knock calls through the
+/// door to the player, if one fits (talk::called_line), heard as the knock
+/// is. No conversation opens through a shut door: it starts once the two
+/// are within talking reach (authority.md "Talking").
 pub fn knock(
-    mut commands: Commands,
     tick: Res<crate::SimTick>,
+    called: (Res<crate::episode::Episode>, Res<crate::talk::Lines>, Res<crate::terrain::WorldRes>, Res<crate::WorldSeed>),
     doors: Query<(&Door, &Transform)>,
-    knockers: Query<(Entity, &crate::actor::Actor, &Transform, &ThisTick, &Name), Without<Dead>>,
-    mut people: Query<(Entity, &crate::actor::Actor, &Transform, &mut Memory, Option<&mut Hud>, Has<crate::player::Player>), Without<Dead>>,
+    knockers: Query<(Entity, &crate::actor::Actor, &Transform, &ThisTick, Option<&crate::actor::Survival>), Without<Dead>>,
+    mut people: Query<(Entity, &crate::actor::Actor, &Transform, &mut Memory, Has<crate::player::Player>), Without<Dead>>,
 ) {
     // In ActorId order (authority.md rule 5): of two knocking in one tick,
     // whom the player ends up talking to is the same after a load.
     let order = crate::actor::in_actor_order(knockers.iter().map(|(entity, actor, ..)| (Some(actor.0), entity)));
-    for (knocker, id, at, this_tick, name) in order.into_iter().filter_map(|e| knockers.get(e).ok()) {
+    for (knocker, id, at, this_tick, survival) in order.into_iter().filter_map(|e| knockers.get(e).ok()) {
         if !ActionQueue::has(&this_tick.0, Action::Knock) {
             continue;
         }
@@ -229,18 +231,35 @@ pub fn knock(
             continue;
         };
         let knocker_side = door.side_of(feet.ground());
-        for (hearer, _, there, mut memory, hud, is_player) in &mut people {
+        // Who hears it: on its floor, within hearing, on the door's other
+        // side.
+        let hears = |there: &Transform| {
+            let ear = feet_of(there);
+            (ear.y - floor).abs() < 1.5 && ear.ground().distance(door.closed_center) <= KNOCK_HEARD && door.side_of(ear.ground()) != knocker_side
+        };
+        // The one called line the knock carries to the player behind the
+        // door, if one fits (authority.md "Talking"); no conversation opens
+        // through a shut door, it starts once the two are within talking
+        // reach.
+        let player_behind = people.iter().find(|(e, _, there, _, is_player)| *e != knocker && *is_player && hears(there)).map(|(_, a, ..)| a.0);
+        let line = player_behind.and_then(|player| {
+            let (_, _, _, memory, _) = people.get(knocker).ok()?;
+            crate::talk::called_line((&called.0, &called.1, called.2.bunker, called.3.0), (id.0, memory, feet, survival), (player, true), tick.0)
+        });
+        for (hearer, _, there, mut memory, _) in &mut people {
             if hearer == knocker {
                 memory.0.did(modforge::memory::Did::Knocked, tick.0);
+                if let (Some(line), Some(player)) = (&line, player_behind) {
+                    memory.0.did(modforge::memory::Did::Talked(player, line.clone()), tick.0);
+                }
                 continue;
             }
-            let ear = feet_of(there);
-            if (ear.y - floor).abs() >= 1.5 || ear.ground().distance(door.closed_center) > KNOCK_HEARD || door.side_of(ear.ground()) == knocker_side {
+            if !hears(there) {
                 continue;
             }
             memory.0.did(modforge::memory::Did::HeardKnocking(id.0), tick.0);
-            if is_player && let Some(mut hud) = hud {
-                crate::talk::spoken_to(&mut commands, hearer, &mut hud, (id.0.0, name.as_str()), tick.0);
+            if let Some(line) = &line {
+                memory.0.did(modforge::memory::Did::Heard(id.0, line.clone()), tick.0);
             }
         }
     }

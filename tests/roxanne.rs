@@ -127,10 +127,12 @@ fn shut_in() -> (f64, f64, f64) {
     room
 }
 
-/// Roxanne knocks on the player's shut door: the player hears her knock
-/// and is in a conversation with her, the talk box open, through the door.
+/// Roxanne knocks on the player's shut door: the player hears her knock,
+/// and no conversation opens through the shut door (authority.md
+/// "Talking", operator 2026-10-02: a talk starts once the two are within
+/// talking reach, when the player opens the door to her).
 #[test]
-fn knocks_on_the_players_door_and_the_talk_box_opens() {
+fn knocks_on_the_players_door_and_the_player_hears_her() {
     let room = the_player_shut_in_their_room();
     let her = roxanne();
     let id = her["id"].as_u64().expect("Roxanne's id");
@@ -150,7 +152,8 @@ fn knocks_on_the_players_door_and_the_talk_box_opens() {
         }
         std::thread::sleep(Duration::from_millis(250));
     }
-    let opened = within(5, || op("hud")["talk"]["to"].as_u64() == Some(id));
+    // A few seconds more: no talk box opens through the shut door.
+    let opened = within(3, || op("hud")["talk"]["to"].as_u64() == Some(id));
     crate::talk_ui::shot("roxanne_knocks");
     let talk = op("hud")["talk"].clone();
     eprintln!("heard: {heard}, Roxanne at {:?}, the talk box: {talk}", spot(&roxanne()));
@@ -162,7 +165,7 @@ fn knocks_on_the_players_door_and_the_talk_box_opens() {
     }
     op_with("key", json!({"key": "Escape"}));
     assert!(heard, "the player never heard Roxanne knock");
-    assert!(opened, "the talk box never opened with Roxanne after her knock: {talk}");
+    assert!(!opened, "a talk box opened with Roxanne through the shut door: {talk}");
 }
 
 /// Roxanne walks the stairs again and again: from the entrance on the
