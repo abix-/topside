@@ -145,11 +145,22 @@ people is killing someone else's.
   being led by them is who they took: Dell after "Show me.", a bunker
   person who follows, or no one. Reached as "takes Dell", "takes someone
   else", or "takes no one".
-- Pivot point 4, what you tell your people: by who they tell. The player
-  tells bunker people of the tap with the talk box's Tell choice. When the
-  player first comes home after drinking at the tap: every person of their
-  bunker told is "tells everyone"; none told but Dell is "tells only
-  Dell"; nobody told is "tells no one".
+- Pivot point 4, what you tell your people: by who they tell, Dell and
+  any other people of the player's bunker. The player tells them of the
+  tap with the talk box's Tell choice. When the player first comes home
+  after drinking at the tap: every person of their bunker told is "tells
+  everyone"; only Dell told is "tells only Dell"; nobody told is "tells no
+  one". While the bunker is the player and Dell alone, telling Dell is
+  "tells everyone" (operator, 2026-10-02: "maybe it's just Roxanne").
+- Too much water (pivot point 5, operator, 2026-10-02): the store holds
+  too much when it holds water for 10 days of the bunker's drinking. Dell
+  stores past that, and the player checking the store (Use on it) while it
+  holds that much is when pivot point 5 comes.
+- Mara's well (pivots 7 and 8, operator, 2026-10-02): Mara's bunker's
+  store reads dry when it holds less than a quarter of what it held when
+  the episode started; going there, pivot point 7 is reached when the
+  player checks it (Use on it) while it reads dry. Mara's child asks for
+  water whenever the player is near them, from the start.
 
 ## The lines
 
