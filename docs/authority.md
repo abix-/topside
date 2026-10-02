@@ -116,8 +116,17 @@ CI runner taking jobs from a queue and reporting each back.
 - Each test starts from its own saved game (Saving, todo 31a): its
   starting point is reached once by playing and saved, and the test loads
   that save before every run, as speedrunners practise one part of a run
-  from a savestate. Until saving lands, a test starts from the running
-  game as it is.
+  from a savestate. Saving and loading in place work (src/save.rs: the
+  `save` and `load` ops, `saves/<name>.save`, tests/save.rs); loading into
+  a newly started game does not yet, so until it does a test starts from
+  the running game as it is.
+- What a save holds is one list, `saved!` in src/save.rs: every component
+  and resource that changes what happens next. A new one that changes
+  what happens next goes in that list, or a load loses it. What is worked
+  out from saved things (bodies, drawing, the walk grid, the mesh's
+  stand-ins) is never saved: it is made whenever its saved thing comes
+  into the world, spawned or loaded (`Actor`'s required parts,
+  `interact::item_body`, `interact::door_body`, the `Added` systems).
 - While tests run, nobody plays that game: the tests drive the world, the
   player and the camera.
 
@@ -198,6 +207,7 @@ the operator's own words. No synonyms, no renamed wrappers.
 | **WorldItem** | Anything that exists in the world with a position: dropped items, placed crafting benches, generators, storage boxes, doors, loot crates. The ONE name for "a thing in the world." An item in inventory is an ItemStack; when placed or dropped into the world it becomes a WorldItem. Lives in topside (it is Bevy-specific); the concept is referenced by modforge systems that reason about world placement. Avoids "entity" to prevent confusion with Bevy's ECS Entity handle. |
 | **Actor** | Anything that acts: it moves or shoots, meaning it pushes actions onto an action queue that `movement` and `fire` run. The player, every NPC, animals, turrets, and vehicles are actors, all on the same components (inventory, hotbar, equipment, survival, health, protection, facing, an action queue) and all through `spawn_actor`. A WorldItem never acts; it is only acted on (picked up, opened, used, hit). The test for a new thing (operator-locked 2026-08-21): does it push actions? Yes means actor, no means WorldItem. A turret is an actor with speed zero placed from the inventory; a vehicle is an actor whose queue the driver fills instead of their own body's. The only differences between actors are the def and who fills the queue (the keyboard, the AI, or a driver). |
 | **ActorId** | The one persistent identity of an actor: a monotonic number issued once at spawn, never reused, surviving save and load. Carried as a component. Bevy `Entity` is a runtime handle and the GPU row is a buffer index; neither is an identity. Replaces the slot-as-identity that Endless used. Decided 2026-08-21. |
+| **ThingId** | A thing's persistent identity (an item, a station, a door), as ActorId is a person's: given once where the thing is made (`interact::next_thing_id`, in `spawn_item`, `spawn_station` and a building's doors), surviving save and load. What memory knows a thing by (a box, a source, the tap); never an `Entity`'s bits, which change on every load. `ThingIds` finds the thing by it. Decided 2026-10-02. |
 | **ActorMap** | The one actor registry, taken from Endless's EntityMap and GpuSlotPool folded into one resource (decided 2026-08-21: "have it working clean in our actormap"). Issues the ActorId and the GPU row at spawn, frees the row at death, and answers every lookup: by ActorId, by Entity, by row. Two counts, two methods, never mixed: the high-water row count (buffer sizing and dispatch bounds) and the live actor count (gameplay). Only the map and the GPU uploader ever see a row number. Holds every actor and nothing that is not an actor: no WorldItems, no projectiles, no structures (Endless put buildings in its EntityMap; that is what muddied the name). The map, its rules, and its tests are modforge `ActorMap` (modforge src/actor.rs); topside holds it as the `ActorMapRes` resource and carries the id on each entity as the `Actor` component (src/actor_map.rs). |
 | **StructureDef** | One building as data (rooms, openings, stairs, furniture, lights), the Def in Def -> Registry -> Instance. Lives in MODFORGE (decided 2026-08-19: the data and relation rules are engine-agnostic, on glam math and plain rgb, so mods can roll structures too, e.g. survivalist town growth). Hand-authored and generated buildings use the same shape; code never composes geometry outside one. |
 | **spawn_structure** | The one path from a StructureDef to world geometry and colliders (the Controller). Lives in the CONSUMER: it is the binder that makes a def real in one world (topside spawns Bevy entities; a mod would call its host game's build functions). |

@@ -36,7 +36,20 @@ the prior art for the held weapon.
 - No advertising: things say what they are good for on their defs;
   people remember what they saw; the brain reads memory only.
 
-## Last session (2026-09-25, docs caught up 2026-09-26)
+## Last session (2026-10-02)
+
+Episode 1 (The Tap) is built system by system (todo rows grouped by
+system: pathing, interact, trading, real stores, brain, the edge,
+factions, memory, episodes), each committed as it passes. Done and
+pushed: walking, knocking, leading, trading (player and people),
+conversation reading time, the 60 fps limit, span timing in the `perf`
+op, the build from the repo's target/, and save and load in place (todo
+31a part: `save` and `load` ops, src/save.rs, things carry a `ThingId`,
+tests/save.rs loads twice and matches the save exactly). Left on 31a:
+loading into a newly started game, and the same test from the same save
+giving the same result twice.
+
+## Earlier (2026-09-25, docs caught up 2026-09-26)
 
 Built on 2026-09-25 (docs/changelog.md): the 2D game from the top
 down, walls and doors as Avian colliders, melee, guns, the roll,
@@ -87,7 +100,10 @@ kept in logs/nextest/default/junit.xml.
 
 ## Next steps
 
-The first unchecked row of docs/todo.md, unless the operator says.
+The rest of 31a (a run from a save giving the same result twice; loading
+into a newly started game, which needs the operator's call on how chunks
+skip what a save holds), then 9k (each test from its own save), then the
+first unchecked row of docs/todo.md, unless the operator says.
 
 ## Open questions
 
