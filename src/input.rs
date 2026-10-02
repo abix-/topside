@@ -73,50 +73,122 @@ fn key_of(code: KeyCode) -> Option<Key> {
 /// Radians turned per pixel the mouse moves. Tuning.
 const LOOK_PER_PIXEL: f32 = 0.0025;
 
-/// Read the keys and the mouse once per frame and push the player's
-/// actions for the next fixed tick: movement, use, attack, where they
-/// look, and the panel and hotbar keys. While a panel is open only the
-/// panel keys, the hotbar, and use get through (the 3D game's rule): no
-/// walking, looking, or swinging. WASD is read relative to where the
-/// player faces (W forward) and pushed as a direction on the ground, the
-/// same `Move` every NPC's brain pushes.
-pub fn read_input(
+/// What the keys and the mouse did since a tick last took them: every key
+/// and button pressed (a tap let go again before any tick ran included),
+/// and how far the mouse looked. Filled every frame (`gather_input`) and
+/// taken whole by the next tick (`input_to_actions`), so a press acts at
+/// the next tick the game runs, however many frames that takes, paused or
+/// stepped (authority.md rule 5). The real keys and the `key` and
+/// `pointer` ops come through here alike.
+#[derive(Resource, Default)]
+pub struct PendingInput {
+    pressed: Vec<Key>,
+    look: Vec2,
+}
+
+/// Keys the `key` op pressed, not yet taken by a tick, and keys it holds
+/// down until it lets them go: the op's hands, taken by the next tick
+/// whatever frame it comes in, as the real keys are (`input_to_actions`).
+static OP_KEYS: std::sync::Mutex<(Vec<Key>, Vec<Key>)> = std::sync::Mutex::new((Vec::new(), Vec::new()));
+
+/// The `key` op: `code` tapped (None), held down (Some(true)) or let go
+/// (Some(false)); answers whether it is a key the bindings know.
+pub fn press_from_op(code: KeyCode, hold: Option<bool>) -> bool {
+    let Some(key) = key_of(code) else {
+        return false;
+    };
+    if let Ok(mut keys) = OP_KEYS.lock() {
+        let (pressed, held) = &mut *keys;
+        match hold {
+            Some(false) => held.retain(|k| *k != key),
+            Some(true) => {
+                pressed.push(key);
+                held.push(key);
+            }
+            None => pressed.push(key),
+        }
+    }
+    true
+}
+
+/// Every frame: the keys and buttons pressed this frame, and the mouse's
+/// look while the cursor is held by the game in the world, kept until a
+/// tick takes them.
+pub fn gather_input(
+    keys: Res<ButtonInput<KeyCode>>,
+    buttons: Res<ButtonInput<MouseButton>>,
+    motion: Res<AccumulatedMouseMotion>,
+    cursors: Query<&CursorOptions, With<PrimaryWindow>>,
+    players: Query<&Hud, With<Player>>,
+    mut pending: ResMut<PendingInput>,
+) {
+    let pressed: Vec<Key> = keys.get_just_pressed().filter_map(|k| key_of(*k)).chain(buttons.get_just_pressed().filter_map(|b| button_of(*b))).collect();
+    for key in pressed {
+        if !pending.pressed.contains(&key) {
+            pending.pressed.push(key);
+        }
+    }
+    let in_world = players.single().is_ok_and(|hud| hud.0.open_panel == OpenPanel::None);
+    // The mouse looks only while the cursor is held by the game.
+    let grabbed = cursors.single().is_ok_and(|c| c.grab_mode != CursorGrabMode::None);
+    if in_world && grabbed {
+        pending.look += motion.delta;
+    }
+}
+
+/// First in every fixed step: what the keys and mouse did since the last
+/// tick becomes the player's actions for this tick: movement, use,
+/// attack, where they look, and the panel and hotbar keys. While a panel
+/// is open only the panel keys, the hotbar, and use get through (the 3D
+/// game's rule): no walking, looking, or swinging. WASD is read relative
+/// to where the player faces (W forward) and pushed as a direction on the
+/// ground, the same `Move` every NPC's brain pushes.
+pub fn input_to_actions(
     keys: Res<ButtonInput<KeyCode>>,
     buttons: Res<ButtonInput<MouseButton>>,
     bindings: Res<BindingsRes>,
     tick: Res<SimTick>,
     hovered: Res<HoveredSlot>,
-    motion: Res<AccumulatedMouseMotion>,
-    cursors: Query<&CursorOptions, With<PrimaryWindow>>,
+    mut pending: ResMut<PendingInput>,
     mut players: Query<(&mut Actions, &Hud, &crate::actor::Facing), With<Player>>,
 ) {
+    let mut taken = std::mem::take(&mut *pending);
+    // The `key` op's presses and held keys, the same as real ones.
+    let op_held: Vec<Key> = match OP_KEYS.lock() {
+        Ok(mut keys) => {
+            for key in std::mem::take(&mut keys.0) {
+                if !taken.pressed.contains(&key) {
+                    taken.pressed.push(key);
+                }
+            }
+            keys.1.clone()
+        }
+        Err(_) => Vec::new(),
+    };
     let Ok((mut actions, hud, facing)) = players.single_mut() else {
         return;
     };
+    // The tick about to run (this runs before it counts).
+    let next = tick.0 + 1;
     let in_world = hud.0.open_panel == OpenPanel::None;
-    // The mouse looks only while the cursor is held by the game.
-    let grabbed = cursors.single().is_ok_and(|c| c.grab_mode != CursorGrabMode::None);
-    if in_world && grabbed && motion.delta != Vec2::ZERO {
+    if in_world && taken.look != Vec2::ZERO {
         actions.0.push(
-            tick.0 + 1,
+            next,
             Action::Look {
-                yaw: motion.delta.x * LOOK_PER_PIXEL,
-                pitch: -motion.delta.y * LOOK_PER_PIXEL,
+                yaw: taken.look.x * LOOK_PER_PIXEL,
+                pitch: -taken.look.y * LOOK_PER_PIXEL,
             },
         );
     }
-    let pressed: Vec<Key> = keys
-        .get_pressed()
-        .filter_map(|k| key_of(*k))
-        .chain(buttons.get_pressed().filter_map(|b| button_of(*b)))
-        .collect();
-    let just_pressed: Vec<Key> = keys
-        .get_just_pressed()
-        .filter_map(|k| key_of(*k))
-        .chain(buttons.get_just_pressed().filter_map(|b| button_of(*b)))
-        .collect();
-    // The next fixed step consumes what this frame produced.
-    let next = tick.0 + 1;
+    // Held now, and pressed since the last tick (a tap counts as held for
+    // the tick that takes it).
+    let mut pressed: Vec<Key> = keys.get_pressed().filter_map(|k| key_of(*k)).chain(buttons.get_pressed().filter_map(|b| button_of(*b))).collect();
+    for key in taken.pressed.iter().chain(&op_held) {
+        if !pressed.contains(key) {
+            pressed.push(*key);
+        }
+    }
+    let just_pressed = taken.pressed;
     let mut moved = false;
     for action in bindings.0.resolve(&pressed, &just_pressed) {
         // T moves the stack under the cursor.
@@ -174,8 +246,8 @@ pub fn read_input(
             actions.0.push(next, action);
         }
     }
-    // Every frame states its movement, zero included, so a released
-    // key stops the body.
+    // Every tick states its movement, zero included, so a released key
+    // stops the body.
     if !moved {
         actions.0.push(next, Action::Move { x: 0.0, y: 0.0 });
     }

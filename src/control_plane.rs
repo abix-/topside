@@ -105,17 +105,15 @@ enum UseAt {
 
 /// The `use` op's request: the ActorId, and where to use.
 static USE_ASK: Mutex<Option<(u64, UseAt)>> = Mutex::new(None);
-/// One step of driving the game the way the player does (the `pointer`
-/// and `key` ops): the mouse moved to a window point, a mouse button or
-/// key pressed or released; `Next` ends this frame's steps, so a press is
-/// seen one frame before its release.
+/// One step of driving the mouse the way the player does (the `pointer`
+/// op): the pointer moved to a window point, its button pressed or
+/// released; `Next` ends this frame's steps, so a press is seen one frame
+/// before its release. (The `key` op's keys go to input::press_from_op.)
 #[derive(Clone, Copy, Debug)]
 enum Drive {
     Move(Vec2),
     Press,
     Release,
-    KeyPress(KeyCode),
-    KeyRelease(KeyCode),
     Next,
 }
 static DRIVE: Mutex<Vec<Drive>> = Mutex::new(Vec::new());
@@ -160,14 +158,11 @@ fn key_code(name: &str) -> Option<KeyCode> {
 }
 
 /// Once a frame, right after Bevy has read the real mouse and keys: the
-/// `pointer` and `key` ops' steps up to the next frame's, the mouse as
-/// Bevy picking's `PointerInput` on the real mouse pointer (as its own
-/// mouse backend writes them) and keys into the one key state
-/// `input::read_input` reads. Nothing downstream can tell them from the
-/// player's hands.
+/// `pointer` op's steps up to the next frame's, as Bevy picking's
+/// `PointerInput` on its own pointer (as Bevy's mouse backend writes
+/// them). Nothing downstream can tell them from the player's hand.
 pub fn drive_input(
     mut last: Local<Vec2>,
-    mut keys: ResMut<ButtonInput<KeyCode>>,
     windows: Query<Entity, With<bevy::window::PrimaryWindow>>,
     mut pointers: MessageWriter<bevy::picking::pointer::PointerInput>,
 ) {
@@ -198,8 +193,6 @@ pub fn drive_input(
             Drive::Release => {
                 pointers.write(PointerInput::new(DRIVEN, location(*last), PointerAction::Release(PointerButton::Primary)));
             }
-            Drive::KeyPress(code) => keys.press(code),
-            Drive::KeyRelease(code) => keys.release(code),
             Drive::Next => {}
         }
     }
@@ -1680,17 +1673,13 @@ pub fn start() {
     ));
     OP_REGISTRY.register(OpDef::new(
         "key",
-        "press a key as the player does, into the one key state input::read_input reads: tapped (pressed one frame, released the next) or, with `hold`, pressed until a `key` op with `hold: false` (W, A, S, D, E, I, M, T, O, Tab, Escape, Enter, Space, 1 to 6)",
+        "press a key as the player does, taken by the next tick the game runs with the real keys (input::input_to_actions): tapped (pressed for that tick) or, with `hold`, held down until a `key` op with `hold: false` (W, A, S, D, E, I, M, T, Tab, Escape, Enter, Space, 1 to 6)",
         "{\"key\": \"E\"}",
         |args| {
             let name = args.get("key").and_then(Json::as_str).ok_or_else(|| "key: a key's name".to_string())?;
             let code = key_code(name).ok_or_else(|| format!("no key named '{name}'"))?;
-            if let Ok(mut queue) = DRIVE.lock() {
-                match args.get("hold").and_then(Json::as_bool) {
-                    Some(true) => queue.extend([Drive::KeyPress(code), Drive::Next]),
-                    Some(false) => queue.extend([Drive::KeyRelease(code), Drive::Next]),
-                    None => queue.extend([Drive::KeyPress(code), Drive::Next, Drive::KeyRelease(code), Drive::Next]),
-                }
+            if !crate::input::press_from_op(code, args.get("hold").and_then(Json::as_bool)) {
+                return Err(format!("{name} is not a key the bindings know"));
             }
             Ok(json!({"key": name}))
         },

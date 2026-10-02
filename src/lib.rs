@@ -335,13 +335,16 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind) -> App {
             )
                 .after(terrain::roll),
         );
-        // The ONE place raw input is read; headless tests push actions
-        // themselves.
+        // The ONE place raw input is read: gathered every frame, made into
+        // actions first in every fixed step (authority.md rule 5); headless
+        // tests push actions themselves.
+        app.init_resource::<input::PendingInput>();
+        app.add_systems(PreUpdate, input::gather_input.after(bevy::input::InputSystems));
+        app.add_systems(FixedPreUpdate, input::input_to_actions);
         app.add_systems(
             Update,
             (
                 control_plane::apply_speed,
-                input::read_input,
                 hud::render,
                 hud::render_item_panel,
                 hud::render_trade,

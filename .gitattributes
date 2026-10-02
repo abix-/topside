@@ -1,0 +1,3 @@
+# Saves are kept byte for byte: a checkout must never turn their line
+# endings, or a test loads another save than the one it was made with.
+*.save binary
