@@ -50,8 +50,8 @@ param (
 $ErrorActionPreference = 'Stop'
 $repo = Split-Path -Parent $PSScriptRoot
 $logs = Join-Path $repo 'logs'
-# k3sc cargo-lock routes artifacts to the shared target directory.
-$exe = 'C:\code\endless\rust\target\debug\topside.exe'
+# The build's artifacts are in the repo's own target directory.
+$exe = Join-Path $repo 'target\debug\topside.exe'
 New-Item -ItemType Directory -Force $logs | Out-Null
 Set-Location $repo
 

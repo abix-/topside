@@ -1,5 +1,7 @@
 # every build, test, and game log (scripts/build.ps1)
 logs/
+# the build's artifacts (scripts/build.ps1 launches target/debug/topside.exe)
+target/
 # k3sc cargo-lock's lock file
 .cargo-build.lock
 # the Mustang reference model, 139 MB: past GitHub's 100 MB file limit
