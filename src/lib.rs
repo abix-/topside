@@ -253,7 +253,7 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind) -> App {
                 control_plane::publish,
                 control_plane::publish_world,
                 control_plane::publish_ways,
-                (control_plane::answer_npc, control_plane::answer_kill, control_plane::answer_give, control_plane::answer_needs, control_plane::answer_use, control_plane::answer_talk, control_plane::answer_walk).chain(),
+                (control_plane::answer_kill, control_plane::answer_give, control_plane::answer_needs, control_plane::answer_use, control_plane::answer_talk).chain(),
                 lap("publish"),
             )
                 .chain(),
@@ -265,6 +265,9 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind) -> App {
     // paused game hands the fixed loop its ticks before it runs and answers
     // after.
     app.add_systems(First, save::answer_save);
+    // The ops that only read answer every frame, paused or not; the ops
+    // that change the game act at the next tick (in the fixed chain).
+    app.add_systems(Update, (control_plane::answer_npc, control_plane::answer_walk));
     app.add_systems(
         RunFixedMainLoop,
         (

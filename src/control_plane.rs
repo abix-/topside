@@ -1385,8 +1385,9 @@ pub fn start() {
             if let Ok(mut ask) = NPC_ASK.lock() {
                 *ask = Some(id);
             }
-            // The game answers on its next step.
-            for _ in 0..100 {
+            // The game answers on its next frame, paused or not (it only
+            // reads); no clock here, the test runner's own limit stops a hang.
+            loop {
                 std::thread::sleep(std::time::Duration::from_millis(10));
                 if let Ok(mut slot) = NPC_ANSWER.lock()
                     && slot.as_ref().is_some_and(|(asked, _)| *asked == id)
@@ -1394,7 +1395,6 @@ pub fn start() {
                     return Ok(slot.take().map(|(_, a)| a).unwrap_or(Json::Null));
                 }
             }
-            Err("the game did not answer within a second".to_string())
         },
     ));
     OP_REGISTRY.register(OpDef::new(
@@ -1410,8 +1410,9 @@ pub fn start() {
             if let Ok(mut ask) = WALK_ASK.lock() {
                 *ask = Some(at);
             }
-            // The game answers on its next step.
-            for _ in 0..100 {
+            // The game answers on its next frame, paused or not (it only
+            // reads); no clock here, the test runner's own limit stops a hang.
+            loop {
                 std::thread::sleep(std::time::Duration::from_millis(10));
                 if let Ok(mut slot) = WALK_ANSWER.lock()
                     && slot.is_some()
@@ -1419,7 +1420,6 @@ pub fn start() {
                     return Ok(slot.take().unwrap_or(Json::Null));
                 }
             }
-            Err("the game did not answer within a second".to_string())
         },
     ));
     // Saving and loading (crate::save): one ask at a time, answered once
