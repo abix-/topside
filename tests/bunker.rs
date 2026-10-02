@@ -35,7 +35,7 @@ fn the_player_wakes_in_their_room_and_reads_the_note_there() {
     assert!(woke, "the player woke with their feet at {feet:.2}, not 6 m down");
     // The note, from the bunker point the player wakes at.
     let note = (x - 1.4, y + 3.6);
-    op_with("command", serde_json::json!({"do": "move_to", "x": note.0, "y": note.1}));
+    op_with("command", serde_json::json!({"do": "move_to", "x": note.0, "y": feet, "z": note.1}));
     within(10, || {
         let (px, py, _) = status();
         ((px - note.0).powi(2) + (py - note.1).powi(2)).sqrt() < 1.6
@@ -81,7 +81,7 @@ fn the_entrance_has_one_doorway_into_the_stairwell() {
     let player = op("player")["id"].as_u64().expect("the player op reports the player's id");
     op_with("use", serde_json::json!({"id": player, "at": [-1.5, 0.0]}));
     within(3, || status().2.abs() < 0.1 && status().0 < 1.0);
-    op_with("command", serde_json::json!({"do": "move_to", "x": 2.0, "y": 0.0}));
+    op_with("command", serde_json::json!({"do": "move_to", "x": 2.0, "y": 0.0, "z": 0.0}));
     let there = within(5, || status().0 > 0.3);
     std::thread::sleep(std::time::Duration::from_millis(500));
     crate::talk_ui::shot("bunker_doorway");

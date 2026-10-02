@@ -240,8 +240,9 @@ mod tests {
         (t.actions, t.do_now)
     }
 
+    /// Sent somewhere: the brain's way of walking, by the way there.
     fn has_move(actions: &[Action]) -> bool {
-        actions.iter().any(|a| matches!(a, Action::Move { .. }))
+        actions.iter().any(|a| matches!(a, Action::Go { .. }))
     }
 
     #[test]
@@ -386,7 +387,7 @@ mod tests {
         let (actions, _) = think(&p, &mut record, &mut Roll::new(1));
         assert_eq!(record.state, Some(FIGHT));
         assert!(matches!(record.target, Target::Threat { who: ActorId(7), .. }));
-        assert!(actions.contains(&Action::Aim { x: 0.0, y: 10.0 }), "to where it was");
+        assert!(actions.contains(&Action::Go { x: 0.0, y: 0.0, z: 10.0 }), "to where it was");
         let mut later = perception(&memory, &personality);
         later.now = 90 + THREAT_RECENT + 1;
         think(&later, &mut record, &mut Roll::new(1));
@@ -405,7 +406,7 @@ mod tests {
         let mut record = Record::default();
         let (actions, _) = think(&p, &mut record, &mut Roll::new(1));
         assert_eq!(record.state, Some(HIDE), "no fighting in a storm");
-        assert!(actions.contains(&Action::Aim { x: 0.0, y: 30.0 }), "heading home");
+        assert!(actions.contains(&Action::Go { x: 0.0, y: 0.0, z: 30.0 }), "heading home");
     }
 
     /// Everything is learnable, the storm too (life.md "Learning to stay
@@ -448,7 +449,7 @@ mod tests {
         p.at_home = false;
         let (actions, _) = think(&p, &mut record, &mut Roll::new(1));
         assert_eq!(record.state, Some(HIDE));
-        assert!(actions.contains(&Action::Aim { x: 0.0, y: 30.0 }), "home, in the same think");
+        assert!(actions.contains(&Action::Go { x: 0.0, y: 0.0, z: 30.0 }), "home, in the same think");
     }
 
     /// On the way to the well nothing is chosen again: no stroll spot is
@@ -483,21 +484,15 @@ mod tests {
     }
 
     #[test]
-    fn a_hunter_aims_at_what_it_hunts_and_steps_toward_it_on_the_ground() {
+    fn a_hunter_aims_at_what_it_hunts_and_goes_to_it() {
         let memory = Memory::default();
         let personality = Personality::default();
         let mut p = perception(&memory, &personality);
-        p.hostile = Some((ActorId(3), Vec3::new(6.0, 0.0, 8.0)));
+        p.hostile = Some((ActorId(3), Vec3::new(6.0, 1.5, 8.0)));
         let (actions, _) = think(&p, &mut Record::default(), &mut Roll::new(1));
         assert!(actions.contains(&Action::Aim { x: 6.0, y: 8.0 }), "{actions:?}");
-        let step = actions
-            .iter()
-            .find_map(|a| match a {
-                Action::Move { x, y } => Some((*x, *y)),
-                _ => None,
-            })
-            .expect("closes in");
-        assert!((step.0 - 0.6).abs() < 1e-4 && (step.1 - 0.8).abs() < 1e-4, "{step:?}");
+        // To where it stands, its height included.
+        assert!(actions.contains(&Action::Go { x: 6.0, y: 1.5, z: 8.0 }), "closes in: {actions:?}");
     }
 
     #[test]
@@ -513,8 +508,7 @@ mod tests {
         let mut record = Record::default();
         let (actions, _) = think(&p, &mut record, &mut Roll::new(1));
         assert_eq!(record.state, Some(FLEE));
-        assert!(actions.contains(&Action::Aim { x: 0.0, y: 30.0 }), "home");
-        assert!(has_move(&actions), "runs");
+        assert!(actions.contains(&Action::Go { x: 0.0, y: 0.0, z: 30.0 }), "runs home");
         assert!(!actions.contains(&Action::Attack));
 
         let mut brave = Personality::default();
@@ -545,8 +539,7 @@ mod tests {
         let mut record = Record::default();
         let (actions, _) = think(&p, &mut record, &mut Roll::new(1));
         assert_eq!(record.state, Some(FLEE));
-        assert!(actions.contains(&Action::Aim { x: 0.0, y: FLEE_FAR }), "away from the threat: {actions:?}");
-        assert!(has_move(&actions), "runs");
+        assert!(actions.contains(&Action::Go { x: 0.0, y: 0.0, z: FLEE_FAR }), "runs away from the threat: {actions:?}");
 
         let mut leashed = perception(&memory, &coward);
         leashed.home = None;
@@ -558,7 +551,7 @@ mod tests {
         };
         let (actions, _) = think(&leashed, &mut record, &mut Roll::new(1));
         assert_eq!(record.state, Some(BREAK_OFF));
-        assert!(actions.contains(&Action::Aim { x: 0.0, y: 0.0 }), "back to where the fight began");
+        assert!(actions.contains(&Action::Go { x: 0.0, y: 0.0, z: 0.0 }), "back to where the fight began");
     }
 
     #[test]
@@ -576,8 +569,7 @@ mod tests {
         };
         let (actions, _) = think(&p, &mut record, &mut Roll::new(1));
         assert_eq!(record.state, Some(BREAK_OFF));
-        assert!(actions.contains(&Action::Aim { x: 0.0, y: 5.0 }), "home");
-        assert!(has_move(&actions));
+        assert!(actions.contains(&Action::Go { x: 0.0, y: 0.0, z: 5.0 }), "home");
         // Breaking off, the raider still in sight does not start the fight
         // again: they keep walking home.
         let (actions, _) = think(&p, &mut record, &mut Roll::new(1));

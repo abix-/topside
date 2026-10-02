@@ -493,6 +493,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "avian_rerecast"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "21110f7921916a45f1018b5b0acef4a517915312fdfef84b5adf18465c6792bd"
+dependencies = [
+ "avian3d",
+ "bevy_app",
+ "bevy_ecs",
+ "bevy_math",
+ "bevy_reflect",
+ "bevy_rerecast_core",
+]
+
+[[package]]
 name = "base64"
 version = "0.22.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -717,7 +731,7 @@ dependencies = [
  "serde",
  "smallvec",
  "thiserror 2.0.20",
- "wgpu-types",
+ "wgpu-types 29.0.4",
 ]
 
 [[package]]
@@ -749,7 +763,7 @@ dependencies = [
  "encase",
  "serde",
  "thiserror 2.0.20",
- "wgpu-types",
+ "wgpu-types 29.0.4",
 ]
 
 [[package]]
@@ -811,6 +825,7 @@ dependencies = [
  "bevy_math",
  "bevy_pbr",
  "bevy_picking",
+ "bevy_platform",
  "bevy_reflect",
  "bevy_render",
  "bevy_shader",
@@ -820,7 +835,11 @@ dependencies = [
  "bevy_transform",
  "bevy_ui",
  "bevy_ui_render",
+ "bevy_utils",
  "bevy_window",
+ "ron",
+ "serde",
+ "thiserror 2.0.20",
  "tracing",
 ]
 
@@ -1049,7 +1068,7 @@ dependencies = [
  "smallvec",
  "thiserror 2.0.20",
  "tracing",
- "wgpu-types",
+ "wgpu-types 29.0.4",
 ]
 
 [[package]]
@@ -1089,7 +1108,7 @@ dependencies = [
  "serde",
  "thiserror 2.0.20",
  "tracing",
- "wgpu-types",
+ "wgpu-types 29.0.4",
 ]
 
 [[package]]
@@ -1186,6 +1205,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "bevy_landmass"
+version = "0.12.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c3d2715a76e15d02b7da51fe50c88b6caf7753234e8c8cfa5987b3253faed7f6"
+dependencies = [
+ "bevy_app",
+ "bevy_asset",
+ "bevy_color",
+ "bevy_ecs",
+ "bevy_gizmos",
+ "bevy_log",
+ "bevy_math",
+ "bevy_mesh",
+ "bevy_platform",
+ "bevy_reflect",
+ "bevy_time",
+ "bevy_transform",
+ "landmass",
+]
+
+[[package]]
 name = "bevy_light"
 version = "0.19.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1208,7 +1248,7 @@ dependencies = [
  "half",
  "smallvec",
  "tracing",
- "wgpu-types",
+ "wgpu-types 29.0.4",
 ]
 
 [[package]]
@@ -1261,7 +1301,7 @@ dependencies = [
  "thiserror 2.0.20",
  "tracing",
  "variadics_please",
- "wgpu-types",
+ "wgpu-types 29.0.4",
 ]
 
 [[package]]
@@ -1285,7 +1325,7 @@ dependencies = [
  "arrayvec",
  "bevy_reflect",
  "derive_more 2.1.1",
- "glam",
+ "glam 0.32.1",
  "itertools 0.14.0",
  "libm",
  "rand 0.10.2",
@@ -1315,12 +1355,13 @@ dependencies = [
  "bytemuck",
  "derive_more 2.1.1",
  "encase",
- "glam",
+ "glam 0.32.1",
  "half",
  "hexasphere",
+ "serde",
  "thiserror 2.0.20",
  "tracing",
- "wgpu-types",
+ "wgpu-types 29.0.4",
 ]
 
 [[package]]
@@ -1369,7 +1410,7 @@ dependencies = [
  "static_assertions",
  "thiserror 2.0.20",
  "tracing",
- "wgpu-types",
+ "wgpu-types 29.0.4",
 ]
 
 [[package]]
@@ -1465,7 +1506,7 @@ dependencies = [
  "downcast-rs 2.0.2",
  "erased-serde",
  "foldhash 0.2.0",
- "glam",
+ "glam 0.32.1",
  "indexmap",
  "inventory",
  "petgraph",
@@ -1475,7 +1516,7 @@ dependencies = [
  "thiserror 2.0.20",
  "uuid",
  "variadics_please",
- "wgpu-types",
+ "wgpu-types 29.0.4",
 ]
 
 [[package]]
@@ -1490,6 +1531,28 @@ dependencies = [
  "quote",
  "syn 2.0.119",
  "uuid",
+]
+
+[[package]]
+name = "bevy_remote"
+version = "0.19.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "26bcc7f749957fbc05d3d0c7c4526426507de6607238f10b17392559d49163d1"
+dependencies = [
+ "anyhow",
+ "async-channel",
+ "bevy_app",
+ "bevy_color",
+ "bevy_derive",
+ "bevy_dev_tools",
+ "bevy_ecs",
+ "bevy_log",
+ "bevy_platform",
+ "bevy_reflect",
+ "bevy_tasks",
+ "bevy_utils",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -1527,7 +1590,7 @@ dependencies = [
  "derive_more 2.1.1",
  "downcast-rs 2.0.2",
  "encase",
- "glam",
+ "glam 0.32.1",
  "image",
  "indexmap",
  "itertools 0.14.0",
@@ -1543,7 +1606,7 @@ dependencies = [
  "weak-table",
  "web-sys",
  "wgpu",
- "wgpu-types",
+ "wgpu-types 29.0.4",
 ]
 
 [[package]]
@@ -1556,6 +1619,85 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.119",
+]
+
+[[package]]
+name = "bevy_rerecast"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bd180c4aeea0d52516248e74954318a479b6bca1507b62e8bd420acdf399c326"
+dependencies = [
+ "bevy_app",
+ "bevy_rerecast_core",
+ "bevy_rerecast_editor_integration",
+]
+
+[[package]]
+name = "bevy_rerecast_core"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a2752a8852edcc1ca5b8dd2421fca3a03cf9e5e2278876acf226fe29a22ea064"
+dependencies = [
+ "anyhow",
+ "bevy_app",
+ "bevy_asset",
+ "bevy_camera",
+ "bevy_color",
+ "bevy_derive",
+ "bevy_ecs",
+ "bevy_gizmos",
+ "bevy_light",
+ "bevy_material",
+ "bevy_math",
+ "bevy_mesh",
+ "bevy_pbr",
+ "bevy_platform",
+ "bevy_reflect",
+ "bevy_render",
+ "bevy_tasks",
+ "bevy_transform",
+ "bincode",
+ "glam 0.32.1",
+ "rerecast",
+ "serde",
+ "thiserror 2.0.20",
+ "tracing",
+]
+
+[[package]]
+name = "bevy_rerecast_editor_integration"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8bb426dc0d39ce65d81baa9055b26c5c22ab9fabc2fa78c1b519feecdd0400bc"
+dependencies = [
+ "anyhow",
+ "base64 0.22.1",
+ "bevy_app",
+ "bevy_asset",
+ "bevy_camera",
+ "bevy_color",
+ "bevy_derive",
+ "bevy_ecs",
+ "bevy_image",
+ "bevy_material",
+ "bevy_math",
+ "bevy_mesh",
+ "bevy_pbr",
+ "bevy_platform",
+ "bevy_reflect",
+ "bevy_remote",
+ "bevy_render",
+ "bevy_rerecast_core",
+ "bevy_tasks",
+ "bevy_transform",
+ "bincode",
+ "flate2",
+ "rerecast",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.20",
+ "tracing",
+ "wgpu-types 30.0.1",
 ]
 
 [[package]]
@@ -1608,7 +1750,7 @@ dependencies = [
  "thiserror 2.0.20",
  "tracing",
  "wgpu-naga-bridge",
- "wgpu-types",
+ "wgpu-types 29.0.4",
 ]
 
 [[package]]
@@ -1634,7 +1776,7 @@ dependencies = [
  "bevy_window",
  "radsort",
  "tracing",
- "wgpu-types",
+ "wgpu-types 29.0.4",
 ]
 
 [[package]]
@@ -1742,7 +1884,7 @@ dependencies = [
  "sys-locale",
  "thiserror 2.0.20",
  "tracing",
- "wgpu-types",
+ "wgpu-types 29.0.4",
 ]
 
 [[package]]
@@ -1942,7 +2084,7 @@ dependencies = [
  "tracing",
  "wasm-bindgen",
  "web-sys",
- "wgpu-types",
+ "wgpu-types 29.0.4",
  "winit",
 ]
 
@@ -1966,6 +2108,16 @@ dependencies = [
  "serde",
  "thiserror 2.0.20",
  "uuid",
+]
+
+[[package]]
+name = "bincode"
+version = "2.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "36eaf5d7b090263e8150820482d5d93cd964a81e4019913c972f4edcc6edb740"
+dependencies = [
+ "serde",
+ "unty",
 ]
 
 [[package]]
@@ -2752,6 +2904,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "disjoint"
+version = "0.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c37b399c91d093763e38c7a57a740e0005e30e5aff7132e791aada5eef3fed99"
+
+[[package]]
 name = "dispatch"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2805,6 +2963,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "dodgy_2d"
+version = "0.5.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d35627725e918aa4593ca54937cd8ef58078d3b9ab0fd060aee60c9bc3a2050e"
+dependencies = [
+ "glam 0.29.3",
+ "rand 0.9.5",
+]
+
+[[package]]
 name = "downcast-rs"
 version = "1.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2821,6 +2989,16 @@ name = "dpi"
 version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d8b14ccef22fc6f5a8f4d7d768562a182c04ce9a3b3157b91390b52ddfdf1a76"
+
+[[package]]
+name = "earcutr"
+version = "0.4.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "79127ed59a85d7687c409e9978547cffb7dc79675355ed22da6b66fd5f6ead01"
+dependencies = [
+ "itertools 0.11.0",
+ "num-traits",
+]
 
 [[package]]
 name = "either"
@@ -2973,6 +3151,12 @@ dependencies = [
  "miniz_oxide",
  "zlib-rs",
 ]
+
+[[package]]
+name = "float_next_after"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8bf7cc16383c4b8d58b9905a8509f02926ce3058053c056376248d958c9df1e8"
 
 [[package]]
 name = "fnv"
@@ -3184,6 +3368,47 @@ dependencies = [
 ]
 
 [[package]]
+name = "geo"
+version = "0.31.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2fc1a1678e54befc9b4bcab6cd43b8e7f834ae8ea121118b0fd8c42747675b4a"
+dependencies = [
+ "earcutr",
+ "float_next_after",
+ "geo-types",
+ "geographiclib-rs",
+ "i_overlay",
+ "log",
+ "num-traits",
+ "robust",
+ "rstar",
+ "spade",
+]
+
+[[package]]
+name = "geo-types"
+version = "0.7.20"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "777d18aa0f12f8b285331cd867133ee14422b3f023f6d388034c47d43e28786a"
+dependencies = [
+ "approx",
+ "num-traits",
+ "rayon",
+ "rstar",
+ "serde",
+ "thiserror 2.0.20",
+]
+
+[[package]]
+name = "geographiclib-rs"
+version = "0.2.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c5a7f08910fd98737a6eda7568e7c5e645093e073328eeef49758cfe8b0489c7"
+dependencies = [
+ "libm",
+]
+
+[[package]]
 name = "gethostname"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3276,6 +3501,18 @@ dependencies = [
 
 [[package]]
 name = "glam"
+version = "0.29.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8babf46d4c1c9d92deac9f7be466f76dfc4482b6452fc5024b5e8daf6ffeb3ee"
+
+[[package]]
+name = "glam"
+version = "0.30.10"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "19fc433e8437a212d1b6f1e68c7824af3aed907da60afa994e7f542d18d12aa9"
+
+[[package]]
+name = "glam"
 version = "0.32.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f70749695b063ecbf6b62949ccccde2e733ec3ecbbd71d467dca4e5c6c97cca0"
@@ -3295,7 +3532,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "db060a7f23a5666ccbe9c770cd0e0e419b2eb94c86a7c8bfd091bacf8b4926cd"
 dependencies = [
  "bevy_reflect",
- "glam",
+ "glam 0.32.1",
 ]
 
 [[package]]
@@ -3305,7 +3542,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "59157a5886a9c68eb694df59254f7c9419c5648fc6ca1b728601a8baecc0dfcd"
 dependencies = [
  "approx",
- "glam",
+ "glam 0.32.1",
  "num-traits",
  "simba",
 ]
@@ -3427,6 +3664,7 @@ dependencies = [
  "cfg-if",
  "crunchy",
  "num-traits",
+ "serde",
  "zerocopy",
 ]
 
@@ -3541,7 +3779,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "177ea6330876de4ef08e184f827b98acc037614a4ce409902c5b0d53a9c2e951"
 dependencies = [
  "constgebra",
- "glam",
+ "glam 0.32.1",
  "tinyvec",
 ]
 
@@ -3590,6 +3828,49 @@ checksum = "27f864f10dfb56725ce5ce5472bc52252c8f93a4ab86327122cebf62c5f59a17"
 dependencies = [
  "typenum",
 ]
+
+[[package]]
+name = "i_float"
+version = "1.15.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "010025c2c532c8d82e42d0b8bb5184afa449fa6f06c709ea9adcb16c49ae405b"
+dependencies = [
+ "libm",
+]
+
+[[package]]
+name = "i_key_sort"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9190f86706ca38ac8add223b2aed8b1330002b5cdbbce28fb58b10914d38fc27"
+
+[[package]]
+name = "i_overlay"
+version = "4.0.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "413183068e6e0289e18d7d0a1f661b81546e6918d5453a44570b9ab30cbed1b3"
+dependencies = [
+ "i_float",
+ "i_key_sort",
+ "i_shape",
+ "i_tree",
+ "rayon",
+]
+
+[[package]]
+name = "i_shape"
+version = "1.14.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1ea154b742f7d43dae2897fcd5ead86bc7b5eefcedd305a7ebf9f69d44d61082"
+dependencies = [
+ "i_float",
+]
+
+[[package]]
+name = "i_tree"
+version = "0.16.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "35e6d558e6d4c7b82bc51d9c771e7a927862a161a7d87bf2b0541450e0e20915"
 
 [[package]]
 name = "iced-x86"
@@ -3846,6 +4127,15 @@ dependencies = [
 
 [[package]]
 name = "itertools"
+version = "0.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b1c173a5686ce8bfa551b3563d0c2170bf24ca44da99c7ca4bfdab5418c3fe57"
+dependencies = [
+ "either",
+]
+
+[[package]]
+name = "itertools"
 version = "0.12.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ba291022dbbd398a455acf126c1e341954079855bc60dfdda641363bd6922569"
@@ -3973,6 +4263,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "kdtree"
+version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0f0a0e9f770b65bac9aad00f97a67ab5c5319effed07f6da385da3c2115e47ba"
+dependencies = [
+ "num-traits",
+ "thiserror 1.0.69",
+]
+
+[[package]]
 name = "khronos-egl"
 version = "6.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3996,6 +4296,37 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1d50be8a24c37debdf3170be6ca396d5b5b165f37f94837891adac735ca416b8"
 dependencies = [
  "bitflags 2.13.1",
+]
+
+[[package]]
+name = "landmass"
+version = "0.9.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "15479a1a90dd3f4dc1e6d14abc17dab221ba71ecd24e706f85c99b3eaab04aab"
+dependencies = [
+ "disjoint",
+ "dodgy_2d",
+ "geo",
+ "glam 0.30.10",
+ "kdtree",
+ "slotmap",
+ "thiserror 2.0.20",
+]
+
+[[package]]
+name = "landmass_rerecast"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "52bada7c137575ff59588d617395b61ade1077e877f6c68f43ca0611445868a8"
+dependencies = [
+ "bevy_app",
+ "bevy_asset",
+ "bevy_ecs",
+ "bevy_landmass",
+ "bevy_log",
+ "bevy_math",
+ "bevy_platform",
+ "bevy_rerecast",
 ]
 
 [[package]]
@@ -4201,7 +4532,7 @@ dependencies = [
  "clap",
  "crossbeam-channel",
  "fastrand",
- "glam",
+ "glam 0.32.1",
  "hex",
  "noise",
  "object",
@@ -4258,6 +4589,19 @@ dependencies = [
  "spirv",
  "thiserror 2.0.20",
  "unicode-ident",
+]
+
+[[package]]
+name = "naga-types"
+version = "30.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "590afbf58a6f4f62873cd5cff4468061844bafa1cdf399cc954537c22d768d49"
+dependencies = [
+ "hashbrown 0.17.1",
+ "indexmap",
+ "rustc-hash",
+ "serde",
+ "thiserror 2.0.20",
 ]
 
 [[package]]
@@ -4833,7 +5177,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bf590a9310ba69b2340562d39f0c9bddd3677130bfd24a5df22941552e791bac"
 dependencies = [
  "bytemuck",
- "glam",
+ "glam 0.32.1",
  "half",
  "log",
  "rdst",
@@ -5270,6 +5614,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "efca4c95a19a79d1c98f791f10aebd5c1363b473244630bb7dbde1dc98455a24"
 
 [[package]]
+name = "ppv-lite86"
+version = "0.2.21"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "85eae3c4ed2f50dcfe72643da4befc30deadb458a9b590d720cde2f2b1e97da9"
+dependencies = [
+ "zerocopy",
+]
+
+[[package]]
 name = "presser"
 version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5374,6 +5727,16 @@ dependencies = [
 
 [[package]]
 name = "rand"
+version = "0.9.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b9ef1d0d795eb7d84685bca4f72f3649f064e6641543d3a8c415898726a57b41"
+dependencies = [
+ "rand_chacha",
+ "rand_core 0.9.5",
+]
+
+[[package]]
+name = "rand"
 version = "0.10.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c7f5fa3a058cd35567ef9bfa5e75732bee0f9e4c55fa90477bef2dfcdbc4be80"
@@ -5383,10 +5746,29 @@ dependencies = [
 ]
 
 [[package]]
+name = "rand_chacha"
+version = "0.9.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d3022b5f1df60f26e1ffddd6c66e8aa15de382ae63b3a0c1bfc0e4d3e3f325cb"
+dependencies = [
+ "ppv-lite86",
+ "rand_core 0.9.5",
+]
+
+[[package]]
 name = "rand_core"
 version = "0.6.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ec0be4795e2f6a28069bec0b5ff3e2ac9bafc99e6a9a7dc3547996c5c816922c"
+
+[[package]]
+name = "rand_core"
+version = "0.9.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "76afc826de14238e6e8c374ddcc1fa19e374fd8dd986b0d2af0d02377261d83c"
+dependencies = [
+ "getrandom 0.3.4",
+]
 
 [[package]]
 name = "rand_core"
@@ -5583,6 +5965,22 @@ name = "renderdoc-sys"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "19b30a45b0cd0bcca8037f3d0dc3421eaf95327a17cad11964fb8179b4fc4832"
+
+[[package]]
+name = "rerecast"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d91bc1e22832298b01bca704eab9d6fe1d1c8c9cf6a1a44554e678b807884360"
+dependencies = [
+ "anyhow",
+ "bevy_reflect",
+ "bitflags 2.13.1",
+ "glam 0.32.1",
+ "serde",
+ "slotmap",
+ "thiserror 2.0.20",
+ "tracing",
+]
 
 [[package]]
 name = "retour"
@@ -5975,6 +6373,7 @@ version = "1.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bdd58c3c93c3d278ca835519292445cb4b0d4dc59ccfdf7ceadaab3f8aeb4038"
 dependencies = [
+ "serde",
  "version_check",
 ]
 
@@ -6421,7 +6820,11 @@ name = "topside"
 version = "0.1.0"
 dependencies = [
  "avian3d",
+ "avian_rerecast",
  "bevy",
+ "bevy_landmass",
+ "bevy_rerecast",
+ "landmass_rerecast",
  "modforge",
  "serde_json",
  "topside-content",
@@ -6625,6 +7028,12 @@ name = "untrusted"
 version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8ecb6da28b8a351d773b68d5825ac39017e680750f980f3a1a85cd8dd28a47c1"
+
+[[package]]
+name = "unty"
+version = "0.0.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6d49784317cd0d1ee7ec5c716dd598ec5b4483ea832a2dced265471cc0f690ae"
 
 [[package]]
 name = "ureq"
@@ -6999,7 +7408,7 @@ dependencies = [
  "web-sys",
  "wgpu-core",
  "wgpu-hal",
- "wgpu-types",
+ "wgpu-types 29.0.4",
 ]
 
 [[package]]
@@ -7032,7 +7441,7 @@ dependencies = [
  "wgpu-core-deps-windows-linux-android",
  "wgpu-hal",
  "wgpu-naga-bridge",
- "wgpu-types",
+ "wgpu-types 29.0.4",
 ]
 
 [[package]]
@@ -7110,7 +7519,7 @@ dependencies = [
  "wayland-sys",
  "web-sys",
  "wgpu-naga-bridge",
- "wgpu-types",
+ "wgpu-types 29.0.4",
  "windows 0.62.2",
  "windows-core 0.62.2",
  "windows-result",
@@ -7123,7 +7532,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "95226013f547544b223281cd16a4fb549aa9dcb562adbda0faae4c73ffbbc161"
 dependencies = [
  "naga",
- "wgpu-types",
+ "wgpu-types 29.0.4",
 ]
 
 [[package]]
@@ -7139,6 +7548,21 @@ dependencies = [
  "raw-window-handle",
  "serde",
  "web-sys",
+]
+
+[[package]]
+name = "wgpu-types"
+version = "30.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "99dad6f1fbdbbdb4c278a6508b059d44688f5cebddf78d005a46a31340269286"
+dependencies = [
+ "bitflags 2.13.1",
+ "bytemuck",
+ "log",
+ "naga-types",
+ "raw-window-handle",
+ "serde",
+ "static_assertions",
 ]
 
 [[package]]

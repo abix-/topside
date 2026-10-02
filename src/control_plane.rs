@@ -237,7 +237,7 @@ pub struct PersonView<'w, 's> {
                 &'static crate::actor::Hotbar,
             ),
             (
-                &'static crate::nav::NavPath,
+                (Option<&'static bevy_landmass::AgentState>, Option<&'static bevy_landmass::prelude::AgentTarget3d>),
                 Option<&'static crate::actor::Home>,
                 Option<&'static crate::actor::Store>,
                 Has<crate::actor::Dead>,
@@ -301,7 +301,8 @@ pub fn answer_kill(
 /// interact path does the rest.
 pub fn answer_use(
     tick: Res<crate::SimTick>,
-    mut walk: ResMut<crate::nav::Walk>,
+    nav: Res<crate::navmesh::Nav>,
+    archipelagos: Query<&bevy_landmass::prelude::Archipelago3d>,
     mut people: Query<(&Actor, &mut Transform, &mut crate::input::Actions, Has<Player>), Without<crate::actor::Dead>>,
     mut eyes: Query<(&mut crate::player::Eyes, &mut Transform), Without<Actor>>,
 ) {
@@ -316,13 +317,19 @@ pub fn answer_use(
             None => return,
         },
     };
-    // A metre off, on a spot someone can stand on (never inside a wall).
-    let stand = walk.stand_by(at, 1.0, 0.0).unwrap_or(at + Vec2::X);
+    // A metre off, on the navigation mesh at its level (never inside a
+    // wall).
+    let target = crate::on_ground(at, floor);
+    let stand = archipelagos
+        .get(nav.archipelago)
+        .ok()
+        .and_then(|a| crate::navmesh::stand_by(a, target, 1.0, 0.0))
+        .unwrap_or(target + Vec3::X);
     for (actor, mut transform, mut actions, is_player) in &mut people {
         if actor.0.0 != id {
             continue;
         }
-        transform.translation = crate::on_ground(stand, floor + crate::player::BODY_CENTRE);
+        transform.translation = stand + Vec3::Y * crate::player::BODY_CENTRE;
         // The player's eyes on the middle of whatever stands there, a
         // metre off, so what they look at is what is there.
         if is_player && let Ok((mut eye, mut view)) = eyes.single_mut() {
@@ -363,7 +370,7 @@ pub fn answer_npc(
     let found = view.people.iter().find(|((actor, ..), _, _)| actor.0.0 == id);
     let answer = match found {
         None => json!({"id": id, "error": "no NPC with that id"}),
-        Some(((_, npc, at, health, needs), (record, memory, inventory, hotbar), (way, home, store, dead, spawned))) => {
+        Some(((_, npc, at, health, needs), (record, memory, inventory, hotbar), ((walking, going_to), home, store, dead, spawned))) => {
             let here = at.translation.ground();
             // What blocks the tile they stand on, if anything.
             let standing_on = solids_on(&mut walk, &view.things, here);
@@ -401,7 +408,6 @@ pub fn answer_npc(
                 .map(|(_, t)| t.0.iter().map(|s| format!("{:?}", s.action)).collect())
                 .unwrap_or_default();
             let picture = chunk(walk.0.picture(here, '@'));
-            let goal_picture = way.planned_at.map(|_| chunk(walk.0.picture(way.goal, 'G')));
             json!({
                 "id": id,
                 "tick": tick.0,
@@ -409,7 +415,8 @@ pub fn answer_npc(
                 "faction": npc.faction,
                 "dead": dead,
                 "at": [here.x, here.y],
-                "spawned_at": spawned.map(|s| [s.0.x, s.0.y]),
+                "feet": crate::interact::feet_of(at).y,
+                "spawned_at": spawned.map(|s| [s.0.x, s.0.z]),
                 "standing_on": standing_on,
                 "in_reach": in_reach,
                 "water_in_reach": water_in_reach.map(|w| [w.x, w.y]),
@@ -418,7 +425,7 @@ pub fn answer_npc(
                 "needs": {"hunger": needs.0.hunger, "thirst": needs.0.thirst, "rest": needs.0.rest, "safety": needs.0.safety},
                 "doing": doing_name(&tree, &record.0),
                 "about": format!("{:?}", record.0.target),
-                "home": home.map(|h| [h.0.x, h.0.y]),
+                "home": home.map(|h| [h.0.x, h.0.z]),
                 "store": store.map(|s| s.0.to_bits()),
                 "carrying": stacks(&inventory.0),
                 "hotbar": stacks(&hotbar.0.slots),
@@ -435,18 +442,19 @@ pub fn answer_npc(
                 // Who they lead, to where, and where they wait for them.
                 "leading": leaders.iter().find(|(a, _)| a.0.0 == id).map(|(_, l)| json!({
                     "who": l.who.0,
-                    "to": [l.to.x, l.to.y],
-                    "waiting_at": l.waiting_at.map(|w| [w.x, w.y]),
+                    "to": [l.to.x, l.to.z],
+                    "waiting_at": l.waiting_at.map(|w| [w.x, w.z]),
                 })),
+                // Their walk on the navigation mesh: landmass's state, and
+                // where they are going [x, height, z].
                 "way": {
-                    "goal": [way.goal.x, way.goal.y],
-                    "waypoints": way.waypoints.iter().map(|p| [p.x, p.y]).collect::<Vec<_>>(),
-                    "planned_at": way.planned_at,
-                    "queued": way.queued,
-                    "retry_at": way.retry_at,
+                    "state": walking.map(|s| format!("{s:?}")),
+                    "to": going_to.and_then(|t| match t {
+                        bevy_landmass::prelude::AgentTarget3d::Point(p) => Some([p.x, p.y, p.z]),
+                        _ => None,
+                    }),
                 },
                 "chunk": picture,
-                "goal_chunk": goal_picture,
                 "did": memory.0.done.iter().map(|(t, d)| json!({"tick": t, "did": d.words()})).collect::<Vec<_>>(),
                 // How they feel toward each person in their memory (life.md
                 // "How a person feels about others"), -1 to 1, and the
@@ -486,29 +494,32 @@ pub fn lives(memory: &modforge::memory::Memory) -> Vec<f32> {
     out
 }
 
-/// Once a second: the last searches that found no way, for the `ways`
-/// op.
-pub fn publish_ways(tick: Res<crate::SimTick>, failed: Res<crate::nav::FailedWays>) {
+/// Once a second: everyone sent somewhere the navigation mesh gives no way
+/// to (no way, the place not on the mesh, or they themselves off it), for
+/// the `ways` op: who, where they are and are going [x, height, z], and why.
+#[allow(clippy::type_complexity)]
+pub fn publish_ways(
+    tick: Res<crate::SimTick>,
+    walkers: Query<(&Actor, Option<&Npc>, &Transform, &bevy_landmass::AgentState, Option<&bevy_landmass::prelude::AgentTarget3d>)>,
+) {
     if tick.0 % 60 != 0 {
         return;
     }
-    let list: Vec<Json> = failed
-        .0
+    use bevy_landmass::AgentState;
+    let list: Vec<Json> = walkers
         .iter()
-        .map(|f| {
+        .filter(|(.., state, _)| matches!(state, AgentState::NoPath | AgentState::TargetNotOnNavMesh | AgentState::AgentNotOnNavMesh))
+        .map(|(actor, npc, at, state, target)| {
+            let feet = crate::interact::feet_of(at);
             json!({
-                "tick": f.tick,
-                "id": f.id,
-                "who": f.who,
-                "doing": f.doing,
-                "from": [f.from.x, f.from.y],
-                "to": [f.to.x, f.to.y],
-                "distance": f.from.distance(f.to),
-                "from_blocked": f.from_blocked,
-                "to_blocked": f.to_blocked,
-                "tiles_searched": f.searched,
-                "why": f.why.map(|(why, _)| why),
-                "doorways_searched": f.why.map(|(_, n)| n),
+                "id": actor.0.0,
+                "who": npc.map_or("the player".to_string(), |n| format!("{} ({:?})", n.def, n.faction)),
+                "from": [feet.x, feet.y, feet.z],
+                "to": target.and_then(|t| match t {
+                    bevy_landmass::prelude::AgentTarget3d::Point(p) => Some([p.x, p.y, p.z]),
+                    _ => None,
+                }),
+                "why": format!("{state:?}"),
             })
         })
         .collect();
@@ -836,7 +847,7 @@ pub fn publish_world(
         if !dead {
             add(entry, "alive", 1);
             // Home, as the brain counts it.
-            if at.translation.ground().distance(home.0) <= crate::ai::HOME_REACH {
+            if crate::interact::feet_of(at).distance(home.0) <= crate::ai::HOME_REACH {
                 add(entry, "at_home", 1);
             }
             if condition.0.asleep {
@@ -903,7 +914,7 @@ pub fn publish_world(
         // Each part and the ActorId cast for it.
         "cast": episode.cast.iter().map(|(part, id)| json!({"part": part, "id": id.0})).collect::<Vec<_>>(),
         // What the episode brought into the world, and where.
-        "things": episode.things.iter().map(|(name, at, key)| json!({"name": name, "at": [at.x, at.y], "key": key})).collect::<Vec<_>>(),
+        "things": episode.things.iter().map(|(name, at, key)| json!({"name": name, "at": [at.x, at.z], "height": at.y, "key": key})).collect::<Vec<_>>(),
         // Each pivot point reached: who and when.
         "reached": episode.reached.iter().map(|(pivot, who, at)| json!({"pivot": pivot, "by": who.0, "tick": at})).collect::<Vec<_>>(),
         "did": did,
@@ -943,6 +954,10 @@ pub fn publish(
     layers: Res<crate::content::LayerRegistryRes>,
     tree: Res<crate::content::brain::BrainTreeRes>,
     players: Query<(&Transform, &Health, &Survival, &Actor, &crate::actor::Memory, Has<crate::actor::Dead>, Option<&crate::ai::Following>), With<Player>>,
+    player_walk: Query<
+        (Option<&bevy_landmass::AgentState>, Option<&bevy_landmass::prelude::AgentTarget3d>, &ThisTick, Option<&crate::command::Commanded>),
+        With<Player>,
+    >,
     npcs: Query<(
         (&Actor, &Npc, &Transform, &Health, &Survival, &Personality, &ThisTick, Option<&Name>),
         (&crate::actor::Memory, &crate::actor::ActorRecord, Has<crate::actor::Dead>, &crate::actor::Hotbar, &crate::actor::Facing, Option<&crate::people::Drawn>, &crate::actor::Map, &crate::combat::Equipment),
@@ -975,6 +990,17 @@ pub fn publish(
                 "at": [at.translation.x, at.translation.z],
                 "dead": dead,
                 "following": following.map(|f| f.0.0),
+                // Their walk on the navigation mesh, as the npc op's "way",
+                // their commands left, and what they do this tick.
+                "way": player_walk.single().ok().map(|(state, target, _, _)| json!({
+                    "state": state.map(|s| format!("{s:?}")),
+                    "to": target.and_then(|t| match t {
+                        bevy_landmass::prelude::AgentTarget3d::Point(p) => Some([p.x, p.y, p.z]),
+                        _ => None,
+                    }),
+                })),
+                "commands": player_walk.single().ok().and_then(|(.., c)| c).map(|c| c.left.iter().map(|c| format!("{c:?}")).collect::<Vec<_>>()),
+                "this_tick": player_walk.single().ok().map(|(_, _, t, _)| t.0.iter().map(|s| format!("{:?}", s.action)).collect::<Vec<_>>()),
                 // Who killed them last, and of what, from their memory.
                 "killed_by": memory.0.killed_by().map(|(by, of)| json!({"by": by.map(|a| a.0), "of": of})),
                 "knows": memory.0.known.iter().map(|k| json!({"key": k.key, "kind": k.kind, "told_by": k.told_by.map(|a| a.0)})).collect::<Vec<_>>(),
@@ -1047,6 +1073,8 @@ pub fn publish(
                     "faction": npc.faction,
                     "dead": dead,
                     "at": [at.translation.x, at.translation.z],
+                    // How high their feet stand (0 the ground).
+                    "feet": crate::interact::feet_of(at).y,
                     "health": health.0.current,
                     "hunger": needs.0.hunger,
                     "thirst": needs.0.thirst,
@@ -1204,7 +1232,7 @@ pub fn start() {
     ));
     OP_REGISTRY.register(OpDef::new(
         "ways",
-        "the last searches that found no way: who, what they were doing, from, to, whether the tiles at each end are blocked, tiles searched",
+        "everyone sent somewhere the navigation mesh gives no way to: who, from, to ([x, height, z]), and why (no way, the place not on the mesh, or they off it)",
         "",
         |_| Ok(WAYS.lock().map(|w| w.clone()).unwrap_or(Json::Null)),
     ));
@@ -1285,7 +1313,7 @@ pub fn start() {
     ));
     OP_REGISTRY.register(OpDef::new(
         "command",
-        "give a person (`id`, the player when left out) a command on the game's next step, or a list of them (`commands`), carried out one after another with the brain's own actions (authority.md \"Commands and replays\"): {\"do\": \"move_to\", \"x\", \"y\"}, {\"do\": \"follow\", \"who\"}, {\"do\": \"talk_to\", \"who\"}, {\"do\": \"attack\", \"who\"}, {\"do\": \"attack_nearest_enemy\"}; a move of their own ends them",
+        "give a person (`id`, the player when left out) a command on the game's next step, or a list of them (`commands`), carried out one after another with the brain's own actions (authority.md \"Commands and replays\"): {\"do\": \"move_to\", \"x\", \"y\", \"z\"} (y the height, as the world's), {\"do\": \"follow\", \"who\"}, {\"do\": \"talk_to\", \"who\"}, {\"do\": \"attack\", \"who\"}, {\"do\": \"attack_nearest_enemy\"}; a move of their own ends them",
         "{\"do\": \"talk_to\", \"who\": 3}",
         |args| {
             let id = args.get("id").and_then(Json::as_u64);
@@ -1301,6 +1329,25 @@ pub fn start() {
                 ask.extend(given.iter().map(|c| (id, *c)));
             }
             Ok(json!({"id": id, "given": given}))
+        },
+    ));
+    OP_REGISTRY.register(OpDef::new(
+        "nav_path",
+        "the way the navigation mesh gives (docs/pathing.md \"A navigation mesh\") between `from` and `to`, each [x, height, z]: asked, it is answered on the next frame; with no `from`, the last answer (its waypoints, or why there is none, and whether the mesh is built)",
+        "{\"from\": [0, 0, 0], \"to\": [0, -6, 0]}",
+        |args| {
+            let point = |key: &str| {
+                args.get(key)
+                    .and_then(Json::as_array)
+                    .and_then(|a| Some(Vec3::new(a.first()?.as_f64()? as f32, a.get(1)?.as_f64()? as f32, a.get(2)?.as_f64()? as f32)))
+            };
+            if let (Some(from), Some(to)) = (point("from"), point("to")) {
+                if let Ok(mut ask) = crate::navmesh::PATH_ASK.lock() {
+                    *ask = Some((from, to));
+                }
+                return Ok(json!({"asked": [[from.x, from.y, from.z], [to.x, to.y, to.z]]}));
+            }
+            Ok(crate::navmesh::PATH_ANSWER.lock().map(|a| a.clone()).unwrap_or(Json::Null))
         },
     ));
     OP_REGISTRY.register(OpDef::new(

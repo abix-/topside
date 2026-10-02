@@ -44,16 +44,6 @@ fn walk_secs(metres: f64) -> u64 {
     (metres / 10.0) as u64 + 10
 }
 
-/// The player stood on the ground outside the bunker's door, 8 m south of
-/// it: commands walk the ground's walk grid, which has no stairs yet (todo
-/// 13a2), and the player wakes two levels down.
-fn outside() {
-    crate::endpoint::player_alive();
-    let player = op("player")["id"].as_u64().expect("the player op reports the player's id");
-    op_with("use", json!({"id": player, "at": [0.0, 12.0]}));
-    within(3, || op("status")["player_feet"].as_f64().is_some_and(|f| f.abs() < 0.1) && player_at().1 > 8.0);
-}
-
 /// Up to `secs` real seconds for `done`, a quarter second apart.
 fn within(secs: u64, done: impl Fn() -> bool) -> bool {
     for _ in 0..secs * 4 {
@@ -67,7 +57,7 @@ fn within(secs: u64, done: impl Fn() -> bool) -> bool {
 
 #[test]
 fn talk_to_walks_the_player_over_and_the_talk_box_opens() {
-    outside();
+    crate::endpoint::player_alive();
     // Farther than talking distance, so the player walks over first.
     let (id, name, there) = someone_near(5.0, true).expect("a living bunker person or stranger standing somewhere");
     let from = player_at();
@@ -89,16 +79,23 @@ fn talk_to_walks_the_player_over_and_the_talk_box_opens() {
 
 #[test]
 fn move_to_walks_the_player_there() {
-    outside();
-    // Where someone stands is ground someone can stand on.
+    crate::endpoint::player_alive();
+    // Where someone stands is ground someone can stand on, at their height
+    // (the player wakes two levels down, so most ways climb the stairs).
     let (id, name, there) = someone_near(2.0, false).expect("a living bunker person or stranger somewhere");
+    let feet = people().into_iter().find(|p| p["id"].as_u64() == Some(id)).and_then(|p| p["feet"].as_f64()).expect("the people op reports their feet");
     let from = player_at();
-    eprintln!("move to where {name} ({id}) stands, {there:?}, {:.1} m from {from:?}", apart(there, from));
-    op_with("command", json!({"do": "move_to", "x": there.0, "y": there.1}));
-    let arrived = within(walk_secs(apart(there, from)), || apart(player_at(), there) <= 2.0);
+    let from_feet = op("status")["player_feet"].as_f64().unwrap_or(0.0);
+    eprintln!("move to where {name} ({id}) stands, {there:?} at height {feet:.2}, {:.1} m from {from:?} at height {from_feet:.2}", apart(there, from));
+    op_with("command", json!({"do": "move_to", "x": there.0, "y": feet, "z": there.1}));
+    let arrived = within(walk_secs(apart(there, from) + (feet - from_feet).abs() * 4.0), || {
+        apart(player_at(), there) <= 2.0 && op("status")["player_feet"].as_f64().is_some_and(|f| (f - feet).abs() < 0.5)
+    });
     crate::talk_ui::shot("command_move_to");
-    eprintln!("the player now at {:?}, {:.1} m from the point", player_at(), apart(player_at(), there));
-    assert!(arrived, "the player never reached {there:?}");
+    eprintln!("the player now at {:?}, height {}, {:.1} m from the point", player_at(), op("status")["player_feet"], apart(player_at(), there));
+    let me = op("player");
+    eprintln!("their way: {}, commands: {}, acting: {}, the talk box: {}", me["way"], me["commands"], me["this_tick"], op("hud")["talk"]);
+    assert!(arrived, "the player never reached {there:?} at height {feet:.2}");
 }
 
 fn replay(name: &str) -> Option<Json> {
@@ -111,7 +108,8 @@ fn a_saved_replay_played_again_gives_the_same_commands() {
     crate::endpoint::player_alive();
     let here = player_at();
     // A move to where the player stands: given, and done at once.
-    op_with("command", json!({"do": "move_to", "x": here.0, "y": here.1}));
+    let feet = op("status")["player_feet"].as_f64().unwrap_or(0.0);
+    op_with("command", json!({"do": "move_to", "x": here.0, "y": feet, "z": here.1}));
     std::thread::sleep(Duration::from_millis(300));
     for name in ["command test", "command test again"] {
         let _ = std::fs::remove_file(format!("{}/../replays/{name}.json", env!("CARGO_MANIFEST_DIR")));

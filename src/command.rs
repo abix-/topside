@@ -13,7 +13,7 @@ use modforge::actor::ActorId;
 use modforge::command::{Command, Given, Replay, Step};
 
 use crate::actor::{Actor, Dead, Memory, Npc};
-use crate::ai::{Following, ground};
+use crate::ai::Following;
 use crate::content::{ActorRegistryRes, EpisodeRegistryRes, FactionRegistryRes, PLAYER_FACTION};
 use crate::input::{Action, ThisTick};
 use crate::player::{Eyes, Player};
@@ -125,8 +125,8 @@ pub fn give(
 
 /// Every step, once the queues have drained (as following): each person's
 /// first command carried out with the brain's own actions, through modforge
-/// `command::step`, which `nav::steer` walks around walls. A move of their
-/// own (the keys) or their death ends their commands.
+/// `command::step` (a `Go` walked on the navigation mesh, navmesh::walk). A
+/// move of their own (the keys) or their death ends their commands.
 #[allow(clippy::too_many_arguments, clippy::type_complexity)]
 pub fn carry_out(
     mut commands: Commands,
@@ -149,8 +149,8 @@ pub fn carry_out(
             commands.entity(entity).remove::<Commanded>();
             continue;
         }
-        let here = at.translation.ground();
-        let alive_at = |who: u64| everyone.iter().find(|(_, a, _, _, _, d, _)| a.0.0 == who && !d).map(|(_, _, t, ..)| t.translation.ground());
+        let here = crate::interact::feet_of(at);
+        let alive_at = |who: u64| everyone.iter().find(|(_, a, _, _, _, d, _)| a.0.0 == who && !d).map(|(_, _, t, ..)| crate::interact::feet_of(t));
         loop {
             let Some(command) = commanded.left.front().copied() else {
                 commands.entity(entity).remove::<Commanded>();
@@ -189,20 +189,20 @@ pub fn carry_out(
                 }
             }
             let (target, who) = match command {
-                Command::MoveTo { x, y } => (Some(Vec2::new(x, y)), None),
+                Command::MoveTo { x, y, z } => (Some(Vec3::new(x, y, z)), None),
                 Command::TalkTo { who } | Command::Attack { who } => (alive_at(who), Some(who)),
                 Command::Follow { .. } | Command::AttackNearestEnemy => (None, None),
             };
             let talking_with = hud.and_then(|h| h.0.talking.as_ref()).map(|t| t.with);
             let ended = matches!(command, Command::TalkTo { .. }) && talking_with.is_some() && talking_with == who;
-            let actions = match modforge::command::step(&command, ground(here), target.map(ground), ended, crate::talk::TALK_REACH) {
+            let actions = match modforge::command::step(&command, here, target, ended, crate::talk::TALK_REACH) {
                 Step::Done => {
                     commanded.next();
                     continue;
                 }
                 Step::Act(actions) => actions,
             };
-            this_tick.0.retain(|s| !matches!(s.action, Action::Move { .. } | Action::Aim { .. }));
+            this_tick.0.retain(|s| !matches!(s.action, Action::Go { .. } | Action::Aim { .. }));
             let looking_at_them = who.is_some() && looking.and_then(|l| l.0).map(|(_, id)| id) == who;
             for action in actions {
                 // Use only on them, as E on the one looked at; until then,
@@ -210,7 +210,9 @@ pub fn carry_out(
                 if matches!(action, Action::Use) && !looking_at_them {
                     let pitch = children.into_iter().flat_map(|c| c.iter()).find_map(|c| eyes.get(c).ok()).map(|e| e.pitch);
                     if let (Some(pitch), Some(there)) = (pitch, target) {
-                        let want = (crate::player::BODY_CENTRE - crate::EYE_HEIGHT).atan2(there.distance(here).max(0.1));
+                        // From their eyes to the middle of the one they look at.
+                        let up = (there.y + crate::player::BODY_CENTRE) - (here.y + crate::EYE_HEIGHT);
+                        let want = up.atan2(there.ground().distance(here.ground()).max(0.1));
                         this_tick.0.push(Stamped { tick: tick.0, action: Action::Look { yaw: 0.0, pitch: want - pitch } });
                     }
                     continue;
@@ -228,7 +230,7 @@ pub fn carry_out(
 fn nearest_enemy(
     me: Entity,
     my_id: ActorId,
-    here: Vec2,
+    here: Vec3,
     everyone: &Query<(Entity, &Actor, &Transform, Option<&Npc>, &Memory, Has<Dead>, Has<Player>)>,
     registry: &ActorRegistryRes,
     factions: &FactionRegistryRes,
@@ -241,7 +243,7 @@ fn nearest_enemy(
     everyone
         .iter()
         .filter(|(e, a, t, them, _, d, p)| {
-            if *e == me || *d || a.0 == my_id || t.translation.ground().distance(here) > def.sight {
+            if *e == me || *d || a.0 == my_id || crate::interact::feet_of(t).distance(here) > def.sight {
                 return false;
             }
             let own = modforge::relationship::feeling(&memory.0, a.0, heard);
@@ -253,6 +255,6 @@ fn nearest_enemy(
             let table = factions.0.relation(mine.as_deref(), faction_of(*them, *p).as_deref());
             modforge::relationship::stands(own, standing, table) == modforge::faction::Relation::Hostile
         })
-        .min_by(|a, b| a.2.translation.ground().distance(here).total_cmp(&b.2.translation.ground().distance(here)))
+        .min_by(|a, b| crate::interact::feet_of(a.2).distance(here).total_cmp(&crate::interact::feet_of(b.2).distance(here)))
         .map(|(_, a, ..)| a.0.0)
 }

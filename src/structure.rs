@@ -141,8 +141,11 @@ pub fn spawn_structure(commands: &mut Commands, def: &StructureDef, at: Vec2, of
             if let Some(tall) = tall {
                 shapes.push((on_ground(centre, y + tall / 2.0), Rotation::IDENTITY, Collider::cuboid(size.x, tall, size.y)));
             }
-            // Above the lowest floor, what is walked on stands on a slab.
-            if y > bottom + 0.5 && r.kind != TileKind::Wall {
+            // What is walked on stands on a slab: on every level but the
+            // ground's, which the ground's own slab holds (terrain), the
+            // lowest below the ground included, so the navigation mesh
+            // sees every floor.
+            if y.abs() > 0.5 && r.kind != TileKind::Wall {
                 shapes.push((on_ground(centre, y - SLAB / 2.0), Rotation::IDENTITY, Collider::cuboid(size.x, SLAB, size.y)));
             }
             match r.kind {
@@ -254,6 +257,8 @@ pub fn spawn_structure(commands: &mut Commands, def: &StructureDef, at: Vec2, of
                 kind: InteractKind::Door { open: false },
             },
             RigidBody::Static,
+            // People open doors: a door is no wall to the navigation mesh.
+            avian_rerecast::prelude::ExcludeColliderFromNavmesh,
             // From the hinge across the doorway, standing on its floor.
             Collider::compound(vec![(
                 Vec3::new(width / 2.0, DOORWAY_HEIGHT / 2.0, 0.0),

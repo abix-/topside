@@ -122,18 +122,20 @@ pub struct Map {
     pub told: usize,
 }
 
-/// Where this person lives and returns to.
+/// Where this person lives and returns to: the spot their feet stand on,
+/// its height included (everything is 3D).
 #[derive(Component, Debug, Clone, Copy, PartialEq)]
-pub struct Home(pub Vec2);
+pub struct Home(pub Vec3);
 
 /// A place this person was asked to go to and wait at (an episode's
-/// errand, episodes.md); the brain weighs it like any other choice.
+/// errand, episodes.md), its height included; the brain weighs it like
+/// any other choice.
 #[derive(Component, Debug, Clone, Copy, PartialEq)]
-pub struct Asked(pub Vec2);
+pub struct Asked(pub Vec3);
 /// Where this person was spawned, for the control plane: whether they
 /// started somewhere or walked there.
 #[derive(Component, Debug, Clone, Copy, PartialEq)]
-pub struct SpawnedAt(pub Vec2);
+pub struct SpawnedAt(pub Vec3);
 
 /// Their bunker's store (design.md "Factions have real stores"): the box
 /// they eat from and bring loot home to.
@@ -168,8 +170,9 @@ pub struct SpawnActor<'w, 's> {
 /// The ONE path through which an NPC enters the world (authority.md:
 /// Endless's materialize_npc): the person (`spawn_person`, the same as
 /// the player's) and the brain that controls it. `faction` overrides the
-/// def's. None when the map is full or the faction is not registered.
-pub fn spawn_actor(spawn: &mut SpawnActor, def: &ActorDef, at: Vec2, faction: Option<&str>) -> Option<Entity> {
+/// def's; `at` is where their feet stand, its height included. None when
+/// the map is full or the faction is not registered.
+pub fn spawn_actor(spawn: &mut SpawnActor, def: &ActorDef, at: Vec3, faction: Option<&str>) -> Option<Entity> {
     let faction = faction.map(String::from).or_else(|| def.faction.clone());
     let entity = spawn_person(spawn, def, at, faction.as_deref())?;
     spawn.commands.entity(entity).insert(Npc {
@@ -189,7 +192,7 @@ pub fn spawn_actor(spawn: &mut SpawnActor, def: &ActorDef, at: Vec2, faction: Op
 pub fn spawn_person(
     spawn: &mut SpawnActor,
     def: &ActorDef,
-    at: Vec2,
+    at: Vec3,
     faction: Option<&str>,
 ) -> Option<Entity> {
     if let Some(name) = faction
@@ -212,7 +215,7 @@ pub fn spawn_person(
     let entity = spawn
         .commands
         .spawn((
-            Transform::from_translation(on_ground(at, BODY_CENTRE)),
+            Transform::from_translation(at + Vec3::Y * BODY_CENTRE),
             (
                 Facing::default(),
                 Inventory::default(),
@@ -229,7 +232,7 @@ pub fn spawn_person(
                 Map::default(),
                 ActorRecord::default(),
             ),
-            (Hud::default(), OpenContainer::default(), OpenStation::default(), crate::nav::NavPath::default()),
+            (Hud::default(), OpenContainer::default(), OpenStation::default()),
             Protection(def.protection.clone()),
             Actions::default(),
             ThisTick::default(),
@@ -270,7 +273,7 @@ pub fn spawn_person(
 pub fn spawn_door_enemy(mut spawn: SpawnActor, registry: Res<ActorRegistryRes>, world: Res<WorldRes>) {
     let (name, [x, z]) = DOOR_ENEMY;
     let def = registry.0.def(name).expect("the door enemy is registered");
-    spawn_actor(&mut spawn, def, world.bunker + Vec2::new(x, z), None);
+    spawn_actor(&mut spawn, def, on_ground(world.bunker + Vec2::new(x, z), 0.0), None);
 }
 
 /// The top bit of a remembered key marks a place (a monument, by its
@@ -300,7 +303,8 @@ pub fn populate_monuments(
             let Some(def) = registry.0.def(def_for_danger(spot.danger)) else {
                 continue;
             };
-            let stand = *at + Vec2::new(spot.position.x, spot.position.z);
+            // On the floor its spot is on.
+            let stand = on_ground(*at + Vec2::new(spot.position.x, spot.position.z), spot.position.y);
             settle(&mut spawn, def, stand, &known);
         }
     }
@@ -328,7 +332,7 @@ pub fn populate_topside_people(
     let known = Memory(modforge::memory::Memory::default());
     for (name, at) in world.world.topside_people(r) {
         if let Some(def) = registry.0.def(&name) {
-            settle(&mut spawn, def, at, &known);
+            settle(&mut spawn, def, on_ground(at, 0.0), &known);
         }
     }
 }
@@ -344,11 +348,11 @@ pub fn home_knowledge(
     now: u64,
 ) -> Memory {
     let mut known = modforge::memory::Memory::default();
-    known.see(PLACE_KEY | i as u64, kind, Vec3::new(at.x, 0.0, at.y), now);
+    known.see(PLACE_KEY | i as u64, kind, on_ground(at, 0.0), now);
     for (entity, t, item) in boxes {
-        let p = t.translation.ground();
-        if p.distance(at) <= HOME_BOXES_WITHIN {
-            known.see(entity.to_bits(), &item.stack.item, Vec3::new(p.x, 0.0, p.y), now);
+        if t.translation.ground().distance(at) <= HOME_BOXES_WITHIN {
+            // Where the box rests, its height included.
+            known.see(entity.to_bits(), &item.stack.item, t.translation, now);
         }
     }
     Memory(known)
@@ -366,9 +370,10 @@ pub fn held_in(contents: &item::Inventory) -> Vec<(String, u32)> {
     held
 }
 
-/// A topside person at `stand` knowing `known`: through the one spawn
-/// path, with that memory and no home.
-pub fn settle(spawn: &mut SpawnActor, def: &ActorDef, stand: Vec2, known: &Memory) -> Option<Entity> {
+/// A topside person standing at `stand` (their feet, its height included)
+/// knowing `known`: through the one spawn path, with that memory and no
+/// home.
+pub fn settle(spawn: &mut SpawnActor, def: &ActorDef, stand: Vec3, known: &Memory) -> Option<Entity> {
     let npc = spawn_actor(spawn, def, stand, None)?;
     spawn.commands.entity(npc).insert(known.clone());
     Some(npc)
@@ -405,7 +410,9 @@ pub fn populate_bunkers(
             .find(|(_, t, ..)| t.translation.ground().distance(store_at) < 0.5)
             .map(|(entity, ..)| entity);
         for (name, [x, z]) in people {
-            let stand = at + Vec2::new(x, z);
+            // In the entrance, on the ground, until they can go down the
+            // stairs to their rooms (todo 13a2).
+            let stand = on_ground(at + Vec2::new(x, z), 0.0);
             if let Some(npc) = spawn_actor(&mut spawn, def, stand, Some(&faction)) {
                 // They know one thing: this bunker is home (life.md
                 // "Learning to stay alive"). The store is theirs, but

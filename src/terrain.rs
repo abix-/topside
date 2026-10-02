@@ -164,19 +164,20 @@ pub fn chunk_of(p: Vec2) -> ChunkKey {
     (t.0.div_euclid(CHUNK), t.1.div_euclid(CHUNK))
 }
 
-/// The rectangles of one ground kind, as runs along each row.
-fn runs_of(chunk: &GroundChunk, of: impl Fn(Ground) -> bool) -> Vec<Rect> {
-    let f = chunk.first();
+/// The rectangles of the tiles `of` picks (by its tile and ground), as
+/// runs along each row.
+fn runs_of(f: (i32, i32), ground: &[Ground], of: impl Fn((i32, i32), Ground) -> bool) -> Vec<Rect> {
+    let picked = |x: i32, y: i32| of((f.0 + x, f.1 + y), ground[(y * CHUNK + x) as usize]);
     let mut out = Vec::new();
     for y in 0..CHUNK {
         let mut x = 0;
         while x < CHUNK {
-            if !of(chunk.ground[(y * CHUNK + x) as usize]) {
+            if !picked(x, y) {
                 x += 1;
                 continue;
             }
             let start = x;
-            while x < CHUNK && of(chunk.ground[(y * CHUNK + x) as usize]) {
+            while x < CHUNK && picked(x, y) {
                 x += 1;
             }
             let min = Vec2::new((f.0 + start) as f32, (f.1 + y) as f32) * TILE;
@@ -187,17 +188,17 @@ fn runs_of(chunk: &GroundChunk, of: impl Fn(Ground) -> bool) -> Vec<Rect> {
     out
 }
 
-/// One static body of `rects`, each standing `height` tall on the ground.
-fn body(commands: &mut Commands, rects: &[Rect], height: f32, sight: bool) {
+/// One static body of `rects`, each from `bottom` up `height` tall.
+fn body(commands: &mut Commands, rects: &[Rect], bottom: f32, height: f32, sight: bool) -> Option<Entity> {
     if rects.is_empty() {
-        return;
+        return None;
     }
     let shapes: Vec<(Vec3, Rotation, Collider)> = rects
         .iter()
         .map(|r| {
             let size = r.max - r.min;
             (
-                on_ground((r.min + r.max) / 2.0, height / 2.0),
+                on_ground((r.min + r.max) / 2.0, bottom + height / 2.0),
                 Rotation::IDENTITY,
                 Collider::cuboid(size.x, height, size.y),
             )
@@ -206,6 +207,24 @@ fn body(commands: &mut Commands, rects: &[Rect], height: f32, sight: bool) {
     let mut e = commands.spawn((WorldPiece, RigidBody::Static, Collider::compound(shapes), Transform::default()));
     if sight {
         e.insert(BlocksSight);
+    }
+    Some(e.id())
+}
+
+/// How thick the ground's slab is, its top the ground (y 0).
+const GROUND_THICK: f32 = 0.1;
+
+/// A chunk's ground as a solid slab (docs/pathing.md "A navigation mesh":
+/// the navigation mesh is built from colliders, so the ground is one),
+/// open over every way down (`structure::Below`).
+#[derive(Component)]
+pub struct GroundBody(pub ChunkKey);
+
+/// The ground slab of one chunk, none on its open tiles.
+fn ground_body(commands: &mut Commands, key: ChunkKey, ground: &[Ground], open: &HashSet<(i32, i32)>) {
+    let first = (key.0 * CHUNK, key.1 * CHUNK);
+    if let Some(e) = body(commands, &runs_of(first, ground, |t, _| !open.contains(&t)), -GROUND_THICK, GROUND_THICK, false) {
+        commands.entity(e).insert(GroundBody(key));
     }
 }
 
@@ -266,10 +285,12 @@ pub fn make_chunks(
         let chunk = world.world.chunk(r, key);
         chunks.roads += chunk.ground.iter().filter(|g| **g == Ground::Road).count();
         chunks.ground.insert(key, chunk.ground.to_vec());
-        body(&mut commands, &runs_of(&chunk, |g| g == Ground::Water), WATER_HEIGHT, false);
-        let mut solid = runs_of(&chunk, |g| matches!(g, Ground::Cliff | Ground::OutOfMap));
+        let first = chunk.first();
+        body(&mut commands, &runs_of(first, &chunk.ground, |_, g| g == Ground::Water), 0.0, WATER_HEIGHT, false);
+        let mut solid = runs_of(first, &chunk.ground, |_, g| matches!(g, Ground::Cliff | Ground::OutOfMap));
         solid.extend(chunk.things.iter().filter(|t| t.source.is_none()).map(|t| t.rect()));
-        body(&mut commands, &solid, SOLID_HEIGHT, true);
+        body(&mut commands, &solid, 0.0, SOLID_HEIGHT, true);
+        ground_body(&mut commands, key, &chunk.ground, &open);
         let shore = shore_of(&chunk);
         if !shore.is_empty() {
             chunks.shores.insert(key, shore);
@@ -324,18 +345,19 @@ fn draw(commands: &mut Commands, chunk: &GroundChunk, open: &HashSet<(i32, i32)>
     }
 }
 
-/// A building with a way down stood after the ground under it was drawn:
-/// that ground drawn again, open over the way down.
+/// A building with a way down stood after the ground under it was made:
+/// that ground's slab made and drawn again, open over the way down.
 pub fn open_the_ground(
     mut commands: Commands,
     chunks: Option<Res<Chunks>>,
     added: Query<&crate::structure::Below, Added<crate::structure::Below>>,
     below: Query<&crate::structure::Below>,
     drawn: Query<(Entity, &GroundMesh)>,
+    slabs: Query<(Entity, &GroundBody)>,
     ground: Option<Res<GroundMaterial>>,
     mut meshes: Option<ResMut<Assets<Mesh>>>,
 ) {
-    let (Some(chunks), Some(ground), Some(meshes)) = (chunks, ground, meshes.as_mut()) else {
+    let Some(chunks) = chunks else {
         return;
     };
     let keys: HashSet<ChunkKey> = added.iter().flat_map(|b| b.open.iter().map(|t| (t.0.div_euclid(CHUNK), t.1.div_euclid(CHUNK)))).collect();
@@ -347,12 +369,22 @@ pub fn open_the_ground(
         let Some(tiles) = chunks.ground.get(&key) else {
             continue;
         };
-        for (entity, of) in &drawn {
+        // The slab, open over the way down.
+        for (entity, of) in &slabs {
             if of.0 == key {
                 commands.entity(entity).despawn();
             }
         }
-        draw_ground(&mut commands, key, tiles, &open, meshes, &ground.0);
+        ground_body(&mut commands, key, tiles, &open);
+        // And, with a window, the ground drawn.
+        if let (Some(ground), Some(meshes)) = (ground.as_ref(), meshes.as_mut()) {
+            for (entity, of) in &drawn {
+                if of.0 == key {
+                    commands.entity(entity).despawn();
+                }
+            }
+            draw_ground(&mut commands, key, tiles, &open, meshes, &ground.0);
+        }
     }
 }
 

@@ -26,9 +26,9 @@ pub struct Episode {
     pub cast_done: bool,
     /// Each pivot point reached: its name, who, and when.
     pub reached: Vec<(String, ActorId, u64)>,
-    /// What the episode brought into the world, where, and the key
-    /// memory knows it by.
-    pub things: Vec<(String, Vec2, u64)>,
+    /// What the episode brought into the world, where (in 3D, its height
+    /// included), and the key memory knows it by.
+    pub things: Vec<(String, Vec3, u64)>,
     /// The tick it started: what was said before it is not its.
     pub started: u64,
 }
@@ -68,7 +68,7 @@ impl Episode {
     }
 
     /// The thing the episode brought in by this name.
-    pub fn thing(&self, name: &str) -> Option<(Vec2, u64)> {
+    pub fn thing(&self, name: &str) -> Option<(Vec3, u64)> {
         self.things.iter().find(|(n, ..)| n == name).map(|(_, at, key)| (*at, *key))
     }
 
@@ -120,7 +120,7 @@ pub fn cast_episode(
                 npc.faction.clone(),
                 CastBunker {
                     player,
-                    distance: home.0.distance(BUNKER_AT),
+                    distance: home.0.ground().distance(BUNKER_AT),
                     people: Vec::new(),
                 },
             ));
@@ -195,6 +195,8 @@ pub fn place_the_tap(
         return;
     };
     let (door, _) = bunker_door(world.bunker);
+    // Sites stand on the ground, so the way between bunkers is read there.
+    let mara_home = home.0.ground();
     let (biomes, monuments) = registries;
     let r = modforge::world2d::Registries {
         biomes: &biomes.0,
@@ -202,30 +204,31 @@ pub fn place_the_tap(
         buildings: &monuments.buildings,
     };
     // Anywhere between the bunkers: as far out as half the way is long.
-    let margin = Vec2::splat((door.distance(home.0) / 2.0).max(ON_THE_WAY));
+    let margin = Vec2::splat((door.distance(mara_home) / 2.0).max(ON_THE_WAY));
     let sites: Vec<modforge::places::Place> = world
         .world
-        .sites_in(r, door.min(home.0) - margin, door.max(home.0) + margin)
+        .sites_in(r, door.min(mara_home) - margin, door.max(mara_home) + margin)
         .into_iter()
         .filter(|p| !p.rolled.members.is_empty())
         .collect();
-    let middle = (door + home.0) / 2.0;
+    let middle = (door + mara_home) / 2.0;
     let Some(site) = sites.iter().min_by(|a, b| a.position.distance(middle).total_cmp(&b.position.distance(middle))) else {
         warn!("The Tap: no building between the bunkers to put the tap in");
-        episode.things.push(("no tap".to_string(), middle, 0));
+        episode.things.push(("no tap".to_string(), crate::on_ground(middle, 0.0), 0));
         return;
     };
     let member = &site.rolled.members[0];
     let at = site.position + Vec2::new(member.offset.x, member.offset.z);
     // On the building's ground floor.
-    let tap = spawn_item(&mut commands, def, item::create(def, 1, &[], 0.0, 0), crate::on_ground(at, 0.0));
+    let tap_at = crate::on_ground(at, 0.0);
+    let tap = spawn_item(&mut commands, def, item::create(def, 1, &[], 0.0, 0), tap_at);
     commands.entity(tap).insert(DrawsFrom(store.0));
     let key = tap.to_bits();
+    let ground = |p: Vec2| crate::on_ground(p, 0.0);
     if let Some(dell) = episode.cast_as("Dell")
         && let Some((_, mut memory)) = memories.iter_mut().find(|(a, _)| a.0 == dell)
     {
-        let ground = |p: Vec2| Vec3::new(p.x, 0.0, p.y);
-        memory.0.see(key, "tap", ground(at), tick.0);
+        memory.0.see(key, "tap", tap_at, tick.0);
         // Dell wants it kept secret (docs/episodes/the-tap.md "Pushed all
         // the way"): she never passes it on.
         memory.0.keep_quiet(key);
@@ -233,8 +236,8 @@ pub fn place_the_tap(
             memory.0.see(site_key(passed.position), &passed.monument, ground(passed.position), tick.0);
         }
     }
-    episode.things.push(("tap".to_string(), at, key));
-    episode.things.push(("tap site".to_string(), site.position, site_key(site.position)));
+    episode.things.push(("tap".to_string(), tap_at, key));
+    episode.things.push(("tap site".to_string(), ground(site.position), site_key(site.position)));
     info!("the tap stands in the {} at {at}, drawing from Mara's bunker's store", site.monument);
 }
 
@@ -313,7 +316,8 @@ pub fn the_taps_errands(
     mut commands: Commands,
     tick: Res<crate::SimTick>,
     mut episode: ResMut<Episode>,
-    mut walk: ResMut<crate::nav::Walk>,
+    nav: Res<crate::navmesh::Nav>,
+    archipelagos: Query<&bevy_landmass::prelude::Archipelago3d>,
     player: Query<(Entity, &Actor), (With<crate::player::Player>, Without<Dead>)>,
     people: Query<(Entity, &Actor, &Transform, &Home, Has<crate::ai::Leading>), Without<crate::player::Player>>,
 ) {
@@ -326,12 +330,13 @@ pub fn the_taps_errands(
     // Where each stands by the tap: two metres off, on a spot they can
     // stand on (the tap's building has walls), Mara on one side and Dell
     // on the other.
-    let by_tap = |walk: &mut crate::nav::Walk, from: f32| walk.stand_by(tap, 2.0, from).unwrap_or(tap);
-    let mara_at = by_tap(&mut walk, 0.0);
-    let dell_at = by_tap(&mut walk, std::f32::consts::PI);
+    let archipelago = archipelagos.get(nav.archipelago).ok();
+    let by_tap = |from: f32| archipelago.and_then(|a| crate::navmesh::stand_by(a, tap, 2.0, from)).unwrap_or(tap);
+    let mara_at = by_tap(0.0);
+    let dell_at = by_tap(std::f32::consts::PI);
     // The episode's errand wins over stopping to talk: it is no longer
     // the conversation's to let go.
-    let ask = |commands: &mut Commands, entity: Entity, at: Option<Vec2>| match at {
+    let ask = |commands: &mut Commands, entity: Entity, at: Option<Vec3>| match at {
         Some(at) => {
             commands.entity(entity).insert(crate::actor::Asked(at)).remove::<crate::talk::HeldToTalk>();
         }
@@ -350,7 +355,7 @@ pub fn the_taps_errands(
         if Some(actor.0) == mara {
             ask(&mut commands, entity, Some(mara_at));
         } else if Some(actor.0) == dell {
-            let here = at.translation.ground();
+            let here = crate::interact::feet_of(at);
             if sent && !looked && here.distance(tap) <= 4.0 {
                 looked = true;
             }

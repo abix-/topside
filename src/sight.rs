@@ -11,7 +11,7 @@ use bevy::prelude::*;
 
 use crate::interact::Door;
 use crate::structure::StructureRoot;
-use crate::{EYE_HEIGHT, on_ground};
+use crate::EYE_HEIGHT;
 
 /// How far a person's eyes reach on their map, in tiles (an NPC's sight,
 /// content's `ActorDef::sight`).
@@ -69,7 +69,7 @@ pub fn share_maps(
         let Some(bunker) = npc.faction.as_ref().filter(|f| f.starts_with("bunker")) else {
             continue;
         };
-        if home.0.distance(crate::Ground::ground(at.translation)) > crate::ai::HOME_REACH {
+        if home.0.distance(crate::interact::feet_of(at)) > crate::ai::HOME_REACH {
             continue;
         }
         let shared = bunkers.0.entry(bunker.clone()).or_default();
@@ -88,10 +88,12 @@ pub struct Sight<'w, 's> {
 }
 
 impl Sight<'_, '_> {
-    /// Nothing that blocks the view stands between the eyes of someone at
-    /// `from` and the eyes of someone at `to` (ground points).
-    pub fn clear(&self, from: Vec2, to: Vec2) -> bool {
-        let (from, to) = (on_ground(from, EYE_HEIGHT), on_ground(to, EYE_HEIGHT));
+    /// Nothing that blocks the view stands between the eyes of someone
+    /// whose feet are at `from` and eye height over `to` (where someone's
+    /// feet are, or a thing rests), heights included: a floor between them
+    /// blocks it as a wall does.
+    pub fn clear(&self, from: Vec3, to: Vec3) -> bool {
+        let (from, to) = (from + Vec3::Y * EYE_HEIGHT, to + Vec3::Y * EYE_HEIGHT);
         let Ok((dir, distance)) = Dir3::new_and_length(to - from) else {
             return true;
         };

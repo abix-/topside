@@ -14,7 +14,13 @@ autotests = false
 
 [dependencies]
 avian3d = { version = "0.7", default-features = false, features = ["3d", "f32", "parry-f32", "parallel"] }
+# The navigation mesh (docs/pathing.md "A navigation mesh"): Recast's Rust
+# port built from the Avian colliders, walked with landmass.
+avian_rerecast = "0.6"
 bevy = "0.19"
+bevy_landmass = "0.12"
+bevy_rerecast = "0.5"
+landmass_rerecast = "0.3"
 modforge = { path = "../modforge/modforge" }
 serde_json = "1"
 topside-content = { path = "content" }

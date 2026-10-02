@@ -52,7 +52,7 @@ Rules:
 | Using things | modforge `hud::InteractKind` | `Interactable` on each thing; doors indexed by chunk in `nav::DoorIndex` | `interact::interact_on_use` (Use reaches the thing in reach nearest the aim), decided by modforge `hud::interact` | Not audited |
 | Crafting | modforge `RecipeDef` | `RecipeRegistryRes` | Stations made by `interact::spawn_station`; items made only by the Craft action through modforge `crafting::craft` | Not audited |
 | The world and its ground | modforge `GroundDef` (content `small_ground_def`, `ground_def`), `BiomeDef` with its scatter | Kinds: `BiomeRegistryRes`. The world: `terrain::WorldRes` and the made chunks in `terrain::Chunks` | Rolled by `terrain::roll` (content `roll_world2d`), made by `terrain::make_chunks`; a tile's ground only from the made chunk, modforge `World2d::chunk` | One answer: drinking reads the made chunks' shores (land and water tile); tests/sources.rs passes on the running game with river water drunk (2026-09-26) |
-| Pathing | modforge `walk` (`WalkMap`, `find_way`, `standable`; by pathing.md also the queue, its budget, the wait after a way not found) | The grid: `nav::Walk`. Each walker's way: `NavPath` on the person | The grid painted by `nav::record_solids`; every way asked of the one queue and walked by `nav::steer` | RED: the queue, budget, retry, replanning live in topside `nav.rs`; `ai::think`'s `can_go` calls `find_way` outside the queue |
+| Pathing | Decided 2026-10-01 (pathing.md "A navigation mesh"): a Recast navigation mesh, `bevy_rerecast` built from the Avian colliders by `avian_rerecast`, walked with `bevy_landmass` (joined by `landmass_rerecast`); where to go is modforge `Action::Go`, a point in 3D | The mesh: bevy_rerecast's; each walker's way: landmass's agent (`AgentTarget3d`, `AgentState`). The walk grid `nav::Walk` stays only as the wall map for sight maps and the minimap | The mesh built from the colliders, one per chunk joined into one world (src/navmesh.rs); the brain, commands, following and leading push Go; `navmesh::walk` makes the walker a landmass agent and turns its desired velocity into Aim and Move | Moving: people walk the mesh (2026-10-02: tests/command.rs walked the player from 6 m down up the stairwell to the ground); RED until people step around each other (no one is a landmass character yet, so a walker pushes into someone standing in the way) |
 | Monuments and buildings | modforge `MonumentTypeDef`, `BuildingTypeDef`, `StructureDef`; content `SMALL_SITES` | Kinds: `MonumentRegistryRes`. Standing: each building an entity; the monuments standing in `structure::MonumentsRes` | Every building through `structure::spawn_structure` (the bunkers too); sites through `structure::spawn_sites` | Not audited |
 | Factions | modforge `FactionDef` | `FactionRegistryRes` (content `register_factions`); a person's faction in their `Npc` | Hostility: modforge `relationship::stands` (own feeling from memory, else the faction's standing from its members, else the registry's table), read in `ai::think` | tests/relationship.rs (2026-09-27) |
 | The storm | modforge `StormDef` (content `STORM`) | `storm::StormRes` | `storm::storm` hits the open through `hit_actor` (a `Shelter` is safe); `storm::shift_world` rolls the world again through `terrain::roll`, bunkers and bunker people kept; topside people die with the world and stay, dead, the storm in their memory | tests/storm.rs passed on the running game |
@@ -440,6 +440,13 @@ a person, a station, or a dropped item can be on any level, below the
 ground or above it, and everything that reaches one (using it, picking it
 up, seeing it, walking to it) works by where it really is, at its height,
 wherever it is placed.
+
+Everything is 3D (operator, 2026-10-02: "this is a 3d game"): memory, the
+brain, and every system carry where a thing really is, its height
+included. A person remembers a thing where it stands, at its height; the
+brain's targets are points in 3D; a way is walked to a point at its height
+on the navigation mesh. Nothing is flattened to the ground to decide
+anything.
 
 This replaces the 2026-09-25 decision (2D, pictures rendered ahead of time,
 because 3D takes far more work for one person): the 3D models remove the

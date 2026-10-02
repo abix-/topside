@@ -106,7 +106,7 @@ struct Moment {
 }
 
 impl Moment {
-    fn of(episode: &Episode, (who, is_player): (ActorId, bool), (to, to_is_player): (ActorId, bool), at: Vec2, survival: Option<&Survival>) -> Self {
+    fn of(episode: &Episode, (who, is_player): (ActorId, bool), (to, to_is_player): (ActorId, bool), at: Vec3, survival: Option<&Survival>) -> Self {
         let part = |id: ActorId, player: bool| if player { "player".to_string() } else { episode.part_of(id).unwrap_or("").to_string() };
         Self {
             part: part(who, is_player),
@@ -319,14 +319,14 @@ pub fn conversations(
         talking.ends_at = Some(now);
         return;
     }
-    let here = here.translation.ground();
-    let their_at = there.translation.ground();
+    let here = crate::interact::feet_of(here);
+    let their_at = crate::interact::feet_of(there);
     // They stop to talk, unless something already has them going somewhere.
     if !asked {
         commands.entity(them).insert((crate::actor::Asked(their_at), HeldToTalk));
     }
     // They face whoever they talk to, the same Aim the brain pushes.
-    actions.0.push(tick.0, Action::Aim { x: here.x, y: here.y });
+    actions.0.push(tick.0, Action::Aim { x: here.x, y: here.z });
     // The player's choices: theirs is the first word in a conversation they
     // started, if they have anything to say (modforge `talk::choices`).
     let mine = Moment::of(&episode, (player.0, true), (with, false), here, Some(survival));
@@ -403,7 +403,7 @@ pub fn speak_up(
     };
     let here = here.translation;
     for (actor, there, memory, survival, mut actions) in &mut people {
-        let at = there.translation.ground();
+        let at = crate::interact::feet_of(there);
         if !within(there.translation, here, TALK_REACH) {
             continue;
         }

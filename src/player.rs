@@ -80,12 +80,12 @@ pub fn wake_point(world: &WorldRes) -> Vec3 {
 pub fn spawn_player(mut spawn: SpawnActor, registry: Res<ActorRegistryRes>, world: Res<WorldRes>) {
     let def = registry.0.def("player").expect("the player is registered");
     let at = wake_point(&world);
-    let person = spawn_person(&mut spawn, def, at.ground(), def.faction.as_deref())
+    let person = spawn_person(&mut spawn, def, at - Vec3::Y * BODY_CENTRE, def.faction.as_deref())
         .expect("the actor map has room for the player");
     spawn
         .commands
         .entity(person)
-        .insert((Player, crate::talk::LookingAt::default(), crate::hud::HintsDone::default(), Transform::from_translation(at)));
+        .insert((Player, crate::talk::LookingAt::default(), crate::hud::HintsDone::default()));
 }
 
 /// Every actor's roll this tick (combat.md "The roll"): Roll starts one
@@ -150,7 +150,7 @@ pub fn aim(
 }
 
 /// How far up a body steps without climbing (a stair's step is 0.31 m).
-const CLIMB: f32 = 0.35;
+pub const CLIMB: f32 = 0.35;
 /// Metres per second, per second, down.
 const GRAVITY: f32 = 9.81;
 
@@ -281,8 +281,8 @@ pub fn respawn(
         // (they come back only where death does not stick); the player
         // wakes in their bunker.
         transform.translation = match (home, spawned) {
-            (Some(home), _) => on_ground(home.0, BODY_CENTRE),
-            (None, Some(spawned)) if npc => on_ground(spawned.0, BODY_CENTRE),
+            (Some(home), _) => home.0 + Vec3::Y * BODY_CENTRE,
+            (None, Some(spawned)) if npc => spawned.0 + Vec3::Y * BODY_CENTRE,
             (None, _) => wake_point(&world),
         };
         commands

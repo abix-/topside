@@ -6,6 +6,7 @@ mod endpoint;
 mod bunker;
 mod chunks;
 mod command;
+mod navmesh;
 mod control_plane;
 mod deaths;
 mod doorways;

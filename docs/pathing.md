@@ -16,6 +16,72 @@ from 2.7 ms a step at the start to 7.8 ms after two minutes, still
 rising, as more people went out on long trips. The fix is the design
 Endless already proved at scale, not a new one.
 
+## A navigation mesh: rerecast and landmass (operator, 2026-10-01)
+
+People find their way on a navigation mesh, the way Unity and Unreal do,
+replacing the walk grid and its search below. The world now has levels
+(bunkers going down, buildings going up, stairs between them), which a
+flat tile grid cannot see.
+
+- The mesh is built by Recast, the generator Unity, Unreal and Godot use,
+  in its Rust port: `bevy_rerecast`, from our Avian colliders through
+  `avian_rerecast` (walls, floors, stairs, doors are already colliders).
+  Stairs come out as walkable slopes and every level as its own surface,
+  so people go up and down without anything more.
+- People walk it with `bevy_landmass`: finding the way, straightening it,
+  steering, and (once people are its characters) keeping out of each
+  other's way; `landmass_rerecast` joins the two.
+- What stays: the brain decides where to go (life.md); commands, following
+  and leading push the same aim and move. Only how the way is found and
+  walked changes.
+- One mesh per chunk, joined at the edges into one connected world
+  (operator, 2026-10-01): the world is already made in chunks (32 by 32
+  tiles, 32 m), so the mesh is too. Each chunk's mesh is built when the
+  chunk is made (bevy_rerecast's `aabb`, the chunk's column from its
+  deepest level to its highest) and is its own island in landmass, which
+  links islands along their shared edges by itself (landmass
+  `create_boundary_links`), so a way runs across the whole world. A chunk
+  that changes (a building stands in it, the storm shifts the world) is
+  built again alone. Prior art: Factorio (Friday Facts #317: each 32 by
+  32 chunk's connected areas, joined only at the chunk's edge tiles,
+  redone only where the world changed) and Unreal's tiled Recast mesh.
+- Built (src/navmesh.rs) and proved on the running game by
+  tests/navmesh.rs (2026-10-01): every chunk made has its mesh (1,156,
+  none waiting); a way runs from the player's bunker to the bunker 300 m
+  east across the chunk edges; a way runs from the bunker's entrance down
+  the stairwell to the player's room, every piece joined, through a
+  building that stands across chunk edges. Each chunk is a tile of
+  Recast's tiled mesh (its box padded by Recast's border), its colliders
+  only those reaching into it; cells 0.133 m (at 0.2 m a stair's
+  neighbouring cells can be two steps apart, over the climb, and the
+  flights were lost). The ground is a slab per chunk (terrain), every
+  floor below the ground has its slab, and doors are left out of the mesh
+  (people open them).
+- People walk it (2026-10-02): the brain, commands, following and leading
+  push one action, Go to a point in 3D, its height included (modforge
+  `Action::Go`); `navmesh::walk` makes the person a landmass agent with
+  that target and turns landmass's desired velocity into the Aim and Move
+  every walker already used, opening a closed door ahead with Use. The
+  walk grid and `nav::steer` no longer walk anyone; the grid stays only as
+  the wall map for sight maps and the minimap. Everything that keeps a
+  place keeps it in 3D: memory, home, asked, leading, the episode's
+  things, where a person respawns. Proved on the running game by
+  tests/command.rs (2026-10-02): a command walked the player from their
+  room 6 m down up the stairwell to the ground (feet -6.00 to 0.00).
+- Left: people in the way. The mesh does not know where people stand, so a
+  walker pushes into someone standing in their way (seen: Roxanne talking
+  to the player in the entrance's doorway). landmass steers agents around
+  each other and around `Character3d`s; no one is a character yet.
+- Checked first (2026-10-01, GitHub and crates.io): bevy_rerecast 0.5
+  (Bevy 0.19), avian_rerecast 0.6 (Avian 0.7), bevy_landmass 0.12.1
+  (Bevy 0.19), landmass_rerecast 0.3. Set aside: vleue_navigator (floors
+  as layers stitched by hand, not Recast), oxidized_navigation (last
+  pushed before Bevy 0.19), modforge `route.rs` (follows a host game's
+  paths, builds none).
+
+The sections below are the grid design this replaces, kept until the mesh
+has replaced it everywhere.
+
 ## What we take from Endless (agreed 2026-09-25)
 
 Endless (`C:\code\endless\rust\src\systems\pathfinding.rs` and

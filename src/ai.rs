@@ -44,11 +44,6 @@ fn water_key(c: modforge::walk::ChunkKey) -> u64 {
     PLACE_KEY | WATER_KEY | (pack(c.0) << 21) | pack(c.1)
 }
 
-/// A point on the 2D ground as the brain's ground point.
-pub(crate) fn ground(p: Vec2) -> Vec3 {
-    Vec3::new(p.x, 0.0, p.y)
-}
-
 #[derive(bevy::ecs::system::SystemParam)]
 pub struct Thinkers<'w, 's> {
     npcs: Query<
@@ -75,7 +70,7 @@ pub struct Thinkers<'w, 's> {
                 &'static mut NextThink,
                 Has<Dead>,
                 Option<&'static Store>,
-                Option<&'static crate::nav::NavPath>,
+                Option<&'static bevy_landmass::AgentState>,
                 Option<&'static crate::actor::Map>,
                 Option<&'static crate::actor::Asked>,
             ),
@@ -96,8 +91,8 @@ pub struct Thinkers<'w, 's> {
 #[derive(Component, Debug, Clone, Copy)]
 pub struct Leading {
     pub who: ActorId,
-    pub to: Vec2,
-    pub waiting_at: Option<Vec2>,
+    pub to: Vec3,
+    pub waiting_at: Option<Vec3>,
 }
 
 /// Four times a game second, each leader is asked to where they lead, or,
@@ -113,13 +108,13 @@ pub fn lead(
         return;
     }
     for (entity, at, mut leading) in &mut leaders {
-        let here = at.translation.ground();
-        let Some(follower) = people.iter().find(|(a, _)| a.0 == leading.who).map(|(_, t)| t.translation.ground()) else {
+        let here = crate::interact::feet_of(at);
+        let Some(follower) = people.iter().find(|(a, _)| a.0 == leading.who).map(|(_, t)| crate::interact::feet_of(t)) else {
             continue;
         };
         // Waiting, where they stand (never walking back to where they
         // noticed).
-        let to = if modforge::brain::waits_for(ground(here), ground(follower), leading.waiting_at.is_some()) {
+        let to = if modforge::brain::waits_for(here, follower, leading.waiting_at.is_some()) {
             leading.waiting_at = Some(here);
             here
         } else {
@@ -135,11 +130,11 @@ pub fn lead(
 #[derive(Component, Debug, Clone, Copy)]
 pub struct Following(pub ActorId);
 
-/// Every tick, once the queues have drained: each follower walks after
-/// the one they follow (modforge `brain::follows`) with the same Aim and
-/// Move the brain pushes, which `nav::steer` walks around walls. A move of
-/// their own this tick (the keys: a move with no aim) ends it, as in World
-/// of Warcraft.
+/// Every tick, once the queues have drained: each follower goes after the
+/// one they follow (modforge `brain::follows`), sent where that person's
+/// feet are (`Action::Go`), the way walked on the navigation mesh. A move
+/// of their own this tick (the keys: a move with no aim) ends it, as in
+/// World of Warcraft.
 pub fn follow(
     mut commands: Commands,
     tick: Res<SimTick>,
@@ -149,21 +144,18 @@ pub fn follow(
     use modforge::actions::{ActionQueue, Stamped};
     for (entity, at, mut this_tick, following, dead) in &mut followers {
         let (x, y) = ActionQueue::movement(&this_tick.0);
-        let leader = people.iter().find(|(a, _)| a.0 == following.0).map(|(_, t)| t.translation.ground());
+        let leader = people.iter().find(|(a, _)| a.0 == following.0).map(|(_, t)| crate::interact::feet_of(t));
         // Their own move, their death, or the one they follow gone: it ends.
         let own_move = (x != 0.0 || y != 0.0) && ActionQueue::aim(&this_tick.0).is_none();
         let Some(leader) = leader.filter(|_| !own_move && !dead) else {
             commands.entity(entity).remove::<Following>();
             continue;
         };
-        let here = at.translation.ground();
-        if !modforge::brain::follows(ground(here), ground(leader)) {
+        if !modforge::brain::follows(crate::interact::feet_of(at), leader) {
             continue;
         }
-        let way = (leader - here).normalize_or_zero();
-        this_tick.0.retain(|s| !matches!(s.action, Action::Move { .. } | Action::Aim { .. }));
-        this_tick.0.push(Stamped { tick: tick.0, action: Action::Aim { x: leader.x, y: leader.y } });
-        this_tick.0.push(Stamped { tick: tick.0, action: Action::Move { x: way.x, y: way.y } });
+        this_tick.0.retain(|s| !matches!(s.action, Action::Go { .. }));
+        this_tick.0.push(Stamped { tick: tick.0, action: Action::Go { x: leader.x, y: leader.y, z: leader.z } });
     }
 }
 
@@ -172,8 +164,8 @@ pub fn follow(
 const HALF_CONE: f32 = std::f32::consts::FRAC_PI_3;
 
 /// Inside the cone ahead of someone facing `facing` at `here`.
-fn in_cone(facing: &Facing, here: Vec2, at: Vec2) -> bool {
-    let to = at - here;
+fn in_cone(facing: &Facing, here: Vec3, at: Vec3) -> bool {
+    let to = at.ground() - here.ground();
     to.length() < 1e-3 || facing.direction().angle_to(to).abs() <= HALF_CONE
 }
 
@@ -188,7 +180,8 @@ pub fn think(
     tree: Res<crate::content::brain::BrainTreeRes>,
     day: Res<crate::survival::Day>,
     storms: Res<crate::storm::StormRes>,
-    mut walk: ResMut<crate::nav::Walk>,
+    nav: Res<crate::navmesh::Nav>,
+    archipelagos: Query<&bevy_landmass::prelude::Archipelago3d>,
     sight: Sight,
     mut thinkers: Thinkers,
     containers: Query<(Entity, &Container, &Transform, &WorldItem)>,
@@ -207,17 +200,18 @@ pub fn think(
                 .map_or(0.0, |d| d.good_for.satisfies(need)),
         }
     };
-    // Every box once: where, what kind, for looking round.
-    let boxes: Vec<(Entity, Vec2, String)> = containers
+    // Every box once: where it rests (its height too), what kind, for
+    // looking round.
+    let boxes: Vec<(Entity, Vec3, String)> = containers
         .iter()
-        .map(|(e, _, t, w)| (e, t.translation.ground(), w.stack.item.clone()))
+        .map(|(e, _, t, w)| (e, t.translation, w.stack.item.clone()))
         .collect();
     // Every source once (a well, a berry bush: an item of kind `Source`):
     // where, what kind.
-    let sources_at: Vec<(Entity, Vec2, String)> = lying
+    let sources_at: Vec<(Entity, Vec3, String)> = lying
         .iter()
         .filter(|(_, _, w)| items.0.def(&w.stack.item).is_some_and(|d| d.kind == modforge::item::ItemKind::Source))
-        .map(|(e, t, w)| (e, t.translation.ground(), w.stack.item.clone()))
+        .map(|(e, t, w)| (e, t.translation, w.stack.item.clone()))
         .collect();
     let source_at = |key: u64| {
         sources_at
@@ -225,17 +219,15 @@ pub fn think(
             .find(|(e, _, _)| e.to_bits() == key)
             .map(|(_, at, _)| *at)
     };
-    // Where someone can go: a tile they can stand on (pathing.md: never
-    // head for a place nobody can stand on). The way there is the one
-    // queue's to find (pathing.md rule 4); a way it cannot find drops the
-    // stroll or trip below.
-    let walk = std::cell::RefCell::new(&mut walk.0);
-    let can_go = |at: Vec3| walk.borrow_mut().standable(Vec2::new(at.x, at.z));
+    // Where someone can go: a place on the navigation mesh, at its height
+    // (pathing.md: never head for a place nobody can stand on).
+    let archipelago = archipelagos.get(nav.archipelago).ok();
+    let can_go = |at: Vec3| archipelago.is_some_and(|a| crate::navmesh::standable(a, at));
     // The storm is the same for everyone: coming or here, hide.
     let storm_coming = crate::storm::phase(&tick, *day, &storms) != modforge::storm::StormPhase::Calm;
     // Everyone's position and faction first, so the pass below holds
     // no second borrow. The player carries no id yet: zero names it.
-    let everyone: Vec<(Entity, ActorId, Vec2, Option<String>)> = thinkers
+    let everyone: Vec<(Entity, ActorId, Vec3, Option<String>)> = thinkers
         .others
         .iter()
         .map(|(e, t, npc, actor)| {
@@ -243,7 +235,7 @@ pub fn think(
                 Some(n) => n.faction.clone(),
                 None => Some(PLAYER_FACTION.to_string()),
             };
-            (e, actor.map_or(ActorId(0), |a| a.0), t.translation.ground(), faction)
+            (e, actor.map_or(ActorId(0), |a| a.0), crate::interact::feet_of(t), faction)
         })
         .collect();
     // How hearing words feels: the episode choice that says them.
@@ -259,7 +251,7 @@ pub fn think(
         if tick.0 < next_think.0 || dead {
             continue;
         }
-        let here = transform.translation.ground();
+        let here = crate::interact::feet_of(transform);
         for (e, id, at, _) in &everyone {
             if *e != entity && at.distance(here) <= def.sight && !wanted.iter().any(|w| w.0 == *faction && w.1 == *id) {
                 wanted.push((faction.clone(), *id));
@@ -309,7 +301,7 @@ pub fn think(
         let Some(def) = registry.0.def(&npc.def) else {
             continue;
         };
-        let here = transform.translation.ground();
+        let here = crate::interact::feet_of(transform);
         // Sense: the nearest they stand hostile to (their own feeling,
         // else their faction's standing, else the faction table) within
         // the def's sight, inside the cone ahead, with nothing blocking
@@ -334,8 +326,8 @@ pub fn think(
                     && sight.clear(here, *at)
             })
             .min_by(|a, b| a.2.distance(here).total_cmp(&b.2.distance(here)))
-            .map(|(_, id, at, _)| (*id, ground(*at)));
-        let home_at = home.map(|h| ground(h.0));
+            .map(|(_, id, at, _)| (*id, *at));
+        let home_at = home.map(|h| h.0);
         let at_home = home.is_some_and(|h| h.0.distance(here) <= HOME_REACH);
         condition.0.threat_in_sight = hostile.is_some();
         condition.0.at_home = at_home;
@@ -346,23 +338,24 @@ pub fn think(
         // line goes into memory (seen, not yet looked inside).
         for (key, at, kind) in boxes.iter().chain(&sources_at) {
             if at.distance(here) <= def.sight && in_cone(facing, here, *at) && sight.clear(here, *at) {
-                memory.0.see(key.to_bits(), kind, ground(*at), tick.0);
+                memory.0.see(key.to_bits(), kind, *at, tick.0);
             }
         }
         // A river seen: the nearest shore in sight, one memory per chunk,
         // where they can stand and drink (design.md: rivers drinkable).
         if let Some(chunks) = chunks.as_ref() {
-            let c = crate::terrain::chunk_of(here);
+            let c = crate::terrain::chunk_of(here.ground());
+            // A shore is on the ground: its land tile at the ground's height.
             let seen = (c.1 - 1..=c.1 + 1)
                 .flat_map(|y| (c.0 - 1..=c.0 + 1).map(move |x| (x, y)))
                 .filter_map(|k| chunks.shores.get(&k))
                 .flatten()
-                .map(|s| modforge::walk::centre(s.land))
+                .map(|s| crate::on_ground(modforge::walk::centre(s.land), 0.0))
                 .filter(|p| p.distance(here) <= def.sight && in_cone(facing, here, *p))
                 .min_by(|a, b| a.distance(here).total_cmp(&b.distance(here)));
             if let Some(shore) = seen.filter(|p| sight.clear(here, *p)) {
-                let key = water_key(crate::terrain::chunk_of(shore));
-                memory.0.see(key, crate::interact::WATER, ground(shore), tick.0);
+                let key = water_key(crate::terrain::chunk_of(shore.ground()));
+                memory.0.see(key, crate::interact::WATER, shore, tick.0);
             }
         }
         // A box they have open, they see into, as the player sees the
@@ -409,18 +402,18 @@ pub fn think(
             &items.0,
         );
         memory.0.learned.score(tick.0, alive);
-        // A trip whose way the queue could not find (pathing.md rule 5) is
+        // A trip the navigation mesh has no way for (pathing.md) is
         // dropped: they pick again from the root. A thing they could not
         // reach counts as looked at, so the same one is not picked again
         // at once.
         let unreached = match record.0.target {
-            modforge::statetree::Target::Point(to) => Some((to, None)),
-            modforge::statetree::Target::Thing { key, at, .. } => Some((at, Some(key))),
+            modforge::statetree::Target::Point(_) => Some(None),
+            modforge::statetree::Target::Thing { key, .. } => Some(Some(key)),
             _ => None,
         };
-        if let (Some((to, thing)), Some(way)) = (unreached, way)
-            && tick.0 < way.retry_at
-            && way.goal.distance(Vec2::new(to.x, to.z)) <= 1.0
+        let no_way = way.is_some_and(|s| matches!(s, bevy_landmass::AgentState::NoPath | bevy_landmass::AgentState::TargetNotOnNavMesh));
+        if let Some(thing) = unreached
+            && no_way
         {
             match thing {
                 Some(key) if key & PLACE_KEY != 0 || source_at(key).is_some() => memory.0.visited(key, tick.0),
@@ -430,11 +423,19 @@ pub fn think(
             record.0 = Default::default();
         }
         let standable = |at: Vec3| can_go(at);
-        let reachable = || walk.borrow_mut().reachable_in_chunk(here).into_iter().map(ground).collect();
+        // Places to stroll to: points round them every 3 m, 15 m each way,
+        // on the mesh at their height (the mesh, not a grid, knows where
+        // anyone can stand).
+        let reachable = || {
+            (-5..=5)
+                .flat_map(|z| (-5..=5).map(move |x| here + Vec3::new(x as f32 * 3.0, 0.0, z as f32 * 3.0)))
+                .filter(|p| can_go(*p))
+                .collect()
+        };
         let unknown = |at: Vec3| !map.is_some_and(|m| m.map.seen(modforge::walk::cell_of(Vec2::new(at.x, at.z))));
         let perception = Perception {
             now: tick.0,
-            position: ground(here),
+            position: here,
             yaw: facing.0,
             health_fraction: health.0.fraction(),
             needs: needs.0,
@@ -456,7 +457,7 @@ pub fn think(
             standable: &standable,
             reachable: &reachable,
             unknown: &unknown,
-            asked: asked.map(|a| ground(a.0)),
+            asked: asked.map(|a| a.0),
         };
 
         // Decide through the one tree: seeded by the tick and the person,
@@ -486,7 +487,7 @@ pub fn think(
         // UseSlot eats or drinks, Cancel closes the box.
         let mut act = |action: Action| actions.0.push(tick.0, action);
         let the_box = |key: u64| Entity::try_from_bits(key).filter(|e| containers.contains(*e));
-        let where_is = |e: Entity| containers.get(e).map_or(here, |(_, _, t, _)| t.translation.ground());
+        let where_is = |e: Entity| containers.get(e).map_or(here, |(_, _, t, _)| t.translation);
         let mut keep_open = None;
         match do_now {
             None => {}
@@ -517,7 +518,7 @@ pub fn think(
             // mouthful a think, until the thirst is met; no water there,
             // forget it.
             Some(Do::Eat { key, .. }) if key & WATER_KEY != 0 => {
-                match chunks.as_ref().and_then(|c| crate::interact::nearest_water(c, here, here)) {
+                match chunks.as_ref().and_then(|c| crate::interact::nearest_water(c, here.ground(), here.ground())) {
                     Some(water) => {
                         act(Action::Aim { x: water.x, y: water.y });
                         act(Action::Use);
@@ -529,7 +530,7 @@ pub fn think(
             // a mouthful a think, until the need is met.
             Some(Do::Eat { key, .. }) if source_at(key).is_some() => {
                 let at = source_at(key).expect("checked above");
-                act(Action::Aim { x: at.x, y: at.y });
+                act(Action::Aim { x: at.x, y: at.z });
                 act(Action::Use);
             }
             // At the box: open it, then eat or drink one thing out of it
@@ -624,14 +625,14 @@ pub fn think(
 
 /// Open `found` standing at `at`: close whatever else is open, point at
 /// it, then use it (the player's aim and E).
-fn open_box(act: &mut impl FnMut(Action), open: &OpenContainer, found: Entity, at: Vec2) {
+fn open_box(act: &mut impl FnMut(Action), open: &OpenContainer, found: Entity, at: Vec3) {
     if open.0 == Some(found) {
         return;
     }
     if open.0.is_some() {
         act(Action::Cancel);
     }
-    act(Action::Aim { x: at.x, y: at.y });
+    act(Action::Aim { x: at.x, y: at.z });
     act(Action::Use);
 }
 

@@ -165,7 +165,7 @@ pub fn read_input(
             | Action::Map
             | Action::Talk { .. }
             | Action::Respawn => true,
-            Action::Look { .. } | Action::Aim { .. } | Action::Fly => false,
+            Action::Look { .. } | Action::Aim { .. } | Action::Go { .. } | Action::Fly => false,
         };
         if allowed {
             moved |= matches!(action, Action::Move { .. });

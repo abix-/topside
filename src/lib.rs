@@ -15,6 +15,7 @@ pub mod interact;
 pub mod minimap;
 pub mod model;
 pub mod nav;
+pub mod navmesh;
 pub mod outline;
 pub mod people;
 pub mod player;
@@ -110,6 +111,8 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind) -> App {
     // Avian 3D is the one physics system. Bodies are kinematic and walk
     // the ground; nothing falls yet (one floor, flat ground).
     app.add_plugins(avian3d::prelude::PhysicsPlugins::default());
+    // The navigation mesh from those colliders (docs/pathing.md).
+    app.add_plugins(navmesh::NavPlugin);
     app.add_plugins(profile::ProfilePlugin);
     app.insert_resource(avian3d::prelude::Gravity(Vec3::ZERO));
     if headless {
@@ -141,9 +144,7 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind) -> App {
     app.init_resource::<hud::HoveredSlot>();
     app.init_resource::<nav::Walk>();
     app.init_resource::<sight::BunkerMaps>();
-    app.init_resource::<nav::PlanQueue>();
     app.init_resource::<nav::DoorIndex>();
-    app.init_resource::<nav::FailedWays>();
     app.init_resource::<survival::Day>();
     app.init_resource::<content::RecipeRegistryRes>();
     app.init_resource::<storm::StormRes>();
@@ -192,8 +193,10 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind) -> App {
                 lap("think"),
                 (input::drain_actions, lap("drain_actions"), hud::learn_hints, command::give, command::carry_out, ai::follow).chain(),
                 (nav::record_solids, nav::record_doors),
-                nav::steer,
-                lap("steer"),
+                // Everyone sent somewhere walks the way on the navigation
+                // mesh (docs/pathing.md).
+                navmesh::walk,
+                lap("walk"),
                 survival::survival_tick,
                 survival::waste,
                 lap("survival"),
