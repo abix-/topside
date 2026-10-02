@@ -400,6 +400,9 @@ fn loaded(loaded: On<Loaded>, mut actors: ResMut<crate::actor::ActorMapRes>, mut
             crate::navmesh::mesh_as_saved(world);
         }
         info!("load done in {:.0} ms ({})", start.elapsed().as_secs_f64() * 1000.0, if rolled { "its world rolled and meshed" } else { "the same world" });
+        // What the ops read, written from the loaded game before the load
+        // answers.
+        crate::control_plane::publish_now(world);
         answer(world.run_system_cached(|moment: Moment| moment.read()).map_err(|e| format!("reading the loaded game: {e}")));
     });
 }

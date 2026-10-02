@@ -341,6 +341,7 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind) -> App {
         app.init_resource::<input::PendingInput>();
         app.add_systems(PreUpdate, input::gather_input.after(bevy::input::InputSystems));
         app.add_systems(FixedPreUpdate, input::input_to_actions);
+        app.add_systems(Update, control_plane::stand_still.after(control_plane::apply_speed));
         app.add_systems(
             Update,
             (

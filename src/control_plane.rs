@@ -562,7 +562,7 @@ pub fn publish_ways(
     walkers: Query<(&Actor, Option<&Npc>, &Transform, &crate::navmesh::Walker)>,
     ways: crate::navmesh::Ways,
 ) {
-    if tick.0 % 60 != 0 {
+    if !due(tick.0) {
         return;
     }
     use bevy_landmass::AgentState;
@@ -614,7 +614,7 @@ pub fn publish_view(
     map_view: Option<Res<crate::minimap::MapView>>,
     players: Query<(&Transform, &crate::actor::Map), With<Player>>,
 ) {
-    if tick.0 % 60 != 0 {
+    if !due(tick.0) {
         return;
     }
     // What the map last drew, against where the player stands and what
@@ -676,7 +676,7 @@ pub fn publish_items(
     items: Query<(&crate::interact::WorldItem, &Transform, Option<&crate::model::Model>, Option<&Children>)>,
     models: Query<&crate::model::Model>,
 ) {
-    if tick.0 % 60 != 0 {
+    if !due(tick.0) {
         return;
     }
     let list: Vec<Json> = items
@@ -731,7 +731,7 @@ pub fn publish_hud(
     conversation: Query<&crate::talk::Conversation, With<Player>>,
     real: Res<Time<Real>>,
 ) {
-    if tick.0 % 60 != 0 {
+    if !due(tick.0) {
         return;
     }
     // The controls still shown (`hud::hints_shown`).
@@ -839,14 +839,14 @@ pub fn take_screenshot(mut commands: Commands) {
 /// fixed step runs on: the same game, more steps each frame. A frame may
 /// catch up at most a second of game time, so a slow machine runs as fast
 /// as it can, never skips steps.
-pub fn apply_speed(mut time: ResMut<Time<Virtual>>, tick: Res<crate::SimTick>) {
+pub fn apply_speed(mut time: ResMut<Time<Virtual>>) {
     let speed = f32::from_bits(SPEED_BITS.load(Ordering::Relaxed));
     if time.relative_speed() != speed {
         time.set_relative_speed(speed);
         time.set_max_delta(std::time::Duration::from_secs(1));
     }
-    // Paused or not, as the `pause` op asked; the tick it stopped at is
-    // what the op answers.
+    // Paused or not, as the `pause` op asked; `stand_still` publishes and
+    // gives the op the tick it stopped at.
     let paused = PAUSED.load(Ordering::Relaxed);
     if paused != time.is_paused() {
         if paused {
@@ -855,7 +855,6 @@ pub fn apply_speed(mut time: ResMut<Time<Virtual>>, tick: Res<crate::SimTick>) {
             time.unpause();
         }
     }
-    PAUSED_AT.store(if time.is_paused() { tick.0 } else { u64::MAX }, Ordering::Relaxed);
 }
 
 /// The game paused by the `pause` op (Factorio's pause, for tests: the
@@ -889,18 +888,58 @@ pub fn step_ticks(mut fixed: ResMut<Time<Fixed>>, time: Res<Time<Virtual>>, tick
     }
 }
 
-/// After the fixed steps, once stepping has reached its tick: the `step`
-/// op answered with the moment there (crate::save::Moment).
-pub fn answer_step(tick: Res<crate::SimTick>, moment: crate::save::Moment) {
-    let Ok(mut to) = STEP_TO.lock() else {
-        return;
-    };
-    if *to != Some(tick.0) {
+/// After the fixed steps, once stepping has reached its tick: what the
+/// ops read published (`publish_now`), then the `step` op answered with
+/// the moment there (crate::save::Moment).
+pub fn answer_step(world: &mut World) {
+    let tick = world.resource::<crate::SimTick>().0;
+    match STEP_TO.lock() {
+        Ok(mut to) if *to == Some(tick) => *to = None,
+        _ => return,
+    }
+    publish_now(world);
+    let moment = world.run_system_cached(|moment: crate::save::Moment| moment.read()).unwrap_or(Json::Null);
+    if let Ok(mut slot) = STEP_ANSWER.lock() {
+        *slot = Some(moment);
+    }
+}
+
+/// While set, every publisher writes its copy now, whatever the tick.
+static PUBLISH_NOW: AtomicBool = AtomicBool::new(false);
+
+/// Whether a publisher writes its copy this tick: once a game second in
+/// play, and whenever the game comes to a stop for a test (`publish_now`).
+fn due(tick: u64) -> bool {
+    tick % 60 == 0 || PUBLISH_NOW.load(Ordering::Relaxed)
+}
+
+/// Every copy the ops read written now, by the same publishers that write
+/// them once a game second: called when the game comes to a stop for a
+/// test (a load done, a step done, a pause taking hold), so an op never
+/// answers from before it (authority.md rule 5).
+pub fn publish_now(world: &mut World) {
+    PUBLISH_NOW.store(true, Ordering::Relaxed);
+    let _ = world.run_system_cached(publish);
+    let _ = world.run_system_cached(publish_world);
+    let _ = world.run_system_cached(publish_ways);
+    let _ = world.run_system_cached(publish_view);
+    let _ = world.run_system_cached(publish_items);
+    let _ = world.run_system_cached(publish_hud);
+    PUBLISH_NOW.store(false, Ordering::Relaxed);
+}
+
+/// Every frame, after the speed and pause are applied: a pause that has
+/// just taken hold publishes what the ops read before the `pause` op
+/// answers with the tick it stands at.
+pub fn stand_still(world: &mut World) {
+    let paused = world.resource::<Time<Virtual>>().is_paused();
+    if !paused {
+        PAUSED_AT.store(u64::MAX, Ordering::Relaxed);
         return;
     }
-    *to = None;
-    if let Ok(mut slot) = STEP_ANSWER.lock() {
-        *slot = Some(moment.read());
+    if PAUSED_AT.load(Ordering::Relaxed) == u64::MAX {
+        publish_now(world);
+        PAUSED_AT.store(world.resource::<crate::SimTick>().0, Ordering::Relaxed);
     }
 }
 
@@ -928,7 +967,7 @@ pub fn publish_world(
     below: Query<(&Transform, &crate::structure::Below)>,
     doors: Query<(&crate::interact::Door, &Transform)>,
 ) {
-    if tick.0 % 60 != 0 {
+    if !due(tick.0) {
         return;
     }
     // Every building that goes below the ground: where it stands, its
@@ -1127,7 +1166,7 @@ pub fn publish(
         // Who the player is and what they know, once a second, for the
         // `player` op: every thing known (and who told them, if told), and
         // everything they heard said.
-        if tick.0 % 60 == 0
+        if due(tick.0)
             && let Ok(mut slot) = PLAYER.lock()
         {
             *slot = json!({
@@ -1192,7 +1231,7 @@ pub fn publish(
         }
     }
     // Every person, once a second.
-    if tick.0 % 60 == 0 {
+    if due(tick.0) {
         let list: Vec<Json> = npcs
             .iter()
             .map(|((actor, npc, at, health, needs, personality, this_tick, name), (memory, record, dead, hotbar, facing, drawn, map, worn))| {
