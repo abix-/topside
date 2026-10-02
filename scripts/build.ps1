@@ -86,8 +86,18 @@ function Invoke-Cargo {
     $null = $p.Handle
     $lastSize = -1
     $quietSince = Get-Date
+    # Waiting for another session's build (k3sc cargo-lock's lock) is
+    # waiting, not stalling: the stall clock starts once the lock is held.
+    $locked = $false
     while (-not $p.WaitForExit(5000)) {
         $size = if (Test-Path $Log) { (Get-Item $Log).Length } else { 0 }
+        if (-not $locked) {
+            $locked = (Test-Path $Log) -and (Select-String -Path $Log -Pattern 'acquired lock' -SimpleMatch -Quiet)
+            if (-not $locked) {
+                $quietSince = Get-Date
+                continue
+            }
+        }
         if ($size -ne $lastSize) {
             $lastSize = $size
             $quietSince = Get-Date
