@@ -73,6 +73,23 @@ fn the_stairwell_seen_from_the_entrance_landing() {
     assert!(there && pf.abs() < 0.3, "the player never stood on the entrance's door landing");
 }
 
+/// The entrance room's one doorway into the stairwell, from inside the
+/// room facing east, in logs/bunker_doorway.png.
+#[test]
+fn the_entrance_has_one_doorway_into_the_stairwell() {
+    crate::endpoint::player_alive();
+    let player = op("player")["id"].as_u64().expect("the player op reports the player's id");
+    op_with("use", serde_json::json!({"id": player, "at": [-1.5, 0.0]}));
+    within(3, || status().2.abs() < 0.1 && status().0 < 1.0);
+    op_with("command", serde_json::json!({"do": "move_to", "x": 2.0, "y": 0.0}));
+    let there = within(5, || status().0 > 0.3);
+    std::thread::sleep(std::time::Duration::from_millis(500));
+    crate::talk_ui::shot("bunker_doorway");
+    let (px, py, pf) = status();
+    eprintln!("in the entrance at ({px:.1}, {py:.1}), feet {pf:.2}");
+    assert!(there && pf.abs() < 0.3, "the player never stood in the entrance facing the stairwell");
+}
+
 /// The basic controls in the player's room (design.md "The bunker you
 /// start in"): each shown until done; E pressed, its line goes and the
 /// rest stay.
