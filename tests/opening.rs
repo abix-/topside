@@ -124,7 +124,10 @@ fn read_the_note() {
     op_with("command", json!({"do": "move_to", "x": note.0, "y": feet, "z": note.1}));
     // Within Use's reach (1.5 m, interact.rs REACH), with room to spare.
     let there = within(10, || apart(player_spot(), (note.0, note.1, feet)).0 < 1.2);
-    assert!(there, "the player never walked to the note");
+    if !there {
+        crate::endpoint::why_stopped((note.0, feet, note.1));
+    }
+    assert!(there, "the player never walked to the note at ({:.1}, {:.1}), feet {feet:.2}: they stand at {:?}", note.0, note.1, player_spot());
     op_with("key", json!({"key": "E"}));
     let read = within(3, || op("hud")["reading"] == true);
     assert!(read, "E by the note did not open it");
