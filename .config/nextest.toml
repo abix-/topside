@@ -38,5 +38,5 @@ slow-timeout = { period = "60s", terminate-after = 120 }
 [[profile.default.overrides]]
 # And the tests that move the player (the `use` op) or drive the mouse:
 # one at a time, or they pull the one player two ways.
-filter = 'test(/^game::/) | test(/^control_plane::/) | test(/^talk::/) | test(/^talk_ui::/) | test(/^the_tap::/) | test(/^episode::/) | test(/^relationship::/) | test(/^leading::/) | test(/^command::/) | test(/^bunker::/) | test(/^navmesh::/) | test(/^roxanne::/) | test(/^trade::/) | test(/^save::/) | test(/^opening::/)'
+filter = 'test(/^game::/) | test(/^control_plane::/) | test(/^talk::/) | test(/^talk_ui::/) | test(/^the_tap::/) | test(/^episode::/) | test(/^relationship::/) | test(/^leading::/) | test(/^command::/) | test(/^bunker::/) | test(/^navmesh::/) | test(/^roxanne::/) | test(/^trade::/) | test(/^save::/) | test(/^opening::/) | test(/^holding::/) | test(/^stocking::/) | test(/^newcomers::/) | test(/^joining::/) | test(/^drawn_from::/)'
 test-group = "real-game"
