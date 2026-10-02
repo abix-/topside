@@ -460,6 +460,12 @@ fn the_four_answers_show_and_a_number_key_picks_one() {
     for answer in ways {
         assert!(shown.iter().any(|c| answer.contains(&c.as_str())), "none of {answer:?} among the answers {shown:?}");
     }
+    // The box (episodes.md "How a conversation looks"): the answers drawn,
+    // and the line on top with no slot left unfilled.
+    let box_now = talk();
+    assert_eq!(box_now["drawn"], true, "the answers are not drawn: {box_now}");
+    let line = box_now["line"]["words"].as_str().unwrap_or_default();
+    assert!(!line.contains('{'), "a slot left unfilled in the line on top: {line:?}");
     let said = |p: &Json| p["said"].as_array().map_or(0, |s| s.iter().filter(|s| s["to"].as_u64() == Some(roxanne())).count());
     let before = said(&op("player"));
     let words = choose(&["Where exactly?", "Tell me the way again."]);
@@ -492,6 +498,8 @@ fn show_me_believes_roxanne_and_she_says_follow_me() {
     let replies = ["Follow me. Keep up.", "This way. Stay close."];
     let replied = within(5, || heard_from(her).iter().any(|(_, w)| replies.contains(&w.as_str())));
     assert!(replied, "Roxanne never answered {words:?}: she said {:?}", heard_from(her));
+    // Her reply said, the conversation ends by itself.
+    assert!(within(8, || talk()["open"] != true), "the conversation never ended after her reply: {}", talk());
 }
 
 /// 11. A way runs on the navigation mesh from the bunker door to the tap.
