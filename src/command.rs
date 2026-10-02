@@ -24,6 +24,7 @@ use crate::{Ground, SimTick};
 #[derive(Component, Default, Clone, serde::Serialize, serde::Deserialize, Reflect)]
 #[reflect(opaque, Component, Serialize, Deserialize)]
 pub struct Commanded {
+    #[serde(with = "crate::save::json_text")]
     pub left: VecDeque<Command>,
     pub started: bool,
 }
@@ -38,12 +39,12 @@ impl Commanded {
 /// Every command given this run, in order: what a saved replay holds.
 #[derive(Resource, Default, Clone, serde::Serialize, serde::Deserialize, Reflect)]
 #[reflect(opaque, Resource, Serialize, Deserialize)]
-pub struct GivenThisRun(pub Vec<Given>);
+pub struct GivenThisRun(#[serde(with = "crate::save::json_text")] pub Vec<Given>);
 
 /// A replay being played: the commands still to give, each at its tick.
 #[derive(Resource, Default, Clone, serde::Serialize, serde::Deserialize, Reflect)]
 #[reflect(opaque, Resource, Serialize, Deserialize)]
-pub struct Playing(pub VecDeque<Given>);
+pub struct Playing(#[serde(with = "crate::save::json_text")] pub VecDeque<Given>);
 
 /// The `command` op's commands (to whom, None the player), taken by
 /// `give` on the game's next step.

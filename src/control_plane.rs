@@ -729,7 +729,6 @@ pub fn publish_hud(
     players: Query<&crate::interact::Hud, With<Player>>,
     hints: Query<(&crate::hud::HintsDone, &Transform), With<Player>>,
     conversation: Query<&crate::talk::Conversation, With<Player>>,
-    real: Res<Time<Real>>,
 ) {
     if !due(tick.0) {
         return;
@@ -747,9 +746,9 @@ pub fn publish_hud(
         "line": talking.as_ref().and_then(|t| t.line.clone()).map(|(by, words)| json!({"by": by, "words": words})),
         "choices": talking.as_ref().map_or(Vec::new(), |t| t.choices.iter().map(|c| c.words.clone()).collect()),
         "drawn": talk_box.single().is_ok_and(|v| *v != Visibility::Hidden) && choice_list.single().is_ok_and(|n| n.display != Display::None),
-        // Real seconds the line shown still has to be read (talk.rs, modforge
-        // `talk::reading_secs`).
-        "reading_for": conversation.single().ok().and_then(|c| c.read).map(|(_, at)| (at - real.elapsed_secs_f64()).max(0.0)),
+        // Game seconds the line shown still has to be read (talk.rs, modforge
+        // `talk::reading_secs`, counted in ticks).
+        "reading_for": conversation.single().ok().and_then(|c| c.read).map(|(_, at)| at.saturating_sub(tick.0) as f64 / 60.0),
     });
     let Ok(window) = windows.single() else {
         return;

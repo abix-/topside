@@ -20,6 +20,22 @@ use moonshine_save::prelude::*;
 
 use crate::SimTick;
 
+/// A saved field written as its JSON text inside the save (`#[serde(with
+/// = "crate::save::json_text")]`): for a type whose serde form RON cannot
+/// read back, as modforge's `Command`, tagged by "do" for the `command`
+/// op's JSON; one form for it everywhere, the one the op reads.
+pub mod json_text {
+    pub fn serialize<T: serde::Serialize, S: serde::Serializer>(value: &T, to: S) -> Result<S::Ok, S::Error> {
+        let text = serde_json::to_string(value).map_err(serde::ser::Error::custom)?;
+        to.serialize_str(&text)
+    }
+
+    pub fn deserialize<'de, T: serde::de::DeserializeOwned, D: serde::Deserializer<'de>>(from: D) -> Result<T, D::Error> {
+        let text = <String as serde::Deserialize>::deserialize(from)?;
+        serde_json::from_str(&text).map_err(serde::de::Error::custom)
+    }
+}
+
 /// Where saves are kept: in the repo, so a run another day starts from
 /// the same place (todo 31a).
 pub const SAVES: &str = "saves";
@@ -151,7 +167,7 @@ fn answer(result: Result<serde_json::Value, String>) {
 /// resource changes its fields, so an older save is refused plainly
 /// instead of failing halfway (todo 31a). Test saves are then made again
 /// by playing (9k).
-pub const VERSION: u32 = 5;
+pub const VERSION: u32 = 7;
 
 /// What a save says first, on its own line, before the saved world: the
 /// format's version and the world it was made in (the seed, the world's

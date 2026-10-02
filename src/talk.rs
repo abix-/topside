@@ -46,26 +46,32 @@ pub struct LookingAt(pub Option<(Entity, u64)>);
 
 /// The player's conversation: with whom, the tick it started (only what
 /// is said from then counts), whether the player started it (their E),
-/// the real time their current choices showed (for silence's wait), the
-/// last line said (its tick) and the real time it has been read by
-/// (modforge `talk::reading_secs`), and the real time it ends at once its
-/// last line has been said and read. The HUD shows it from
-/// `HudState::talking`.
+/// the tick their current choices showed (for silence's wait), the last
+/// line said (its tick) and the tick it has been read by (modforge
+/// `talk::reading_secs`), and the tick it ends at once its last line has
+/// been said and read. All in ticks, never real time, so a talk plays the
+/// same however fast the game runs (authority.md rule 5). The HUD shows
+/// it from `HudState::talking`.
 #[derive(Component, Debug, Clone, Copy, serde::Serialize, serde::Deserialize, Reflect)]
 #[reflect(opaque, Component, Serialize, Deserialize)]
 pub struct Conversation {
     pub with: u64,
     pub started: u64,
     pub opened: bool,
-    pub choices_since: Option<f64>,
-    pub read: Option<(u64, f64)>,
-    pub ends_at: Option<f64>,
+    pub choices_since: Option<u64>,
+    pub read: Option<(u64, u64)>,
+    pub ends_at: Option<u64>,
 }
 
 impl Conversation {
     pub fn new(with: u64, started: u64, opened: bool) -> Self {
         Self { with, started, opened, choices_since: None, read: None, ends_at: None }
     }
+}
+
+/// A time in game seconds as ticks (60 a second), rounded up.
+pub fn ticks_of(secs: f64) -> u64 {
+    (secs * 60.0).ceil() as u64
 }
 
 /// The HUD's picture of a new conversation with this person.
@@ -304,7 +310,6 @@ pub fn look_at(
 pub fn conversations(
     mut commands: Commands,
     tick: Res<crate::SimTick>,
-    real: Res<Time<Real>>,
     seed: Res<crate::WorldSeed>,
     episode: Res<Episode>,
     lines: Res<Lines>,
@@ -322,7 +327,7 @@ pub fn conversations(
         return;
     };
     let with = ActorId(talking.with);
-    let now = real.elapsed_secs_f64();
+    let now = tick.0;
     // The last line said between them, the subtitle: when, whether it is
     // theirs, by whom, its words; and when it has been read (modforge
     // `talk::reading_secs`, the one rule for every wait here).
@@ -335,7 +340,7 @@ pub fn conversations(
     if let Some((t, _, _, words)) = &last
         && talking.read.is_none_or(|(seen, _)| seen != *t)
     {
-        talking.read = Some((*t, now + modforge::talk::reading_secs(words)));
+        talking.read = Some((*t, now + ticks_of(modforge::talk::reading_secs(words))));
     }
     let read_by = talking.read.map_or(now, |(_, at)| at);
     // A line of theirs still being read: nothing comes after it yet (the
@@ -418,13 +423,13 @@ pub fn conversations(
         // Nobody has anything left to say: it ends once the last line and
         // the choices still shown (asking to trade) have been read.
         let shown_words: String = shown.choices.iter().map(|c| c.words.as_str()).collect::<Vec<_>>().join(" ");
-        talking.ends_at = Some(read_by.max(now + modforge::talk::reading_secs(&shown_words)));
+        talking.ends_at = Some(read_by.max(now + ticks_of(modforge::talk::reading_secs(&shown_words))));
         return;
     }
     let since = *talking.choices_since.get_or_insert(now);
     // Chosen nothing in time: silence is said (doing nothing is a choice).
     if let Some(quiet) = silence
-        && now - since >= f64::from(lines.0[quiet].wait)
+        && now.saturating_sub(since) >= ticks_of(f64::from(lines.0[quiet].wait))
     {
         mine_to_push.0.push(tick.0, Action::Talk { to: with.0, said: Said::Line { line: quiet as u32, key: 0 } });
         shown.choices.clear();
@@ -471,7 +476,7 @@ pub fn speak_up(
 /// or dying ends it too.
 pub fn end_conversations(
     mut commands: Commands,
-    real: Res<Time<Real>>,
+    tick: Res<crate::SimTick>,
     map: Res<ActorMapRes>,
     mut players: Query<(Entity, &mut Hud, &Conversation, Has<Dead>), With<Player>>,
     held: Query<(), With<HeldToTalk>>,
@@ -480,7 +485,7 @@ pub fn end_conversations(
         return;
     };
     let closed = hud.0.talking.is_none();
-    if closed || dead || talking.ends_at.is_some_and(|at| real.elapsed_secs_f64() >= at) {
+    if closed || dead || talking.ends_at.is_some_and(|at| tick.0 >= at) {
         hud.0.talking = None;
         commands.entity(player).remove::<Conversation>();
         if let Some(them) = map.0.handle_of(ActorId(talking.with))
