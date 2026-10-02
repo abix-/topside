@@ -220,7 +220,7 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind) -> App {
             )
                 .chain(),
             (
-                (talk::look_at, interact::interact_on_use, talk::talk, talk::conversations, talk::speak_up, talk::word_spreads).chain(),
+                (talk::look_at, interact::interact_on_use, interact::knock, talk::talk, talk::conversations, talk::speak_up, talk::word_spreads).chain(),
                 lap("interact"),
                 (player::movement, sight::look_around, sight::share_maps).chain(),
                 lap("movement"),

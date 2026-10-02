@@ -140,6 +140,7 @@ pub fn carry_out(
     )>,
     everyone: Query<(Entity, &Actor, &Transform, Option<&Npc>, &Memory, Has<Dead>, Has<Player>)>,
     eyes: Query<&Eyes>,
+    doors: Query<(&crate::interact::Door, &Transform)>,
 ) {
     let heard = |words: &str| episodes.0.felt(words);
     for ((entity, actor, at, mut this_tick, mut commanded), (following, dead, hud, looking, children)) in &mut people {
@@ -182,7 +183,7 @@ pub fn carry_out(
                 }
                 // Any other command is their own order: it ends following,
                 // as a move of their own does.
-                Command::MoveTo { .. } | Command::TalkTo { .. } | Command::Attack { .. } => {
+                Command::MoveTo { .. } | Command::TalkTo { .. } | Command::Knock { .. } | Command::Attack { .. } => {
                     if following {
                         commands.entity(entity).remove::<Following>();
                     }
@@ -191,10 +192,17 @@ pub fn carry_out(
             let (target, who) = match command {
                 Command::MoveTo { x, y, z } => (Some(Vec3::new(x, y, z)), None),
                 Command::TalkTo { who } | Command::Attack { who } => (alive_at(who), Some(who)),
+                // The spot before the closed door between them.
+                Command::Knock { who } => (alive_at(who).and_then(|them| crate::interact::knock_spot(doors.iter(), them)), Some(who)),
                 Command::Follow { .. } | Command::AttackNearestEnemy => (None, None),
             };
             let talking_with = hud.and_then(|h| h.0.talking.as_ref()).map(|t| t.with);
-            let ended = matches!(command, Command::TalkTo { .. }) && talking_with.is_some() && talking_with == who;
+            // Talking with them, or (a knock) knocked once.
+            let ended = match command {
+                Command::TalkTo { .. } => talking_with.is_some() && talking_with == who,
+                Command::Knock { .. } => commanded.started,
+                _ => false,
+            };
             let actions = match modforge::command::step(&command, here, target, ended, crate::talk::TALK_REACH) {
                 Step::Done => {
                     commanded.next();
@@ -216,6 +224,9 @@ pub fn carry_out(
                         this_tick.0.push(Stamped { tick: tick.0, action: Action::Look { yaw: 0.0, pitch: want - pitch } });
                     }
                     continue;
+                }
+                if matches!(action, Action::Knock) {
+                    commanded.started = true;
                 }
                 this_tick.0.push(Stamped { tick: tick.0, action });
             }

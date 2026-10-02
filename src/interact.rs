@@ -46,6 +46,81 @@ impl Door {
         let d = centre - hinge;
         Quat::from_rotation_y((-d.y).atan2(d.x))
     }
+
+    /// The way through the doorway on the ground, across the closed door.
+    pub fn across(&self) -> Vec2 {
+        (self.closed_center - self.hinge).perp().normalize_or_zero()
+    }
+
+    /// Which side of the closed door a ground point is on: 1 or -1.
+    pub fn side_of(&self, p: Vec2) -> f32 {
+        if (p - self.closed_center).dot(self.across()) >= 0.0 { 1.0 } else { -1.0 }
+    }
+}
+
+/// How far before a door a person stands to knock on it, metres.
+pub const KNOCK_STAND: f32 = 0.8;
+/// How far a knock is heard on the door's other side, on its level, metres
+/// (operator, 2026-10-02).
+pub const KNOCK_HEARD: f32 = 6.0;
+
+/// Where to stand to knock on the door between `them` and a knocker: the
+/// closed door on their level nearest them within a knock's hearing, and
+/// the spot before it on the side away from them, at its floor.
+pub fn knock_spot<'a>(doors: impl Iterator<Item = (&'a Door, &'a Transform)>, them: Vec3) -> Option<Vec3> {
+    let (door, floor) = doors
+        .filter(|(d, at)| !d.open && (at.translation.y - them.y).abs() < 1.5)
+        .map(|(d, at)| (d, at.translation.y))
+        .filter(|(d, _)| d.closed_center.distance(them.ground()) <= KNOCK_HEARD)
+        .min_by(|a, b| a.0.closed_center.distance(them.ground()).total_cmp(&b.0.closed_center.distance(them.ground())))?;
+    let away = -door.side_of(them.ground());
+    Some(on_ground(door.closed_center + door.across() * away * KNOCK_STAND, floor))
+}
+
+/// Every person's Knock this tick: on the closed door in their reach, heard
+/// by everyone on its other side within `KNOCK_HEARD` on its level, each
+/// remembering who knocked; a player who hears it is in a conversation with
+/// the one who knocked (talk::spoken_to), as being spoken to.
+pub fn knock(
+    mut commands: Commands,
+    tick: Res<crate::SimTick>,
+    doors: Query<(&Door, &Transform)>,
+    knockers: Query<(Entity, &crate::actor::Actor, &Transform, &ThisTick, &Name), Without<Dead>>,
+    mut people: Query<(Entity, &crate::actor::Actor, &Transform, &mut Memory, Option<&mut Hud>, Has<crate::player::Player>), Without<Dead>>,
+) {
+    for (knocker, id, at, this_tick, name) in &knockers {
+        if !ActionQueue::has(&this_tick.0, Action::Knock) {
+            continue;
+        }
+        let feet = feet_of(at);
+        let Some((door, floor)) = doors
+            .iter()
+            // As far as the spot before it is from the door, and as near to
+            // that spot as walking there counts as there (modforge `REACH`).
+            .filter(|(d, door_at)| {
+                !d.open && (door_at.translation.y - feet.y).abs() < 1.5 && d.closed_center.distance(feet.ground()) <= KNOCK_STAND + modforge::brain::REACH
+            })
+            .map(|(d, door_at)| (d, door_at.translation.y))
+            .min_by(|a, b| a.0.closed_center.distance(feet.ground()).total_cmp(&b.0.closed_center.distance(feet.ground())))
+        else {
+            continue;
+        };
+        let knocker_side = door.side_of(feet.ground());
+        for (hearer, _, there, mut memory, hud, is_player) in &mut people {
+            if hearer == knocker {
+                memory.0.did(modforge::memory::Did::Knocked, tick.0);
+                continue;
+            }
+            let ear = feet_of(there);
+            if (ear.y - floor).abs() >= 1.5 || ear.ground().distance(door.closed_center) > KNOCK_HEARD || door.side_of(ear.ground()) == knocker_side {
+                continue;
+            }
+            memory.0.did(modforge::memory::Did::HeardKnocking(id.0), tick.0);
+            if is_player && let Some(mut hud) = hud {
+                crate::talk::spoken_to(&mut commands, hearer, &mut hud, (id.0.0, name.as_str()), tick.0);
+            }
+        }
+    }
 }
 
 /// Anything from the item system lying in the world: a dropped can, a

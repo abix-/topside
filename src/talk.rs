@@ -233,11 +233,20 @@ pub fn talk(
                 tick.0,
             );
             debug!("{:?} to {to}: {said:?}, {answer:?}", id.0);
-            if is_player && hud.0.talking.as_ref().is_none_or(|t| t.with != id.0.0) {
-                hud.0.talking = Some(talking_with(id.0.0, name.as_str()));
-                commands.entity(listener).insert(Conversation::new(id.0.0, tick.0, false));
+            if is_player {
+                spoken_to(&mut commands, listener, &mut hud, (id.0.0, name.as_str()), tick.0);
             }
         }
+    }
+}
+
+/// The player spoken to by this person, or knocked for (interact::knock):
+/// in a conversation with them, unless they already are; whose turn it is
+/// then the conversation decides.
+pub fn spoken_to(commands: &mut Commands, player: Entity, hud: &mut Hud, (by, name): (u64, &str), tick: u64) {
+    if hud.0.talking.as_ref().is_none_or(|t| t.with != by) {
+        hud.0.talking = Some(talking_with(by, name));
+        commands.entity(player).insert(Conversation::new(by, tick, false));
     }
 }
 

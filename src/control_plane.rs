@@ -46,7 +46,8 @@ static KILL_ASK: Mutex<Option<u64>> = Mutex::new(None);
 /// when the game takes the request (people keep walking).
 #[derive(Clone, Copy)]
 enum UseAt {
-    Point(Vec2),
+    /// A point on the ground, and the height of the floor it is on.
+    Point(Vec2, f32),
     Person(u64),
 }
 
@@ -309,9 +310,10 @@ pub fn answer_use(
     let Some((id, to)) = USE_ASK.lock().ok().and_then(|mut ask| ask.take()) else {
         return;
     };
-    // The point on the ground, and the floor it is on: a person's own.
+    // The point on the ground, and the floor it is on: as asked, or a
+    // person's own.
     let (at, floor) = match to {
-        UseAt::Point(at) => (at, 0.0),
+        UseAt::Point(at, floor) => (at, floor),
         UseAt::Person(whom) => match people.iter().find(|(a, ..)| a.0.0 == whom) {
             Some((_, there, ..)) => (there.translation.ground(), crate::interact::feet_of(&there).y),
             None => return,
@@ -793,6 +795,7 @@ pub fn publish_world(
     reality: Res<crate::Reality>,
     episode: Res<crate::Episode>,
     below: Query<(&Transform, &crate::structure::Below)>,
+    doors: Query<(&crate::interact::Door, &Transform)>,
 ) {
     if tick.0 % 60 != 0 {
         return;
@@ -803,6 +806,14 @@ pub fn publish_world(
     let below: Vec<Json> = below
         .iter()
         .map(|(at, b)| json!({"at": [at.translation.x, at.translation.z], "bottom": b.bottom, "open": b.open.len(), "tiles": b.rects.len()}))
+        .collect();
+    // The doors of the player's bunker: the middle of each closed, the
+    // height of its floor, and whether it stands open.
+    let bunker = rolled.as_ref().map_or(Vec2::ZERO, |w| w.bunker);
+    let bunker_doors: Vec<Json> = doors
+        .iter()
+        .filter(|(d, _)| d.closed_center.distance(bunker) <= 30.0)
+        .map(|(d, at)| json!({"at": [d.closed_center.x, d.closed_center.y], "floor": at.translation.y, "open": d.open}))
         .collect();
     let night = crate::survival::night(&tick, *day, &reality);
     // The reality the world is in now, and its rules (realities.md).
@@ -921,6 +932,7 @@ pub fn publish_world(
         "factions": factions,
         "bunkers": bunkers,
         "below": below,
+        "bunker_doors": bunker_doors,
         "chunks": {"made": made, "missing": missing},
         // The seed this world rolled from, and the road tiles in its chunks.
         "seed": rolled.as_ref().map(|w| w.seed),
@@ -1006,6 +1018,11 @@ pub fn publish(
                 "knows": memory.0.known.iter().map(|k| json!({"key": k.key, "kind": k.kind, "told_by": k.told_by.map(|a| a.0)})).collect::<Vec<_>>(),
                 "heard": memory.0.done.iter().filter_map(|(t, d)| match d {
                     modforge::memory::Did::Heard(by, said) => Some(json!({"tick": t, "by": by.0, "said": said.words, "line": said.name})),
+                    _ => None,
+                }).collect::<Vec<_>>(),
+                // Who they heard knock on a door, and when.
+                "heard_knocking": memory.0.done.iter().filter_map(|(t, d)| match d {
+                    modforge::memory::Did::HeardKnocking(by) => Some(json!({"tick": t, "by": by.0})),
                     _ => None,
                 }).collect::<Vec<_>>(),
                 "said": memory.0.done.iter().filter_map(|(t, d)| match d {
@@ -1292,7 +1309,7 @@ pub fn start() {
     ));
     OP_REGISTRY.register(OpDef::new(
         "use",
-        "a living person by id (see `people`) stands a metre from the point (`at`), or from a person (`person`, by id, where they stand when the game takes it: people keep walking), and uses what is there on the game's next step, through the one interact path, so a test brings a use now",
+        "a living person by id (see `people`) stands a metre from the point (`at` on the ground, on the floor at `height`, 0 the ground when left out), or from a person (`person`, by id, where they stand when the game takes it: people keep walking), and uses what is there on the game's next step, through the one interact path, so a test brings a use now",
         "{\"id\": 1, \"person\": 3}",
         |args| {
             let id = args.get("id").and_then(Json::as_u64).ok_or_else(|| "id: a number".to_string())?;
@@ -1300,9 +1317,10 @@ pub fn start() {
                 .get("at")
                 .and_then(Json::as_array)
                 .and_then(|a| Some(Vec2::new(a.first()?.as_f64()? as f32, a.get(1)?.as_f64()? as f32)));
+            let height = args.get("height").and_then(Json::as_f64).unwrap_or(0.0) as f32;
             let to = match (at, args.get("person").and_then(Json::as_u64)) {
                 (_, Some(person)) => UseAt::Person(person),
-                (Some(at), None) => UseAt::Point(at),
+                (Some(at), None) => UseAt::Point(at, height),
                 (None, None) => return Err("at: [x, y], or person: an id".to_string()),
             };
             if let Ok(mut ask) = USE_ASK.lock() {
@@ -1313,7 +1331,7 @@ pub fn start() {
     ));
     OP_REGISTRY.register(OpDef::new(
         "command",
-        "give a person (`id`, the player when left out) a command on the game's next step, or a list of them (`commands`), carried out one after another with the brain's own actions (authority.md \"Commands and replays\"): {\"do\": \"move_to\", \"x\", \"y\", \"z\"} (y the height, as the world's), {\"do\": \"follow\", \"who\"}, {\"do\": \"talk_to\", \"who\"}, {\"do\": \"attack\", \"who\"}, {\"do\": \"attack_nearest_enemy\"}; a move of their own ends them",
+        "give a person (`id`, the player when left out) a command on the game's next step, or a list of them (`commands`), carried out one after another with the brain's own actions (authority.md \"Commands and replays\"): {\"do\": \"move_to\", \"x\", \"y\", \"z\"} (y the height, as the world's), {\"do\": \"follow\", \"who\"}, {\"do\": \"talk_to\", \"who\"}, {\"do\": \"knock\", \"who\"} (on the closed door between them), {\"do\": \"attack\", \"who\"}, {\"do\": \"attack_nearest_enemy\"}; a move of their own ends them",
         "{\"do\": \"talk_to\", \"who\": 3}",
         |args| {
             let id = args.get("id").and_then(Json::as_u64);
