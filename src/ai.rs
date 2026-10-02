@@ -304,22 +304,29 @@ pub fn think(
             (entity, count(Need::Hunger).saturating_sub(1), count(Need::Thirst).saturating_sub(1))
         })
         .collect();
-    for (
-        entity,
-        actor,
-        npc,
-        transform,
-        facing,
-        health,
-        needs,
-        personality,
-        home,
-        mut memory,
-        mut record,
-        mut condition,
-        (mut actions, inventory, hotbar, open, mut next_think, dead, store, way, map, asked),
-    ) in &mut thinkers.npcs
-    {
+    // In ActorId order (authority.md rule 5): the trades they decide are
+    // made in this order, so who gets a seller's last water is the same
+    // after a load.
+    let order = crate::actor::in_actor_order(thinkers.npcs.iter().map(|(entity, actor, ..)| (Some(actor.0), entity)));
+    for entity in order {
+        let Ok((
+            entity,
+            actor,
+            npc,
+            transform,
+            facing,
+            health,
+            needs,
+            personality,
+            home,
+            mut memory,
+            mut record,
+            mut condition,
+            (mut actions, inventory, hotbar, open, mut next_think, dead, store, way, map, asked),
+        )) = thinkers.npcs.get_mut(entity)
+        else {
+            continue;
+        };
         // Not their moment yet: they keep doing what they decided.
         if tick.0 < next_think.0 {
             continue;

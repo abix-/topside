@@ -483,6 +483,7 @@ pub fn die(
     tick: Res<crate::SimTick>,
     reality: Res<crate::Reality>,
     mut map: ResMut<ActorMapRes>,
+    mut ids: ResMut<crate::interact::ThingIssuer>,
     mut dying: Query<
         (
             Entity,
@@ -498,10 +499,16 @@ pub fn die(
         Without<Dead>,
     >,
 ) {
-    for (entity, mut health, transform, wakes, actor, firing, inventory, hotbar, worn) in &mut dying {
-        if health.0.current > 0.0 {
+    // The dying in ActorId order, never the order the query walks them
+    // (authority.md rule 5): who dies first is issued the first death box's
+    // id, the same after a load.
+    let order = crate::actor::in_actor_order(
+        dying.iter().filter(|(_, health, ..)| health.0.current <= 0.0).map(|(entity, _, _, _, actor, ..)| (actor.map(|a| a.0), entity)),
+    );
+    for entity in order {
+        let Ok((entity, mut health, transform, wakes, actor, firing, inventory, hotbar, worn)) = dying.get_mut(entity) else {
             continue;
-        }
+        };
         if let (Some(mut inventory), Some(mut hotbar), Some(mut worn)) = (inventory, hotbar, worn) {
             let loot = item::loot_all(&mut inventory.0, &mut hotbar.0.slots, &mut worn.0);
             if !loot.is_empty()
@@ -516,6 +523,7 @@ pub fn die(
                 let salt = actor.map_or(0, |a| a.0.0);
                 let (dropped, _) = spawn_item(
                     &mut commands,
+                    &mut ids,
                     box_def,
                     item::create(box_def, 1, &[], tick.0 as f32, salt),
                     crate::interact::feet_of(transform),

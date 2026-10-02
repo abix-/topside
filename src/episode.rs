@@ -188,6 +188,7 @@ pub fn place_the_tap(
     registries: (Res<crate::content::BiomeRegistryRes>, Res<crate::content::MonumentRegistryRes>),
     people: Query<(&Actor, &Home, &Store)>,
     mut memories: Query<(&Actor, &mut Memory)>,
+    mut ids: ResMut<crate::interact::ThingIssuer>,
 ) {
     if episode.name.as_deref() != Some("The Tap") || !episode.cast_done || !episode.things.is_empty() {
         return;
@@ -225,7 +226,7 @@ pub fn place_the_tap(
     let at = site.position + Vec2::new(member.offset.x, member.offset.z);
     // On the building's ground floor.
     let tap_at = crate::on_ground(at, 0.0);
-    let (tap, id) = spawn_item(&mut commands, def, item::create(def, 1, &[], 0.0, 0), tap_at);
+    let (tap, id) = spawn_item(&mut commands, &mut ids, def, item::create(def, 1, &[], 0.0, 0), tap_at);
     commands.entity(tap).insert(DrawsFrom(store.0));
     let key = id.0;
     let ground = |p: Vec2| crate::on_ground(p, 0.0);

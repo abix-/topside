@@ -113,6 +113,7 @@ saved! {
         crate::command::Playing,
         crate::terrain::ThingsMade,
         crate::navmesh::MeshesLanding,
+        crate::interact::ThingIssuer,
     ]
 }
 
@@ -149,7 +150,7 @@ fn answer(result: Result<serde_json::Value, String>) {
 /// resource changes its fields, so an older save is refused plainly
 /// instead of failing halfway (todo 31a). Test saves are then made again
 /// by playing (9k).
-pub const VERSION: u32 = 3;
+pub const VERSION: u32 = 4;
 
 /// What a save says first, on its own line, before the saved world: the
 /// format's version and the world it was made in (the seed, the world's

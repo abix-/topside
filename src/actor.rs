@@ -107,6 +107,16 @@ impl Default for ActorMapRes {
 #[require(moonshine_save::prelude::Save, RigidBody = RigidBody::Kinematic, Collider = body(), Visibility)]
 pub struct Actor(pub ActorId);
 
+/// The one way to walk people when who goes first matters (authority.md
+/// rule 5): their entities in ActorId order, never the order a query walks
+/// them, which changes with a load. Hand it each person's ActorId (None
+/// sorts first) and entity.
+pub fn in_actor_order(people: impl IntoIterator<Item = (Option<ActorId>, Entity)>) -> Vec<Entity> {
+    let mut order: Vec<(Option<ActorId>, Entity)> = people.into_iter().collect();
+    order.sort_by_key(|(id, _)| *id);
+    order.into_iter().map(|(_, entity)| entity).collect()
+}
+
 /// An NPC: which def it was spawned from and its faction (None for a
 /// neutral).
 #[derive(Component, Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, Reflect)]

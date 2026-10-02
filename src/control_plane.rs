@@ -1404,7 +1404,9 @@ pub fn start() {
         if let Ok(mut slot) = crate::save::ASK.lock() {
             *slot = Some(ask(name.to_string()));
         }
-        for _ in 0..3000 {
+        // Answered once the game has done it, however long that takes: no
+        // clock here; the test runner's own limit stops a test that hangs.
+        loop {
             std::thread::sleep(std::time::Duration::from_millis(10));
             if let Ok(mut slot) = crate::save::ANSWER.lock()
                 && let Some(answer) = slot.take()
@@ -1412,7 +1414,6 @@ pub fn start() {
                 return answer;
             }
         }
-        Err("the game did not answer within 30 seconds (its log says why)".to_string())
     };
     OP_REGISTRY.register(OpDef::new(
         "save",
@@ -1433,7 +1434,10 @@ pub fn start() {
         |args| {
             let on = args.get("on").and_then(Json::as_bool).ok_or_else(|| "on: true or false".to_string())?;
             PAUSED.store(on, Ordering::Relaxed);
-            for _ in 0..500 {
+            // Answered once the game stands still (or runs), however long a
+            // load or a gather holds the frame: no clock here; the test
+            // runner's own limit stops a test that hangs.
+            loop {
                 std::thread::sleep(std::time::Duration::from_millis(10));
                 let at = PAUSED_AT.load(Ordering::Relaxed);
                 if on && at != u64::MAX {
@@ -1443,7 +1447,6 @@ pub fn start() {
                     return Ok(json!({"paused": false}));
                 }
             }
-            Err("the game did not pause or run within 5 seconds".to_string())
         },
     ));
     OP_REGISTRY.register(OpDef::new(
@@ -1459,7 +1462,9 @@ pub fn start() {
                 *slot = None;
             }
             STEP_ASK.store(ticks, Ordering::Relaxed);
-            for _ in 0..12_000 {
+            // Answered once the steps are done: no clock here; the test
+            // runner's own limit stops a test that hangs.
+            loop {
                 std::thread::sleep(std::time::Duration::from_millis(10));
                 if let Ok(mut slot) = STEP_ANSWER.lock()
                     && let Some(moment) = slot.take()
@@ -1467,7 +1472,6 @@ pub fn start() {
                     return Ok(moment);
                 }
             }
-            Err("the steps did not finish within 2 minutes".to_string())
         },
     ));
     OP_REGISTRY.register(OpDef::new(

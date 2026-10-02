@@ -151,6 +151,7 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind) -> App {
     app.init_resource::<input::BindingsRes>();
     // Things' own ids, lasting across save and load (interact::ThingId).
     app.init_resource::<interact::ThingIds>();
+    app.init_resource::<interact::ThingIssuer>();
     app.add_observer(interact::index_thing_ids);
     app.add_observer(interact::unindex_thing_ids);
     app.add_observer(interact::item_body);

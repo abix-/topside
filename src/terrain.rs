@@ -253,6 +253,7 @@ pub fn make_chunks(
     mut chunks: ResMut<Chunks>,
     mut new_sites: ResMut<NewSites>,
     mut things_made: ResMut<ThingsMade>,
+    mut ids: ResMut<crate::interact::ThingIssuer>,
     biomes: Res<BiomeRegistryRes>,
     monuments: Res<MonumentRegistryRes>,
     items: Res<crate::content::ItemRegistryRes>,
@@ -262,12 +263,15 @@ pub fn make_chunks(
     people: Query<&Transform, (With<crate::actor::Npc>, Without<crate::player::Player>)>,
     below: Query<&crate::structure::Below>,
 ) {
-    let mut needed: Vec<ChunkKey> = Vec::new();
+    // In key order, whoever is near (authority.md rule 5): the order chunks
+    // are made in is the order their things are issued ids, the same after
+    // a load.
+    let mut needed: std::collections::BTreeSet<ChunkKey> = std::collections::BTreeSet::new();
     let mut around = |p: Vec2, n: i32| {
         let c = chunk_of(p);
         for dy in -n..=n {
             for dx in -n..=n {
-                needed.push((c.0 + dx, c.1 + dy));
+                needed.insert((c.0 + dx, c.1 + dy));
             }
         }
     };
@@ -286,7 +290,7 @@ pub fn make_chunks(
     if let Some((lo, hi)) = world.world.ground.chunk_range() {
         for y in lo - 1..=hi {
             for x in lo - 1..=hi {
-                needed.push((x, y));
+                needed.insert((x, y));
             }
         }
     }
@@ -321,7 +325,7 @@ pub fn make_chunks(
             if let Some(def) = thing.source.as_ref().and_then(|name| items.0.def(name)) {
                 let stack = modforge::item::create(def, 1, &[], 0.0, k as u64);
                 let at = modforge::walk::centre(thing.tile);
-                let (found, _) = crate::interact::spawn_item(&mut commands, def, stack, on_ground(at, 0.0));
+                let (found, _) = crate::interact::spawn_item(&mut commands, &mut ids, def, stack, on_ground(at, 0.0));
                 commands.entity(found).insert(WorldPiece);
             }
         }

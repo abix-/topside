@@ -33,19 +33,33 @@ pub struct Interactable {
 
 /// A thing's own id, lasting across save and load as a person's ActorId
 /// does (an entity's id changes on every load): what memory knows a thing
-/// by. Given once, when the thing comes into being (`next_thing_id`, at
-/// the three places usable things are made: `spawn_item`, `spawn_station`,
-/// a building's doors).
+/// by. Given once, when the thing comes into being (`ThingIssuer::issue`,
+/// at the three places usable things are made: `spawn_item`,
+/// `spawn_station`, a building's doors).
 #[derive(Component, Clone, Copy, Debug, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize, Reflect)]
 #[reflect(opaque, Component, Serialize, Deserialize)]
 pub struct ThingId(pub u64);
 
-/// The next thing id to give; kept past every id seen, a loaded one too.
-static NEXT_THING: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+/// The one issuer of thing ids, as `ActorMapRes` issues ActorIds: the next
+/// id to give. Saved, so a load gives on from exactly where the saved game
+/// would have.
+#[derive(Resource, Clone, serde::Serialize, serde::Deserialize, Reflect)]
+#[reflect(opaque, Resource, Serialize, Deserialize)]
+pub struct ThingIssuer(u64);
 
-/// The one place a thing id is given.
-pub fn next_thing_id() -> ThingId {
-    ThingId(NEXT_THING.fetch_add(1, std::sync::atomic::Ordering::Relaxed))
+impl Default for ThingIssuer {
+    fn default() -> Self {
+        Self(1)
+    }
+}
+
+impl ThingIssuer {
+    /// The one place a thing id is given.
+    pub fn issue(&mut self) -> ThingId {
+        let id = ThingId(self.0);
+        self.0 += 1;
+        id
+    }
 }
 
 /// Every thing by its id: worked out from the things, never saved.
@@ -62,11 +76,10 @@ impl ThingIds {
 }
 
 /// The index follows the ids: a thing with an id is found by it, one gone
-/// is not; ids given later are past every id seen.
+/// is not.
 pub fn index_thing_ids(add: On<Add, ThingId>, things: Query<&ThingId>, mut ids: ResMut<ThingIds>) {
     if let Ok(id) = things.get(add.entity) {
         ids.by_id.insert(id.0, add.entity);
-        NEXT_THING.fetch_max(id.0 + 1, std::sync::atomic::Ordering::Relaxed);
     }
 }
 
@@ -278,13 +291,13 @@ fn eat_from_source(
 
 /// Where a station stands for E, on its floor (x, height, y): nothing to
 /// draw (the furniture is drawn), only the spot.
-pub fn spawn_station(commands: &mut Commands, kind: StationKind, at: Vec3) -> Entity {
+pub fn spawn_station(commands: &mut Commands, ids: &mut ThingIssuer, kind: StationKind, at: Vec3) -> Entity {
     commands
         .spawn((
             Interactable {
                 kind: InteractKind::Station(kind),
             },
-            next_thing_id(),
+            ids.issue(),
             Transform::from_translation(at),
         ))
         .id()
@@ -302,7 +315,7 @@ const DEPLOYABLE_SIZE: f32 = 0.7;
 /// box among them holds a `Container`. Its body is made from its item
 /// (`item_body`). Answers the thing and the id it was given (what memory
 /// knows it by).
-pub fn spawn_item(commands: &mut Commands, def: &ItemDef, stack: ItemStack, at: Vec3) -> (Entity, ThingId) {
+pub fn spawn_item(commands: &mut Commands, ids: &mut ThingIssuer, def: &ItemDef, stack: ItemStack, at: Vec3) -> (Entity, ThingId) {
     debug_assert_eq!(def.name, stack.item, "the stack must be of this def");
     let kind = if def.storage.is_some() {
         InteractKind::Container
@@ -314,7 +327,7 @@ pub fn spawn_item(commands: &mut Commands, def: &ItemDef, stack: ItemStack, at: 
     } else {
         InteractKind::Pickup
     };
-    let id = next_thing_id();
+    let id = ids.issue();
     let mut entity = commands.spawn((
         Interactable { kind },
         id,
@@ -405,7 +418,7 @@ pub fn interact_on_use(
     mut people: Query<
         (
             (Entity, &Transform, &ThisTick, &mut Inventory, &mut Hud, &mut OpenContainer, &mut OpenStation),
-            (&mut Survival, &mut Health, Option<&mut Memory>, &Facing, Option<&crate::talk::LookingAt>),
+            (&mut Survival, &mut Health, Option<&mut Memory>, &Facing, Option<&crate::talk::LookingAt>, Option<&crate::actor::Actor>),
         ),
         Without<Dead>,
     >,
@@ -416,9 +429,15 @@ pub fn interact_on_use(
     mut stores: Query<&mut Container>,
     names: Query<&Name>,
 ) {
-    for ((me, person, this_tick, mut inventory, mut hud, mut open, mut station), (mut needs, mut health, mut memory, facing, looking)) in
-        &mut people
-    {
+    // In ActorId order (authority.md rule 5): of two people using one thing
+    // in one tick, who gets it is the same after a load.
+    let order = crate::actor::in_actor_order(people.iter().map(|((me, ..), (.., actor))| (actor.map(|a| a.0), me)));
+    for entity in order {
+        let Ok(((me, person, this_tick, mut inventory, mut hud, mut open, mut station), (mut needs, mut health, mut memory, facing, looking, _))) =
+            people.get_mut(entity)
+        else {
+            continue;
+        };
         if !this_tick.0.iter().any(|s| matches!(s.action, Action::Use)) {
             continue;
         }

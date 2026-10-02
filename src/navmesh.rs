@@ -421,10 +421,15 @@ pub fn walk(
     use crate::input::Action;
     use modforge::actions::{ActionQueue, Stamped};
     let archipelago = archipelagos.get(nav.archipelago).ok();
+    // Everyone in ActorId order (authority.md rule 5): who makes way for
+    // whom, and the first one found in someone's way, is the same after a
+    // load.
+    let order = crate::actor::in_actor_order(people.iter().map(|(entity, ..)| (actors.get(entity).ok().map(|a| a.0), entity)));
     // Everyone walking now: who, their feet, and the way they head (their
     // velocity, set below from their way or their keys).
-    let walking: Vec<(Entity, Vec3, Vec2)> = people
+    let walking: Vec<(Entity, Vec3, Vec2)> = order
         .iter()
+        .filter_map(|e| people.get(*e).ok())
         .filter_map(|(entity, at, _, _, walker, _)| {
             let v = velocities.get(walker?.0).ok()?.velocity;
             let way = Vec2::new(v.x, v.z);
@@ -433,9 +438,15 @@ pub fn walk(
         .collect();
     // Everyone's feet, walking or standing; and the walkers stuck as of the
     // last step.
-    let everyone: Vec<(Entity, Vec3)> = people.iter().map(|(entity, at, ..)| (entity, crate::interact::feet_of(at))).collect();
-    let stuck_now: Vec<(Entity, Vec3)> = stuck.iter().filter(|(_, (_, steps))| *steps > STUCK_STEPS).map(|(e, (feet, _))| (*e, *feet)).collect();
-    for (entity, at, mut this_tick, personality, walker, is_player) in &mut people {
+    let everyone: Vec<(Entity, Vec3)> = order.iter().filter_map(|e| people.get(*e).ok()).map(|(entity, at, ..)| (entity, crate::interact::feet_of(at))).collect();
+    let stuck_now: Vec<(Entity, Vec3)> = order
+        .iter()
+        .filter_map(|e| stuck.get(e).filter(|(_, steps)| *steps > STUCK_STEPS).map(|(feet, _)| (*e, *feet)))
+        .collect();
+    for entity in &order {
+        let Ok((entity, at, mut this_tick, personality, walker, is_player)) = people.get_mut(*entity) else {
+            continue;
+        };
         let speed = crate::player::WALK_SPEED * personality.map_or(1.0, |p| p.0.speed_mult());
         // Everyone living has a landmass stand-in at their feet: a character
         // while they stand (walkers steer round them), an agent while they

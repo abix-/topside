@@ -98,7 +98,7 @@ pub fn lowest_at(below: &Query<&Below>, point: Vec2) -> f32 {
 /// what it has below the ground is its `Below`. A building of this
 /// reality (`of_world`) is a `WorldPiece`, gone when the storm shifts the
 /// world; the bunker is not. Returns the root.
-pub fn spawn_structure(commands: &mut Commands, def: &StructureDef, at: Vec2, of_world: bool, door_model: Option<&str>) -> Entity {
+pub fn spawn_structure(commands: &mut Commands, ids: &mut crate::interact::ThingIssuer, def: &StructureDef, at: Vec2, of_world: bool, door_model: Option<&str>) -> Entity {
     let at = at.round();
     let rect = |r: &TileRun| {
         (
@@ -261,7 +261,7 @@ pub fn spawn_structure(commands: &mut Commands, def: &StructureDef, at: Vec2, of
             Interactable {
                 kind: InteractKind::Door { open: false },
             },
-            crate::interact::next_thing_id(),
+            ids.issue(),
             Transform::from_translation(on_ground(hinge, *floor)).with_rotation(closed),
         ));
         if of_world {
@@ -284,9 +284,10 @@ pub fn spawn_bunker(
     world: Res<WorldRes>,
     items: Res<ItemRegistryRes>,
     layers: Res<crate::content::LayerRegistryRes>,
+    mut ids: ResMut<crate::interact::ThingIssuer>,
 ) {
     let at = world.bunker;
-    spawn_structure(&mut commands, &starting_bunker(), at, false, Some(BUNKER_DOOR));
+    spawn_structure(&mut commands, &mut ids, &starting_bunker(), at, false, Some(BUNKER_DOOR));
     let def = |name: &str| {
         items
             .0
@@ -297,15 +298,16 @@ pub fn spawn_bunker(
         let on: Vec<String> = crate::content::starting_layers(name).iter().map(|l| l.to_string()).collect();
         let stack = item::create_layered(def(name), &on, &layers.0, count, &[], 0.0, salt)
             .unwrap_or_else(|e| panic!("starting item {name}: {e}"));
-        spawn_item(&mut commands, def(name), stack, on_ground(at + Vec2::new(x, z), PLAYER_ROOM_FLOOR));
+        spawn_item(&mut commands, &mut ids, def(name), stack, on_ground(at + Vec2::new(x, z), PLAYER_ROOM_FLOOR));
     }
     // The crafting bench, where E opens its recipes.
     let [x, z] = BENCH_AT;
-    spawn_station(&mut commands, StationKind::CraftingBench, on_ground(at + Vec2::new(x, z), COMMON_ROOM_FLOOR));
+    spawn_station(&mut commands, &mut ids, StationKind::CraftingBench, on_ground(at + Vec2::new(x, z), COMMON_ROOM_FLOOR));
     // The note and the world both come from the world's seed.
     let [x, z] = STARTING_NOTE_AT;
     spawn_item(
         &mut commands,
+        &mut ids,
         def("note"),
         write(def("note"), starting_note(world.seed), 0.0, 13).expect("the note def is a note"),
         on_ground(at + Vec2::new(x, z), PLAYER_ROOM_FLOOR),
@@ -315,10 +317,10 @@ pub fn spawn_bunker(
 /// The other bunkers (design.md: every bunker is its own faction), each
 /// the same building as the player's through `spawn_structure`, not of
 /// any one world, with its store: a box of food and water.
-pub fn spawn_other_bunkers(mut commands: Commands, world: Res<WorldRes>, items: Res<ItemRegistryRes>) {
+pub fn spawn_other_bunkers(mut commands: Commands, world: Res<WorldRes>, items: Res<ItemRegistryRes>, mut ids: ResMut<crate::interact::ThingIssuer>) {
     let box_def = items.0.def("storage box").expect("the storage box is registered");
     for (i, &at) in world.bunkers.iter().enumerate() {
-        spawn_structure(&mut commands, &starting_bunker(), at, false, Some(BUNKER_DOOR));
+        spawn_structure(&mut commands, &mut ids, &starting_bunker(), at, false, Some(BUNKER_DOOR));
         let mut contents = item::Inventory::new(box_def.storage.unwrap_or(12));
         for (name, count) in BUNKER_STORE {
             if let Some(def) = items.0.def(name) {
@@ -328,6 +330,7 @@ pub fn spawn_other_bunkers(mut commands: Commands, world: Res<WorldRes>, items: 
         let [x, z] = BUNKER_STORE_AT;
         let (store, _) = spawn_item(
             &mut commands,
+            &mut ids,
             box_def,
             create(box_def, 1, &[], 0.0, i as u64),
             // In the entrance, where its people can reach it until they can
@@ -356,6 +359,7 @@ pub fn spawn_sites(
     mut monuments: ResMut<MonumentsRes>,
     items: Res<ItemRegistryRes>,
     layers: Res<crate::content::LayerRegistryRes>,
+    mut ids: ResMut<crate::interact::ThingIssuer>,
 ) {
     let table = loot_table();
     for (site, things) in new_sites.0.drain(..) {
@@ -364,7 +368,7 @@ pub fn spawn_sites(
         // after a load, they come from the save.
         for member in &monument.members {
             let at = site.position + Vec2::new(member.offset.x, member.offset.z);
-            spawn_structure(&mut commands, &member.structure, at, true, things.then_some(WILD_DOOR));
+            spawn_structure(&mut commands, &mut ids, &member.structure, at, true, things.then_some(WILD_DOOR));
         }
         if !monument.props.is_empty() {
             let shapes: Vec<(Vec3, Rotation, Collider)> = monument
@@ -415,7 +419,7 @@ pub fn spawn_sites(
                 }
                 // On the floor its spot is on.
                 let at = on_ground(site.position + Vec2::new(spot.position.x, spot.position.z), spot.position.y);
-                let (found, _) = spawn_item(&mut commands, box_def, item::create(box_def, 1, &[], 0.0, k as u64), at);
+                let (found, _) = spawn_item(&mut commands, &mut ids, box_def, item::create(box_def, 1, &[], 0.0, k as u64), at);
                 commands.entity(found).insert((Container(contents), WorldPiece));
             }
         }

@@ -1054,7 +1054,7 @@ pub fn hud_keys(
     recipes: Res<RecipeRegistryRes>,
     mut people: Query<
         (
-            (&ThisTick, &Transform),
+            (Entity, Option<&crate::actor::Actor>, &ThisTick, &Transform),
             (&mut Hud, &mut OpenContainer, &mut OpenStation),
             &mut Survival,
             &mut Hotbar,
@@ -1066,18 +1066,26 @@ pub fn hud_keys(
         Without<Dead>,
     >,
     mut containers: Query<&mut Container>,
+    mut ids: ResMut<crate::interact::ThingIssuer>,
 ) {
-    for (
-        (this_tick, at),
-        (mut hud, mut open, mut station),
-        mut needs,
-        mut hotbar,
-        mut worn,
-        mut inventory,
-        mut health,
-        mut memory,
-    ) in &mut people
-    {
+    // In ActorId order (authority.md rule 5): who takes from a box first,
+    // and whose dropped thing is issued an id first, is the same after a
+    // load.
+    let order = crate::actor::in_actor_order(people.iter().map(|((entity, actor, ..), ..)| (actor.map(|a| a.0), entity)));
+    for entity in order {
+        let Ok((
+            (_, _, this_tick, at),
+            (mut hud, mut open, mut station),
+            mut needs,
+            mut hotbar,
+            mut worn,
+            mut inventory,
+            mut health,
+            mut memory,
+        )) = people.get_mut(entity)
+        else {
+            continue;
+        };
         for stamped in &this_tick.0 {
             match stamped.action {
                 Action::Inventory => toggle_panel(&mut hud.0, OpenPanel::Inventory),
@@ -1132,7 +1140,7 @@ pub fn hud_keys(
                     if let Some(stack) = drop_from(&mut holders, slot)
                         && let Some(def) = registry.0.def(&stack.item)
                     {
-                        crate::interact::spawn_item(&mut commands, def, stack, crate::interact::feet_of(at));
+                        crate::interact::spawn_item(&mut commands, &mut ids, def, stack, crate::interact::feet_of(at));
                     }
                 }
                 // In the open box too: you eat what you need where it is.
@@ -1170,7 +1178,7 @@ pub fn hud_keys(
                         continue;
                     };
                     if let Some(left) = inventory.0.add(made, def.max_stack) {
-                        crate::interact::spawn_item(&mut commands, def, left, crate::interact::feet_of(at));
+                        crate::interact::spawn_item(&mut commands, &mut ids, def, left, crate::interact::feet_of(at));
                     }
                 }
                 _ => {}
