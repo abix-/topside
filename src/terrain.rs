@@ -44,7 +44,8 @@ pub struct WorldRes {
 /// Anything that belongs to this reality and goes when the storm shifts
 /// the world (design.md "The storm"): the ground, what stops a body, the
 /// monuments. Never the bunkers, never a person.
-#[derive(Component, Default)]
+#[derive(Component, Default, Clone, serde::Serialize, serde::Deserialize, Reflect)]
+#[reflect(opaque, Component, Serialize, Deserialize)]
 pub struct WorldPiece;
 
 /// What stops sight as well as a body: cliffs, trees, rocks (design.md
@@ -301,7 +302,7 @@ pub fn make_chunks(
             if let Some(def) = thing.source.as_ref().and_then(|name| items.0.def(name)) {
                 let stack = modforge::item::create(def, 1, &[], 0.0, k as u64);
                 let at = modforge::walk::centre(thing.tile);
-                let found = crate::interact::spawn_item(&mut commands, def, stack, on_ground(at, 0.0));
+                let (found, _) = crate::interact::spawn_item(&mut commands, def, stack, on_ground(at, 0.0));
                 commands.entity(found).insert(WorldPiece);
             }
         }

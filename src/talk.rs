@@ -51,7 +51,8 @@ pub struct LookingAt(pub Option<(Entity, u64)>);
 /// (modforge `talk::reading_secs`), and the real time it ends at once its
 /// last line has been said and read. The HUD shows it from
 /// `HudState::talking`.
-#[derive(Component, Debug, Clone, Copy)]
+#[derive(Component, Debug, Clone, Copy, serde::Serialize, serde::Deserialize, Reflect)]
+#[reflect(opaque, Component, Serialize, Deserialize)]
 pub struct Conversation {
     pub with: u64,
     pub started: u64,
@@ -74,7 +75,8 @@ pub fn talking_with(with: u64, name: &str) -> modforge::hud::Talking {
 
 /// A person held where they stand while the player talks or trades with
 /// them (they stop to talk, as anyone would); let go when it ends.
-#[derive(Component)]
+#[derive(Component, Default, Clone, serde::Serialize, serde::Deserialize, Reflect)]
+#[reflect(opaque, Component, Serialize, Deserialize)]
 pub struct HeldToTalk;
 
 /// Hold `them` where their feet are (`at`), to talk or trade: asked to be

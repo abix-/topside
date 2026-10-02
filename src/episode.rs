@@ -16,7 +16,8 @@ use crate::interact::{DrawsFrom, spawn_item};
 /// The episode running now: one that fits the reality, started by the
 /// storm that handed the reality over; its cast and the pivot points
 /// reached so far.
-#[derive(Resource)]
+#[derive(Resource, Clone, serde::Serialize, serde::Deserialize, Reflect)]
+#[reflect(opaque, Resource, Serialize, Deserialize)]
 pub struct Episode {
     /// None when no episode fits the reality.
     pub name: Option<String>,
@@ -221,9 +222,9 @@ pub fn place_the_tap(
     let at = site.position + Vec2::new(member.offset.x, member.offset.z);
     // On the building's ground floor.
     let tap_at = crate::on_ground(at, 0.0);
-    let tap = spawn_item(&mut commands, def, item::create(def, 1, &[], 0.0, 0), tap_at);
+    let (tap, id) = spawn_item(&mut commands, def, item::create(def, 1, &[], 0.0, 0), tap_at);
     commands.entity(tap).insert(DrawsFrom(store.0));
-    let key = tap.to_bits();
+    let key = id.0;
     let ground = |p: Vec2| crate::on_ground(p, 0.0);
     if let Some(dell) = episode.cast_as("Dell")
         && let Some((_, mut memory)) = memories.iter_mut().find(|(a, _)| a.0 == dell)

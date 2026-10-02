@@ -22,21 +22,109 @@ use crate::input::{Action, ActionQueue, ThisTick};
 /// How far a person reaches to use something, in metres.
 pub const REACH: f32 = 1.5;
 
-/// Something a person can use, and what kind of thing it is.
-#[derive(Component)]
+/// Something a person can use, and what kind of thing it is: an item, a
+/// station, a door. Saved.
+#[derive(Component, Clone, serde::Serialize, serde::Deserialize, Reflect)]
+#[reflect(opaque, Component, Serialize, Deserialize)]
+#[require(moonshine_save::prelude::Save)]
 pub struct Interactable {
     pub kind: InteractKind,
 }
 
+/// A thing's own id, lasting across save and load as a person's ActorId
+/// does (an entity's id changes on every load): what memory knows a thing
+/// by. Given once, when the thing comes into being (`next_thing_id`, at
+/// the three places usable things are made: `spawn_item`, `spawn_station`,
+/// a building's doors).
+#[derive(Component, Clone, Copy, Debug, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize, Reflect)]
+#[reflect(opaque, Component, Serialize, Deserialize)]
+pub struct ThingId(pub u64);
+
+/// The next thing id to give; kept past every id seen, a loaded one too.
+static NEXT_THING: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+
+/// The one place a thing id is given.
+pub fn next_thing_id() -> ThingId {
+    ThingId(NEXT_THING.fetch_add(1, std::sync::atomic::Ordering::Relaxed))
+}
+
+/// Every thing by its id: worked out from the things, never saved.
+#[derive(Resource, Default)]
+pub struct ThingIds {
+    by_id: std::collections::HashMap<u64, Entity>,
+}
+
+impl ThingIds {
+    /// The thing with this id, if it is in the world.
+    pub fn get(&self, id: u64) -> Option<Entity> {
+        self.by_id.get(&id).copied()
+    }
+}
+
+/// The index follows the ids: a thing with an id is found by it, one gone
+/// is not; ids given later are past every id seen.
+pub fn index_thing_ids(add: On<Add, ThingId>, things: Query<&ThingId>, mut ids: ResMut<ThingIds>) {
+    if let Ok(id) = things.get(add.entity) {
+        ids.by_id.insert(id.0, add.entity);
+        NEXT_THING.fetch_max(id.0 + 1, std::sync::atomic::Ordering::Relaxed);
+    }
+}
+
+pub fn unindex_thing_ids(remove: On<Remove, ThingId>, things: Query<&ThingId>, mut ids: ResMut<ThingIds>) {
+    if let Ok(id) = things.get(remove.entity) {
+        ids.by_id.remove(&id.0);
+    }
+}
+
 /// A door, its own place its hinge (structure::spawn_structure): open, it
 /// turns a quarter turn about the hinge and stops nothing. Where it stands
-/// closed, its middle in the doorway, and which way it faces closed.
-#[derive(Component)]
+/// closed, its middle in the doorway, which way it faces closed, how wide
+/// its doorway is, and its panel's model; its body is made from these
+/// (`door_body`).
+#[derive(Component, Clone, serde::Serialize, serde::Deserialize, Reflect)]
+#[reflect(opaque, Component, Serialize, Deserialize)]
 pub struct Door {
     pub open: bool,
     pub closed_center: Vec2,
     pub hinge: Vec2,
     pub closed: Quat,
+    pub width: f32,
+    pub model: String,
+}
+
+/// How thick a door is, in metres (scripts/models.py's panel, made 1 m
+/// wide and a wall tall).
+const DOOR_THICK: f32 = 0.12;
+use modforge::structure::DOORWAY_HEIGHT;
+
+/// A door's body, made whenever a door comes into the world, built or
+/// loaded: solid from the hinge across the doorway (no wall to the
+/// navigation mesh: people open doors), and its panel, a child stretched
+/// to the doorway so the collider is not stretched with it; open, it
+/// stops nothing.
+pub fn door_body(add: On<Add, Door>, doors: Query<&Door>, mut commands: Commands) {
+    let Ok(door) = doors.get(add.entity) else {
+        return;
+    };
+    let width = door.width;
+    let mut body = commands.entity(add.entity);
+    body.insert((
+        RigidBody::Static,
+        avian_rerecast::prelude::ExcludeColliderFromNavmesh,
+        Collider::compound(vec![(
+            Vec3::new(width / 2.0, DOORWAY_HEIGHT / 2.0, 0.0),
+            Rotation::IDENTITY,
+            Collider::cuboid(width, DOORWAY_HEIGHT, DOOR_THICK),
+        )]),
+        Visibility::default(),
+    ));
+    body.with_child((
+        Model(door.model.clone()),
+        Transform::from_xyz(width / 2.0, 0.0, 0.0).with_scale(Vec3::new(width, DOORWAY_HEIGHT / crate::structure::WALL_HEIGHT, 1.0)),
+    ));
+    if door.open {
+        body.insert(ColliderDisabled);
+    }
 }
 
 impl Door {
@@ -140,26 +228,31 @@ pub fn knock(
 /// Anything from the item system lying in the world: a dropped can, a
 /// storage box, the note. Items inside a box are stacks in its
 /// `Container`, not WorldItems.
-#[derive(Component)]
+#[derive(Component, Clone, serde::Serialize, serde::Deserialize, Reflect)]
+#[reflect(opaque, Component, Serialize, Deserialize)]
 pub struct WorldItem {
     pub stack: ItemStack,
 }
 
 /// The inventory a deployed WorldItem holds (a storage box).
-#[derive(Component)]
+#[derive(Component, Clone, serde::Serialize, serde::Deserialize, Reflect)]
+#[reflect(opaque, Component, Serialize, Deserialize)]
 pub struct Container(pub item::Inventory);
 
 /// A source whose water comes out of a store (The Tap's tap, drawn from
 /// Mara's bunker's store): each drink takes one water from that box.
-#[derive(Component)]
-pub struct DrawsFrom(pub Entity);
+#[derive(Component, Clone, serde::Serialize, serde::Deserialize, Reflect)]
+#[reflect(opaque, Component, Serialize, Deserialize)]
+pub struct DrawsFrom(#[entities] pub Entity);
 
 /// The box this person has open, if any.
-#[derive(Component, Default)]
-pub struct OpenContainer(pub Option<Entity>);
+#[derive(Component, Default, Clone, serde::Serialize, serde::Deserialize, Reflect)]
+#[reflect(opaque, Component, Serialize, Deserialize)]
+pub struct OpenContainer(#[entities] pub Option<Entity>);
 
 /// The crafting station this person has open, if any.
-#[derive(Component, Default)]
+#[derive(Component, Default, Clone, serde::Serialize, serde::Deserialize, Reflect)]
+#[reflect(opaque, Component, Serialize, Deserialize)]
 pub struct OpenStation(pub Option<StationKind>);
 
 /// The def a river's water is (content: kind `Source`).
@@ -191,6 +284,7 @@ pub fn spawn_station(commands: &mut Commands, kind: StationKind, at: Vec3) -> En
             Interactable {
                 kind: InteractKind::Station(kind),
             },
+            next_thing_id(),
             Transform::from_translation(at),
         ))
         .id()
@@ -205,11 +299,11 @@ const DEPLOYABLE_SIZE: f32 = 0.7;
 /// The ONE path from an item stack to a WorldItem in the world, resting
 /// at `at` (x, height, y: on whatever floor it lies on). A small item is a
 /// sensor people walk over and E picks up; a deployable is solid, and a
-/// box among them holds a `Container`.
-pub fn spawn_item(commands: &mut Commands, def: &ItemDef, stack: ItemStack, at: Vec3) -> Entity {
+/// box among them holds a `Container`. Its body is made from its item
+/// (`item_body`). Answers the thing and the id it was given (what memory
+/// knows it by).
+pub fn spawn_item(commands: &mut Commands, def: &ItemDef, stack: ItemStack, at: Vec3) -> (Entity, ThingId) {
     debug_assert_eq!(def.name, stack.item, "the stack must be of this def");
-    let deployable = def.kind == ItemKind::Deployable;
-    let size = if deployable { DEPLOYABLE_SIZE } else { ITEM_SIZE };
     let kind = if def.storage.is_some() {
         InteractKind::Container
     } else if def.kind == ItemKind::Note {
@@ -220,12 +314,11 @@ pub fn spawn_item(commands: &mut Commands, def: &ItemDef, stack: ItemStack, at: 
     } else {
         InteractKind::Pickup
     };
+    let id = next_thing_id();
     let mut entity = commands.spawn((
         Interactable { kind },
+        id,
         WorldItem { stack },
-        RigidBody::Static,
-        // Resting on its floor: the box raised by half its height.
-        Collider::compound(vec![(Vec3::Y * size / 2.0, Rotation::IDENTITY, Collider::cuboid(size, size, size))]),
         Transform::from_translation(at),
     ));
     // Its model, made to this size by scripts/models.py; never a box
@@ -236,19 +329,36 @@ pub fn spawn_item(commands: &mut Commands, def: &ItemDef, stack: ItemStack, at: 
         }
         None => warn!("item {} has no model", def.name),
     }
-    if !deployable {
-        entity.insert(Sensor);
-    }
     if let Some(slots) = def.storage {
         entity.insert(Container(item::Inventory::new(slots)));
     }
-    entity.id()
+    (entity.id(), id)
+}
+
+/// An item's body, made whenever an item comes into the world, spawned or
+/// loaded: resting on its floor, the box raised by half its height; a
+/// small item a sensor people walk over, a deployable solid.
+pub fn item_body(add: On<Add, WorldItem>, things: Query<&WorldItem>, items: Res<crate::content::ItemRegistryRes>, mut commands: Commands) {
+    let Some(def) = things.get(add.entity).ok().and_then(|w| items.0.def(&w.stack.item)) else {
+        return;
+    };
+    let deployable = def.kind == ItemKind::Deployable;
+    let size = if deployable { DEPLOYABLE_SIZE } else { ITEM_SIZE };
+    let mut body = commands.entity(add.entity);
+    body.insert((
+        RigidBody::Static,
+        Collider::compound(vec![(Vec3::Y * size / 2.0, Rotation::IDENTITY, Collider::cuboid(size, size, size))]),
+    ));
+    if !deployable {
+        body.insert(Sensor);
+    }
 }
 
 /// A person's panels, modforge's HUD state: what they have open (the
 /// inventory, a box, a station, a note). Everyone has one; the screen
 /// draws the player's.
-#[derive(Component)]
+#[derive(Component, Clone, serde::Serialize, serde::Deserialize, Reflect)]
+#[reflect(opaque, Component, Serialize, Deserialize)]
 pub struct Hud(pub HudState);
 
 impl Default for Hud {

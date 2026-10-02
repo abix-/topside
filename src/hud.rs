@@ -1390,7 +1390,8 @@ pub fn setup_talk(mut commands: Commands) {
 /// The basic controls the player has done (design.md "The bunker you
 /// start in"): each hint shows until done once, in the bunker below the
 /// ground (modforge `hud::Hint`).
-#[derive(Component, Default)]
+#[derive(Component, Default, Clone, serde::Serialize, serde::Deserialize, Reflect)]
+#[reflect(opaque, Component, Serialize, Deserialize)]
 pub struct HintsDone(pub Vec<modforge::hud::Hint>);
 
 /// Every step, once the queues have drained: each control the player did

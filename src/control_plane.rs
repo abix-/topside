@@ -317,6 +317,8 @@ pub struct PersonView<'w, 's> {
     /// What they do this tick, and their commands left.
     this_tick: Query<'w, 's, (&'static Actor, &'static crate::input::ThisTick, Option<&'static crate::command::Commanded>)>,
     chunks: Option<Res<'w, crate::terrain::Chunks>>,
+    /// A thing's id, what memory knows it by (their store's).
+    thing_ids: Query<'w, 's, &'static crate::interact::ThingId>,
 }
 
 /// The `kill` op's request, if one is waiting: that person takes the
@@ -493,7 +495,7 @@ pub fn answer_npc(
                 "about": format!("{:?}", record.0.target),
                 "asleep": condition.is_some_and(|c| c.0.asleep),
                 "home": home.map(|h| [h.0.x, h.0.z]),
-                "store": store.map(|s| s.0.to_bits()),
+                "store": store.and_then(|s| view.thing_ids.get(s.0).ok()).map(|id| id.0),
                 "carrying": stacks(&inventory.0),
                 "hotbar": stacks(&hotbar.0.slots),
                 "knows": memory.0.known.iter().map(|k| json!({
@@ -1061,10 +1063,12 @@ pub fn publish(
     // passed (1 is keeping up).
     if tick.0 % 60 == 0 {
         let now = real.elapsed_secs_f64();
+        // A load sets the tick back: measured afresh from there.
         if let Some((then_tick, then)) = *last_second
             && now > then
+            && let Some(ticks) = tick.0.checked_sub(then_tick)
         {
-            let speed = (tick.0 - then_tick) as f64 / 60.0 / (now - then);
+            let speed = ticks as f64 / 60.0 / (now - then);
             RUNS_AT_BITS.store((speed as f32).to_bits(), Ordering::Relaxed);
         }
         *last_second = Some((tick.0, now));
@@ -1329,6 +1333,41 @@ pub fn start() {
             }
             Err("the game did not answer within a second".to_string())
         },
+    ));
+    // Saving and loading (crate::save): one ask at a time, answered once
+    // the game has done it.
+    let save_or_load = |args: &Json, ask: fn(String) -> crate::save::Ask| -> Result<Json, String> {
+        let name = args.get("name").and_then(Json::as_str).ok_or_else(|| "name: the save's name".to_string())?;
+        if name.is_empty() || !name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-') {
+            return Err(format!("name {name:?}: letters, digits, _ and - only"));
+        }
+        if let Ok(mut slot) = crate::save::ANSWER.lock() {
+            *slot = None;
+        }
+        if let Ok(mut slot) = crate::save::ASK.lock() {
+            *slot = Some(ask(name.to_string()));
+        }
+        for _ in 0..3000 {
+            std::thread::sleep(std::time::Duration::from_millis(10));
+            if let Ok(mut slot) = crate::save::ANSWER.lock()
+                && let Some(answer) = slot.take()
+            {
+                return answer;
+            }
+        }
+        Err("the game did not answer within 30 seconds (its log says why)".to_string())
+    };
+    OP_REGISTRY.register(OpDef::new(
+        "save",
+        "save the game as it is now into saves/<name>.save: every person, thing, door and bullet, the episode, the storm, the reality and the tick; answers with the tick it was saved at",
+        "{\"name\": \"the_tap_start\"}",
+        move |args| save_or_load(args, crate::save::Ask::Save),
+    ));
+    OP_REGISTRY.register(OpDef::new(
+        "load",
+        "load saves/<name>.save into the running game in place of what is there; answers once loaded, with the tick it is at (the saved one)",
+        "{\"name\": \"the_tap_start\"}",
+        move |args| save_or_load(args, crate::save::Ask::Load),
     ));
     OP_REGISTRY.register(OpDef::new(
         "ways",

@@ -85,7 +85,8 @@ pub fn cel_shade(
 
 /// Draw this thing as the model of this name (assets/models/<name>.glb),
 /// its ground point at the thing's own.
-#[derive(Component, Clone, Debug, PartialEq)]
+#[derive(Component, Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize, Reflect)]
+#[reflect(opaque, Component, Serialize, Deserialize)]
 #[require(Transform, Visibility)]
 pub struct Model(pub String);
 

@@ -18,7 +18,7 @@ use crate::content::{
 };
 use crate::terrain::WorldRes;
 use crate::input::{Actions, ThisTick};
-use crate::interact::{Container, Hud, OpenContainer, OpenStation, WorldItem};
+use crate::interact::{Container, Hud, OpenContainer, OpenStation, ThingId, WorldItem};
 use crate::player::{BODY_CENTRE, body};
 use crate::structure::MonumentsRes;
 use crate::{Ground, SimTick, WorldSeed, on_ground};
@@ -32,12 +32,14 @@ pub const MAX_ACTORS: usize = 8192;
 
 /// What a person looks like (modforge's `Look`: their body, the piece in
 /// each of its slots, their skin and hair), rolled from who they are.
-#[derive(Component, Clone, Debug, PartialEq)]
+#[derive(Component, Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize, Reflect)]
+#[reflect(opaque, Component, Serialize, Deserialize)]
 pub struct Look(pub modforge::actor::Look);
 
 /// Which way a person faces on the ground, in radians: 0 is along +x, a
 /// quarter turn is along +y.
-#[derive(Component, Default, Clone, Copy, Debug, PartialEq)]
+#[derive(Component, Default, Clone, Copy, Debug, PartialEq, serde::Serialize, serde::Deserialize, Reflect)]
+#[reflect(opaque, Component, Serialize, Deserialize)]
 pub struct Facing(pub f32);
 
 impl Facing {
@@ -50,22 +52,26 @@ impl Facing {
 /// A person who has died and not come back yet: not in the world, not
 /// seen, not acting. An NPC never has it (it leaves the world); the
 /// player has it between the death message and respawning.
-#[derive(Component, Default, Clone, Copy, Debug, PartialEq)]
+#[derive(Component, Default, Clone, Copy, Debug, PartialEq, serde::Serialize, serde::Deserialize, Reflect)]
+#[reflect(opaque, Component, Serialize, Deserialize)]
 pub struct Dead;
 
 /// Dead for good (`combat::leave`): never back. Every topside person the
 /// storm takes with their world, and every topside person who dies where
 /// death sticks.
-#[derive(Component, Default, Clone, Copy, Debug, PartialEq)]
+#[derive(Component, Default, Clone, Copy, Debug, PartialEq, serde::Serialize, serde::Deserialize, Reflect)]
+#[reflect(opaque, Component, Serialize, Deserialize)]
 pub struct Gone;
 
 /// The tick a person next decides at (life.md "How often a person
 /// thinks"): set from their reaction time after every decision.
-#[derive(Component, Default, Clone, Copy, Debug, PartialEq)]
+#[derive(Component, Default, Clone, Copy, Debug, PartialEq, serde::Serialize, serde::Deserialize, Reflect)]
+#[reflect(opaque, Component, Serialize, Deserialize)]
 pub struct NextThink(pub u64);
 
 /// What a person carries.
-#[derive(Component)]
+#[derive(Component, Clone, serde::Serialize, serde::Deserialize, Reflect)]
+#[reflect(opaque, Component, Serialize, Deserialize)]
 pub struct Inventory(pub item::Inventory);
 
 impl Default for Inventory {
@@ -76,12 +82,15 @@ impl Default for Inventory {
 
 /// The hotbar with the slot in the hands (modforge's: the item stays in
 /// the bar, the held slot is what the person holds).
-#[derive(Component, Default)]
+#[derive(Component, Default, Clone, serde::Serialize, serde::Deserialize, Reflect)]
+#[reflect(opaque, Component, Serialize, Deserialize)]
 pub struct Hotbar(pub modforge::hud::Hotbar);
 
 /// The one actor map (authority.md ActorMap): modforge issues every
-/// `ActorId`, never reused.
-#[derive(Resource)]
+/// `ActorId`, never reused. Saved whole; after a load each person's entity
+/// is swapped for its new one (save::loaded).
+#[derive(Resource, Clone, serde::Serialize, serde::Deserialize, Reflect)]
+#[reflect(opaque, Resource, Serialize, Deserialize)]
 pub struct ActorMapRes(pub ActorMap<Entity>);
 
 impl Default for ActorMapRes {
@@ -90,25 +99,32 @@ impl Default for ActorMapRes {
     }
 }
 
-/// The persistent identity on every NPC.
-#[derive(Component, Debug, Clone, Copy, PartialEq, Eq, Hash)]
+/// The persistent identity on every person, the player too. A person is
+/// saved, and their body is made from them whenever they come into the
+/// world, spawned or loaded.
+#[derive(Component, Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize, Reflect)]
+#[reflect(opaque, Component, Serialize, Deserialize)]
+#[require(moonshine_save::prelude::Save, RigidBody = RigidBody::Kinematic, Collider = body(), Visibility)]
 pub struct Actor(pub ActorId);
 
 /// An NPC: which def it was spawned from and its faction (None for a
 /// neutral).
-#[derive(Component, Debug, Clone, PartialEq)]
+#[derive(Component, Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, Reflect)]
+#[reflect(opaque, Component, Serialize, Deserialize)]
 pub struct Npc {
     pub def: String,
     pub faction: Option<String>,
 }
 
 /// A person's seven axes, from the genome (modforge).
-#[derive(Component, Default, Debug, Clone, Copy, PartialEq)]
+#[derive(Component, Default, Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize, Reflect)]
+#[reflect(opaque, Component, Serialize, Deserialize)]
 pub struct Personality(pub modforge::actor::Personality);
 
 /// What this person knows (modforge::memory). The brain reads only
 /// this.
-#[derive(Component, Default, Debug, Clone, PartialEq)]
+#[derive(Component, Default, Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, Reflect)]
+#[reflect(opaque, Component, Serialize, Deserialize)]
 pub struct Memory(pub modforge::memory::Memory);
 
 /// How someone stands toward `them`, by the one rule (modforge
@@ -131,7 +147,8 @@ pub fn stands_toward<'a>(
 /// person carries"): every tile they have seen; the tile they last looked
 /// around from; and how many tiles their bunker told them of that they
 /// had not seen themselves.
-#[derive(Component, Default, Debug, Clone)]
+#[derive(Component, Default, Debug, Clone, serde::Serialize, serde::Deserialize, Reflect)]
+#[reflect(opaque, Component, Serialize, Deserialize)]
 pub struct Map {
     pub map: modforge::map::Map,
     pub looked_from: Option<(i32, i32)>,
@@ -140,36 +157,43 @@ pub struct Map {
 
 /// Where this person lives and returns to: the spot their feet stand on,
 /// its height included (everything is 3D).
-#[derive(Component, Debug, Clone, Copy, PartialEq)]
+#[derive(Component, Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize, Reflect)]
+#[reflect(opaque, Component, Serialize, Deserialize)]
 pub struct Home(pub Vec3);
 
 /// A place this person was asked to go to and wait at (an episode's
 /// errand, episodes.md), its height included; the brain weighs it like
 /// any other choice.
-#[derive(Component, Debug, Clone, Copy, PartialEq)]
+#[derive(Component, Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize, Reflect)]
+#[reflect(opaque, Component, Serialize, Deserialize)]
 pub struct Asked(pub Vec3);
 /// Where this person was spawned, for the control plane: whether they
 /// started somewhere or walked there.
-#[derive(Component, Debug, Clone, Copy, PartialEq)]
+#[derive(Component, Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize, Reflect)]
+#[reflect(opaque, Component, Serialize, Deserialize)]
 pub struct SpawnedAt(pub Vec3);
 
 /// Their bunker's store (design.md "Factions have real stores"): the box
 /// they eat from and bring loot home to.
-#[derive(Component, Debug, Clone, Copy, PartialEq)]
-pub struct Store(pub Entity);
+#[derive(Component, Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize, Reflect)]
+#[reflect(opaque, Component, Serialize, Deserialize)]
+pub struct Store(#[entities] pub Entity);
 
 /// A person's needs (modforge survival).
-#[derive(Component, Default, Debug, Clone, Copy, PartialEq)]
+#[derive(Component, Default, Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize, Reflect)]
+#[reflect(opaque, Component, Serialize, Deserialize)]
 pub struct Survival(pub SurvivalStats);
 
 /// What is true of this person right now for the needs: asleep, at
 /// home, a threat in sight.
-#[derive(Component, Default, Debug, Clone, Copy, PartialEq)]
+#[derive(Component, Default, Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize, Reflect)]
+#[reflect(opaque, Component, Serialize, Deserialize)]
 pub struct ActorCondition(pub Condition);
 
 /// What an NPC is doing: their brain's StateTree record, the one record
 /// of it, kept between thinks (modforge docs/statetree.md).
-#[derive(Component, Default, Debug, Clone, Copy, PartialEq)]
+#[derive(Component, Default, Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize, Reflect)]
+#[reflect(opaque, Component, Serialize, Deserialize)]
 pub struct ActorRecord(pub Record);
 
 /// What the one spawn path needs from the world.
@@ -252,9 +276,6 @@ pub fn spawn_person(
             Protection(def.protection.clone()),
             Actions::default(),
             ThisTick::default(),
-            RigidBody::Kinematic,
-            body(),
-            Visibility::default(),
         ))
         .id();
     let Some((id, _row)) = spawn.actors.0.spawn(entity) else {
@@ -293,7 +314,7 @@ pub fn spawn_door_enemy(mut spawn: SpawnActor, registry: Res<ActorRegistryRes>, 
 }
 
 /// The top bit of a remembered key marks a place (a monument, by its
-/// index); without it the key is an entity (a box). Keeps the two from
+/// index); without it the key is a thing's id (a box, `ThingId`). Keeps the two from
 /// ever being mistaken for each other.
 pub const PLACE_KEY: u64 = 1 << 63;
 
@@ -309,7 +330,7 @@ pub fn populate_monuments(
     registry: Res<ActorRegistryRes>,
     mut monuments: ResMut<MonumentsRes>,
     tick: Res<SimTick>,
-    boxes: Query<(Entity, &Transform, &WorldItem), With<Container>>,
+    boxes: Query<(&ThingId, &Transform, &WorldItem), With<Container>>,
 ) {
     let from = monuments.1;
     monuments.1 = monuments.0.len();
@@ -360,15 +381,15 @@ pub fn home_knowledge(
     i: usize,
     at: Vec2,
     kind: &str,
-    boxes: &Query<(Entity, &Transform, &WorldItem), With<Container>>,
+    boxes: &Query<(&ThingId, &Transform, &WorldItem), With<Container>>,
     now: u64,
 ) -> Memory {
     let mut known = modforge::memory::Memory::default();
     known.see(PLACE_KEY | i as u64, kind, on_ground(at, 0.0), now);
-    for (entity, t, item) in boxes {
+    for (id, t, item) in boxes {
         if t.translation.ground().distance(at) <= HOME_BOXES_WITHIN {
             // Where the box rests, its height included.
-            known.see(entity.to_bits(), &item.stack.item, t.translation, now);
+            known.see(id.0, &item.stack.item, t.translation, now);
         }
     }
     Memory(known)

@@ -28,7 +28,8 @@ use crate::{Episode, Reality, SimTick, WorldSeed};
 /// How many times the world has shifted, and how far the storm's clock
 /// runs ahead of the world's (the `storm` op brings the next storm now by
 /// running it ahead).
-#[derive(Resource, Default)]
+#[derive(Resource, Default, Clone, serde::Serialize, serde::Deserialize, Reflect)]
+#[reflect(opaque, Resource, Serialize, Deserialize)]
 pub struct StormRes {
     pub shifts: u32,
     pub ahead: f32,

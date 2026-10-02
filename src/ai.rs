@@ -27,7 +27,7 @@ use crate::content::{
     MonumentRegistryRes, PLAYER_FACTION,
 };
 use crate::input::{Action, Actions};
-use crate::interact::{Container, OpenContainer, WorldItem};
+use crate::interact::{Container, OpenContainer, ThingId, WorldItem};
 use crate::player::Player;
 use crate::sight::Sight;
 
@@ -92,7 +92,8 @@ pub struct Thinkers<'w, 's> {
 
 /// Leading someone somewhere (life.md "Going with someone"): who, to
 /// where, and the spot they wait at while that person catches up.
-#[derive(Component, Debug, Clone, Copy)]
+#[derive(Component, Debug, Clone, Copy, serde::Serialize, serde::Deserialize, Reflect)]
+#[reflect(opaque, Component, Serialize, Deserialize)]
 pub struct Leading {
     pub who: ActorId,
     pub to: Vec3,
@@ -136,7 +137,8 @@ pub fn lead(
 
 /// Following someone (life.md "Going with someone"): whom. Anyone can
 /// follow anyone, the player too.
-#[derive(Component, Debug, Clone, Copy)]
+#[derive(Component, Debug, Clone, Copy, serde::Serialize, serde::Deserialize, Reflect)]
+#[reflect(opaque, Component, Serialize, Deserialize)]
 pub struct Following(pub ActorId);
 
 /// Every tick, once the queues have drained: each follower goes after the
@@ -203,8 +205,8 @@ pub fn think(
     archipelagos: Query<&bevy_landmass::prelude::Archipelago3d>,
     sight: Sight,
     mut thinkers: Thinkers,
-    containers: Query<(Entity, &Container, &Transform, &WorldItem)>,
-    lying: Query<(Entity, &Transform, &WorldItem), Without<Container>>,
+    containers: Query<(Entity, &Container, &Transform, &WorldItem, &ThingId)>,
+    lying: Query<(&ThingId, &Transform, &WorldItem), Without<Container>>,
     chunks: Option<Res<crate::terrain::Chunks>>,
 ) {
     // What a remembered thing is worth for a need, the RimWorld way: for
@@ -219,23 +221,25 @@ pub fn think(
                 .map_or(0.0, |d| d.good_for.satisfies(need)),
         }
     };
-    // Every box once: where it rests (its height too), what kind, for
-    // looking round.
-    let boxes: Vec<(Entity, Vec3, String)> = containers
+    // Every box once: its id (what memory knows it by), where it rests
+    // (its height too), what kind, for looking round.
+    let boxes: Vec<(u64, Vec3, String)> = containers
         .iter()
-        .map(|(e, _, t, w)| (e, t.translation, w.stack.item.clone()))
+        .map(|(_, _, t, w, id)| (id.0, t.translation, w.stack.item.clone()))
         .collect();
+    // The box a remembered key names, if it is still in the world.
+    let the_box = |key: u64| containers.iter().find(|c| c.4.0 == key).map(|c| c.0);
     // Every source once (a well, a berry bush: an item of kind `Source`):
-    // where, what kind.
-    let sources_at: Vec<(Entity, Vec3, String)> = lying
+    // its id, where, what kind.
+    let sources_at: Vec<(u64, Vec3, String)> = lying
         .iter()
         .filter(|(_, _, w)| items.0.def(&w.stack.item).is_some_and(|d| d.kind == modforge::item::ItemKind::Source))
-        .map(|(e, t, w)| (e, t.translation, w.stack.item.clone()))
+        .map(|(id, t, w)| (id.0, t.translation, w.stack.item.clone()))
         .collect();
     let source_at = |key: u64| {
         sources_at
             .iter()
-            .find(|(e, _, _)| e.to_bits() == key)
+            .find(|(id, _, _)| *id == key)
             .map(|(_, at, _)| *at)
     };
     // Where someone can go: a place on the navigation mesh, at its height
@@ -377,7 +381,7 @@ pub fn think(
         // line goes into memory (seen, not yet looked inside).
         for (key, at, kind) in boxes.iter().chain(&sources_at) {
             if at.distance(here) <= def.sight && in_cone(facing, here, *at) && sight.clear(here, *at) {
-                memory.0.see(key.to_bits(), kind, *at, tick.0);
+                memory.0.see(*key, kind, *at, tick.0);
             }
         }
         // A river seen: the nearest shore in sight, one memory per chunk,
@@ -399,8 +403,8 @@ pub fn think(
         }
         // A box they have open, they see into, as the player sees the
         // open box's panel.
-        if let Some((key, container)) = open.0.and_then(|e| containers.get(e).ok().map(|(_, c, _, _)| (e, c))) {
-            memory.0.checked(key.to_bits(), held_in(&container.0), tick.0);
+        if let Some((key, container)) = open.0.and_then(|e| containers.get(e).ok().map(|(_, c, _, _, id)| (id.0, c))) {
+            memory.0.checked(key, held_in(&container.0), tick.0);
         }
         memory.0.forget_old(tick.0);
         let carried = carried_slot(inventory, hotbar, &items.0, Need::Hunger);
@@ -408,10 +412,8 @@ pub fn think(
         // Their bunker: the store where they last saw it, and what the
         // bunker is short of by what they remember in it plus what they
         // carry home (design.md "Taking loot").
-        let store_at = store.and_then(|s| {
-            let key = s.0.to_bits();
-            memory.0.known.iter().find(|k| k.key == key).map(|k| (key, k.position))
-        });
+        let store_key = store.and_then(|s| containers.get(s.0).ok()).map(|c| c.4.0);
+        let store_at = store_key.and_then(|key| memory.0.known.iter().find(|k| k.key == key).map(|k| (key, k.position)));
         let bags = held_in(&inventory.0);
         let carries_for_bunker = bags.iter().any(|(kind, _)| {
             answers(&items.0, kind, Need::Hunger) || answers(&items.0, kind, Need::Thirst)
@@ -436,7 +438,7 @@ pub fn think(
             day.rates(),
             health.0.fraction(),
             &carrying,
-            store.map(|s| s.0.to_bits()),
+            store_key,
             &memory.0,
             &items.0,
         );
@@ -548,8 +550,7 @@ pub fn think(
         // Use opens a box, Transfer takes a stack out of the open box,
         // UseSlot eats or drinks, Cancel closes the box.
         let mut act = |action: Action| actions.0.push(tick.0, action);
-        let the_box = |key: u64| Entity::try_from_bits(key).filter(|e| containers.contains(*e));
-        let where_is = |e: Entity| containers.get(e).map_or(here, |(_, _, t, _)| t.translation);
+        let where_is = |e: Entity| containers.get(e).map_or(here, |(_, _, t, _, _)| t.translation);
         let mut keep_open = None;
         match do_now {
             None => {}
@@ -561,7 +562,7 @@ pub fn think(
             // A trade moves things between two people: made after, from
             // both their bags (trade::between_people).
             Some(Do::Trade { with, need }) => thinkers.trades.0.push((entity, with, need)),
-            // A key is a place (PLACE_KEY set) or a box (an entity): a
+            // A key is a place (PLACE_KEY set) or a box (its ThingId): a
             // place is visited; a box is opened to see inside (noted
             // above at the next think); a box that is gone is forgotten.
             // A place, a river's water, or a source (a well, a bush) is
@@ -611,7 +612,7 @@ pub fn think(
                     open_box(&mut act, open, found, where_is(found));
                     continue;
                 }
-                let (_, container, _, _) = containers.get(found).expect("checked above");
+                let (_, container, ..) = containers.get(found).expect("checked above");
                 let food = container.0.slots.iter().position(|s| s.as_ref().is_some_and(|s| answers(&items.0, &s.item, need)));
                 if let Some(index) = food {
                     act(Action::UseSlot {
@@ -644,7 +645,7 @@ pub fn think(
                         (bunker_short.contains(&n) || own < NEED_LINE) && answers(&items.0, kind, n)
                     })
                 };
-                let (_, container, _, _) = containers.get(found).expect("checked above");
+                let (_, container, ..) = containers.get(found).expect("checked above");
                 for (index, stack) in container.0.slots.iter().enumerate() {
                     if stack.as_ref().is_some_and(|s| needed(&s.item)) {
                         let slot = SlotRef {

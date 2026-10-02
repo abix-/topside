@@ -16,7 +16,8 @@ use crate::content::{DamageRegistryRes, GAME_DAY_SECS, ItemRegistryRes, STORM};
 /// rest, night, and the storm all read. The game's is `GAME_DAY_SECS`;
 /// a test that must see days pass sets a short one, and the same rules
 /// run on a faster clock.
-#[derive(Resource, Clone, Copy, Debug, PartialEq)]
+#[derive(Resource, Clone, Copy, Debug, PartialEq, serde::Serialize, serde::Deserialize, Reflect)]
+#[reflect(opaque, Resource, Serialize, Deserialize)]
 pub struct Day(pub f32);
 
 impl Default for Day {

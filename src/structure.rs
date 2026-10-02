@@ -251,28 +251,15 @@ pub fn spawn_structure(commands: &mut Commands, def: &StructureDef, at: Vec2, of
         let centre = at + block.centre;
         let hinge = at + block.hinge();
         let closed = Door::facing(hinge, centre);
+        // Standing on its floor at the hinge; its body and panel are made
+        // from it (interact::door_body).
         let mut door = commands.spawn((
-            Door { open: false, closed_center: centre, hinge, closed },
+            Door { open: false, closed_center: centre, hinge, closed, width, model: door_model.to_string() },
             Interactable {
                 kind: InteractKind::Door { open: false },
             },
-            RigidBody::Static,
-            // People open doors: a door is no wall to the navigation mesh.
-            avian_rerecast::prelude::ExcludeColliderFromNavmesh,
-            // From the hinge across the doorway, standing on its floor.
-            Collider::compound(vec![(
-                Vec3::new(width / 2.0, DOORWAY_HEIGHT / 2.0, 0.0),
-                Rotation::IDENTITY,
-                Collider::cuboid(width, DOORWAY_HEIGHT, DOOR_THICK),
-            )]),
+            crate::interact::next_thing_id(),
             Transform::from_translation(on_ground(hinge, *floor)).with_rotation(closed),
-            Visibility::default(),
-        ));
-        // The panel, its model (made 1 m wide and a wall tall) stretched to
-        // the doorway, a child so the collider is not stretched with it.
-        door.with_child((
-            Model(door_model.to_string()),
-            Transform::from_xyz(width / 2.0, 0.0, 0.0).with_scale(Vec3::new(width, DOORWAY_HEIGHT / WALL_HEIGHT, 1.0)),
         ));
         if of_world {
             door.insert(WorldPiece);
@@ -280,9 +267,6 @@ pub fn spawn_structure(commands: &mut Commands, def: &StructureDef, at: Vec2, of
     }
     root
 }
-
-/// How thick a door is, in metres (scripts/models.py's panel).
-const DOOR_THICK: f32 = 0.12;
 
 /// The bunker's doors are steel; doors in the wild are wood for now
 /// (design.md "Built in 1 m blocks, doors as blocks").
@@ -339,7 +323,7 @@ pub fn spawn_other_bunkers(mut commands: Commands, world: Res<WorldRes>, items: 
             }
         }
         let [x, z] = BUNKER_STORE_AT;
-        let store = spawn_item(
+        let (store, _) = spawn_item(
             &mut commands,
             box_def,
             create(box_def, 1, &[], 0.0, i as u64),
@@ -425,7 +409,7 @@ pub fn spawn_sites(
                 }
                 // On the floor its spot is on.
                 let at = on_ground(site.position + Vec2::new(spot.position.x, spot.position.z), spot.position.y);
-                let found = spawn_item(&mut commands, box_def, item::create(box_def, 1, &[], 0.0, k as u64), at);
+                let (found, _) = spawn_item(&mut commands, box_def, item::create(box_def, 1, &[], 0.0, k as u64), at);
                 commands.entity(found).insert((Container(contents), WorldPiece));
             }
         }

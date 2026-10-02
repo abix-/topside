@@ -20,6 +20,7 @@ pub mod outline;
 pub mod people;
 pub mod player;
 pub mod profile;
+pub mod save;
 pub mod sight;
 pub mod storm;
 pub mod structure;
@@ -63,7 +64,8 @@ pub const EYE_HEIGHT: f32 = 1.6;
 
 /// Simulation tick counter. FixedUpdate runs at a locked 60 UPS; this
 /// counts those ticks, independent of the frame rate.
-#[derive(Resource, Default)]
+#[derive(Resource, Default, Clone, serde::Serialize, serde::Deserialize, Reflect)]
+#[reflect(opaque, Resource, Serialize, Deserialize)]
 pub struct SimTick(pub u64);
 
 /// The seed the world rolls from.
@@ -72,7 +74,8 @@ pub struct WorldSeed(pub u64);
 
 /// The reality the world is in now (realities.md), with its rules: the
 /// first registered until a storm hands over another.
-#[derive(Resource)]
+#[derive(Resource, Clone, serde::Serialize, serde::Deserialize, Reflect)]
+#[reflect(opaque, Resource, Serialize, Deserialize)]
 pub struct Reality(pub modforge::reality::RealityDef);
 
 impl FromWorld for Reality {
@@ -146,6 +149,13 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind) -> App {
     app.init_resource::<content::brain::BrainTreeRes>();
     app.init_resource::<actor::ActorMapRes>();
     app.init_resource::<input::BindingsRes>();
+    // Things' own ids, lasting across save and load (interact::ThingId).
+    app.init_resource::<interact::ThingIds>();
+    app.add_observer(interact::index_thing_ids);
+    app.add_observer(interact::unindex_thing_ids);
+    app.add_observer(interact::item_body);
+    app.add_observer(interact::door_body);
+    save::plugin(&mut app);
     app.init_resource::<hud::HoveredSlot>();
     app.init_resource::<nav::Walk>();
     app.init_resource::<sight::BunkerMaps>();
@@ -242,7 +252,7 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind) -> App {
                 control_plane::publish,
                 control_plane::publish_world,
                 control_plane::publish_ways,
-                (control_plane::answer_npc, control_plane::answer_kill, control_plane::answer_give, control_plane::answer_needs, control_plane::answer_use, control_plane::answer_talk, control_plane::answer_walk).chain(),
+                (control_plane::answer_npc, control_plane::answer_kill, control_plane::answer_give, control_plane::answer_needs, control_plane::answer_use, control_plane::answer_talk, control_plane::answer_walk, save::answer_save).chain(),
                 lap("publish"),
             )
                 .chain(),

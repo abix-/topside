@@ -18,12 +18,14 @@ use crate::player::Player;
 
 /// What this actor has been told to do. The keyboard fills the
 /// player's; AI will fill an NPC's.
-#[derive(Component, Default, Debug, PartialEq)]
+#[derive(Component, Default, Debug, PartialEq, Clone, serde::Serialize, serde::Deserialize, Reflect)]
+#[reflect(opaque, Component, Serialize, Deserialize)]
 pub struct Actions(pub ActionQueue);
 
 /// The actions drained for the current fixed tick, for systems to
 /// read. Refilled each fixed step from the queue.
-#[derive(Component, Default, Debug, PartialEq)]
+#[derive(Component, Default, Debug, PartialEq, Clone, serde::Serialize, serde::Deserialize, Reflect)]
+#[reflect(opaque, Component, Serialize, Deserialize)]
 pub struct ThisTick(pub Vec<Stamped>);
 
 /// The key bindings, as data.

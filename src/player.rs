@@ -35,7 +35,8 @@ pub fn body() -> Collider {
 
 /// The one player. Carries everything an actor needs to be told what
 /// to do, and a body that walls stop.
-#[derive(Component, Default)]
+#[derive(Component, Default, Clone, serde::Serialize, serde::Deserialize, Reflect)]
+#[reflect(opaque, Component, Serialize, Deserialize)]
 #[require(
     Actions,
     ThisTick,
@@ -50,6 +51,8 @@ pub fn body() -> Collider {
     Rolling,
     Fall,
     Transform,
+    // Worked out each frame from where they look: never saved.
+    crate::talk::LookingAt,
     RigidBody = RigidBody::Kinematic,
     Collider = body()
 )]
@@ -156,7 +159,8 @@ const GRAVITY: f32 = 9.81;
 
 /// How fast a body is falling, metres per second down; zero standing on
 /// something (the 3D game's `Fall`).
-#[derive(Component, Default, Debug, Clone, Copy)]
+#[derive(Component, Default, Debug, Clone, Copy, serde::Serialize, serde::Deserialize, Reflect)]
+#[reflect(opaque, Component, Serialize, Deserialize)]
 pub struct Fall(pub f32);
 
 /// Every actor walks the way its move this tick says, at walking speed,

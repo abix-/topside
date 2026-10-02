@@ -269,6 +269,7 @@ pub fn walk(
     mut velocities: Query<&mut Velocity3d>,
     mut agents: Query<(&mut AgentTarget3d, Option<&AgentDesiredVelocity3d>, &AgentState)>,
     archipelagos: Query<&Archipelago3d>,
+    actors: Query<&crate::actor::Actor>,
     // Each walker's feet last step, how many steps they have made no way,
     // and the spot they step aside to, until the tick they go on.
     mut stuck: Local<HashMap<Entity, (Vec3, u32)>>,
@@ -300,10 +301,12 @@ pub fn walk(
         // landmass's steering no way between them, and it failed.
         let Some(stand_in) = walker.map(|w| w.0) else {
             // A little off the feet, each person their own way (the golden
-            // angle by their entity): two people put on one spot (respawned
-            // at one home) are never at one point to landmass, whose steering
-            // then had no way between them and stopped the game.
-            let off = Vec2::from_angle((entity.to_bits() & 0xFFFF_FFFF) as f32 * 2.399_963) * 0.02;
+            // angle by their lasting id, the same after a load; the player
+            // is zero): two people put on one spot (respawned at one home)
+            // are never at one point to landmass, whose steering then had no
+            // way between them and stopped the game.
+            let id = actors.get(entity).map_or(0, |a| a.0.0);
+            let off = Vec2::from_angle((id & 0xFFFF_FFFF) as f32 * 2.399_963) * 0.02;
             let stand_in = commands
                 .spawn((
                     Transform::from_xyz(off.x, -crate::player::BODY_CENTRE, off.y),

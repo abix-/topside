@@ -48,7 +48,8 @@ pub fn look_around(
 
 /// Each bunker's map: what its people have told it (life.md "The map each
 /// person carries": what their bunker tells them).
-#[derive(Resource, Default)]
+#[derive(Resource, Default, Clone, serde::Serialize, serde::Deserialize, Reflect)]
+#[reflect(opaque, Resource, Serialize, Deserialize)]
 pub struct BunkerMaps(pub std::collections::HashMap<String, modforge::map::Map>);
 
 /// Once a second, every bunker person at home tells their bunker what they

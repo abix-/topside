@@ -26,7 +26,8 @@ use crate::player::{PLAYER_SIZE, Player};
 /// Health every actor starts with (the 3D game's number).
 pub const START_HEALTH: f32 = 100.0;
 
-#[derive(Component, Debug, PartialEq)]
+#[derive(Component, Debug, PartialEq, Clone, serde::Serialize, serde::Deserialize, Reflect)]
+#[reflect(opaque, Component, Serialize, Deserialize)]
 pub struct Health(pub HealthStats);
 
 impl Default for Health {
@@ -37,11 +38,13 @@ impl Default for Health {
 
 /// A person's own protection before anything worn: armor and
 /// resistances from what they are.
-#[derive(Component, Default, Debug)]
+#[derive(Component, Default, Debug, Clone, serde::Serialize, serde::Deserialize, Reflect)]
+#[reflect(opaque, Component, Serialize, Deserialize)]
 pub struct Protection(pub ProtectionStats);
 
 /// What a person wears.
-#[derive(Component, Default)]
+#[derive(Component, Default, Clone, serde::Serialize, serde::Deserialize, Reflect)]
+#[reflect(opaque, Component, Serialize, Deserialize)]
 pub struct Equipment(pub item::Equipment);
 
 /// The one path a hit lands on an actor: its protection is its own
@@ -83,11 +86,13 @@ pub fn hit_actor(
 /// When this person may swing or fire next, and what they are
 /// committed to (modforge's fire timer: Quake 3's weapon timer with
 /// Gothic's beat).
-#[derive(Component, Default, Debug, PartialEq)]
+#[derive(Component, Default, Debug, PartialEq, Clone, serde::Serialize, serde::Deserialize, Reflect)]
+#[reflect(opaque, Component, Serialize, Deserialize)]
 pub struct Firing(pub FireTimer);
 
 /// A person's dodge roll (modforge's `RollTimer`, combat.md "The roll").
-#[derive(Component, Default, Debug, PartialEq)]
+#[derive(Component, Default, Debug, PartialEq, Clone, serde::Serialize, serde::Deserialize, Reflect)]
+#[reflect(opaque, Component, Serialize, Deserialize)]
 pub struct Rolling(pub RollTimer);
 
 impl Rolling {
@@ -284,8 +289,11 @@ fn struck(memory: Option<Mut<Memory>>, by: ActorId, from: Vec2, amount: f32, now
 /// One bullet in flight (combat.md "Guns": every shot a visible bullet
 /// moved in the fixed step, a ray from its last position to its new
 /// one, no drop).
-#[derive(Component)]
+#[derive(Component, Clone, serde::Serialize, serde::Deserialize, Reflect)]
+#[reflect(opaque, Component, Serialize, Deserialize)]
+#[require(moonshine_save::prelude::Save)]
 pub struct Bullet {
+    #[entities]
     pub shooter: Entity,
     pub damage: String,
     pub direction: Vec2,
@@ -318,11 +326,12 @@ pub fn fire(
             Option<&Rolling>,
             &mut Firing,
             Option<&mut Inventory>,
+            Option<&crate::actor::Actor>,
         ),
         Without<Dead>,
     >,
 ) {
-    for (entity, this_tick, facing, hotbar, transform, rolling, mut firing, inventory) in &mut shooters {
+    for (entity, this_tick, facing, hotbar, transform, rolling, mut firing, inventory, actor) in &mut shooters {
         // Mid roll: committed to it, no shooting.
         if Rolling::busy(rolling) {
             continue;
@@ -355,7 +364,9 @@ pub fn fire(
             inv.0.remove(slot, 1);
         }
         let muzzle = transform.translation.ground() + facing.direction() * (PLAYER_SIZE / 2.0 + 0.1);
-        let seed = tick.0 ^ entity.to_bits();
+        // Seeded by who fires, by their lasting id, so a loaded game
+        // spreads the same (the player is zero).
+        let seed = tick.0 ^ actor.map_or(0, |a| a.0.0);
         for direction in pellet_directions_2d(facing.direction(), gun.spread_degrees, gun.pellets, seed) {
             commands.spawn((
                 Bullet {
@@ -503,7 +514,7 @@ pub fn die(
                     contents.add(stack, max);
                 }
                 let salt = actor.map_or(0, |a| a.0.0);
-                let dropped = spawn_item(
+                let (dropped, _) = spawn_item(
                     &mut commands,
                     box_def,
                     item::create(box_def, 1, &[], tick.0 as f32, salt),
