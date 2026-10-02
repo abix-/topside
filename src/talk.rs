@@ -201,7 +201,11 @@ pub fn talk(
     speakers: Query<(Entity, &Actor, &ThisTick, &Name), Without<Dead>>,
     mut people: Query<(&Transform, &mut Memory, &Inventory, &mut Hud, Has<Player>, Option<&Conversation>), Without<Dead>>,
 ) {
-    for (speaker, id, this_tick, name) in &speakers {
+    // In ActorId order (authority.md rule 5): of two speaking to the player
+    // in one tick, whom the player ends up talking to is the same after a
+    // load.
+    let order = crate::actor::in_actor_order(speakers.iter().map(|(entity, actor, ..)| (Some(actor.0), entity)));
+    for (speaker, id, this_tick, name) in order.into_iter().filter_map(|e| speakers.get(e).ok()) {
         for said in this_tick.0.iter().filter_map(|s| match s.action {
             Action::Talk { to, said } => Some((to, said)),
             _ => None,

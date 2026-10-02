@@ -157,9 +157,16 @@ pub fn melee(
     // Every swing that goes this tick: who, from where, which way,
     // which move, how far, how hard, with what.
     let mut swings: Vec<(Entity, ActorId, Vec2, Vec2, Swing, f32, f32, String)> = Vec::new();
-    for (entity, this_tick, facing, hotbar, health, personality, shape, rolling, actor, mut firing, mut transform) in
-        &mut actors.p0()
-    {
+    // In ActorId order (authority.md rule 5): of two swings on one target
+    // in one tick, who lands first, and so who kills, is the same after a
+    // load; each swing's targets too.
+    let swingers = crate::actor::in_actor_order(actors.p0().iter().map(|(entity, .., actor, _, _)| (actor.map(|a| a.0), entity)));
+    let targets = crate::actor::in_actor_order(actors.p1().iter().map(|(entity, .., actor)| (actor.map(|a| a.0), entity)));
+    let mut swinging = actors.p0();
+    for entity in swingers {
+        let Ok((entity, this_tick, facing, hotbar, health, personality, shape, rolling, actor, mut firing, mut transform)) = swinging.get_mut(entity) else {
+            continue;
+        };
         firing.0.tick(dt);
         // Mid roll: committed to it, no swinging.
         if Rolling::busy(rolling) {
@@ -227,7 +234,11 @@ pub fn melee(
         let Some(def) = damage.0.def(&damage_name) else {
             continue;
         };
-        for (target, at, guard, rolling, own, target_worn, mut target_health, mut memory, target_id) in &mut actors.p1() {
+        let mut struck_ones = actors.p1();
+        for target in &targets {
+            let Ok((target, at, guard, rolling, own, target_worn, mut target_health, mut memory, target_id)) = struck_ones.get_mut(*target) else {
+                continue;
+            };
             let offset = at.translation.ground() - here;
             if target == attacker
                 || !swing.covers(offset, facing, reach)
@@ -439,14 +450,26 @@ pub fn fly(
             commands.entity(entity).despawn();
         }
     }
-    for (shooter, name, mut multi) in landed {
+    // In ActorId order (authority.md rule 5): the shooters' hits land
+    // shooter by shooter, and each one's targets, in ActorId order, so who
+    // kills is the same after a load.
+    let by_shooter = crate::actor::in_actor_order(landed.iter().map(|(s, ..)| (shooters.get(*s).ok().and_then(|(_, a)| a.map(|a| a.0)), *s)));
+    let mut ordered = Vec::new();
+    for shooter in by_shooter {
+        if let Some(i) = landed.iter().position(|(s, ..)| *s == shooter) {
+            ordered.push(landed.remove(i));
+        }
+    }
+    for (shooter, name, mut multi) in ordered {
         let Some(def) = damage.0.def(&name) else {
             continue;
         };
         let (from, by) = shooters
             .get(shooter)
             .map_or((Vec2::ZERO, ActorId(0)), |(t, a)| (t.translation.ground(), a.map_or(ActorId(0), |a| a.0)));
-        for (target, pellets, distance) in multi.drain() {
+        let hits: Vec<(Entity, u32, f32)> = multi.drain().into_iter().collect();
+        let order = crate::actor::in_actor_order(hits.iter().map(|(t, ..)| (targets.get(*t).ok().and_then(|(.., a)| a.map(|a| a.0)), *t)));
+        for (target, pellets, distance) in order.into_iter().filter_map(|t| hits.iter().find(|(h, ..)| *h == t).copied()) {
             let Ok((own, worn, mut health, mut memory, target_id)) = targets.get_mut(target) else {
                 continue;
             };

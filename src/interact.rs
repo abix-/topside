@@ -207,7 +207,10 @@ pub fn knock(
     knockers: Query<(Entity, &crate::actor::Actor, &Transform, &ThisTick, &Name), Without<Dead>>,
     mut people: Query<(Entity, &crate::actor::Actor, &Transform, &mut Memory, Option<&mut Hud>, Has<crate::player::Player>), Without<Dead>>,
 ) {
-    for (knocker, id, at, this_tick, name) in &knockers {
+    // In ActorId order (authority.md rule 5): of two knocking in one tick,
+    // whom the player ends up talking to is the same after a load.
+    let order = crate::actor::in_actor_order(knockers.iter().map(|(entity, actor, ..)| (Some(actor.0), entity)));
+    for (knocker, id, at, this_tick, name) in order.into_iter().filter_map(|e| knockers.get(e).ok()) {
         if !ActionQueue::has(&this_tick.0, Action::Knock) {
             continue;
         }
