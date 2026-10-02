@@ -22,6 +22,11 @@ queue: run the tests named in Name through the running game's test
 queue (authority.md "Running tests", tests/queue.rs): queued on the game,
 run one at a time, each result reported to the game's `tests` op; fails
 when any test failed. The run is in logs/queue.log.
+saves: the play-through (tests/saves.rs, authority.md "Running tests":
+save states for everything): every save the tests load that is missing
+or refused is made by playing, each from the one before, against the
+running game. May take longer than a test's 2 minutes; run it again when
+content changes, then commit saves/. The run is in logs/saves.log.
 build: build only (logs/build.log).
 .PARAMETER Name
 For test: one test file under tests/, without .rs. Empty runs every
@@ -45,7 +50,7 @@ Never build, test, or launch topside any other way.
 [CmdletBinding()]
 param (
     [Parameter(Position = 0)]
-    [ValidateSet('run', 'test', 'queue', 'build')]
+    [ValidateSet('run', 'test', 'queue', 'saves', 'build')]
     [string]$Action = 'run',
     [Parameter(Position = 1)]
     [string]$Name = '',
@@ -168,6 +173,18 @@ switch ($Action) {
         Select-String -Path $log -Pattern '^run \d+:|^running |^\s+(passed|FAILED)$|^(queued|running|passed|failed)\s+\S|^error: ' |
             ForEach-Object {
                 $color = if ($_.Line -match 'FAILED|^failed|^error') { 'Red' } else { 'Gray' }
+                Write-Host $_.Line -ForegroundColor $color
+            }
+    }
+    'saves' {
+        $log = Join-Path $logs 'saves.log'
+        # The makers are ignored tests, so no test run starts them; here they
+        # are the only tests run, one at a time, with their output kept.
+        $code = Invoke-Cargo 'nextest run -p topside-tests --no-capture --run-ignored only -E test(/^saves::make::/)' $log
+        Show-Problems $log
+        Select-String -Path $log -Pattern '^\s+(PASS|FAIL|TIMEOUT|TERMINATING)\b|^\s+Summary|panicked|^error: ' |
+            ForEach-Object {
+                $color = if ($_.Line -match 'FAIL|TIMEOUT|TERMINATING|panicked|^error') { 'Red' } else { 'Gray' }
                 Write-Host $_.Line -ForegroundColor $color
             }
     }

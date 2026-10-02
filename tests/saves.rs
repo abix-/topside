@@ -51,6 +51,36 @@ pub(crate) fn newest() -> u64 {
     people().into_iter().filter_map(|p| p["id"].as_u64()).max().unwrap_or(0)
 }
 
+/// `giver` gives `to` a water `times` times through the talk path's Offer
+/// (the one way the game raises a feeling: a gift).
+pub(crate) fn gifts(giver: u64, to: u64, times: u32) {
+    for _ in 0..times {
+        op_with("give", json!({"id": giver, "item": "water", "count": 1, "clear": true}));
+        step(SECOND);
+        op_with("talk", json!({"id": giver, "to": to, "said": {"Offer": {"slot": 0}}}));
+        step(SECOND);
+    }
+}
+
+/// The player, beside `id`, asks them to stay with the player's bunker
+/// ("You can stay with us.", the-tap.md pivot point 6, draft).
+pub(crate) fn ask_to_join(id: u64) {
+    op_with("use", json!({"id": player(), "person": id}));
+    assert!(within(30, || crate::opening::choices().iter().any(|c| c == "You can stay with us.")), "the player cannot ask {id} to stay: {:?}", crate::opening::choices());
+    crate::opening::choose(&["You can stay with us."]);
+}
+
+/// The stranger the player stands beside (the nearest of no faction).
+pub(crate) fn the_stranger() -> u64 {
+    let me = player_spot();
+    people()
+        .into_iter()
+        .filter(|p| p["dead"] != true && p["faction"].is_null())
+        .filter_map(|p| p["id"].as_u64())
+        .min_by(|a, b| apart(spot_of(*a), me).0.total_cmp(&apart(spot_of(*b), me).0))
+        .expect("a living stranger")
+}
+
 // The saves, each from the one before.
 
 /// At the tap, just before Mara's people come to it.
@@ -231,6 +261,20 @@ pub(crate) fn beside_a_stranger() {
     });
 }
 
+/// A stranger who joined the player's bunker, Mara beside them.
+pub(crate) fn joined_with_mara_near() {
+    start_from("joined_with_mara_near", || {
+        beside_a_stranger();
+        let stranger = the_stranger();
+        gifts(player(), stranger, 3);
+        ask_to_join(stranger);
+        assert!(within(10, || faction_of(stranger) == "player"), "the stranger did not join");
+        let mara = part("Mara");
+        walk_to(Some(mara), spot_of(stranger));
+        assert!(within(900, || apart(spot_of(mara), spot_of(stranger)).0 < 2.5), "Mara never reached the stranger");
+    });
+}
+
 // The makers: each its own ignored test, run by build.ps1 saves.
 
 macro_rules! makers {
@@ -264,5 +308,6 @@ mod make {
         stocking_past_need,
         newcomers_word_told,
         beside_a_stranger,
+        joined_with_mara_near,
     );
 }
