@@ -49,6 +49,30 @@ fn the_player_wakes_in_their_room_and_reads_the_note_there() {
     assert!(read, "E by the note in the player's room did not open it");
 }
 
+/// The stairwell (design.md "The bunker you start in"), from the
+/// entrance's door landing facing down the stairs, in
+/// logs/bunker_stairwell.png. Stood there by the `use` op, then turned by
+/// a short move: commands walk the ground's level only until todo 13a2.
+#[test]
+fn the_stairwell_seen_from_the_entrance_landing() {
+    crate::endpoint::player_alive();
+    let player = op("player")["id"].as_u64().expect("the player op reports the player's id");
+    // The bunker point (0, 0): a point in the stairwell's west lane, north
+    // of the door landing; the `use` op stands the player a metre off it,
+    // looking at it.
+    let landing = (4.3, -2.6);
+    op_with("use", serde_json::json!({"id": player, "at": [landing.0, landing.1]}));
+    let there = within(3, || {
+        let (px, py, pf) = status();
+        pf.abs() < 0.1 && ((px - landing.0).powi(2) + (py - landing.1).powi(2)).sqrt() < 2.0
+    });
+    std::thread::sleep(std::time::Duration::from_millis(500));
+    crate::talk_ui::shot("bunker_stairwell");
+    let (px, py, pf) = status();
+    eprintln!("on the landing at ({px:.1}, {py:.1}), feet {pf:.2}");
+    assert!(there && pf.abs() < 0.3, "the player never stood on the entrance's door landing");
+}
+
 /// The basic controls in the player's room (design.md "The bunker you
 /// start in"): each shown until done; E pressed, its line goes and the
 /// rest stay.

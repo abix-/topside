@@ -245,7 +245,15 @@ time. Vertical progression gives the bunker its own curve:
   bench, and where Roxanne lives. Level 2, the deepest: the player's own
   room, with the bed, the food and the note, its door shut. A stair
   tower joins them, built like every building's with floors below the
-  ground. The player wakes alone in their room; once they have read
+  ground. The stairwell is a room of its own, upgraded like the rest
+  of the base (operator, 2026-10-01; sized from Obenseuer's tenement,
+  measured in its running game, modforge
+  obenseuer-mod/docs/apartment-colliders.txt): 3 m floor to floor;
+  two flights side by side, each 1.8 m wide so two people walk side by
+  side, nothing between them; landings the full width of both; a
+  landing on the door side with a 2 by 2 m spot for a future elevator
+  beside the stairs, empty for now; steps a comfortable climb, not a
+  ladder. The player wakes alone in their room; once they have read
   the note, Roxanne comes down and knocks on their door (operator,
   2026-10-01), and that starts the first conversation (The
   Tap, docs/episodes/the-tap.md). The basic controls are shown once
