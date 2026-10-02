@@ -50,8 +50,10 @@ fn where_the_time_goes_in_play() {
     for count in perf["counts"].as_array().into_iter().flatten() {
         rows.push(format!("  {:<48} {:>8.2}", count["what"].as_str().unwrap_or("?"), count["per_step"].as_f64().unwrap_or(0.0)));
     }
+    let view = op("view");
+    rows.push(format!("meshes {}, in view {}, cel shaded {}", view["meshes"], view["seen"], view["cel"]));
     rows.push("spans per frame (ms):".to_string());
-    for span in perf["frame"].as_array().into_iter().flatten().take(40) {
+    for span in perf["frame"].as_array().into_iter().flatten() {
         rows.push(format!("  {:<72} {:>8.3}", span["span"].as_str().unwrap_or("?"), span["ms"].as_f64().unwrap_or(0.0)));
     }
     rows.push("diagnostics:".to_string());
