@@ -424,7 +424,10 @@ fn a_way_runs_from_the_bunker_door_to_the_tap() {
         way = op("nav_path");
     }
     eprintln!("the way from the bunker door ({x:.1}, {z:.1}) to the tap {tap:?}: {way}");
-    assert!(way["waypoints"].as_array().is_some_and(|w| !w.is_empty()), "no way on the mesh from the bunker door to the tap: {way}");
+    // The way's points are its `path`; the last one is where it ends.
+    let end = way["path"].as_array().and_then(|p| p.last()).cloned().unwrap_or(Json::Null);
+    let ends_at = (end[0].as_f64().unwrap_or(f64::NAN), end[2].as_f64().unwrap_or(f64::NAN), 0.0);
+    assert!(apart(ends_at, tap).0 < 1.5, "no way on the mesh from the bunker door to the tap {tap:?}: it ends at {ends_at:?}; {way}");
 }
 
 /// 12. Roxanne leads the player to the tap, and both get there.
