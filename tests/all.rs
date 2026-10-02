@@ -33,6 +33,7 @@ mod roxanne;
 mod save;
 mod screenshot;
 mod sources;
+mod stocking;
 mod storm;
 mod talk;
 mod talk_ui;
