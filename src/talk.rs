@@ -358,8 +358,10 @@ pub fn conversations(
         talking.ends_at = Some(now);
         return;
     };
-    // Walked away (or they did), or a floor between them: it ends now.
-    if !within(here.translation, there.translation, TALK_REACH * 2.0) {
+    // Farther apart than a line is heard (one reach for speaking and for
+    // staying in a talk, authority.md "Talking"), or a floor between them:
+    // it ends now, never open with every line dropped.
+    if !within(here.translation, there.translation, TALK_REACH) {
         talking.ends_at = Some(now);
         return;
     }
