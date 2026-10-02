@@ -20,6 +20,7 @@ mod items;
 mod map;
 mod monuments;
 mod names;
+mod opening;
 mod night;
 mod people_drawn;
 mod leading;

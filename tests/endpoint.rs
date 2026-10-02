@@ -44,6 +44,29 @@ pub fn start_from(name: &str, reach: impl FnOnce()) -> bool {
     true
 }
 
+/// The game paused for a test (the `pause` op), and let run again when the
+/// test ends, passed or failed.
+pub struct Paused;
+
+impl Drop for Paused {
+    fn drop(&mut self) {
+        op_with("pause", json!({"on": false}));
+    }
+}
+
+/// Pause the game until the answer drops.
+pub fn pause() -> Paused {
+    let paused = op_with("pause", json!({"on": true}));
+    assert_eq!(paused["paused"], true, "the game did not pause: {paused}");
+    Paused
+}
+
+/// Play `ticks` game ticks of a paused game (the `step` op): the moment
+/// after them.
+pub fn step(ticks: u64) -> Json {
+    op_with("step", json!({"ticks": ticks}))
+}
+
 /// Everyone the `people` op lists.
 pub fn people() -> Vec<Json> {
     op("people").as_array().cloned().unwrap_or_default()
