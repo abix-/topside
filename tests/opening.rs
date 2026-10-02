@@ -137,6 +137,78 @@ fn read_the_note() {
     step(SECOND);
 }
 
+fn dist(a: (f64, f64), b: (f64, f64)) -> f64 {
+    ((a.0 - b.0).powi(2) + (a.1 - b.1).powi(2)).sqrt()
+}
+
+/// Which hand a point `p` (from where someone stands) is on for someone
+/// facing `f`, both on the ground (x, z). The world is y-up: a body facing
+/// (fx, fz) has its right hand toward f x up = (-fz, fx), so p is on the
+/// right when fx*pz - fz*px > 0.
+fn hand(f: (f64, f64), p: (f64, f64)) -> &'static str {
+    if f.0 * p.1 - f.1 * p.0 > 0.0 { "right" } else { "left" }
+}
+
+/// Roxanne's way to the tap is true in this world (the-tap.md "The lines"),
+/// checked against the world op, not against how the game words it: the
+/// way out of the bunker's front door, the building the tap stands in, and,
+/// when she names one, a landmark of that kind standing along the way on
+/// the side she says; when she names none, none she knows stands there.
+fn the_way_is_true(line: &str) {
+    let w = op("world");
+    let xz = |v: &Json| (v[0].as_f64().unwrap_or(f64::NAN), v[1].as_f64().unwrap_or(f64::NAN));
+    // The front door: the player's bunker's door on the ground; the bunker:
+    // the building below the ground nearest it.
+    let door = w["bunker_doors"].as_array().into_iter().flatten().find(|d| d["floor"].as_f64().is_some_and(|f| f.abs() < 0.5)).map(|d| xz(&d["at"])).expect("the bunker's front door on the ground");
+    let bunker = w["below"].as_array().into_iter().flatten().map(|b| xz(&b["at"])).min_by(|a, b| dist(*a, door).total_cmp(&dist(*b, door))).expect("the player's bunker");
+    let thing = |name: &str| w["things"].as_array().into_iter().flatten().find(|t| t["name"] == name).map(|t| xz(&t["at"])).unwrap_or_else(|| panic!("no {name} in the world"));
+    let (tap, site) = (thing("tap"), thing("tap site"));
+    let monuments: Vec<(String, (f64, f64))> = w["monuments"].as_array().into_iter().flatten().map(|m| (m["kind"].as_str().unwrap_or_default().to_string(), xz(&m["at"]))).collect();
+    let place = monuments.iter().filter(|(_, at)| dist(*at, site) < 1.0).map(|(kind, _)| kind.clone()).next().expect("a monument standing at the tap's site");
+
+    // The way out: straight out within 35 degrees of the door's outward
+    // facing (from the bunker to its door), else the hand the tap is on.
+    let out = (door.0 - bunker.0, door.1 - bunker.1);
+    let to = (tap.0 - door.0, tap.1 - door.1);
+    let cos = (out.0 * to.0 + out.1 * to.1) / ((out.0.powi(2) + out.1.powi(2)).sqrt() * (to.0.powi(2) + to.1.powi(2)).sqrt());
+    let way = if cos >= 35f64.to_radians().cos() { "straight out" } else { hand(out, to) };
+    eprintln!("the world: the door at {door:?} facing {out:?}, the tap at {tap:?} in a {place}; the way out is {way}");
+    let said_way = ["straight out", "left", "right"].iter().filter_map(|w| line.find(w).map(|i| (i, *w))).min().map(|(_, w)| w);
+    assert_eq!(said_way, Some(way), "Roxanne's way out of the door is not the world's: {line:?}");
+    assert!(line.contains(&place), "Roxanne does not name the {place} the tap stands in: {line:?}");
+
+    // On the way: within 80 m of the walk from the door to the tap, between
+    // them (episode.rs ON_THE_WAY, the-tap.md "{landmark}").
+    let on_the_way = |at: (f64, f64)| {
+        let len2 = to.0.powi(2) + to.1.powi(2);
+        let along = ((at.0 - door.0) * to.0 + (at.1 - door.1) * to.1) / len2;
+        let near = (door.0 + to.0 * along, door.1 + to.1 * along);
+        along > 0.0 && along < 1.0 && dist(at, near) <= 80.0
+    };
+    match line.find(" on your ") {
+        Some(i) => {
+            let side = line[i + " on your ".len()..].split(|c: char| !c.is_alphabetic()).next().unwrap_or_default();
+            let before = line[..i].trim_end_matches(" is");
+            let landmark = before.rsplit("the ").next().unwrap_or_default();
+            let there = monuments.iter().any(|(kind, at)| kind == landmark && dist(*at, site) >= 1.0 && on_the_way(*at) && hand(to, (at.0 - door.0, at.1 - door.1)) == side);
+            assert!(there, "no {landmark} stands along the way to the tap on the {side}: {line:?}");
+        }
+        None => {
+            let her = roxanne();
+            let knows = op_with("npc", json!({"id": her}))["knows"].clone();
+            let known_on_the_way: Vec<String> = knows
+                .as_array()
+                .into_iter()
+                .flatten()
+                .map(|k| xz(&k["at"]))
+                .filter(|at| dist(*at, site) >= 1.0 && on_the_way(*at))
+                .filter_map(|at| monuments.iter().find(|(_, m)| dist(*m, at) < 1.0).map(|(kind, _)| kind.clone()))
+                .collect();
+            assert!(known_on_the_way.is_empty(), "Roxanne names no landmark, yet she knows {known_on_the_way:?} along the way: {line:?}");
+        }
+    }
+}
+
 // The opening's saves, each made once by playing from the one before.
 
 /// The player just woke in their room on the deepest level, nothing of
@@ -254,6 +326,10 @@ fn reading_the_note_sends_roxanne_down_at_once() {
     let _paused = pause();
     woke();
     let her = roxanne();
+    // Without the note read she stays up: ten game seconds and she is still
+    // above the ground, so what follows is the note's doing.
+    let stays_up = !within(10, || spot_of(her).2 < -0.5);
+    assert!(stays_up, "Roxanne went down before the note was read: she stands at {:?}", spot_of(her));
     read_the_note();
     let going = within(10, || spot_of(her).2 < -0.5);
     assert!(going, "Roxanne did not start down after the note was read: she stands at {:?}", spot_of(her));
@@ -329,8 +405,8 @@ fn roxanne_says_the_water_is_low_and_tells_the_way_to_the_tap() {
     assert!(shown, "no answers shown within a game minute");
     assert!(lines.iter().any(|l| l.contains("water")), "Roxanne never said the water is low");
     let way = lines.iter().find(|l| l.contains("tap")).cloned().unwrap_or_else(|| panic!("Roxanne never gave the way to the tap"));
-    assert!(["left", "right", "straight"].iter().any(|w| way.contains(w)), "the way to the tap names no way out of the door: {way:?}");
     assert!(!way.contains('{'), "a part of the way left unfilled: {way:?}");
+    the_way_is_true(&way);
     let tap_key = op("world")["things"].as_array().and_then(|t| t.iter().find(|t| t["name"] == "tap")).and_then(|t| t["key"].as_u64()).expect("the tap's key");
     let told = op("player")["knows"].as_array().and_then(|k| k.iter().find(|k| k["key"].as_u64() == Some(tap_key))).and_then(|k| k["told_by"].as_u64());
     assert_eq!(told, Some(her), "the player does not know the tap, told by Roxanne");
@@ -398,6 +474,7 @@ fn show_me_believes_roxanne_and_she_says_follow_me() {
     let _paused = pause();
     choosing();
     let her = roxanne();
+    assert!(!reached("believes Dell"), "believing Roxanne was reached before the player chose: {}", op("world")["reached"]);
     let words = choose(&["Show me.", "Let's go."]);
     let believed = within(5, || reached("believes Dell"));
     assert!(believed, "{words:?} reached nothing: reached {}", op("world")["reached"]);
@@ -441,6 +518,35 @@ fn roxanne_leads_the_player_to_the_tap() {
     assert!(there, "not both at the tap {tap:?} within ten game minutes: the player at {:?}, Roxanne at {:?}", player_spot(), spot_of(her));
 }
 
+/// 12b. Leading, Roxanne waits for the player who falls behind (operator,
+/// 2026-10-02, todo 11y: the leader waits when the follower falls more
+/// than 8 m behind), and goes on toward the tap once they catch up.
+#[test]
+fn roxanne_waits_when_the_player_falls_behind_and_goes_on() {
+    let _paused = pause();
+    out_the_door();
+    let her = roxanne();
+    let tap = the_tap();
+    // The player stops: an order of their own (stand where they are) ends
+    // following (authority.md "Commands and replays").
+    let (x, z, feet) = player_spot();
+    op_with("command", json!({"do": "move_to", "x": x, "y": feet, "z": z}));
+    let waits = within(30, || !op_with("npc", json!({"id": her}))["leading"]["waiting_at"].is_null());
+    let gap = apart(spot_of(her), player_spot()).0;
+    eprintln!("left behind: Roxanne leading {}, {gap:.1} m from the player", op_with("npc", json!({"id": her}))["leading"]);
+    assert!(waits, "Roxanne never waited for the player left behind");
+    // She waits once more than 8 m ahead (modforge brain.rs LEAD_WAIT). The
+    // 13 m is this test's reading of "waits when more than 8 m behind": past
+    // 8 m by at most what she walks while turning to it; one who runs on
+    // further is not waiting at 8 m.
+    assert!(gap > 8.0 && gap <= 13.0, "Roxanne waits {gap:.1} m from the player, not just past 8 m");
+    // The player catches up: she goes on toward the tap.
+    let waited_at = spot_of(her);
+    op_with("command", json!({"do": "move_to", "x": waited_at.0, "y": waited_at.2, "z": waited_at.1}));
+    let goes_on = within(30, || apart(spot_of(her), tap).0 < apart(waited_at, tap).0 - 3.0);
+    assert!(goes_on, "caught up, Roxanne did not go on toward the tap: she stands at {:?}", spot_of(her));
+}
+
 /// 13. The player's first drink at the tap takes one water from Mara's
 /// bunker's store and is "the first drink".
 #[test]
@@ -452,6 +558,7 @@ fn the_first_drink_takes_one_water_from_maras_store() {
     let bunker = crate::endpoint::people().into_iter().find(|p| p["id"].as_u64() == Some(mara)).map(|p| p["faction"].as_str().unwrap_or_default().to_string()).expect("Mara's bunker");
     let water = || op("world")["bunkers"][bunker.as_str()]["water"].as_u64().unwrap_or(0);
     let before = water();
+    assert!(!reached("the first drink"), "the first drink was reached before the player drank: {}", op("world")["reached"]);
     let tap = the_tap();
     op_with("use", json!({"id": player(), "at": [tap.0, tap.1]}));
     let drank = within(5, || water() < before);
