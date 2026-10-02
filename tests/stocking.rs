@@ -8,8 +8,8 @@
 //! op's traits (0 to 1). From the opening's first save, paused, moved only
 //! by `step`.
 
-use crate::endpoint::{op, pause, people};
-use crate::opening::{within, woke};
+use crate::endpoint::{from_save, op, pause, people};
+use crate::opening::within;
 
 /// Each bunker's people by faction, and the most anyone of them fears not
 /// having enough.
@@ -36,14 +36,15 @@ fn days(faction: &str) -> Option<f64> {
 #[test]
 fn the_fearful_stock_past_need_and_the_unafraid_stop_at_it() {
     let _p = pause();
-    woke();
+    // Just before a bunker with someone very afraid passes 10 days (tests/
+    // saves.rs stocking_past_need).
+    from_save("stocking_past_need");
     let fears = bunkers_by_fear();
     assert!(!fears.is_empty(), "no bunker people report a fear of not having enough in their traits");
     let fearful = fears.iter().find(|(_, f)| *f >= 0.9).map(|(b, _)| b.clone()).expect("a bunker with someone whose fear of not having enough is 0.9 or more");
     let calm = fears.iter().find(|(_, f)| *f <= 0.1).map(|(b, _)| b.clone()).expect("a bunker where no one's fear of not having enough is over 0.1");
     assert!(days(&fearful).is_some() && days(&calm).is_some(), "the world op reports no days of water for {fearful} or {calm}");
-    // Twenty game minutes, a game day (survival Day), for both to stock.
-    let stocked = within(1200, || days(&fearful).is_some_and(|d| d > 10.0));
+    let stocked = within(120, || days(&fearful).is_some_and(|d| d > 10.0));
     eprintln!("after stocking: {fearful} holds {:?} days, {calm} {:?}", days(&fearful), days(&calm));
     assert!(stocked, "{fearful}, with someone very afraid, never stocked past 10 days: {:?}", days(&fearful));
     assert!(days(&fearful).is_some_and(|d| d <= 20.0), "{fearful} stocked past twice what is needed: {:?} days", days(&fearful));

@@ -44,6 +44,37 @@ pub fn start_from(name: &str, reach: impl FnOnce()) -> bool {
     true
 }
 
+/// Load save `name` (authority.md "Running tests": a test loads a save made
+/// just before its event). A save the play-through makes (tests/saves.rs)
+/// is never made here by playing: missing or refused, the test fails at
+/// once, saying how to make it.
+pub fn from_save(name: &str) {
+    let answer: Option<Json> = ureq::post(URL)
+        .send_json(json!({"op": "load", "args": {"name": name}}))
+        .ok()
+        .and_then(|r| r.into_body().read_json().ok());
+    let answer = answer.unwrap_or_else(|| panic!("no topside game answering on {URL}; start it with scripts/build.ps1 run"));
+    assert_eq!(answer["ok"], true, "save {name} not loaded ({}): make it with `pwsh -NoProfile -File scripts/build.ps1 saves`", answer["error"]);
+}
+
+/// For the play-through: play a game minute at a time, saving before each,
+/// until `happened`; then the last save before it is kept as `name`, the
+/// moment just before the event. At most `minutes` game minutes.
+pub fn save_just_before(name: &str, minutes: u64, happened: impl Fn() -> bool) {
+    // The rolling save, overwritten each minute; never committed.
+    let held = "play_through_minute".to_string();
+    for _ in 0..minutes {
+        op_with("save", json!({"name": held}));
+        step(60 * 60);
+        if happened() {
+            op_with("load", json!({"name": held}));
+            op_with("save", json!({"name": name}));
+            return;
+        }
+    }
+    panic!("{name}: the event never happened within {minutes} game minutes");
+}
+
 /// The game paused for a test (the `pause` op), and let run again when the
 /// test ends, passed or failed.
 pub struct Paused;

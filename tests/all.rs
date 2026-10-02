@@ -34,6 +34,7 @@ mod respawn;
 mod roads;
 mod roxanne;
 mod save;
+mod saves;
 mod screenshot;
 mod sources;
 mod stocking;

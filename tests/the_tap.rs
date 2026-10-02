@@ -2,54 +2,25 @@
 //! and its choices, what the episode pushes all the way, the endings, and
 //! what carries across the storm, one behaviour a test. The opening's own
 //! tests are tests/opening.rs; each system these lean on is also tested
-//! alone (holding, stocking, noticing, newcomers, joining, drawn_from,
-//! endings). Lines and pivot names marked draft in the-tap.md are tested
-//! as written until the operator corrects them.
+//! alone (holding, stocking, newcomers, joining, drawn_from). Lines and
+//! pivot names marked draft in the-tap.md are tested as written until the
+//! operator corrects them.
 //!
-//! Every test starts from one of the opening's saves (tests/opening.rs),
-//! keeps the game paused, and moves it only with `step`. What a test needs
-//! set up past a save (Mara at the tap, a stranger following) is given by
-//! the ops the game already has (command, talk, give, use), never by
-//! setting a pivot.
+//! Every test starts from a save (authority.md "Running tests": save states
+//! for everything): the opening's (tests/opening.rs) or one the
+//! play-through makes just before the event (tests/saves.rs, build.ps1
+//! saves), keeps the game paused, and moves it only with `step`. What a
+//! test needs past its save is given by the ops the game already has
+//! (command, talk, give, use), never by setting a pivot.
 
-use serde_json::{Value as Json, json};
+use serde_json::json;
 
-use crate::endpoint::{op, op_with, pause, people, step};
-use crate::opening::{
-    SECOND, apart, at_the_tap, choices, choose, choosing, heard_from, out_the_door, player, player_spot, reached, roxanne, spot_of, the_tap, within,
-};
-
-/// The person playing a part of The Tap ("Dell" is Roxanne's part).
-fn part(name: &str) -> u64 {
-    op("world")["cast"].as_array().and_then(|c| c.iter().find(|p| p["part"] == name)).and_then(|p| p["id"].as_u64()).unwrap_or_else(|| panic!("no one plays {name}"))
-}
-
-fn faction_of(id: u64) -> String {
-    people().into_iter().find(|p| p["id"].as_u64() == Some(id)).and_then(|p| p["faction"].as_str().map(str::to_string)).unwrap_or_default()
-}
-
-/// Everyone alive of a faction.
-fn of_faction(faction: &str) -> Vec<u64> {
-    people().into_iter().filter(|p| p["faction"] == faction && p["dead"] != true).filter_map(|p| p["id"].as_u64()).collect()
-}
-
-/// A bunker as the world op reports it, by its faction.
-fn bunker(faction: &str) -> Json {
-    op("world")["bunkers"][faction].clone()
-}
+use crate::endpoint::{from_save, op, op_with, pause, people, step};
+use crate::opening::{SECOND, apart, at_the_tap, choices, choose, choosing, heard_from, out_the_door, player, player_spot, reached, roxanne, spot_of, the_tap, within};
+use crate::saves::{days_of_water, faction_of, newest, of_faction, part, walk_to};
 
 fn says(by: u64, ways: &[&str]) -> bool {
     heard_from(by).iter().any(|(_, w)| ways.contains(&w.as_str()))
-}
-
-/// Walk someone (the player when `who` is None) to a ground point at a
-/// height, with the command op.
-fn walk_to(who: Option<u64>, at: (f64, f64, f64)) {
-    let mut c = json!({"do": "move_to", "x": at.0, "y": at.2, "z": at.1});
-    if let Some(id) = who {
-        c["id"] = json!(id);
-    }
-    op_with("command", c);
 }
 
 /// The player's room door, 6 m down: coming home.
@@ -58,16 +29,20 @@ fn home() -> (f64, f64, f64) {
     (door["at"][0].as_f64().unwrap_or(0.0), door["at"][1].as_f64().unwrap_or(0.0), door["floor"].as_f64().unwrap_or(-6.0))
 }
 
-/// Mara brought to the tap and the player within talking reach of her
-/// there (setup by the command op: the meeting is what is tested).
-fn meet_mara_at_the_tap() -> u64 {
+/// From the save with Mara at the tap, the player walks within talking
+/// reach of her.
+fn meet_mara() -> u64 {
+    from_save("tap_mara_at_the_tap");
     let mara = part("Mara");
-    let tap = the_tap();
-    walk_to(Some(mara), tap);
-    assert!(within(300, || apart(spot_of(mara), tap).0 < 4.0), "setup: Mara never came to the tap");
     walk_to(None, spot_of(mara));
-    assert!(within(30, || apart(player_spot(), spot_of(mara)).0 < 2.5), "setup: the player never came within talking reach of Mara");
+    assert!(within(60, || apart(player_spot(), spot_of(mara)).0 < 2.5), "setup: the player never came within talking reach of Mara");
     mara
+}
+
+/// Where a bunker's store stands, from the world op.
+fn store_of(faction: &str) -> (f64, f64, f64) {
+    let store = op("world")["bunkers"][faction]["store"].clone();
+    (store["at"][0].as_f64().expect("the world op reports where the bunker's store is"), store["at"][1].as_f64().unwrap_or(0.0), store["floor"].as_f64().unwrap_or(0.0))
 }
 
 // Pivot point 1, the other answers.
@@ -87,17 +62,16 @@ fn not_believing_roxanne_she_goes_on_her_own() {
     assert!(within(60, || apart(spot_of(her), tap).0 < from - 10.0), "Roxanne did not go toward the tap on her own: still {:.0} m off", apart(spot_of(her), tap).0);
 }
 
-/// Not believing her, Mara's people find the tap first: within ten game
-/// minutes one of Mara's bunker holds it.
+/// Not believing her, Mara's people find the tap first: from just before
+/// they come, one of Mara's bunker comes to it.
 #[test]
 fn not_believing_roxanne_maras_people_find_the_tap_first() {
     let _p = pause();
-    choosing();
-    choose(&["Water doesn't just run out there. You're wrong.", "I don't believe it."]);
+    from_save("tap_not_believed");
+    assert!(reached("does not believe it"), "the save is not after not believing Roxanne");
     let maras = faction_of(part("Mara"));
     let tap = the_tap();
-    let held = within(600, || of_faction(&maras).iter().any(|id| apart(spot_of(*id), tap).0 < 8.0));
-    assert!(held, "none of Mara's people came to the tap within ten game minutes");
+    assert!(within(120, || of_faction(&maras).iter().any(|id| apart(spot_of(*id), tap).0 < 8.0)), "none of Mara's people came to the tap");
 }
 
 /// "Check it again first.": the pivot point is "sends Dell", Roxanne
@@ -111,8 +85,8 @@ fn sending_roxanne_she_goes_alone_and_comes_back() {
     let words = choose(&["Go and look again. I'll wait.", "Check it again first."]);
     assert!(within(5, || reached("sends Dell")), "{words:?} reached nothing: {}", op("world")["reached"]);
     assert!(within(5, || says(her, &["Fine. Don't drink anything while I'm gone.", "Back soon."])), "Roxanne never answered {words:?}");
-    assert!(within(600, || apart(spot_of(her), tap).0 < 4.0), "Roxanne never reached the tap");
-    assert!(within(900, || spot_of(her).2 < -0.5), "Roxanne never came back down into the bunker");
+    assert!(within(300, || apart(spot_of(her), tap).0 < 4.0), "Roxanne never reached the tap");
+    assert!(within(300, || spot_of(her).2 < -0.5), "Roxanne never came back down into the bunker");
 }
 
 // Pivot point 2, who you take.
@@ -122,7 +96,7 @@ fn sending_roxanne_she_goes_alone_and_comes_back() {
 fn going_with_roxanne_is_takes_dell() {
     let _p = pause();
     out_the_door();
-    assert!(within(600, || reached("takes Dell")), "the player came to the tap with Roxanne and reached nothing: {}", op("world")["reached"]);
+    assert!(within(300, || reached("takes Dell")), "the player came to the tap with Roxanne and reached nothing: {}", op("world")["reached"]);
 }
 
 /// Going to the tap with no one following or leading, the pivot point is
@@ -135,7 +109,7 @@ fn going_alone_is_takes_no_one() {
     op_with("key", json!({"key": "Escape"}));
     step(SECOND);
     walk_to(None, the_tap());
-    assert!(within(600, || reached("takes no one")), "the player went to the tap alone and reached nothing: {}", op("world")["reached"]);
+    assert!(within(300, || reached("takes no one")), "the player went to the tap alone and reached nothing: {}", op("world")["reached"]);
     assert!(!reached("takes Dell"), "going alone reached takes Dell");
 }
 
@@ -150,7 +124,7 @@ fn going_with_another_of_the_bunker_is_takes_someone_else() {
     op_with("key", json!({"key": "Escape"}));
     op_with("command", json!({"id": other, "do": "follow", "who": player()}));
     walk_to(None, the_tap());
-    assert!(within(600, || reached("takes someone else")), "the player went to the tap with {other} following and reached nothing");
+    assert!(within(300, || reached("takes someone else")), "the player went to the tap with {other} following and reached nothing");
 }
 
 // Pivot point 3, the first meeting with Mara's people at the tap.
@@ -160,18 +134,16 @@ fn going_with_another_of_the_bunker_is_takes_someone_else() {
 #[test]
 fn at_the_tap_mara_says_it_is_hers() {
     let _p = pause();
-    at_the_tap();
-    let mara = meet_mara_at_the_tap();
+    let mara = meet_mara();
     assert!(within(10, || says(mara, &["This is ours. We found it first.", "Walk away. This one's taken."])), "Mara said none of her lines at the tap: {:?}", heard_from(mara));
     assert!(within(5, || reached("the meeting")), "the meeting is not reached");
 }
 
-/// Each of the player's answers at the meeting reaches its pivot point and
+/// One of the player's answers at the meeting reaches its pivot point and
 /// Mara answers it.
 fn answer_mara(said: &[&str], pivot: &str, replies: &[&str]) {
     let _p = pause();
-    at_the_tap();
-    let mara = meet_mara_at_the_tap();
+    let mara = meet_mara();
     assert!(within(30, || choices().iter().any(|c| said.contains(&c.as_str()))), "none of {said:?} offered at the meeting: {:?}", choices());
     let words = choose(said);
     assert!(within(5, || reached(pivot)), "{words:?} did not reach {pivot}: {}", op("world")["reached"]);
@@ -194,15 +166,16 @@ fn leaving_mara_the_tap() {
 }
 
 /// Pushed all the way: Mara's people find the tap, camp there and guard it
-/// (todo 11z holding): one of them stays within 8 m of it a game minute on.
+/// (todo 11z holding): from just before they come, one comes and is still
+/// within 8 m of it a game minute on.
 #[test]
 fn maras_people_hold_the_tap() {
     let _p = pause();
-    at_the_tap();
+    from_save("tap_maras_people_coming");
     let maras = faction_of(part("Mara"));
     let tap = the_tap();
     let near = || of_faction(&maras).into_iter().find(|id| apart(spot_of(*id), tap).0 < 8.0);
-    assert!(within(600, || near().is_some()), "none of Mara's people came to hold the tap within ten game minutes");
+    assert!(within(120, || near().is_some()), "none of Mara's people came to hold the tap");
     let holder = near().unwrap_or_default();
     step(60 * SECOND);
     assert!(apart(spot_of(holder), tap).0 < 8.0, "Mara's person {holder} left the tap within a game minute: they hold nothing");
@@ -219,7 +192,7 @@ fn coming_home_having_told_no_one() {
     op_with("use", json!({"id": player(), "at": [tap.0, tap.1]}));
     step(SECOND);
     walk_to(None, home());
-    assert!(within(600, || reached("tells no one")), "the player came home having told no one, and reached nothing: {}", op("world")["reached"]);
+    assert!(within(300, || reached("tells no one")), "the player came home having told no one, and reached nothing: {}", op("world")["reached"]);
 }
 
 /// Having told Roxanne of the tap (the talk path's Tell), coming home is
@@ -237,34 +210,33 @@ fn coming_home_having_told_roxanne() {
     op_with("talk", json!({"id": player(), "to": roxanne(), "said": {"Tell": {"key": key}}}));
     step(SECOND);
     walk_to(None, home());
-    assert!(within(600, || reached("tells everyone")), "the player told Roxanne, came home, and reached nothing: {}", op("world")["reached"]);
+    assert!(within(300, || reached("tells everyone")), "the player told Roxanne, came home, and reached nothing: {}", op("world")["reached"]);
 }
 
 // Pivot point 5, Roxanne's storing (todo 11ag, operator: too much is water
 // for 10 days of the bunker's drinking).
 
 /// Pushed all the way: knowing the tap, Roxanne stores past 10 days of the
-/// bunker's drinking (the world op's `days_of_water` for the bunker).
+/// bunker's drinking: from just before, the store passes 10 days.
 #[test]
 fn roxanne_stores_past_ten_days_of_water() {
     let _p = pause();
-    at_the_tap();
-    let days = || bunker("player")["days_of_water"].as_f64();
-    let start = days().expect("the world op reports the player's bunker's days of water");
-    assert!(start < 10.0, "the store already holds {start:.1} days of water at the tap; nothing is shown");
-    assert!(within(1200, || days().is_some_and(|d| d > 10.0)), "Roxanne never stored past 10 days of water: {:?}", days());
+    from_save("tap_store_nine_days");
+    let start = days_of_water("player").expect("the world op reports the player's bunker's days of water");
+    assert!(start <= 10.0, "the save already holds {start:.1} days; it is not just before");
+    assert!(within(120, || days_of_water("player").is_some_and(|d| d > 10.0)), "Roxanne never stored past 10 days of water: {:?}", days_of_water("player"));
 }
 
 /// The player checking the store (Use on it) while it holds more than 10
-/// days of water: Roxanne says her line, and the three answers are offered.
+/// days of water: Roxanne says her line, and the answers are offered.
 #[test]
 fn checking_the_full_store_roxanne_explains() {
     let _p = pause();
-    at_the_tap();
-    assert!(within(1200, || bunker("player")["days_of_water"].as_f64().is_some_and(|d| d > 10.0)), "setup: the store never held past 10 days");
-    let store = bunker("player")["store"].clone();
-    let at = (store["at"][0].as_f64().expect("the world op reports where the bunker's store is"), store["at"][1].as_f64().unwrap_or(0.0), store["floor"].as_f64().unwrap_or(0.0));
+    from_save("tap_store_past_ten_days");
+    let at = store_of("player");
     walk_to(Some(roxanne()), at);
+    walk_to(None, at);
+    assert!(within(300, || apart(player_spot(), at).0 < 1.5), "setup: the player never reached the store");
     op_with("use", json!({"id": player(), "at": [at.0, at.1], "height": at.2}));
     let her = roxanne();
     assert!(within(120, || says(her, &["We might need it. You don't know. None of us know.", "It's not stealing if it's ours."])), "Roxanne never explained the store: {:?}", heard_from(her));
@@ -273,22 +245,22 @@ fn checking_the_full_store_roxanne_explains() {
 
 // Pivot point 6, the strangers (todo 11i newcomers; lines draft).
 
-/// Word of the tap brings newcomers: within a game hour of Mara's people
-/// knowing it, 2 to 4 people who were not in the world walk toward the tap.
+/// Word of the tap brings newcomers: from just before, 2 to 4 people who
+/// were not in the world come, walking toward the tap.
 #[test]
 fn word_of_the_tap_brings_strangers() {
     let _p = pause();
-    at_the_tap();
-    let before: Vec<u64> = people().into_iter().filter_map(|p| p["id"].as_u64()).collect();
+    from_save("tap_strangers_coming");
+    let last = newest();
     let tap = the_tap();
-    let newcomers = || -> Vec<u64> { people().into_iter().filter_map(|p| p["id"].as_u64()).filter(|id| !before.contains(id)).collect() };
-    assert!(within(3600, || newcomers().len() >= 2), "no newcomers came within a game hour");
-    let came = newcomers();
-    assert!(came.len() <= 4, "{} newcomers came in one group, more than 4", came.len());
-    let start: Vec<f64> = came.iter().map(|id| apart(spot_of(*id), tap).0).collect();
+    let came = || people().into_iter().filter_map(|p| p["id"].as_u64()).filter(|id| *id > last).collect::<Vec<u64>>();
+    assert!(within(120, || came().len() >= 2), "no newcomers came: {:?}", came());
+    let group = came();
+    assert!(group.len() <= 4, "{} newcomers came in one group, more than 4", group.len());
+    let start: Vec<f64> = group.iter().map(|id| apart(spot_of(*id), tap).0).collect();
     step(30 * SECOND);
-    let nearer = came.iter().zip(&start).filter(|(id, d)| apart(spot_of(**id), tap).0 < **d - 5.0).count();
-    assert!(nearer == came.len(), "the newcomers do not all walk toward the tap: {nearer} of {}", came.len());
+    let nearer = group.iter().zip(&start).filter(|(id, d)| apart(spot_of(**id), tap).0 < **d - 5.0).count();
+    assert!(nearer == group.len(), "the newcomers do not all walk toward the tap: {nearer} of {}", group.len());
 }
 
 /// Talking with a stranger who came for the water: their line, and the
@@ -296,12 +268,9 @@ fn word_of_the_tap_brings_strangers() {
 #[test]
 fn a_stranger_who_came_for_the_water_asks_for_it() {
     let _p = pause();
-    at_the_tap();
-    let before: Vec<u64> = people().into_iter().filter_map(|p| p["id"].as_u64()).collect();
-    assert!(within(3600, || people().iter().any(|p| p["id"].as_u64().is_some_and(|id| !before.contains(&id)))), "setup: no stranger came");
-    let stranger = people().into_iter().filter_map(|p| p["id"].as_u64()).find(|id| !before.contains(id)).unwrap_or_default();
-    walk_to(None, spot_of(stranger));
-    assert!(within(120, || apart(player_spot(), spot_of(stranger)).0 < 2.5), "setup: the player never reached the stranger");
+    from_save("tap_a_stranger_came");
+    let stranger = newest();
+    assert!(within(300, || apart(player_spot(), spot_of(stranger)).0 < 2.5 || { walk_to(None, spot_of(stranger)); false }), "setup: the player never reached the stranger");
     op_with("use", json!({"id": player(), "person": stranger}));
     assert!(within(10, || says(stranger, &["We heard there's water here.", "Word is you've got water to spare."])), "the stranger said neither line: {:?}", heard_from(stranger));
     let answers = ["What have you got?", "Not for you. Move on.", "Try the people at the tap. They've got plenty.", "You can stay with us."];
@@ -310,41 +279,24 @@ fn a_stranger_who_came_for_the_water_asks_for_it() {
 
 // Pivot point 7, Mara's well (operator: reads dry under a quarter).
 
-/// Drinking at the tap takes from Mara's store until it reads dry (todo
-/// 11ad); checking it there while dry is "finds Mara's well dry".
+/// Checking Mara's store while it reads dry is "finds Mara's well dry".
 #[test]
 fn checking_maras_dry_store_finds_out() {
     let _p = pause();
-    at_the_tap();
-    let maras = faction_of(part("Mara"));
-    let tap = the_tap();
-    for _ in 0..500 {
-        if bunker(&maras)["dry"] == true {
-            break;
-        }
-        op_with("use", json!({"id": player(), "at": [tap.0, tap.1]}));
-        step(SECOND / 2);
-    }
-    assert_eq!(bunker(&maras)["dry"], true, "Mara's store never read dry from drinking at the tap: {}", bunker(&maras));
-    let store = bunker(&maras)["store"].clone();
-    let at = (store["at"][0].as_f64().expect("the world op reports where Mara's store is"), store["at"][1].as_f64().unwrap_or(0.0), store["floor"].as_f64().unwrap_or(0.0));
-    walk_to(None, at);
-    assert!(within(900, || apart(player_spot(), at).0 < 1.5), "setup: the player never reached Mara's store");
+    from_save("tap_at_maras_dry_store");
+    let at = store_of(&faction_of(part("Mara")));
     op_with("use", json!({"id": player(), "at": [at.0, at.1], "height": at.2}));
     assert!(within(5, || reached("finds Mara's well dry")), "checking Mara's dry store reached nothing: {}", op("world")["reached"]);
 }
 
 // Pivot point 8, Mara's child (operator: asks whenever the player is near).
 
-/// Near Mara's child, they ask for water, and the four answers are
-/// offered.
+/// Near Mara's child, they ask for water, and the four answers are offered.
 #[test]
 fn maras_child_asks_for_water() {
     let _p = pause();
-    at_the_tap();
+    from_save("tap_beside_maras_child");
     let child = part("Mara's child");
-    walk_to(None, spot_of(child));
-    assert!(within(900, || apart(player_spot(), spot_of(child)).0 < 2.5), "setup: the player never reached Mara's child");
     assert!(within(10, || says(child, &["Is there water today?", "I'm thirsty."])), "Mara's child never asked: {:?}", heard_from(child));
     let answers = ["Here. Take this water.", "What will Mara give for it?", "Not today.", "Tell Mara it's hers if she stands with us."];
     assert!(within(30, || answers.iter().all(|a| choices().iter().any(|c| c == a))), "the four answers are not offered: {:?}", choices());
@@ -355,12 +307,10 @@ fn maras_child_asks_for_water() {
 #[test]
 fn bringing_the_child_water() {
     let _p = pause();
-    at_the_tap();
+    from_save("tap_beside_maras_child");
     let child = part("Mara's child");
     op_with("give", json!({"id": player(), "item": "water", "count": 1}));
     step(SECOND);
-    walk_to(None, spot_of(child));
-    assert!(within(900, || apart(player_spot(), spot_of(child)).0 < 2.5), "setup: the player never reached Mara's child");
     let water = |id: u64| op_with("npc", json!({"id": id}))["carrying"].as_array().into_iter().flatten().filter(|s| s["item"] == "water").map(|s| s["count"].as_u64().unwrap_or(0)).sum::<u64>();
     let child_had = water(child);
     assert!(within(30, || choices().iter().any(|c| c == "Here. Take this water.")), "setup: the answer is not offered");
@@ -372,19 +322,24 @@ fn bringing_the_child_water() {
 // Pivot point 9, the fight for the tap (draft: it starts the first game
 // morning after Mara's people hold the tap and strangers have come).
 
-/// The fight starts whether or not the player is there: with the player at
-/// home, Mara's people and the strangers fight at the tap.
+/// The fight starts whether or not the player is there: from just before,
+/// with the player at home, Mara's people and the strangers fight at the
+/// tap.
 #[test]
 fn the_fight_for_the_tap_starts_without_the_player() {
     let _p = pause();
-    at_the_tap();
-    walk_to(None, home());
+    from_save("tap_fight_morning");
+    assert!(player_spot().2 < -0.5, "the save does not have the player at home");
     let maras = faction_of(part("Mara"));
-    let alive_at_start = of_faction(&maras).len();
-    let before: Vec<u64> = people().into_iter().filter_map(|p| p["id"].as_u64()).collect();
-    let strangers_hit = || people().into_iter().filter(|p| p["id"].as_u64().is_some_and(|id| !before.contains(&id))).any(|p| p["health"].as_f64().unwrap_or(100.0) < 100.0 || p["dead"] == true);
-    let maras_hit = || of_faction(&maras).len() < alive_at_start || people().into_iter().filter(|p| p["faction"] == maras.as_str()).any(|p| p["health"].as_f64().unwrap_or(100.0) < 100.0);
-    assert!(within(7200, || strangers_hit() && maras_hit()), "no fight at the tap within two game hours with the player at home");
+    let hurt = |p: &serde_json::Value| p["health"].as_f64().unwrap_or(100.0) < 100.0 || p["dead"] == true;
+    // The strangers: those of no faction who came for the water, at the tap
+    // when the save was made.
+    let tap = the_tap();
+    let strangers: Vec<u64> = people().into_iter().filter(|p| p["faction"].is_null() && p["dead"] != true).filter_map(|p| p["id"].as_u64()).filter(|id| apart(spot_of(*id), tap).0 < 30.0).collect();
+    assert!(!strangers.is_empty(), "the save has no strangers at the tap");
+    let strangers_hurt = || people().iter().any(|p| p["id"].as_u64().is_some_and(|id| strangers.contains(&id)) && hurt(p));
+    let maras_hurt = || people().iter().any(|p| p["faction"] == maras.as_str() && hurt(p));
+    assert!(within(120, || strangers_hurt() && maras_hurt()), "no fight at the tap with the player at home");
 }
 
 // Pivot point 10, the last choice, and the endings (draft).
@@ -428,13 +383,13 @@ fn the_storm_takes_the_tap_and_memory_stays() {
     let heard_before = op("player")["heard"].as_array().map_or(0, |h| h.len());
     let seed = op("world")["seed"].clone();
     op_with("storm", json!({}));
-    assert!(within(600, || op("world")["seed"] != seed), "the storm never came");
+    assert!(within(120, || op("world")["seed"] != seed), "the storm never came");
     let things = op("world")["things"].clone();
     assert!(!things.as_array().into_iter().flatten().any(|t| t["name"] == "tap"), "the tap is still in the world after the storm: {things}");
     assert!(op("player")["heard"].as_array().map_or(0, |h| h.len()) >= heard_before, "the player forgot what they heard");
     let knows_now: Vec<u64> = op_with("npc", json!({"id": her}))["knows"].as_array().into_iter().flatten().filter_map(|k| k["key"].as_u64()).collect();
-    let people_kept = knew.iter().filter(|k| knows_now.contains(k)).count();
-    assert!(people_kept > 0 || knew.is_empty(), "Roxanne forgot everything she knew across the storm");
+    let kept = knew.iter().filter(|k| knows_now.contains(k)).count();
+    assert!(kept > 0 || knew.is_empty(), "Roxanne forgot everything she knew across the storm");
 }
 
 /// The next episode is cast from what people remember of the player: every
@@ -442,11 +397,10 @@ fn the_storm_takes_the_tap_and_memory_stays() {
 #[test]
 fn the_next_episode_is_cast_by_feeling() {
     let _p = pause();
-    at_the_tap();
-    let _ = meet_mara_at_the_tap();
+    let _ = meet_mara();
     let seed = op("world")["seed"].clone();
     op_with("storm", json!({}));
-    assert!(within(600, || op("world")["seed"] != seed), "the storm never came");
+    assert!(within(120, || op("world")["seed"] != seed), "the storm never came");
     let w = op("world");
     let cast = w["cast"].as_array().cloned().unwrap_or_default();
     assert!(!cast.is_empty(), "the next episode ({}) has no one cast", w["episode"]);

@@ -7,7 +7,7 @@
 
 use serde_json::json;
 
-use crate::endpoint::{op_with, pause, people, step};
+use crate::endpoint::{from_save, op_with, pause, people, step};
 use crate::opening::{SECOND, apart, spot_of, within, woke};
 
 /// Two living people far from the player's bunker: the holder, and one who
@@ -45,15 +45,16 @@ fn told_to_hold_a_place_they_stay() {
 #[test]
 fn a_hostile_who_comes_is_warned_once_then_fought() {
     let _p = pause();
-    woke();
+    // Just before the raider comes within 8 m of the held place (tests/
+    // saves.rs holding_raider_coming): the holder is the bunker person
+    // commanded to hold, the raider the one walking for it.
+    from_save("holding_raider_coming");
     let everyone = people();
     let alive = |def: &str| everyone.iter().filter(|p| p["dead"] != true && p["def"] == def && p["faction"] != "player").filter_map(|p| p["id"].as_u64()).next();
     let holder = alive("bunker person").expect("a living person of another bunker");
     let intruder = alive("raider").expect("a living raider");
     let place = spot_of(holder);
-    op_with("command", json!({"id": holder, "do": "hold", "x": place.0, "y": place.2, "z": place.1}));
-    op_with("command", json!({"id": intruder, "do": "move_to", "x": place.0, "y": place.2, "z": place.1}));
-    assert!(within(600, || apart(spot_of(intruder), place).0 < 8.0), "setup: the raider never came within 8 m of the held place");
+    assert!(within(60, || apart(spot_of(intruder), place).0 < 8.0), "the raider never came within 8 m of the held place");
     let warned = || heard_from_to(holder, intruder);
     assert!(within(10, || warned() >= 1), "the holder never warned the intruder");
     let health = |id: u64| op_with("npc", json!({"id": id}))["health"].as_f64().unwrap_or(0.0);

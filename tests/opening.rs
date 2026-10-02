@@ -276,6 +276,13 @@ pub(crate) fn out_the_door() {
         choosing();
         choose(&["Show me.", "Let's go."]);
         let out = within(120, || player_spot().2 > -0.5 && op("player")["following"].as_u64() == Some(roxanne()));
+        if !out {
+            // Which link of "Show me." to out the door broke.
+            let her = op_with("npc", json!({"id": roxanne()}));
+            eprintln!("reached: {}", op("world")["reached"]);
+            eprintln!("the player following: {}, at {:?}", op("player")["following"], player_spot());
+            eprintln!("Roxanne at {:?}, leading {}, way {}, doing {}", spot_of(roxanne()), her["leading"], her["way"], her["doing"]);
+        }
         assert!(out, "reaching opening_out_the_door: the player was not following Roxanne on the ground within two game minutes");
     });
 }
@@ -347,7 +354,10 @@ fn roxanne_comes_to_the_players_shut_door() {
     read_the_note();
     let came = within(60, || {
         let (far, level) = apart(spot_of(her), at);
-        far < 2.0 && level
+        // Her knock spot is 0.7 m out and 1.2 m beside the doorway, and she
+        // arrives within 0.5 m of it (interact.rs knock_spot,
+        // KNOCK_ARRIVE): up to about 2.4 m from the door.
+        far < 2.5 && level
     });
     assert!(came, "Roxanne never came to the player's door at {at:?}: she stands at {:?}", spot_of(her));
 }
@@ -403,7 +413,10 @@ fn roxanne_says_the_water_is_low_and_tells_the_way_to_the_tap() {
     let lines: Vec<String> = heard_from(her).into_iter().map(|(_, w)| w).collect();
     eprintln!("Roxanne said: {lines:?}");
     assert!(shown, "no answers shown within a game minute");
-    assert!(lines.iter().any(|l| l.contains("water")), "Roxanne never said the water is low");
+    // "The opening" is the line that says the water is nearly gone, in any
+    // of its three ways (one says "the store's down to a few bottles").
+    let opening_said = op("player")["heard"].as_array().into_iter().flatten().any(|h| h["by"].as_u64() == Some(her) && h["line"] == "the opening");
+    assert!(opening_said, "Roxanne never said the opening line, that the water is nearly gone: {lines:?}");
     let way = lines.iter().find(|l| l.contains("tap")).cloned().unwrap_or_else(|| panic!("Roxanne never gave the way to the tap"));
     assert!(!way.contains('{'), "a part of the way left unfilled: {way:?}");
     the_way_is_true(&way);
