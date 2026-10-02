@@ -475,8 +475,19 @@ fn show_me_believes_roxanne_and_she_says_follow_me() {
     choosing();
     let her = roxanne();
     assert!(!reached("believes Dell"), "believing Roxanne was reached before the player chose: {}", op("world")["reached"]);
+    let shown = talk();
     let words = choose(&["Show me.", "Let's go."]);
     let believed = within(5, || reached("believes Dell"));
+    if !believed {
+        // Why the choice reached nothing: was it said (the player's memory),
+        // was the box still offering it, and how far apart were the two.
+        let p = op("player");
+        eprintln!("the talk box when chosen: {shown}");
+        eprintln!("the talk box now: {}", talk());
+        eprintln!("the player said: {}", p["said"]);
+        eprintln!("the player heard: {}", p["heard"]);
+        eprintln!("the player and Roxanne {:.2} m apart", apart(player_spot(), spot_of(her)).0);
+    }
     assert!(believed, "{words:?} reached nothing: reached {}", op("world")["reached"]);
     let replies = ["Follow me. Keep up.", "This way. Stay close."];
     let replied = within(5, || heard_from(her).iter().any(|(_, w)| replies.contains(&w.as_str())));
