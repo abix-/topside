@@ -129,6 +129,54 @@ pub struct ThingsMade {
     pub people: bool,
 }
 
+/// The chunks made when the game was saved (`Chunks::made` then). Saved;
+/// a load into the same world takes back every chunk made since (`unmake`),
+/// so the world is as it was, never with chunks the saved game did not
+/// have yet.
+#[derive(Resource, Default, Clone, serde::Serialize, serde::Deserialize, Reflect)]
+#[reflect(opaque, Resource, Serialize, Deserialize)]
+pub struct SavedChunks(pub std::collections::BTreeSet<ChunkKey>);
+
+/// The chunks made now, for a save.
+pub fn chunks_now(world: &World) -> SavedChunks {
+    SavedChunks(world.get_resource::<Chunks>().map(|c| c.made.iter().copied().collect()).unwrap_or_default())
+}
+
+/// The chunks `keys` taken back, as if never made: everything they made
+/// of the world despawned (`OfChunk`), they and their sites out of
+/// `Chunks` and the monuments, so they are made again when needed, their
+/// own things with them (`ThingsMade` does not have them). Their meshes go
+/// with them (`navmesh::wait_for_chunks`, a chunk no longer made).
+pub fn unmake(world: &mut World, keys: &std::collections::BTreeSet<ChunkKey>) {
+    if keys.is_empty() {
+        return;
+    }
+    let pieces: Vec<Entity> = world.query::<(Entity, &OfChunk)>().iter(world).filter(|(_, c)| keys.contains(&c.0)).map(|(e, _)| e).collect();
+    for piece in pieces {
+        if let Ok(piece) = world.get_entity_mut(piece) {
+            piece.despawn();
+        }
+    }
+    let of = |cell: (i32, i32)| keys.contains(&(cell.0.div_euclid(CHUNK), cell.1.div_euclid(CHUNK)));
+    if let Some(mut chunks) = world.get_resource_mut::<Chunks>() {
+        for key in keys {
+            chunks.made.remove(key);
+            chunks.ground.remove(key);
+            chunks.shores.remove(key);
+        }
+        chunks.sites.retain(|cell| !of(*cell));
+        let roads = chunks.ground.values().flatten().filter(|g| **g == Ground::Road).count();
+        chunks.roads = roads;
+    }
+    if let Some(mut monuments) = world.get_resource_mut::<crate::structure::MonumentsRes>() {
+        let due: Vec<Vec2> = monuments.1.iter().filter_map(|i| monuments.0.get(*i).map(|(at, _)| *at)).collect();
+        monuments.0.retain(|(at, _)| !of(cell_of(*at)));
+        let kept = monuments.0.iter().enumerate().filter(|(_, (at, _))| due.contains(at)).map(|(i, _)| i).collect();
+        monuments.1 = kept;
+    }
+    info!("took back {} chunks made after the save", keys.len());
+}
+
 /// With a window: the one material every chunk's ground mesh is drawn
 /// with, its colour from each tile's corners (the ground kind's colour).
 #[derive(Resource)]
@@ -205,8 +253,15 @@ fn runs_of(f: (i32, i32), ground: &[Ground], of: impl Fn((i32, i32), Ground) -> 
     out
 }
 
-/// One static body of `rects`, each from `bottom` up `height` tall.
-fn body(commands: &mut Commands, rects: &[Rect], bottom: f32, height: f32, sight: bool) -> Option<Entity> {
+/// What one chunk made of the world (its ground, what stands on it, its
+/// sites' buildings and props), by the chunk, so a load can take back the
+/// chunks made after its save (`unmake`).
+#[derive(Component, Clone, Copy, Debug, PartialEq, Eq)]
+pub struct OfChunk(pub ChunkKey);
+
+/// One static body of `rects`, each from `bottom` up `height` tall, made
+/// by chunk `key`.
+fn body(commands: &mut Commands, key: ChunkKey, rects: &[Rect], bottom: f32, height: f32, sight: bool) -> Option<Entity> {
     if rects.is_empty() {
         return None;
     }
@@ -221,7 +276,7 @@ fn body(commands: &mut Commands, rects: &[Rect], bottom: f32, height: f32, sight
             )
         })
         .collect();
-    let mut e = commands.spawn((WorldPiece, RigidBody::Static, Collider::compound(shapes), Transform::default()));
+    let mut e = commands.spawn((WorldPiece, OfChunk(key), RigidBody::Static, Collider::compound(shapes), Transform::default()));
     if sight {
         e.insert(BlocksSight);
     }
@@ -240,7 +295,7 @@ pub struct GroundBody(pub ChunkKey);
 /// The ground slab of one chunk, none on its open tiles.
 fn ground_body(commands: &mut Commands, key: ChunkKey, ground: &[Ground], open: &HashSet<(i32, i32)>) {
     let first = (key.0 * CHUNK, key.1 * CHUNK);
-    if let Some(e) = body(commands, &runs_of(first, ground, |t, _| !open.contains(&t)), -GROUND_THICK, GROUND_THICK, false) {
+    if let Some(e) = body(commands, key, &runs_of(first, ground, |t, _| !open.contains(&t)), -GROUND_THICK, GROUND_THICK, false) {
         commands.entity(e).insert(GroundBody(key));
     }
 }
@@ -308,10 +363,10 @@ pub fn make_chunks(
         chunks.roads += chunk.ground.iter().filter(|g| **g == Ground::Road).count();
         chunks.ground.insert(key, chunk.ground.to_vec());
         let first = chunk.first();
-        body(&mut commands, &runs_of(first, &chunk.ground, |_, g| g == Ground::Water), 0.0, WATER_HEIGHT, false);
+        body(&mut commands, key, &runs_of(first, &chunk.ground, |_, g| g == Ground::Water), 0.0, WATER_HEIGHT, false);
         let mut solid = runs_of(first, &chunk.ground, |_, g| matches!(g, Ground::Cliff | Ground::OutOfMap));
         solid.extend(chunk.things.iter().filter(|t| t.source.is_none()).map(|t| t.rect()));
-        body(&mut commands, &solid, 0.0, SOLID_HEIGHT, true);
+        body(&mut commands, key, &solid, 0.0, SOLID_HEIGHT, true);
         ground_body(&mut commands, key, &chunk.ground, &open);
         let shore = shore_of(&chunk);
         if !shore.is_empty() {
@@ -364,7 +419,7 @@ fn draw(commands: &mut Commands, chunk: &GroundChunk, open: &HashSet<(i32, i32)>
         // Its model; never a box (design.md: no coloured boxes).
         match &thing.picture {
             Some(name) => {
-                commands.spawn((WorldPiece, Model(name.clone()), at));
+                commands.spawn((WorldPiece, OfChunk(key), Model(name.clone()), at));
             }
             None => warn!("a thing at {:?} has no model", thing.tile),
         }
@@ -453,6 +508,7 @@ fn draw_ground(
     commands.spawn((
         WorldPiece,
         GroundMesh(key),
+        OfChunk(key),
         Mesh3d(meshes.add(mesh)),
         MeshMaterial3d(material.clone()),
         Transform::default(),

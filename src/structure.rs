@@ -366,9 +366,12 @@ pub fn spawn_sites(
         let monument = site.rolled.clone();
         // Its doors, loot boxes and people made once a world; made again
         // after a load, they come from the save.
+        // Its buildings and props are its chunk's, taken back with it.
+        let of_chunk = crate::terrain::OfChunk(crate::terrain::chunk_of(site.position));
         for member in &monument.members {
             let at = site.position + Vec2::new(member.offset.x, member.offset.z);
-            spawn_structure(&mut commands, &mut ids, &member.structure, at, true, things.then_some(WILD_DOOR));
+            let root = spawn_structure(&mut commands, &mut ids, &member.structure, at, true, things.then_some(WILD_DOOR));
+            commands.entity(root).insert(of_chunk);
         }
         if !monument.props.is_empty() {
             let shapes: Vec<(Vec3, Rotation, Collider)> = monument
@@ -384,6 +387,7 @@ pub fn spawn_sites(
                 .collect();
             commands.spawn((
                 WorldPiece,
+                of_chunk,
                 RigidBody::Static,
                 Collider::compound(shapes),
                 Transform::from_translation(on_ground(site.position, 0.0)),
@@ -394,7 +398,7 @@ pub fn spawn_sites(
                 // Its model; never a box (design.md: no coloured boxes).
                 match &p.picture {
                     Some(name) => {
-                        commands.spawn((WorldPiece, Model(name.clone()), at));
+                        commands.spawn((WorldPiece, of_chunk, Model(name.clone()), at));
                     }
                     None => warn!("a prop of {} has no model", monument.name),
                 }

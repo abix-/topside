@@ -194,6 +194,7 @@ fn wait_for_chunks(
             commands.entity(island).despawn();
         }
         nav.waiting.remove(&key);
+        nav.landing.remove(&key);
     }
     let new: Vec<ChunkKey> = chunks.made.iter().filter(|k| !nav.islands.contains_key(k) && !nav.waiting.contains_key(k)).copied().collect();
     for key in new {
@@ -383,6 +384,28 @@ pub fn mesh_the_loaded_world(world: &mut World) {
         bevy_rerecast::generator::land(world, id);
     }
     info!("the loaded world's {count} chunk meshes landed in {:.0} ms", start.elapsed().as_secs_f64() * 1000.0);
+}
+
+/// After a load into the same world, the mesh as it was at the save: what
+/// is building now that the saved game was not building is dropped, and
+/// every chunk mesh the saved game was still building (`MeshesLanding`) is
+/// asked again now and lands at its saved tick, its island before then
+/// gone, as in the saved game.
+pub fn mesh_as_saved(world: &mut World) {
+    let saved = world.get_resource::<MeshesLanding>().map(|m| m.0.clone()).unwrap_or_default();
+    let islands: Vec<Entity> = {
+        let mut nav = world.resource_mut::<Nav>();
+        nav.landing.retain(|key, _| saved.contains_key(key));
+        nav.waiting.clear();
+        nav.changed.clear();
+        saved.keys().filter_map(|key| nav.islands.remove(key)).map(|(_, island)| island).collect()
+    };
+    for island in islands {
+        if let Ok(island) = world.get_entity_mut(island) {
+            island.despawn();
+        }
+    }
+    mesh_the_loaded_world(world);
 }
 
 /// A chunk mesh that failed to build: no mesh for that chunk, said with

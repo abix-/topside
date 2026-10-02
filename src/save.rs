@@ -114,6 +114,7 @@ saved! {
         crate::terrain::ThingsMade,
         crate::navmesh::MeshesLanding,
         crate::interact::ThingIssuer,
+        crate::terrain::SavedChunks,
     ]
 }
 
@@ -150,7 +151,7 @@ fn answer(result: Result<serde_json::Value, String>) {
 /// resource changes its fields, so an older save is refused plainly
 /// instead of failing halfway (todo 31a). Test saves are then made again
 /// by playing (9k).
-pub const VERSION: u32 = 4;
+pub const VERSION: u32 = 5;
 
 /// What a save says first, on its own line, before the saved world: the
 /// format's version and the world it was made in (the seed, the world's
@@ -237,7 +238,15 @@ pub fn answer_save(world: &mut World) {
         }
         Ask::Load(name) => match read_save(world, &name) {
             Ok((header, saved)) => {
-                roll_saved_world(world, &header);
+                // The world is rolled once (authority.md "Running tests"):
+                // a save of the world running keeps its ground, buildings
+                // and mesh; only a save of another world rolls that one.
+                let now = Header::of(world);
+                let rolled = (header.seed, &header.world, header.shifts) != (now.seed, &now.world, now.shifts);
+                if rolled {
+                    roll_saved_world(world, &header);
+                }
+                world.insert_resource(LoadRolled(rolled, std::time::Instant::now()));
                 world.trigger_load(LoadWorld::<moonshine_save::load::DefaultUnloadFilter>::new(LoadInput::World(saved), Default::default()));
             }
             Err(e) => answer(Err(e)),
@@ -254,9 +263,12 @@ fn start_save(world: &mut World, name: &str) -> Result<(), String> {
     let header = serde_json::to_string(&Header::of(world)).map_err(|e| e.to_string())?;
     let mut file = std::fs::File::create(&path).map_err(|e| format!("writing {}: {e}", path.display()))?;
     writeln!(file, "{HEADER}{header}").map_err(|e| format!("writing {}: {e}", path.display()))?;
-    // The chunk meshes still building now, saved with the rest.
+    // The chunk meshes still building now, and the chunks made, saved with
+    // the rest.
     let landing = crate::navmesh::landing_now(world);
     world.insert_resource(landing);
+    let made = crate::terrain::chunks_now(world);
+    world.insert_resource(made);
     let mut save = SaveWorld::default_into_stream(file);
     save.components = components();
     save.resources = resources();
@@ -371,13 +383,28 @@ fn saved(_: On<Saved>, moment: Moment) {
 /// with what the game holds (`Moment`), the saved moment.
 fn loaded(loaded: On<Loaded>, mut actors: ResMut<crate::actor::ActorMapRes>, mut commands: Commands) {
     actors.0.map_handles(|e| loaded.entity_map.get(&e).copied());
-    commands.queue(|world: &mut World| {
-        let _ = world.run_system_cached(crate::terrain::make_chunks);
-        let _ = world.run_system_cached(crate::structure::spawn_sites);
-        let _ = world.run_system_cached(crate::terrain::open_the_ground);
-        let _ = world.run_system_cached(crate::actor::populate_monuments);
-        let _ = world.run_system_cached(crate::actor::populate_topside_people);
-        crate::navmesh::mesh_the_loaded_world(world);
+    commands.queue(move |world: &mut World| {
+        let (rolled, start) = world.remove_resource::<LoadRolled>().map_or((false, std::time::Instant::now()), |r| (r.0, r.1));
+        if rolled {
+            let _ = world.run_system_cached(crate::terrain::make_chunks);
+            let _ = world.run_system_cached(crate::structure::spawn_sites);
+            let _ = world.run_system_cached(crate::terrain::open_the_ground);
+            let _ = world.run_system_cached(crate::actor::populate_monuments);
+            let _ = world.run_system_cached(crate::actor::populate_topside_people);
+            crate::navmesh::mesh_the_loaded_world(world);
+        } else {
+            // The same world: the chunks made since the save taken back.
+            let saved = world.get_resource::<crate::terrain::SavedChunks>().map(|s| s.0.clone()).unwrap_or_default();
+            let since: std::collections::BTreeSet<_> = crate::terrain::chunks_now(world).0.difference(&saved).copied().collect();
+            crate::terrain::unmake(world, &since);
+            crate::navmesh::mesh_as_saved(world);
+        }
+        info!("load done in {:.0} ms ({})", start.elapsed().as_secs_f64() * 1000.0, if rolled { "its world rolled and meshed" } else { "the same world" });
         answer(world.run_system_cached(|moment: Moment| moment.read()).map_err(|e| format!("reading the loaded game: {e}")));
     });
 }
+
+/// Whether the load under way rolled its world (another world than the
+/// running one), and when it began, for `loaded`.
+#[derive(Resource)]
+struct LoadRolled(bool, std::time::Instant);
