@@ -143,28 +143,113 @@ fn answer(result: Result<serde_json::Value, String>) {
     }
 }
 
+/// The save format's version: raised whenever a saved component or
+/// resource changes its fields, so an older save is refused plainly
+/// instead of failing halfway (todo 31a). Test saves are then made again
+/// by playing (9k).
+pub const VERSION: u32 = 1;
+
+/// What a save says first, on its own line, before the saved world: the
+/// format's version and the world it was made in (the seed, the world's
+/// size, how many times the storm has shifted it), and its tick. A RON
+/// comment, so the save is still plain RON.
+#[derive(serde::Serialize, serde::Deserialize, Debug, PartialEq)]
+pub struct Header {
+    pub version: u32,
+    pub seed: u64,
+    pub world: String,
+    pub shifts: u32,
+    pub tick: u64,
+}
+
+/// How a save's first line begins.
+const HEADER: &str = "// topside save ";
+
+impl Header {
+    /// The running game's.
+    fn of(world: &World) -> Self {
+        Self {
+            version: VERSION,
+            seed: world.resource::<crate::WorldSeed>().0,
+            world: format!("{:?}", world.resource::<crate::content::WorldKind>()).to_lowercase(),
+            shifts: world.resource::<crate::storm::StormRes>().shifts,
+            tick: world.resource::<SimTick>().0,
+        }
+    }
+
+    /// Why a save with this header cannot load into the running game
+    /// (`now`), if it cannot: another version, or another world.
+    fn refuses(&self, now: &Header) -> Option<String> {
+        if self.version != now.version {
+            return Some(format!("the save is version {}, this game reads version {}: make the save again by playing", self.version, now.version));
+        }
+        if (self.seed, &self.world, self.shifts) != (now.seed, &now.world, now.shifts) {
+            return Some(format!(
+                "the save was made in another world (seed {}, {} world, shifted {} times), this game is in seed {}, {} world, shifted {} times",
+                self.seed, self.world, self.shifts, now.seed, now.world, now.shifts
+            ));
+        }
+        None
+    }
+}
+
 /// Every step: a save or a load asked for is started, and answers from
-/// `saved` or `loaded` once done.
+/// `saved` or `loaded` once done, or at once with why it cannot be.
 pub fn answer_save(mut commands: Commands) {
     let Some(ask) = ASK.lock().ok().and_then(|mut ask| ask.take()) else {
         return;
     };
-    match ask {
+    commands.queue(move |world: &mut World| match ask {
         Ask::Save(name) => {
-            let mut save = SaveWorld::default_into_file(path_of(&name));
-            save.components = components();
-            save.resources = resources();
-            commands.trigger_save(save);
-        }
-        Ask::Load(name) => {
-            let path = path_of(&name);
-            if !path.exists() {
-                answer(Err(format!("no save at {}", path.display())));
-                return;
+            if let Err(e) = start_save(world, &name) {
+                answer(Err(e));
             }
-            commands.trigger_load(LoadWorld::default_from_file(path));
         }
+        Ask::Load(name) => match read_save(world, &name) {
+            Ok(saved) => world.trigger_load(LoadWorld::<moonshine_save::load::DefaultUnloadFilter>::new(LoadInput::World(saved), Default::default())),
+            Err(e) => answer(Err(e)),
+        },
+    });
+}
+
+/// The save's file opened with its header line written, and the saved
+/// world written after it.
+fn start_save(world: &mut World, name: &str) -> Result<(), String> {
+    use std::io::Write;
+    let path = path_of(name);
+    std::fs::create_dir_all(SAVES).map_err(|e| format!("making {SAVES}: {e}"))?;
+    let header = serde_json::to_string(&Header::of(world)).map_err(|e| e.to_string())?;
+    let mut file = std::fs::File::create(&path).map_err(|e| format!("writing {}: {e}", path.display()))?;
+    writeln!(file, "{HEADER}{header}").map_err(|e| format!("writing {}: {e}", path.display()))?;
+    let mut save = SaveWorld::default_into_stream(file);
+    save.components = components();
+    save.resources = resources();
+    world.trigger_save(save);
+    Ok(())
+}
+
+/// The saved world in a save, read only if its header says it loads into
+/// this game; every way it cannot, said plainly.
+fn read_save(world: &mut World, name: &str) -> Result<bevy::world_serialization::DynamicWorld, String> {
+    use serde::de::DeserializeSeed;
+    let path = path_of(name);
+    let bytes = std::fs::read(&path).map_err(|e| format!("no save at {}: {e}", path.display()))?;
+    let first = bytes.split(|b| *b == b'\n').next().unwrap_or_default();
+    let header: Header = std::str::from_utf8(first)
+        .ok()
+        .and_then(|line| line.trim_end().strip_prefix(HEADER))
+        .and_then(|json| serde_json::from_str(json).ok())
+        .ok_or_else(|| format!("{} has no topside save header: make the save again by playing", path.display()))?;
+    if let Some(why) = header.refuses(&Header::of(world)) {
+        return Err(format!("{} not loaded: {why}", path.display()));
     }
+    let mut assets = world.resource::<AssetServer>().clone();
+    let registry = world.resource::<AppTypeRegistry>().clone();
+    let registry = registry.read();
+    let mut ron = ron::Deserializer::from_bytes(&bytes).map_err(|e| format!("{} not loaded: {e}", path.display()))?;
+    bevy::world_serialization::serde::WorldDeserializer { type_registry: &registry, load_from_path: &mut assets }
+        .deserialize(&mut ron)
+        .map_err(|e| format!("{} not loaded, it does not read as this version's save (a saved type changed without raising VERSION?): {e}", path.display()))
 }
 
 /// What the game holds at one moment, read the same way when saved and
