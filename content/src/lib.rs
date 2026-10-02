@@ -19,7 +19,7 @@ use modforge::survival::Need;
 use modforge::item::{Armor, CombatStats, FoodStats, ItemDef, ItemKind, ItemRegistry, LayerDef, LayerRegistry, Note};
 use modforge::monument::Roll;
 use modforge::reality::{Danger, RealityDef, RealityRegistry};
-use modforge::storyteller::{CastFrom, EpisodeDef, EpisodeRegistry, LineDef, PartDef, When};
+use modforge::storyteller::{CastFrom, CueAct, CueDef, EpisodeDef, EpisodeRegistry, LineDef, PartDef, When};
 use modforge::monument::{
     Arrangement, BuildingRegistry, BuildingSize, BuildingSlot, BuildingTypeDef,
     MonumentRegistry, MonumentTypeDef, PropDef,
@@ -465,6 +465,7 @@ pub fn register_episodes(reg: &mut EpisodeRegistry) {
         fits: fits.iter().map(|r| r.to_string()).collect(),
         parts: Vec::new(),
         lines: Vec::new(),
+        cues: Vec::new(),
     };
     let part = |name: &str, from| PartDef { name: name.to_string(), from };
     let s = |s: &str| s.to_string();
@@ -559,6 +560,10 @@ pub fn register_episodes(reg: &mut EpisodeRegistry) {
                 reply("Mara answers a threat", "Mara", "threatens Mara", &["Try it.", "You'll regret that."]),
                 reply("Mara keeps it", "Mara", "leaves Mara the tap", &["Smart.", "Good. Go."]),
             ],
+            // How it opens (the-tap.md, operator 2026-10-02): the player
+            // reads the note and Dell starts down at once, to their door,
+            // and knocks.
+            cues: vec![CueDef { name: "the note read".to_string(), did: "read note".to_string(), part: "Dell".to_string(), does: CueAct::KnockOnThePlayer }],
             ..episode("The Tap", &["Mixed world", "Sky Islands"])
         },
         episode("The Fever", &[]),

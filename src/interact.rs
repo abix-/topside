@@ -502,7 +502,7 @@ pub fn interact_on_use(
             }
             continue;
         }
-        use_thing(
+        let read = use_thing(
             &mut commands,
             &registry,
             (entity, thing, door, item, transform),
@@ -511,6 +511,11 @@ pub fn interact_on_use(
             &mut open,
             &mut station,
         );
+        // Reading is something done, remembered as anything done is (an
+        // episode's cue may wait on it: The Tap's note).
+        if let (Some(read), Some(memory)) = (read, memory.as_deref_mut()) {
+            memory.0.did(modforge::memory::Did::Read(read), tick.0);
+        }
     }
 }
 
@@ -546,21 +551,22 @@ fn use_thing(
     hud: &mut Hud,
     open: &mut OpenContainer,
     station: &mut OpenStation,
-) {
+) -> Option<String> {
     let stack = item.map(|w| w.stack.clone());
     let max_stack = match &stack {
         Some(stack) => match registry.0.def(&stack.item) {
             Some(def) => def.max_stack,
             // Not a registered item: it never enters the inventory.
-            None => return,
+            None => return None,
         },
         None => 0,
     };
+    let what = stack.as_ref().map(|s| s.item.clone());
     // modforge decides what happens; this carries out the engine side.
     match interact(thing.kind, &mut inventory.0, stack, max_stack, &mut hud.0) {
         InteractResult::ToggleDoor => {
             let Some(mut door) = door else {
-                return;
+                return None;
             };
             door.open = !door.open;
             thing.kind = InteractKind::Door { open: door.open };
@@ -585,9 +591,12 @@ fn use_thing(
                 _ => None,
             };
         }
-        // The note's words are in the HUD state now; nothing moves. A
-        // gate stays shut. A full inventory leaves the item lying.
-        // A source is eaten from before this (`eat_from_source`), never here.
-        InteractResult::Read | InteractResult::Locked(_) | InteractResult::InventoryFull | InteractResult::UseSource => {}
+        // The note's words are in the HUD state now; nothing moves; what
+        // was read is answered, for the reader's memory.
+        InteractResult::Read => return what,
+        // A gate stays shut. A full inventory leaves the item lying. A
+        // source is eaten from before this (`eat_from_source`), never here.
+        InteractResult::Locked(_) | InteractResult::InventoryFull | InteractResult::UseSource => {}
     }
+    None
 }

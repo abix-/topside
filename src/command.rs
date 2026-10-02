@@ -135,14 +135,22 @@ pub fn give(
     let mut new: HashMap<Entity, VecDeque<Command>> = HashMap::new();
     for (who, command) in due {
         given.0.push(Given { tick: tick.0, who, command });
-        match people.iter_mut().find(|(_, a, _)| a.0.0 == who) {
-            Some((_, _, Some(mut has))) => has.left.push_back(command),
-            Some((entity, _, None)) => new.entry(entity).or_default().push_back(command),
-            None => warn!("command {command:?} for {who}: nobody by that id"),
-        }
+        order(&mut people, &mut new, who, command);
     }
     for (entity, left) in new {
         commands.entity(entity).insert(Commanded { left, started: false });
+    }
+}
+
+/// The one way an order reaches a person: onto the end of their commands
+/// left, or, with none, into `new`, the commands to give them this step
+/// (the caller inserts each as their `Commanded`). A command given
+/// (`give`) and an episode's cue (episode::cues) alike.
+pub fn order(people: &mut Query<(Entity, &Actor, Option<&mut Commanded>)>, new: &mut HashMap<Entity, VecDeque<Command>>, who: u64, command: Command) {
+    match people.iter_mut().find(|(_, a, _)| a.0.0 == who) {
+        Some((_, _, Some(mut has))) => has.left.push_back(command),
+        Some((entity, _, None)) => new.entry(entity).or_default().push_back(command),
+        None => warn!("command {command:?} for {who}: nobody by that id"),
     }
 }
 

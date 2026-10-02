@@ -246,6 +246,43 @@ pub fn place_the_tap(
     info!("the tap stands in the {} at {at}, drawing from Mara's bunker's store", site.monument);
 }
 
+/// Every step: each cue of the episode running whose deed the player has
+/// done (modforge `cues_due`; The Tap: the note read) has the person cast
+/// in its part do its order, through the one way an order reaches a person
+/// (command::order), and is reached, once.
+pub fn cues(
+    mut commands: Commands,
+    tick: Res<crate::SimTick>,
+    mut episode: ResMut<Episode>,
+    episodes: Res<EpisodeRegistryRes>,
+    players: Query<(&Actor, &Memory), With<crate::player::Player>>,
+    mut people: Query<(Entity, &Actor, Option<&mut crate::command::Commanded>)>,
+) {
+    let Some(def) = episode.name.as_ref().and_then(|name| episodes.0.def(name)) else {
+        return;
+    };
+    let Ok((player, memory)) = players.single() else {
+        return;
+    };
+    let reached: Vec<&str> = episode.reached.iter().map(|(name, ..)| name.as_str()).collect();
+    let due: Vec<modforge::storyteller::CueDef> = modforge::storyteller::cues_due(def, &memory.0.done, episode.started, &reached).into_iter().cloned().collect();
+    let mut new = std::collections::HashMap::new();
+    for cue in due {
+        let Some(who) = episode.cast_as(&cue.part) else {
+            continue;
+        };
+        let order = match cue.does {
+            modforge::storyteller::CueAct::KnockOnThePlayer => modforge::command::Command::Knock { who: player.0.0 },
+        };
+        crate::command::order(&mut people, &mut new, who.0, order);
+        info!("cue {}: {} ({:?}) {:?}", cue.name, cue.part, who, cue.does);
+        episode.reached.push((cue.name.clone(), who, tick.0));
+    }
+    for (entity, left) in new {
+        commands.entity(entity).insert(crate::command::Commanded { left, started: false });
+    }
+}
+
 /// Dell's way to the tap, from what Dell knows: the slots of "the way"
 /// (episodes.md "The lines"). {way} out of the bunker door, the {place}
 /// the tap stands in, and the site Dell knows nearest the way there as the
