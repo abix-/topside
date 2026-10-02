@@ -20,6 +20,84 @@ use crate::player::Player;
 /// What the one asked says when they will not trade.
 const REFUSES: &str = "I don't trade with you.";
 
+/// The trades people decided this step (`Do::Trade`): who buys, from whom,
+/// for which need.
+#[derive(Resource, Default)]
+pub struct PeopleTrades(pub Vec<(Entity, modforge::actor::ActorId, modforge::survival::Need)>);
+
+/// Each trade people decided, made (design.md "Trading": people trade with
+/// each other on their own; operator, 2026-10-02): the seller, in talking
+/// reach, puts one thing answering the need on the table; the buyer pays
+/// what the seller's prices ask, scrap first, then what they can spare (not
+/// food or water); the seller takes it or not (modforge `trade::pay_for`,
+/// `accepts`, `exchange`). Both remember it, or the buyer the refusal.
+#[allow(clippy::too_many_arguments, clippy::type_complexity)]
+pub fn between_people(
+    tick: Res<crate::SimTick>,
+    mut asks: ResMut<PeopleTrades>,
+    items: Res<ItemRegistryRes>,
+    values: Res<ItemValuesRes>,
+    factions: Res<FactionRegistryRes>,
+    episodes: Res<EpisodeRegistryRes>,
+    mut people: Query<(Entity, &Actor, &Transform, &mut Inventory, &mut Memory, Option<&Npc>), Without<Dead>>,
+) {
+    use modforge::memory::Did;
+    let heard = |words: &str| episodes.0.felt(words);
+    let food_or_water = |item: &str| {
+        items.0.def(item).and_then(|d| d.food.as_ref()).is_some_and(|f| f.hunger > 0.0 || f.thirst > 0.0)
+    };
+    for (buyer, seller_id, need) in std::mem::take(&mut asks.0) {
+        let Some(seller) = people.iter().find(|p| p.1.0 == seller_id).map(|p| p.0) else {
+            continue;
+        };
+        // The seller's prices toward the buyer, by the one rule.
+        let terms = {
+            let (Ok(b), Ok(s)) = (people.get(buyer), people.get(seller)) else {
+                continue;
+            };
+            let faction = s.5.and_then(|n| n.faction.clone());
+            let members: Vec<&Memory> = people.iter().filter(|p| faction.is_some() && p.5.and_then(|n| n.faction.as_ref()) == faction.as_ref()).map(|p| p.4).collect();
+            let buyer_faction = b.5.and_then(|n| n.faction.clone());
+            modforge::trade::terms(crate::actor::stands_toward((s.4, faction.as_deref()), members.into_iter(), (b.1.0, buyer_faction.as_deref()), &factions.0, heard))
+        };
+        let Ok([mut b, mut s]) = people.get_many_mut([buyer, seller]) else {
+            continue;
+        };
+        if !crate::talk::within(b.2.translation, s.2.translation, crate::talk::TALK_REACH) {
+            continue;
+        }
+        // One thing that answers the need, from the seller's bags.
+        let answers = |item: &str| {
+            items.0.def(item).and_then(|d| d.food.as_ref()).is_some_and(|f| match need {
+                modforge::survival::Need::Hunger => f.hunger > 0.0,
+                modforge::survival::Need::Thirst => f.thirst > 0.0,
+                _ => false,
+            })
+        };
+        let Some(slot) = s.3.0.slots.iter().position(|st| st.as_ref().is_some_and(|st| answers(&st.item))) else {
+            continue;
+        };
+        let theirs: modforge::trade::Offer = vec![(slot, 1)];
+        let Some(wanted) = modforge::trade::offered(&s.3.0, &theirs) else {
+            continue;
+        };
+        let paid = terms.and_then(|terms| modforge::trade::pay_for(&values.0, terms, &wanted, &b.3.0, |item| !food_or_water(item)));
+        let made = paid.as_ref().and_then(|paid| {
+            let gave = modforge::trade::offered(&b.3.0, paid)?;
+            modforge::trade::exchange(&mut b.3.0, &mut s.3.0, paid, &theirs, |item| items.0.def(item).map_or(1, |d| d.max_stack)).ok()?;
+            Some(gave)
+        });
+        let words = |stacks: &[modforge::item::ItemStack]| stacks.iter().map(|st| format!("{} x{}", st.item, st.count)).collect::<Vec<_>>().join(", ");
+        match made {
+            Some(gave) => {
+                b.4.0.did(Did::Traded(seller_id, words(&gave), words(&wanted)), tick.0);
+                s.4.0.did(Did::Traded(b.1.0, words(&wanted), words(&gave)), tick.0);
+            }
+            None => b.4.0.did(Did::TradeRefused(seller_id), tick.0),
+        }
+    }
+}
+
 /// Every step, the player's trading this tick: "Let's trade." said to
 /// someone opens the trade panel with them if they will trade; a click on
 /// a slot (`OfferSlot`) puts it on the table or takes it off; Deal makes

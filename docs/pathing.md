@@ -80,8 +80,10 @@ flat tile grid cannot see.
   make way) people standing step out of a doorway they stand in the way
   of, and sideways out of the way of anyone walking into them; a walker
   stuck half a second with someone right ahead steps aside for a second
-  and goes on. Proved by tests/roxanne.rs on the running game, two people
-  passing each other on the stairs among them.
+  and goes on. landmass's own steering round people and the mesh's edges
+  (dodgy_2d) is off (`neighbourhood: 0.0`): it stopped the game now and
+  then with a NaN in its solving. Open (todo 13a3): two people meeting
+  head-on on one flight get stuck without it.
 - Checked first (2026-10-01, GitHub and crates.io): bevy_rerecast 0.5
   (Bevy 0.19), avian_rerecast 0.6 (Avian 0.7), bevy_landmass 0.12.1
   (Bevy 0.19), landmass_rerecast 0.3. Set aside: vleue_navigator (floors

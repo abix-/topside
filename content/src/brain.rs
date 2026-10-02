@@ -6,8 +6,9 @@
 //! fighting included (life.md "Learning to stay alive"); with nothing
 //! learned, instinct's order below decides:
 //!   hide from the storm, flee, break off, fight, eat what they carry,
-//!   go to a need (going, then using it), do what was asked (going, then
-//!   waiting there), supply the bunker (in order:
+//!   go to a need (going, then using it), trade for a need (going, then
+//!   trading), do what was asked (going, then waiting there), supply the
+//!   bunker (in order:
 //!   haul, fetch, look in a box, head out), look (in order: the nearest
 //!   unchecked thing, head out), wander
 //! The storm or a threat takes a person out of any errand to choose again.
@@ -25,26 +26,29 @@ pub const EAT_CARRIED: StateId = 5;
 pub const NEED: StateId = 6;
 pub const NEED_GOING: StateId = 7;
 pub const NEED_USING: StateId = 8;
-pub const ASKED: StateId = 9;
-pub const ASKED_GOING: StateId = 10;
-pub const ASKED_WAITING: StateId = 11;
-pub const SUPPLY: StateId = 12;
-pub const HAUL: StateId = 13;
-pub const HAUL_GOING: StateId = 14;
-pub const HAUL_STOCKING: StateId = 15;
-pub const FETCH: StateId = 16;
-pub const FETCH_GOING: StateId = 17;
-pub const FETCH_TAKING: StateId = 18;
-pub const LOOK_IN: StateId = 19;
-pub const LOOK_IN_GOING: StateId = 20;
-pub const LOOK_IN_CHECKING: StateId = 21;
-pub const SUPPLY_HEAD_OUT: StateId = 22;
-pub const LOOK: StateId = 23;
-pub const LOOK_AT: StateId = 24;
-pub const LOOK_AT_GOING: StateId = 25;
-pub const LOOK_AT_CHECKING: StateId = 26;
-pub const LOOK_HEAD_OUT: StateId = 27;
-pub const WANDER: StateId = 28;
+pub const TRADE: StateId = 9;
+pub const TRADE_GOING: StateId = 10;
+pub const TRADE_TRADING: StateId = 11;
+pub const ASKED: StateId = 12;
+pub const ASKED_GOING: StateId = 13;
+pub const ASKED_WAITING: StateId = 14;
+pub const SUPPLY: StateId = 15;
+pub const HAUL: StateId = 16;
+pub const HAUL_GOING: StateId = 17;
+pub const HAUL_STOCKING: StateId = 18;
+pub const FETCH: StateId = 19;
+pub const FETCH_GOING: StateId = 20;
+pub const FETCH_TAKING: StateId = 21;
+pub const LOOK_IN: StateId = 22;
+pub const LOOK_IN_GOING: StateId = 23;
+pub const LOOK_IN_CHECKING: StateId = 24;
+pub const SUPPLY_HEAD_OUT: StateId = 25;
+pub const LOOK: StateId = 26;
+pub const LOOK_AT: StateId = 27;
+pub const LOOK_AT_GOING: StateId = 28;
+pub const LOOK_AT_CHECKING: StateId = 29;
+pub const LOOK_HEAD_OUT: StateId = 30;
+pub const WANDER: StateId = 31;
 
 fn state(
     name: &'static str,
@@ -128,6 +132,12 @@ pub fn brain_tree() -> StateTree<Brain> {
     s[NEED].choice = Some(Choice::GoToNeed);
     s[NEED].transitions.push(when(brain::danger, ROOT));
     s[NEED].transitions.push(when(brain::worse_need, ROOT));
+
+    // Trade for a need with someone carrying extra of it (design.md
+    // "Trading"), after a source they know.
+    errand(&mut s, "trade for a need", ROOT, brain::enter_trade, "trading", brain::trade_with);
+    s[TRADE].choice = Some(Choice::Trade);
+    s[TRADE].transitions.push(when(brain::danger, ROOT));
 
     // Do what they were asked (an episode's errand): go there and wait,
     // after their own needs, before their bunker's.
@@ -229,7 +239,24 @@ mod tests {
             reachable: &Vec::new,
             unknown: &|_| true,
             asked: None,
+            trader: None,
         }
+    }
+
+    #[test]
+    fn thirsty_with_no_water_known_they_trade_with_someone_who_carries_it() {
+        let memory = Memory::default();
+        let personality = Personality::default();
+        let mut p = perception(&memory, &personality);
+        p.needs.thirst = 20.0;
+        p.trader = Some((ActorId(7), Vec3::new(4.0, 0.0, 0.0), Need::Thirst));
+        let mut record = Record::default();
+        let (actions, _) = think(&p, &mut record, &mut Roll::new(1));
+        assert_eq!(record.state, Some(TRADE_GOING), "to the one carrying water");
+        assert!(has_move(&actions));
+        p.position = Vec3::new(3.5, 0.0, 0.0);
+        let (_, do_now) = think(&p, &mut record, &mut Roll::new(1));
+        assert_eq!(do_now, Some(Do::Trade { with: ActorId(7), need: Need::Thirst }), "there: the trade");
     }
 
     /// One think on topside's tree: what they do this tick.

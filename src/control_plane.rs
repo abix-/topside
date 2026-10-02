@@ -42,6 +42,36 @@ static PLAYER: Mutex<Json> = Mutex::new(Json::Null);
 static WAYS: Mutex<Json> = Mutex::new(Json::Null);
 /// The `kill` op's request: the ActorId to kill on the game's next step.
 static KILL_ASK: Mutex<Option<u64>> = Mutex::new(None);
+/// The `needs` op's requests: whose (ActorId), and their hunger and thirst
+/// set, when given.
+static NEEDS_ASK: Mutex<Vec<(u64, Option<f32>, Option<f32>)>> = Mutex::new(Vec::new());
+/// The `forget` op's requests: whose things known are forgotten.
+static FORGET_ASK: Mutex<Vec<u64>> = Mutex::new(Vec::new());
+
+/// The `needs` and `forget` ops' requests, on the game's next step: a
+/// person's hunger and thirst set; every thing a person knows, and all they
+/// learned, forgotten (so a test sets up what someone needs and knows).
+pub fn answer_needs(mut people: Query<(&Actor, &mut crate::actor::Survival, &mut crate::actor::Memory)>) {
+    let needs: Vec<(u64, Option<f32>, Option<f32>)> = NEEDS_ASK.lock().map(|mut ask| ask.drain(..).collect()).unwrap_or_default();
+    for (id, hunger, thirst) in needs {
+        if let Some((_, mut survival, _)) = people.iter_mut().find(|(a, ..)| a.0.0 == id) {
+            if let Some(h) = hunger {
+                survival.0.hunger = h;
+            }
+            if let Some(t) = thirst {
+                survival.0.thirst = t;
+            }
+        }
+    }
+    let forget: Vec<u64> = FORGET_ASK.lock().map(|mut ask| ask.drain(..).collect()).unwrap_or_default();
+    for id in forget {
+        if let Some((_, _, mut memory)) = people.iter_mut().find(|(a, ..)| a.0.0 == id) {
+            memory.0.known.clear();
+            memory.0.learned = Default::default();
+        }
+    }
+}
+
 /// The `give` op's requests: to whom (ActorId), what item, how many, and
 /// whether their inventory is emptied first.
 static GIVE_ASK: Mutex<Vec<(u64, String, u32, bool)>> = Mutex::new(Vec::new());
@@ -265,6 +295,7 @@ pub struct PersonView<'w, 's> {
                 Option<&'static crate::actor::Store>,
                 Has<crate::actor::Dead>,
                 Option<&'static crate::actor::SpawnedAt>,
+                Option<&'static crate::actor::ActorCondition>,
             ),
         ),
     >,
@@ -396,7 +427,7 @@ pub fn answer_npc(
     let found = view.people.iter().find(|((actor, ..), _, _)| actor.0.0 == id);
     let answer = match found {
         None => json!({"id": id, "error": "no NPC with that id"}),
-        Some(((_, npc, at, health, needs), (record, memory, inventory, hotbar), (walker, home, store, dead, spawned))) => {
+        Some(((_, npc, at, health, needs), (record, memory, inventory, hotbar), (walker, home, store, dead, spawned, condition))) => {
             let way = crate::navmesh::way_of(walker, &view.ways);
             let (walking, going_to) = (way.map(|w| w.0), way.map(|w| w.1));
             let here = at.translation.ground();
@@ -460,6 +491,7 @@ pub fn answer_npc(
                 "needs": {"hunger": needs.0.hunger, "thirst": needs.0.thirst, "rest": needs.0.rest, "safety": needs.0.safety},
                 "doing": doing_name(&tree, &record.0),
                 "about": format!("{:?}", record.0.target),
+                "asleep": condition.is_some_and(|c| c.0.asleep),
                 "home": home.map(|h| [h.0.x, h.0.z]),
                 "store": store.map(|s| s.0.to_bits()),
                 "carrying": stacks(&inventory.0),
@@ -1346,6 +1378,32 @@ pub fn start() {
                 *ask = Some(id);
             }
             Ok(json!({"kill": id}))
+        },
+    ));
+    OP_REGISTRY.register(OpDef::new(
+        "needs",
+        "set the living person `id`'s `hunger` and `thirst` (0 to 100, 100 full; each only when given) on the game's next step, so a test sets up what someone needs",
+        "{\"id\": 3, \"thirst\": 20}",
+        |args| {
+            let id = args.get("id").and_then(Json::as_u64).ok_or_else(|| "id: a number".to_string())?;
+            let hunger = args.get("hunger").and_then(Json::as_f64).map(|v| v as f32);
+            let thirst = args.get("thirst").and_then(Json::as_f64).map(|v| v as f32);
+            if let Ok(mut ask) = NEEDS_ASK.lock() {
+                ask.push((id, hunger, thirst));
+            }
+            Ok(json!({"needs": id, "hunger": hunger, "thirst": thirst}))
+        },
+    ));
+    OP_REGISTRY.register(OpDef::new(
+        "forget",
+        "the living person `id` forgets every thing they know (their memory's things: boxes, sources, places) and all they learned (instinct decides again), on the game's next step, so a test sets up what someone knows",
+        "{\"id\": 3}",
+        |args| {
+            let id = args.get("id").and_then(Json::as_u64).ok_or_else(|| "id: a number".to_string())?;
+            if let Ok(mut ask) = FORGET_ASK.lock() {
+                ask.push(id);
+            }
+            Ok(json!({"forget": id}))
         },
     ));
     OP_REGISTRY.register(OpDef::new(

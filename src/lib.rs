@@ -136,6 +136,7 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind) -> App {
     app.init_resource::<content::MonumentRegistryRes>();
     app.init_resource::<content::ItemRegistryRes>();
     app.init_resource::<content::ItemValuesRes>();
+    app.init_resource::<trade::PeopleTrades>();
     app.init_resource::<content::LayerRegistryRes>();
     app.init_resource::<content::DamageRegistryRes>();
     app.init_resource::<content::ActorRegistryRes>();
@@ -192,6 +193,7 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind) -> App {
                 )
                     .chain(),
                 ai::think,
+                trade::between_people,
                 lap("think"),
                 (input::drain_actions, lap("drain_actions"), hud::learn_hints, command::give, command::carry_out, ai::follow, ai::lead).chain(),
                 (nav::record_solids, nav::record_doors),
@@ -238,7 +240,7 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind) -> App {
                 control_plane::publish,
                 control_plane::publish_world,
                 control_plane::publish_ways,
-                (control_plane::answer_npc, control_plane::answer_kill, control_plane::answer_give, control_plane::answer_use, control_plane::answer_talk, control_plane::answer_walk).chain(),
+                (control_plane::answer_npc, control_plane::answer_kill, control_plane::answer_give, control_plane::answer_needs, control_plane::answer_use, control_plane::answer_talk, control_plane::answer_walk).chain(),
                 lap("publish"),
             )
                 .chain(),

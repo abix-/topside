@@ -52,6 +52,54 @@ fn click_slot(holder: &str, item: &str) -> bool {
     true
 }
 
+/// Two people trade with each other on their own (design.md "Trading";
+/// operator, 2026-10-02: a brain choice when one has extra of what the
+/// other needs): one carrying water to spare, the other thirsty with scrap
+/// and knowing no water; brought together, the thirsty one's brain trades
+/// for water, and both remember it.
+#[test]
+fn a_thirsty_person_trades_with_one_carrying_water_to_spare() {
+    op_with("replay", json!({"stop": true}));
+    let strangers: Vec<u64> = people().into_iter().filter(|p| p["faction"].is_null() && p["dead"] != true).filter_map(|p| p["id"].as_u64()).take(8).collect();
+    assert!(strangers.len() >= 2, "two living strangers needed, found {}", strangers.len());
+    // A pair at a time: where there is water about (a river in sight), the
+    // thirsty one drinks it instead, rightly; then the next pair.
+    let (mut seller, mut buyer, mut traded) = (0, 0, false);
+    for pair in strangers.chunks(2).filter(|p| p.len() == 2) {
+        (seller, buyer) = (pair[0], pair[1]);
+        op_with("give", json!({"id": seller, "item": "water bottle", "count": 3, "clear": true}));
+        op_with("give", json!({"id": buyer, "item": "scrap", "count": 60, "clear": true}));
+        op_with("forget", json!({"id": buyer}));
+        op_with("needs", json!({"id": buyer, "thirst": 20, "hunger": 90}));
+        // The buyer stood a metre from the seller, facing them (the `use`
+        // op); then their own brain.
+        op_with("use", json!({"id": buyer, "person": seller}));
+        let did = |w: &str| op_with("npc", json!({"id": buyer}))["did"].as_array().is_some_and(|d| d.iter().any(|d| d["did"].as_str().is_some_and(|d| d.starts_with(w))));
+        traded = within(20, || did(&format!("traded with {seller}")) || did("ate water"));
+        traded = traded && did(&format!("traded with {seller}"));
+        let b = op_with("npc", json!({"id": buyer}));
+        let last: Vec<Json> = b["did"].as_array().map(|d| d.iter().rev().take(3).map(|d| d["did"].clone()).collect()).unwrap_or_default();
+        eprintln!(
+            "the pair {seller} and {buyer}: traded {traded}; the buyer doing {} about {}, asleep {}, thirst {}, at {} feet {}, the seller at {}, last did {last:?}",
+            b["doing"], b["about"], b["asleep"], b["needs"]["thirst"], b["at"], b["feet"], op_with("npc", json!({"id": seller}))["at"]
+        );
+        if traded {
+            break;
+        }
+    }
+    let (b, s) = (op_with("npc", json!({"id": buyer})), op_with("npc", json!({"id": seller})));
+    let last = |p: &Json| p["did"].as_array().map(|d| d.iter().rev().take(4).map(|d| d["did"].clone()).collect::<Vec<_>>()).unwrap_or_default();
+    eprintln!("the buyer {buyer}: doing {} about {}, at {} feet {}, way {}, carrying {}, last did {:?}", b["doing"], b["about"], b["at"], b["feet"], b["way"], b["carrying"], last(&b));
+    eprintln!("the seller {seller}: doing {}, at {} feet {}, carrying {}, last did {:?}", s["doing"], s["at"], s["feet"], s["carrying"], last(&s));
+    assert!(traded, "the thirsty one never traded with the one carrying water");
+    // Thirsty, they may drink it at once: what they remember says they got
+    // it.
+    let remembers = |p: &Json, w: &str| p["did"].as_array().is_some_and(|d| d.iter().any(|d| d["did"].as_str().is_some_and(|d| d.starts_with(w) && d.contains("got water bottle") || d.starts_with(w) && d.contains("gave water bottle"))));
+    assert!(remembers(&b, &format!("traded with {seller}")), "the buyer does not remember getting water: {:?}", last(&b));
+    assert!(remembers(&s, &format!("traded with {buyer}")), "the seller does not remember giving water: {:?}", last(&s));
+    assert!(count(&s["carrying"], "scrap") >= 1, "the seller got no scrap");
+}
+
 #[test]
 fn the_player_trades_with_a_stranger_through_the_panel_and_a_poor_offer_is_refused() {
     crate::endpoint::player_alive();

@@ -8,6 +8,14 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use topside::content::WorldKind;
 
 fn main() {
+    // Every panic with its whole backtrace in topside.err.log, however the
+    // game was launched (the launcher sets no RUST_BACKTRACE): a crash is
+    // read from where it happened, not guessed at.
+    let earlier = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |info| {
+        earlier(info);
+        eprintln!("backtrace:\n{}", std::backtrace::Backtrace::force_capture());
+    }));
     let args: Vec<String> = std::env::args().collect();
     let value = |flag: &str| args.iter().position(|a| a == flag).and_then(|i| args.get(i + 1));
     let seed = value("--seed").and_then(|s| s.parse().ok()).unwrap_or_else(|| {

@@ -83,12 +83,19 @@ fn the_player_shut_in_their_room() -> (f64, f64, f64) {
     crate::endpoint::player_alive();
     // No commands left from an earlier test.
     op_with("replay", json!({"stop": true}));
-    // Roxanne out of the room first, up in the entrance (an earlier test
-    // can leave her in it with the player).
+    let room = shut_in();
+    // Roxanne out of the room last, up in the entrance, so the test starts
+    // with her there (an earlier test, or her own errands while the player
+    // woke, can leave her in the room with them).
     let id = roxanne()["id"].as_u64().expect("Roxanne's id");
     op_with("command", json!({"id": id, "do": "move_to", "x": 1.5, "y": 0.0, "z": 0.0}));
-    let (out, _) = comes_to(|| npc_at(id), || npc_doing(id),(1.5, 0.0, 0.0), 20);
+    let (out, _) = comes_to(|| npc_at(id), || npc_doing(id), (1.5, 0.0, 0.0), 20);
     assert!(out, "Roxanne never went up to the entrance before the test");
+    room
+}
+
+/// The player woken in their room with its door shut.
+fn shut_in() -> (f64, f64, f64) {
     let player = op("player")["id"].as_u64().expect("the player op reports the player's id");
     let wake = |_: ()| {
         op_with("kill", json!({"id": player}));

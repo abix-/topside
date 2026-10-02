@@ -135,10 +135,17 @@ fn setup(mut commands: Commands) {
     let archipelago = commands
         .spawn(Archipelago3d::new(ArchipelagoOptions {
             point_sample_distance: sample_distance(),
-            // How far ahead the mesh's edges are steered away from, in
-            // seconds: at a walk of 15 m/s, landmass's 0.25 s reaches 3.75 m,
-            // every edge of a stairwell, and turned people back at the top
-            // of the stairs; 0.05 s is 0.75 m.
+            // No steering round people or the mesh's edges (landmass's
+            // dodgy_2d): it stopped the game (a NaN in its solving, seen
+            // three times, the backtrace in topside.err.log through
+            // landmass's avoidance.rs), pushed people into walls on the
+            // stairs, and never parted two people touching nor got anyone
+            // past someone in a doorway. Walkers follow the mesh's way;
+            // people give way by our own rules below (standing people make
+            // way, a stuck walker steps aside), as RimWorld's and Factorio's
+            // do. A reach of nothing gives landmass nobody and no edge to
+            // steer round.
+            neighbourhood: 0.0,
             obstacle_avoidance_time_horizon: 0.05,
             ..ArchipelagoOptions::from_agent_radius(AGENT_RADIUS)
         }))
@@ -285,8 +292,10 @@ pub fn walk(
             (way.length() > 0.1).then(|| (entity, crate::interact::feet_of(at), way.normalize()))
         })
         .collect();
-    // Everyone's feet, walking or standing.
+    // Everyone's feet, walking or standing; and the walkers stuck as of the
+    // last step.
     let everyone: Vec<(Entity, Vec3)> = people.iter().map(|(entity, at, ..)| (entity, crate::interact::feet_of(at))).collect();
+    let stuck_now: Vec<(Entity, Vec3)> = stuck.iter().filter(|(_, (_, steps))| *steps > STUCK_STEPS).map(|(e, (feet, _))| (*e, *feet)).collect();
     for (entity, at, mut this_tick, personality, walker, is_player) in &mut people {
         let speed = crate::player::WALK_SPEED * personality.map_or(1.0, |p| p.0.speed_mult());
         // Everyone living has a landmass stand-in at their feet: a character
@@ -295,9 +304,14 @@ pub fn walk(
         // people standing on one spot (put there together) as agents gave
         // landmass's steering no way between them, and it failed.
         let Some(stand_in) = walker.map(|w| w.0) else {
+            // A little off the feet, each person their own way (the golden
+            // angle by their entity): two people put on one spot (respawned
+            // at one home) are never at one point to landmass, whose steering
+            // then had no way between them and stopped the game.
+            let off = Vec2::from_angle((entity.to_bits() & 0xFFFF_FFFF) as f32 * 2.399_963) * 0.02;
             let stand_in = commands
                 .spawn((
-                    Transform::from_xyz(0.0, -crate::player::BODY_CENTRE, 0.0),
+                    Transform::from_xyz(off.x, -crate::player::BODY_CENTRE, off.y),
                     character(nav.archipelago),
                     Velocity3d::default(),
                     ChildOf(entity),
@@ -345,17 +359,32 @@ pub fn walk(
                     *other != entity && (their_feet.y - feet.y).abs() < 1.5 && to_me.length() < IN_A_WALKERS_WAY && to_me.dot(*way) > 0.0
                 })?;
                 let side = if (feet.ground() - their_feet.ground()).dot(way.perp()) >= 0.0 { 1.0 } else { -1.0 };
-                Some(crate::on_ground(feet.ground() + way.perp() * side * STEP_ASIDE, feet.y))
+                Some(vec![crate::on_ground(feet.ground() + way.perp() * side * STEP_ASIDE, feet.y)])
             };
-            let aside = out_of_a_doorway().or_else(out_of_a_walkers_way)?;
-            archipelago.and_then(|a| on_mesh(a, aside))
+            // A walker stuck right by them, whichever way: landmass gives
+            // someone pressed against another no way to head, so their being
+            // stuck is the sign; to either side of the line between them, or
+            // straight away.
+            let out_of_a_stuck_walkers_way = || {
+                let (_, their_feet) = stuck_now
+                    .iter()
+                    .find(|(other, their_feet)| *other != entity && (their_feet.y - feet.y).abs() < 1.5 && their_feet.ground().distance(feet.ground()) < IN_A_WALKERS_WAY)?;
+                let away = (feet.ground() - their_feet.ground()).normalize_or_zero();
+                Some([away.perp(), -away.perp(), away].into_iter().map(|d| crate::on_ground(feet.ground() + d * STEP_ASIDE, feet.y)).collect())
+            };
+            let candidates: Vec<Vec3> = out_of_a_doorway().map(|s| vec![s]).or_else(out_of_a_walkers_way).or_else(out_of_a_stuck_walkers_way)?;
+            // A spot on the mesh where it is meant to be, not somewhere near.
+            candidates.into_iter().find_map(|c| archipelago.and_then(|a| on_mesh(a, c)).filter(|p| p.ground().distance(c.ground()) < 0.3))
         });
         let Some(to) = go else {
             // Not sent anywhere: walking by their own move (the keys) or
             // standing, which the others steer by. Sent somewhere until now:
             // they stop (or the Move this walker pushed is held on, each step
             // keeping the last move, input::drain_actions, and they walk on
-            // into a wall), and stand as a character.
+            // into a wall), and stand as a character. Someone not walking is
+            // never stuck.
+            stuck.remove(&entity);
+            aside.remove(&entity);
             if was_walking {
                 this_tick.0.retain(|s| !matches!(s.action, Action::Move { .. }));
                 this_tick.0.push(Stamped { tick: tick.0, action: Action::Move { x: 0.0, y: 0.0 } });
@@ -388,7 +417,8 @@ pub fn walk(
         // Stepping aside for someone in a narrow way: to that spot for a
         // moment, then on.
         let to = match aside.get(&entity) {
-            Some(&(spot, until)) if tick.0 < until && !modforge::brain::walk_toward(feet, spot).is_empty() => spot,
+            // (Nearer than the brain's reach: the spot is only a step off.)
+            Some(&(spot, until)) if tick.0 < until && feet.distance(spot) > 0.2 => spot,
             _ => {
                 aside.remove(&entity);
                 to
@@ -404,11 +434,14 @@ pub fn walk(
         // walkers in a doorway, each in the other's way; landmass's steering
         // does not part them), they step aside, away from that person, and
         // then go on.
+        // Stuck is sent somewhere and not moving: landmass gives no velocity
+        // at all to someone pressed against another.
         let (last, steps) = stuck.get(&entity).copied().unwrap_or((feet, 0));
-        let steps = if v.length() > 0.1 && feet.distance(last) < 0.005 { steps + 1 } else { 0 };
+        let steps = if feet.distance(last) < 0.005 { steps + 1 } else { 0 };
         stuck.insert(entity, (feet, steps));
         if steps > STUCK_STEPS && !aside.contains_key(&entity) {
-            let dir = Vec2::new(v.x, v.z).normalize_or_zero();
+            // Ahead is the way they head, or with none, the way to where they go.
+            let dir = Vec2::new(v.x, v.z).try_normalize().unwrap_or_else(|| (to - feet).ground().normalize_or_zero());
             let ahead = everyone.iter().find(|(other, their_feet)| {
                 let to_them = their_feet.ground() - feet.ground();
                 *other != entity && (their_feet.y - feet.y).abs() < 1.5 && to_them.length() < IN_A_WALKERS_WAY && to_them.dot(dir) > 0.0

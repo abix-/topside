@@ -80,6 +80,8 @@ pub struct Thinkers<'w, 's> {
     >,
     /// Their walks on the mesh, through their `Walker`.
     ways: crate::navmesh::Ways<'w, 's>,
+    /// The trades they decide, made after (trade::between_people).
+    trades: ResMut<'w, crate::trade::PeopleTrades>,
     others: Query<
         'w,
         's,
@@ -171,6 +173,10 @@ pub fn follow(
         this_tick.0.push(Stamped { tick: tick.0, action: Action::Go { x: to.x, y: to.y, z: to.z } });
     }
 }
+
+/// How long someone refused a trade is not asked again by the one they
+/// refused, in ticks: a game minute.
+const TRADE_AGAIN: u64 = 3600;
 
 /// Half the width of what a person sees ahead: a 120 degree cone
 /// (life.md "Perception with belief").
@@ -283,6 +289,17 @@ pub fn think(
             (faction, toward, standing)
         })
         .collect();
+    // What each person could spare of food and of water: all but one of
+    // what they carry of it (design.md "Trading": one with extra of what
+    // another needs), for the trader in sight below.
+    let spare: Vec<(Entity, u32, u32)> = thinkers
+        .npcs
+        .iter()
+        .map(|(entity, .., (_, inventory, ..))| {
+            let count = |need: Need| inventory.0.slots.iter().flatten().filter(|s| answers(&items.0, &s.item, need)).map(|s| s.count).sum::<u32>();
+            (entity, count(Need::Hunger).saturating_sub(1), count(Need::Thirst).saturating_sub(1))
+        })
+        .collect();
     for (
         entity,
         actor,
@@ -340,6 +357,15 @@ pub fn think(
             })
             .min_by(|a, b| a.2.distance(here).total_cmp(&b.2.distance(here)))
             .map(|(_, id, at, _)| (*id, *at));
+        // Who in sight they do not stand hostile to: whom they might trade
+        // with (below).
+        let not_hostile_in_sight: Vec<(Entity, ActorId, Vec3)> = everyone
+            .iter()
+            .filter(|(e, id, at, faction)| {
+                *e != entity && at.distance(here) <= def.sight && in_cone(facing, here, *at) && !stands_hostile(*id, faction.as_deref()) && sight.clear(here, *at)
+            })
+            .map(|(e, id, at, _)| (*e, *id, *at))
+            .collect();
         let home_at = home.map(|h| h.0);
         let at_home = home.is_some_and(|h| h.0.distance(here) <= HOME_REACH);
         condition.0.threat_in_sight = hostile.is_some();
@@ -447,6 +473,27 @@ pub fn think(
                 .collect()
         };
         let unknown = |at: Vec3| !map.is_some_and(|m| m.map.seen(modforge::walk::cell_of(Vec2::new(at.x, at.z))));
+        // Someone to trade with (design.md "Trading"): in sight, not one
+        // they stand hostile to, nor one who refused them lately, carrying
+        // more than they need of what answers a need of theirs under the
+        // need line that they carry nothing for.
+        let refused_lately = |id: ActorId| {
+            memory.0.done.iter().rev().take_while(|(t, _)| tick.0.saturating_sub(*t) < TRADE_AGAIN).any(|(_, d)| matches!(d, Did::TradeRefused(by) if *by == id))
+        };
+        let short: Vec<Need> = [(Need::Thirst, needs.0.thirst, carries_drink), (Need::Hunger, needs.0.hunger, carried.is_some())]
+            .into_iter()
+            .filter(|(_, value, carries)| *value < NEED_LINE && !carries)
+            .map(|(need, ..)| need)
+            .collect();
+        let trader = not_hostile_in_sight
+            .iter()
+            .filter(|(_, id, _)| !refused_lately(*id))
+            .filter_map(|(e, id, at)| {
+                let (_, food, water) = spare.iter().find(|s| s.0 == *e)?;
+                let need = short.iter().copied().find(|n| if *n == Need::Hunger { *food > 0 } else { *water > 0 })?;
+                Some((*id, *at, need))
+            })
+            .min_by(|a, b| a.1.distance(here).total_cmp(&b.1.distance(here)));
         let perception = Perception {
             now: tick.0,
             position: here,
@@ -472,6 +519,7 @@ pub fn think(
             reachable: &reachable,
             unknown: &unknown,
             asked: asked.map(|a| a.0),
+            trader,
         };
 
         // Decide through the one tree: seeded by the tick and the person,
@@ -510,6 +558,9 @@ pub fn think(
                 memory.0.did(Did::Slept, tick.0);
             }
             Some(Do::Wake) => condition.0.asleep = false,
+            // A trade moves things between two people: made after, from
+            // both their bags (trade::between_people).
+            Some(Do::Trade { with, need }) => thinkers.trades.0.push((entity, with, need)),
             // A key is a place (PLACE_KEY set) or a box (an entity): a
             // place is visited; a box is opened to see inside (noted
             // above at the next think); a box that is gone is forgotten.
