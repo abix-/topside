@@ -1,0 +1,177 @@
+{
+ "top led bar front left": [
+  2.2185,
+  0.5517,
+  0.6659
+ ],
+ "amber tip left": [
+  1.8391,
+  0.8827,
+  0.6441
+ ],
+ "front arch top left": [
+  1.4669,
+  0.5623,
+  0.6997
+ ],
+ "front hub left": [
+  1.4717,
+  0.9077,
+  0.3541
+ ],
+ "windshield bottom corner left": [
+  0.6743,
+  0.7979,
+  0.9341
+ ],
+ "handle front left": [
+  -0.29,
+  0.8971,
+  0.8254
+ ],
+ "handle rear left": [
+  -0.5437,
+  0.8927,
+  0.8254
+ ],
+ "quarter glass tip left": [
+  -1.1431,
+  0.6589,
+  1.1178
+ ],
+ "rear arch top left": [
+  -1.2373,
+  0.9516,
+  0.7239
+ ],
+ "rear hub left": [
+  -1.2373,
+  0.9257,
+  0.3928
+ ],
+ "top led bar front right": [
+  2.2185,
+  -0.5517,
+  0.6659
+ ],
+ "amber tip right": [
+  1.8391,
+  -0.8827,
+  0.6441
+ ],
+ "front arch top right": [
+  1.4669,
+  -0.5623,
+  0.6997
+ ],
+ "front hub right": [
+  1.4717,
+  -0.9074,
+  0.3541
+ ],
+ "windshield bottom corner right": [
+  0.6743,
+  -0.7979,
+  0.9341
+ ],
+ "handle front right": [
+  -0.29,
+  -0.8971,
+  0.8254
+ ],
+ "handle rear right": [
+  -0.5437,
+  -0.8927,
+  0.8254
+ ],
+ "quarter glass tip right": [
+  -1.1431,
+  -0.6589,
+  1.1178
+ ],
+ "rear arch top right": [
+  -1.2373,
+  -0.9516,
+  0.7239
+ ],
+ "rear hub right": [
+  -1.2373,
+  -0.9255,
+  0.3928
+ ],
+ "taillight top inner left": [
+  -2.1572,
+  0.455,
+  0.92
+ ],
+ "taillight top inner right": [
+  -2.1572,
+  -0.455,
+  0.92
+ ],
+ "fog light outer top right": [
+  2.0051,
+  -0.8369,
+  0.465
+ ],
+ "fog light inner tip right": [
+  2.276,
+  -0.5655,
+  0.4276
+ ],
+ "fog light outer top left": [
+  2.0051,
+  0.8369,
+  0.465
+ ],
+ "fog light inner tip left": [
+  2.276,
+  0.5655,
+  0.4276
+ ],
+ "pony": [
+  2.2993,
+  0.013,
+  0.6048
+ ],
+ "grille top corner left": [
+  2.3244,
+  0.3998,
+  0.6551
+ ],
+ "grille top corner right": [
+  2.3244,
+  -0.3997,
+  0.6551
+ ],
+ "grille outer point left": [
+  2.2754,
+  0.5606,
+  0.543
+ ],
+ "grille outer point right": [
+  2.2754,
+  -0.5606,
+  0.543
+ ],
+ "mirror tip left": [
+  0.3777,
+  1.0303,
+  0.9801
+ ],
+ "mirror tip right": [
+  0.3777,
+  -1.0303,
+  0.9801
+ ],
+ "windshield top corner left": [
+  0.0159,
+  0.6126,
+  1.2954
+ ],
+ "windshield top corner right": [
+  0.0159,
+  -0.6126,
+  1.2954
+ ]
+}

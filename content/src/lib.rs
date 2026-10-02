@@ -19,7 +19,7 @@ use modforge::survival::Need;
 use modforge::item::{Armor, CombatStats, FoodStats, ItemDef, ItemKind, ItemRegistry, LayerDef, LayerRegistry, Note};
 use modforge::monument::Roll;
 use modforge::reality::{Danger, RealityDef, RealityRegistry};
-use modforge::storyteller::{CastFrom, ChoiceDef, EpisodeDef, EpisodeRegistry, LineDef, PartDef};
+use modforge::storyteller::{CastFrom, EpisodeDef, EpisodeRegistry, LineDef, PartDef, When};
 use modforge::monument::{
     Arrangement, BuildingRegistry, BuildingSize, BuildingSlot, BuildingTypeDef,
     MonumentRegistry, MonumentTypeDef, PropDef,
@@ -28,10 +28,10 @@ use modforge::crafting::{RecipeDef, RecipeRegistry, StationKind};
 use modforge::loot::{LootEntry, LootTable};
 use modforge::storm::StormDef;
 use modforge::structure::{
-    CONCRETE_FLOOR, CONCRETE_WALL, LightDef, Opening, Rgb, RoomDef, Side, SolidDef, StructureDef,
+    CONCRETE_FLOOR, CONCRETE_WALL, LightDef, Rgb, SolidDef, StructureDef,
 };
 
-/// What lies on the starting bunker's floor (design.md: three days of
+/// What lies on the floor of the player's room (design.md: three days of
 /// food; a can is half a day of hunger and a bottle half a day of
 /// thirst, so six of each), plus the first weapons and a vest: item,
 /// count, salt, where in the bunker's plan (x, z), colour.
@@ -48,13 +48,21 @@ pub const STARTING_ITEMS: [(&str, u32, u64, [f32; 2], Rgb); 9] = [
     ("road sign vest", 1, 12, [2.2, 2.0], [0.2, 0.5, 0.2]),
 ];
 
+/// How tall each level of the bunker you start in is, and the floors of
+/// its two rooms below the ground (design.md "The bunker you start in"):
+/// the player's room the deepest, the common room above it.
+pub const BUNKER_LEVEL: f32 = 3.0;
+pub const PLAYER_ROOM_FLOOR: f32 = -2.0 * BUNKER_LEVEL;
+pub const COMMON_ROOM_FLOOR: f32 = -BUNKER_LEVEL;
+
 /// Where the crafting bench is used in the starting bunker's plan
-/// (x, z): its right end, clear of the note on it.
+/// (x, z), in the common room: its right end.
 pub const BENCH_AT: [f32; 2] = [2.8, 3.5];
 
-/// Where the note lies in the starting bunker's plan (x, z): on the
-/// bench, the first question (design.md "The first hour").
-pub const STARTING_NOTE_AT: [f32; 2] = [2.2, 3.5];
+/// Where the note lies in the starting bunker's plan (x, z), in the
+/// player's room beside the bed: the first question (design.md "The
+/// first hour").
+pub const STARTING_NOTE_AT: [f32; 2] = [-1.4, 3.6];
 
 /// Every recipe, as data (modforge crafting).
 #[derive(Resource)]
@@ -138,7 +146,7 @@ pub const STORM: StormDef = StormDef {
 
 /// Who waits outside the starting bunker's door and where in its plan
 /// (x, z): a scavenger 6 m past the door (the 3D game's first fight).
-pub const DOOR_ENEMY: (&str, [f32; 2]) = ("scavenger", [0.0, -10.0]);
+pub const DOOR_ENEMY: (&str, [f32; 2]) = ("scavenger", [0.0, 10.0]);
 
 /// Which actor def stands at a monument's NPC spot of this danger
 /// (todo 11q: modforge should decide this; until then it is content).
@@ -146,55 +154,70 @@ pub fn def_for_danger(danger: u32) -> &'static str {
     if danger < 3 { "scavenger" } else { "raider" }
 }
 
-/// The starting bunker (design.md "The bunker"): one room with exactly
-/// a bed, a crafting bench, and the food crate, door north toward
-/// topside.
+/// The bunker you start in (design.md "The bunker you start in"): the
+/// entrance on the ground with the one door topside, south, and two levels
+/// below it, one room each, joined by the stair tower; built by modforge
+/// `generate_building` like every building with floors below the ground,
+/// the same every time (every bunker is the same building). The bed and
+/// the food crate in the player's room, the deepest, its doorway to the
+/// stair tower a door, shut; the crafting bench in the common room above.
 pub fn starting_bunker() -> StructureDef {
+    let kind = BuildingTypeDef {
+        name: "the bunker you start in".to_string(),
+        size: BuildingSize::Small,
+        columns: (1, 1),
+        rows: (1, 1),
+        floors: (1, 1),
+        basements: (2, 2),
+        width: (6.0, 6.0),
+        length: (8.0, 8.0),
+        height: (BUNKER_LEVEL, BUNKER_LEVEL),
+        windows: 0,
+        clutter: 0,
+        lights: 0,
+        damage: 0,
+        carve: 0,
+        palette: vec![CONCRETE_WALL],
+    };
+    let mut built = modforge::monument::generate_building(&kind, &mut Roll::new(1));
+    // The player's room shut: the stair tower's doorway on the deepest
+    // level a door (its sill on the tower's own floor).
+    for room in built.rooms.iter_mut().filter(|r| (r.origin.y - PLAYER_ROOM_FLOOR).abs() < 0.5 && r.interior.y > BUNKER_LEVEL + 0.5) {
+        for opening in room.openings.iter_mut().filter(|o| o.sill < 0.5) {
+            opening.door = true;
+        }
+    }
     StructureDef {
         name: "the starting bunker".to_string(),
         wall_color: CONCRETE_WALL,
         floor_color: CONCRETE_FLOOR,
-        rooms: vec![RoomDef {
-            origin: Vec3::ZERO,
-            interior: Vec3::new(6.0, 3.0, 8.0),
-            wall_thickness: 0.2,
-            openings: vec![Opening {
-                side: Side::North,
-                offset: 0.0,
-                width: 1.2,
-                sill: 0.0,
-                door: true,
-            }],
-            floor: true,
-            ceiling: true,
-        }],
-        stairs: vec![],
-        furniture: vec![
-            // The bed.
+        furniture: [built.furniture.clone(), vec![
+            // The bed, in the player's room.
             SolidDef {
-                center: Vec3::new(-2.4, 0.25, 3.0),
+                center: Vec3::new(-2.4, PLAYER_ROOM_FLOOR + 0.25, 3.0),
                 size: Vec3::new(1.0, 0.5, 2.0),
                 color: [0.30, 0.35, 0.55],
             },
-            // The crafting bench.
+            // The crafting bench, in the common room.
             SolidDef {
-                center: Vec3::new(2.2, 0.45, 3.5),
+                center: Vec3::new(2.2, COMMON_ROOM_FLOOR + 0.45, 3.5),
                 size: Vec3::new(1.6, 0.9, 0.7),
                 color: [0.45, 0.32, 0.18],
             },
-            // The food crate.
+            // The food crate, in the player's room.
             SolidDef {
-                center: Vec3::new(2.5, 0.35, -3.3),
+                center: Vec3::new(2.5, PLAYER_ROOM_FLOOR + 0.35, -3.3),
                 size: Vec3::new(0.7, 0.7, 0.7),
                 color: [0.55, 0.45, 0.20],
             },
-        ],
+        ]]
+        .concat(),
         lights: vec![LightDef {
             position: Vec3::new(0.0, 2.7, 0.0),
             color: [1.0, 0.9, 0.7],
             intensity: 400_000.0,
         }],
-        parts: vec![],
+        ..built
     }
 }
 
@@ -296,10 +319,63 @@ impl Default for BiomeRegistryRes {
     }
 }
 
-/// What someone says to the player who talks to them when there is
-/// nothing to talk about (episodes.md "Conversations"): one way, then the
-/// conversation ends.
-pub const NOTHING_TO_SAY: [&str; 5] = ["Not now.", "What do you want?", "Leave me be.", "I've got nothing for you.", "Busy."];
+/// One line as a rule (modforge storyteller `LineDef`; episodes.md "One
+/// way for every conversation"): its name, who may say it ("player", an
+/// episode part, "" anyone else), what must be true, its ways, what it
+/// tells of, and how hearing it feels.
+pub fn line(name: &str, part: &str, when: Vec<When>, ways: &[&str], tells: &str, felt: f32) -> LineDef {
+    LineDef {
+        name: name.to_string(),
+        part: part.to_string(),
+        when,
+        ways: ways.iter().map(|w| w.to_string()).collect(),
+        tells: tells.to_string(),
+        felt,
+        wait: 0.0,
+    }
+}
+
+/// Silence as a player's line (episodes.md: doing nothing is always a
+/// choice): never shown; said by itself when the player chooses nothing
+/// within `wait` real seconds of their choices showing.
+pub fn silence(name: &str, when: Vec<When>, wait: f32, felt: f32) -> LineDef {
+    LineDef { wait, ..line(name, "player", when, &[], "", felt) }
+}
+
+/// Plain talk: what anyone says outside an episode's lines, the same rules
+/// (episodes.md "One way for every conversation"). With nothing to talk
+/// about, a short line, and it ends (episodes.md "Conversations").
+pub fn plain_lines() -> Vec<LineDef> {
+    let heard = |name: &str| When::Heard(name.to_string());
+    vec![
+        line("nothing to say", "", vec![When::Opened], &["Not now.", "What do you want?", "Leave me be.", "I've got nothing for you.", "Busy."], "", 0.0),
+        // Thirsty, the player's first word can be to ask; it is not offered
+        // after every reply, so the conversation still ends.
+        line(
+            "asks for water",
+            "player",
+            vec![When::Needs("thirst".to_string(), THIRSTY), When::First],
+            &["Know where there's water?", "Any water around here?"],
+            "",
+            0.0,
+        ),
+        // A well they know of and do not keep quiet, by the place it is at
+        // when they know it.
+        line(
+            "gives the well",
+            "",
+            vec![heard("asks for water"), When::Knows("well".to_string())],
+            &["There's a well at the {place}.", "Try the {place}. There's a well.", "There's a well not far from here."],
+            "well",
+            0.1,
+        ),
+        line("no water", "", vec![heard("asks for water")], &["No idea.", "Find your own.", "If I knew, I'd be drinking."], "", 0.0),
+    ]
+}
+
+/// Thirst at or below which the player can ask anyone for water (modforge
+/// `SurvivalStats`, full at 100). Tuning.
+pub const THIRSTY: f32 = 50.0;
 
 /// The names people are given (everybody has a name; operator,
 /// 2026-09-27), one rolled for each person from who they are.
@@ -363,21 +439,36 @@ pub fn register_episodes(reg: &mut EpisodeRegistry) {
         fits: fits.iter().map(|r| r.to_string()).collect(),
         parts: Vec::new(),
         lines: Vec::new(),
-        choices: Vec::new(),
     };
     let part = |name: &str, from| PartDef { name: name.to_string(), from };
-    let ways = |ways: &[&str]| ways.iter().map(|w| w.to_string()).collect::<Vec<_>>();
-    let line = |part: &str, at: &str, w: &[&str]| LineDef { part: part.to_string(), at: at.to_string(), ways: ways(w) };
-    // `felt`: how the one spoken to feels about hearing it (life.md "How
-    // a person feels about others"); a threat is below
-    // `relationship::HOSTILE`.
-    let choice = |at: &str, w: &[&str], choice: &str, reply: &[&str], felt: f32| ChoiceDef {
-        at: at.to_string(),
-        ways: ways(w),
-        choice: choice.to_string(),
-        reply: ways(reply),
-        felt,
+    let s = |s: &str| s.to_string();
+    let heard = |name: &str| When::Heard(s(name));
+    let not = |when: When| When::Not(Box::new(when));
+    // The Tap's lines (docs/episodes/the-tap.md "The lines"), as rules
+    // (episodes.md "One way for every conversation"). Dell's way to the
+    // tap is said at two moments: going on from her opening, and asked
+    // again.
+    const THE_WAY: [&str; 4] = [
+        "Out the door, then {way}. Keep the {landmark} on your {side}. There's a {place}, and a tap inside it that runs. Clean water, and it doesn't stop.",
+        "Go {way} out the door, past the {landmark} on your {side}. The {place} there has a tap. It still runs.",
+        "Head {way} from the door. When the {landmark} is on your {side}, look for the {place}. The tap in it doesn't stop.",
+        "Out the door, then {way}. There's a {place} out there, and a tap inside it that runs.",
+    ];
+    let the_way = |name: &str, when: Vec<When>| line(name, "Dell", when, &THE_WAY, "tap", 0.0);
+    // The player's answers to Dell once she has said the way, and to Mara
+    // once she has met them: open, the next time too, until one is given.
+    let answered = |answers: &[&str]| answers.iter().map(|a| not(When::Said(s(a)))).collect::<Vec<_>>();
+    let to_dell = || {
+        let mut when = vec![When::To(s("Dell")), When::HasHeard(s("the way"))];
+        when.extend(answered(&["believes Dell", "does not believe it", "sends Dell"]));
+        when
     };
+    let to_mara = || {
+        let mut when = vec![When::To(s("Mara")), When::HasHeard(s("the meeting"))];
+        when.extend(answered(&["talks with Mara", "threatens Mara", "leaves Mara the tap"]));
+        when
+    };
+    let reply = |name: &str, part: &str, to: &str, ways: &[&str]| line(name, part, vec![heard(to)], ways, "", 0.0);
     for def in [
         // docs/episodes/the-tap.md "The people" and "The lines".
         EpisodeDef {
@@ -387,50 +478,60 @@ pub fn register_episodes(reg: &mut EpisodeRegistry) {
                 part("Mara's child", CastFrom::SameBunkerAs("Mara".to_string())),
             ],
             lines: vec![
-                line("Dell", "the opening", &[
-                    "You're up. Good. The store's down to a few bottles; that won't last the week.",
-                    "Finally awake. We're nearly out of water.",
-                    "Don't get comfortable. The water's almost gone.",
-                ]),
-                line("Dell", "the way", &[
-                    "Out the door, then {way}. Keep the {landmark} on your {side}. There's a {place}, and a tap inside it that runs. Clean water, and it doesn't stop.",
-                    "Go {way} out the door, past the {landmark} on your {side}. The {place} there has a tap. It still runs.",
-                    "Head {way} from the door. When the {landmark} is on your {side}, look for the {place}. The tap in it doesn't stop.",
-                    "Out the door, then {way}. There's a {place} out there, and a tap inside it that runs.",
-                ]),
-                line("Dell", "keep it quiet", &[
-                    "Don't tell anyone. The day the other bunker hears of it, it's theirs.",
-                    "Keep it quiet. If the others find out, it's gone.",
-                ]),
-                line("Mara", "the meeting", &["This is ours. We found it first.", "Walk away. This one's taken."]),
-            ],
-            choices: vec![
-                choice("the opening", &["Show me.", "Let's go."], "believes Dell", &["Follow me. Keep up.", "This way. Stay close."], 0.1),
-                choice(
+                // Pivot point 1, how it opens: Dell speaks up, once.
+                line(
                     "the opening",
-                    &["Water doesn't just run out there. You're wrong.", "I don't believe it."],
-                    "does not believe it",
-                    &["Suit yourself. I'll go on my own.", "Then stay thirsty."],
-                    -0.1,
-                ),
-                choice(
-                    "the opening",
-                    &["Go and look again. I'll wait.", "Check it again first."],
-                    "sends Dell",
-                    &["Fine. Don't drink anything while I'm gone.", "Back soon."],
+                    "Dell",
+                    vec![When::To(s("player")), not(When::Said(s("the opening")))],
+                    &[
+                        "You're up. Good. The store's down to a few bottles; that won't last the week.",
+                        "Finally awake. We're nearly out of water.",
+                        "Don't get comfortable. The water's almost gone.",
+                    ],
+                    "",
                     0.0,
                 ),
-                // Answered with the way again (episode::the_players_choice).
-                choice("the opening", &["Where exactly?", "Tell me the way again."], "asks the way", &[], 0.0),
-                choice(
-                    "the meeting",
-                    &["There's enough for both of us."],
-                    "talks with Mara",
-                    &["Enough for today. Ask again tomorrow.", "Maybe. Don't get greedy."],
-                    0.2,
+                the_way("the way", vec![When::JustSaid(s("the opening"))]),
+                line(
+                    "keep it quiet",
+                    "Dell",
+                    vec![When::JustSaid(s("the way")), not(When::Said(s("keep it quiet")))],
+                    &["Don't tell anyone. The day the other bunker hears of it, it's theirs.", "Keep it quiet. If the others find out, it's gone."],
+                    "",
+                    0.0,
                 ),
-                choice("the meeting", &["Step away from it."], "threatens Mara", &["Try it.", "You'll regret that."], -0.6),
-                choice("the meeting", &["Keep it."], "leaves Mara the tap", &["Smart.", "Good. Go."], 0.1),
+                // `felt`: how the one spoken to feels about hearing it
+                // (life.md "How a person feels about others"); a threat is
+                // below `relationship::HOSTILE`.
+                line("believes Dell", "player", to_dell(), &["Show me.", "Let's go."], "", 0.1),
+                line("does not believe it", "player", to_dell(), &["Water doesn't just run out there. You're wrong.", "I don't believe it."], "", -0.1),
+                line("sends Dell", "player", to_dell(), &["Go and look again. I'll wait.", "Check it again first."], "", 0.0),
+                line("asks the way", "player", to_dell(), &["Where exactly?", "Tell me the way again."], "", 0.0),
+                reply("Dell leads", "Dell", "believes Dell", &["Follow me. Keep up.", "This way. Stay close."]),
+                reply("Dell goes alone", "Dell", "does not believe it", &["Suit yourself. I'll go on my own.", "Then stay thirsty."]),
+                reply("Dell checks", "Dell", "sends Dell", &["Fine. Don't drink anything while I'm gone.", "Back soon."]),
+                the_way("the way", vec![heard("asks the way")]),
+                // Back from looking again (sent to check), the way again.
+                the_way(
+                    "Dell told the way again",
+                    vec![When::To(s("player")), When::Reached(s("Dell looked")), not(When::Said(s("Dell told the way again")))],
+                ),
+                // Pivot point 3, the first meeting at the tap: Mara speaks
+                // up, once.
+                line(
+                    "the meeting",
+                    "Mara",
+                    vec![When::To(s("player")), When::Near(s("tap"), 6.0), not(When::Said(s("the meeting")))],
+                    &["This is ours. We found it first.", "Walk away. This one's taken."],
+                    "",
+                    0.0,
+                ),
+                line("talks with Mara", "player", to_mara(), &["There's enough for both of us."], "", 0.2),
+                line("threatens Mara", "player", to_mara(), &["Step away from it."], "", -0.6),
+                line("leaves Mara the tap", "player", to_mara(), &["Keep it."], "", 0.1),
+                reply("Mara answers talk", "Mara", "talks with Mara", &["Enough for today. Ask again tomorrow.", "Maybe. Don't get greedy."]),
+                reply("Mara answers a threat", "Mara", "threatens Mara", &["Try it.", "You'll regret that."]),
+                reply("Mara keeps it", "Mara", "leaves Mara the tap", &["Smart.", "Good. Go."]),
             ],
             ..episode("The Tap", &["Mixed world", "Sky Islands"])
         },

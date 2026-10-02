@@ -236,11 +236,21 @@ above), but also the more expensive (excavation, reinforcement,
 ventilation, longer power runs). The entrance is the most vulnerable
 point; the bottom is the vault.
 
-You start with just the bunker (the one starting room). The silo
-expansion is the progression: you dig down, carve out new levels, and
-build your underground base over time. Vertical progression gives the
-bunker its own curve:
-- The bunker: the starting room. Bed, food, bench. One door to topside.
+You start with just the bunker. The silo expansion is the progression:
+you dig down, carve out new levels, and build your underground base over
+time. Vertical progression gives the bunker its own curve:
+- The bunker you start in (operator, 2026-10-01): underground, two
+  levels. On the surface only the entrance, with the one door to
+  topside. Level 1 below it: the common room, with the water store, the
+  bench, and where Roxanne lives. Level 2, the deepest: the player's own
+  room, with the bed, the food and the note, its door shut. A stair
+  tower joins them, built like every building's with floors below the
+  ground. The player wakes alone in their room; once they have read
+  the note, Roxanne comes down and knocks on their door (operator,
+  2026-10-01), and that starts the first conversation (The
+  Tap, docs/episodes/the-tap.md). The basic controls are shown once
+  each in the room, when they are useful, and can be ignored (Fallout:
+  New Vegas's Doc Mitchell's house and its walk-past tutorial).
 - First expansion: dig down into the silo. Living quarters, basic
   storage, the first generator.
 - Mid levels: specialized stations, expanded storage, the armory.

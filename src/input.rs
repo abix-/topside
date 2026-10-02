@@ -123,6 +123,16 @@ pub fn read_input(
                 Some(slot) => Action::Transfer { half, slot: Some(slot) },
                 None => continue,
             },
+            // While a conversation's choices show, a number key says the
+            // choice of that number, not the hotbar (episodes.md "How a
+            // conversation looks").
+            Action::Hotbar { index } => match hud.0.talking.as_ref().filter(|t| !t.choices.is_empty()) {
+                Some(talking) => match modforge::hud::choice_for_key(talking, index) {
+                    Some(said) => Action::Talk { to: talking.with, said },
+                    None => continue,
+                },
+                None => Action::Hotbar { index },
+            },
             // O drops the stack under the cursor.
             Action::Drop { slot: None } => match hovered.0 {
                 Some(slot) => Action::Drop { slot: Some(slot) },

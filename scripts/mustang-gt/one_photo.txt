@@ -1,0 +1,52 @@
+rear 776 7 top left
+rear 776 6 bottom right
+3 sticker middle
+3 sticker left end
+3 sticker right end
+inspection sticker middle
+inspection sticker left end
+inspection sticker right end
+track sticker 1
+track sticker 2
+track sticker 3
+track sticker 4
+track sticker 5
+track sticker 1 left end
+track sticker 1 right end
+upright left post foot@mirror upright right post foot
+upright left brace foot@mirror upright right brace foot
+upright left post top@mirror upright right post foot
+upright left back top@mirror upright right post foot
+hood seam left back
+hood seam left front
+hood seam right back
+hood seam right front
+rod right outer top
+rod right inner top
+rod left inner top
+rod left outer top
+rod right outer foot@across splitter front tip
+rod right inner foot@across splitter front tip
+rod left inner foot@across splitter front tip
+rod left outer foot@across splitter front tip
+wing left end top front@blade top at left plate
+tow hook bracket bolt
+roof edge left front
+trunk edge left front
+trunk edge left rear
+trunk edge right rear
+hood front edge a
+hood front edge b
+hood corner left
+hood corner right
+trunk bottom middle@across trunk edge right rear
+plate bolt front@blade top at right plate
+plate bolt back@blade top at right plate
+side vent left back inner
+side vent left back outer
+side vent left front inner
+side vent left front outer
+side vent right back outer
+side vent right back inner
+side vent right front outer
+side vent right front inner

@@ -10,7 +10,6 @@ use modforge::hud::{
 };
 use modforge::item::EQUIPMENT_SLOTS;
 
-use crate::Ground;
 use crate::actor::{Dead, Hotbar, Inventory, INVENTORY_SLOTS, Survival};
 use modforge::memory::Did;
 use crate::combat::Equipment;
@@ -948,7 +947,11 @@ pub fn hud_keys(
         for stamped in &this_tick.0 {
             match stamped.action {
                 Action::Inventory => toggle_panel(&mut hud.0, OpenPanel::Inventory),
-                Action::Cancel => hud.0.open_panel = OpenPanel::None,
+                // Escape closes the panel, and ends a conversation.
+                Action::Cancel => {
+                    hud.0.open_panel = OpenPanel::None;
+                    hud.0.talking = None;
+                }
                 Action::Hotbar { index } => {
                     let item = hotbar.0.slots.slots.get(index).and_then(|s| s.as_ref()).map(|s| s.item.clone());
                     if let Ok(heal) = hotbar_key(&mut needs.0, &mut hotbar.0, index, &registry.0, &mut worn.0)
@@ -995,7 +998,7 @@ pub fn hud_keys(
                     if let Some(stack) = drop_from(&mut holders, slot)
                         && let Some(def) = registry.0.def(&stack.item)
                     {
-                        crate::interact::spawn_item(&mut commands, def, stack, at.translation.ground());
+                        crate::interact::spawn_item(&mut commands, def, stack, crate::interact::feet_of(at));
                     }
                 }
                 // In the open box too: you eat what you need where it is.
@@ -1032,7 +1035,7 @@ pub fn hud_keys(
                         continue;
                     };
                     if let Some(left) = inventory.0.add(made, def.max_stack) {
-                        crate::interact::spawn_item(&mut commands, def, left, at.translation.ground());
+                        crate::interact::spawn_item(&mut commands, def, left, crate::interact::feet_of(at));
                     }
                 }
                 _ => {}
@@ -1141,93 +1144,166 @@ pub fn render_station(
     }
 }
 
-/// The talk panel (talking, operator 2026-09-27): the topics the player
-/// can say to the person they are talking to, from what they know
-/// (modforge `talk_topics`); a click says it.
+/// A conversation on screen (episodes.md "How a conversation looks";
+/// Fallout: New Vegas's box, read from its screenshots 2026-10-01; the
+/// mockup docs/mockups/conversation.png): one see-through box low in the
+/// middle, its words amber. On top the name of the one talked to and the
+/// last line said; under a line across the box, the player's choices,
+/// numbered, said by their number keys; a threat shown <Threaten> in red.
+/// The world never pauses and nothing covers the crosshair. Painted from
+/// `HudState::talking` only.
 #[derive(Component)]
-pub struct TalkPanel;
+pub struct TalkBox;
 
-/// One topic row and which topic of the list it is.
+/// The name of the one the player talks to, on top of the box.
 #[derive(Component)]
-pub struct TopicRow(pub usize);
+pub struct TalkName;
 
-/// The talk panel's lines: the last things said between the player and
-/// the person they talk to, from the player's memory.
+/// The last line said, with who said it, under the name.
 #[derive(Component)]
-pub struct TalkLines;
+pub struct TalkLine;
 
-/// How many said and heard lines the talk panel shows.
-const TALK_LINES: usize = 4;
+/// The choices part of the box: the line across, the rows, the keys.
+#[derive(Component)]
+pub struct ChoiceList;
+
+/// One choice row: its number; its spans are the <Threaten> tag and the
+/// words.
+#[derive(Component)]
+pub struct ChoiceRow;
+
+/// The most choices shown at once: the number keys 1 to 6.
+const CHOICE_ROWS: usize = 6;
+
+/// The box's words and border (New Vegas's amber), a choice's words, a
+/// threat's tag, and the box behind them.
+const TALK_AMBER: Color = Color::srgb(1.0, 0.71, 0.26);
+const TALK_DIM: Color = Color::srgb(0.71, 0.51, 0.2);
+const TALK_RED: Color = Color::srgb(0.9, 0.27, 0.2);
+const TALK_SHADE: Color = Color::srgba(0.04, 0.03, 0.02, 0.75);
 
 pub fn setup_talk(mut commands: Commands) {
     commands
         .spawn((
-            TalkPanel,
+            TalkBox,
             Node {
                 position_type: PositionType::Absolute,
-                top: Val::Px(60.0),
-                left: Val::Px(40.0),
+                // Above the belt.
+                bottom: Val::Px(100.0),
+                left: Val::Percent(20.0),
+                width: Val::Percent(60.0),
                 flex_direction: FlexDirection::Column,
-                row_gap: Val::Px(4.0),
-                padding: UiRect::all(Val::Px(8.0)),
+                padding: UiRect::axes(Val::Px(18.0), Val::Px(12.0)),
+                border: UiRect::all(Val::Px(2.0)),
+                row_gap: Val::Px(6.0),
                 ..default()
             },
-            BackgroundColor(Color::srgba(0.05, 0.05, 0.05, 0.85)),
+            BackgroundColor(TALK_SHADE),
+            BorderColor::all(TALK_AMBER),
             Visibility::Hidden,
+            Pickable::IGNORE,
         ))
         .with_children(|p| {
-            // A fixed height of `TALK_LINES` lines, so a new line never
-            // pushes the rows out from under the mouse.
+            p.spawn((TalkName, Text::new(""), TextFont::from_font_size(20.0), TextColor(TALK_AMBER), Pickable::IGNORE));
+            p.spawn((TalkLine, Text::new(""), TextFont::from_font_size(18.0), TextColor(TALK_AMBER), Pickable::IGNORE));
             p.spawn((
-                TalkLines,
-                Text::new(""),
-                TextFont::from_font_size(14.0),
-                TextColor(Color::srgb(0.85, 0.8, 0.6)),
+                ChoiceList,
                 Node {
-                    height: Val::Px(TALK_LINES as f32 * 18.0),
+                    flex_direction: FlexDirection::Column,
+                    row_gap: Val::Px(6.0),
                     ..default()
                 },
                 Pickable::IGNORE,
-            ));
-            // The moment's choices, up to six.
-            for _ in 0..6 {
-                p.spawn((
-                    TopicRow(0),
+            ))
+            .with_children(|list| {
+                list.spawn((
                     Node {
-                        padding: UiRect::all(Val::Px(6.0)),
+                        height: Val::Px(1.0),
+                        margin: UiRect::bottom(Val::Px(4.0)),
                         ..default()
                     },
-                    BackgroundColor(SLOT_COLOR),
-                    children![(Text::new(""), TextFont::from_font_size(14.0), Pickable::IGNORE)],
-                ))
-                .observe(click_topic)
-                .observe(|over: On<Pointer<Over>>, mut colors: Query<&mut BackgroundColor>| {
-                    if let Ok(mut color) = colors.get_mut(over.entity) {
-                        color.0 = HELD_COLOR;
-                    }
-                })
-                .observe(|out: On<Pointer<Out>>, mut colors: Query<&mut BackgroundColor>| {
-                    if let Ok(mut color) = colors.get_mut(out.entity) {
-                        color.0 = SLOT_COLOR;
-                    }
-                });
-            }
+                    BackgroundColor(TALK_DIM),
+                    Pickable::IGNORE,
+                ));
+                for n in 1..=CHOICE_ROWS {
+                    list.spawn((
+                        ChoiceRow,
+                        Text::new(format!("{n})  ")),
+                        TextFont::from_font_size(18.0),
+                        TextColor(TALK_AMBER),
+                        Pickable::IGNORE,
+                        children![
+                            (TextSpan::new(""), TextFont::from_font_size(18.0), TextColor(TALK_RED)),
+                            (TextSpan::new(""), TextFont::from_font_size(18.0), TextColor(TALK_AMBER)),
+                        ],
+                    ));
+                }
+                list.spawn((
+                    Text::new("Number keys: say    Walk away: leave"),
+                    TextFont::from_font_size(14.0),
+                    TextColor(TALK_DIM),
+                    Node {
+                        margin: UiRect::top(Val::Px(4.0)),
+                        ..default()
+                    },
+                    Pickable::IGNORE,
+                ));
+            });
         });
 }
 
-/// What the talk panel offers the player talking to `to`: only the
-/// choices of the moment open with that person (episodes.md
-/// "Conversations"). The one list painting and clicking both read.
-fn talk_rows(episode: &crate::Episode, to: Option<u64>) -> Vec<(modforge::actions::Said, String)> {
-    episode
-        .choices
-        .iter()
-        .filter(|(_, _, whom)| Some(whom.0) == to)
-        .filter_map(|(line, _, _)| {
-            let words = episode.spoken.get(*line as usize)?;
-            Some((modforge::actions::Said::Line { line: *line, key: 0 }, words.clone()))
-        })
-        .collect()
+/// The basic controls the player has done (design.md "The bunker you
+/// start in"): each hint shows until done once, in the bunker below the
+/// ground (modforge `hud::Hint`).
+#[derive(Component, Default)]
+pub struct HintsDone(pub Vec<modforge::hud::Hint>);
+
+/// Every step, once the queues have drained: each control the player did
+/// this step is done.
+pub fn learn_hints(mut players: Query<(&crate::input::ThisTick, &mut HintsDone), With<Player>>) {
+    for (this_tick, mut done) in &mut players {
+        for hint in this_tick.0.iter().filter_map(|s| modforge::hud::Hint::of(&s.action)) {
+            if !done.0.contains(&hint) {
+                done.0.push(hint);
+            }
+        }
+    }
+}
+
+/// The hints still to do, on the left of the screen.
+#[derive(Component)]
+pub struct HintList;
+
+pub fn setup_hints(mut commands: Commands) {
+    commands.spawn((
+        HintList,
+        Text::new(""),
+        TextFont::from_font_size(16.0),
+        TextColor(Color::srgba(1.0, 1.0, 1.0, 0.75)),
+        Node {
+            position_type: PositionType::Absolute,
+            left: Val::Px(24.0),
+            top: Val::Percent(40.0),
+            ..default()
+        },
+        Pickable::IGNORE,
+    ));
+}
+
+/// The hints not yet done, one a line, while the player is below the
+/// ground; none topside.
+pub fn hints_shown(done: &HintsDone, feet: f32) -> Vec<&'static str> {
+    if feet > -0.5 {
+        return Vec::new();
+    }
+    modforge::hud::Hint::ALL.iter().filter(|h| !done.0.contains(h)).map(|h| h.text()).collect()
+}
+
+pub fn render_hints(players: Query<(&HintsDone, &Transform), With<Player>>, mut list: Query<&mut Text, With<HintList>>) {
+    let (Ok((done, at)), Ok(mut text)) = (players.single(), list.single_mut()) else {
+        return;
+    };
+    text.0 = hints_shown(done, crate::interact::feet_of(at).y).join("\n");
 }
 
 /// What the player can do with what they look at: "[E] Talk to Hank"
@@ -1251,82 +1327,67 @@ pub fn setup_prompt(mut commands: Commands) {
     ));
 }
 
-/// The prompt while no panel is open.
+/// The prompt while no panel is open and no choices are showing (E then
+/// says the highlighted choice).
 pub fn render_prompt(players: Query<&Hud, With<Player>>, mut texts: Query<&mut Text, With<PromptText>>) {
     let (Ok(hud), Ok(mut text)) = (players.single(), texts.single_mut()) else {
         return;
     };
-    text.0 = if hud.0.open_panel == OpenPanel::None { hud.0.prompt.text.clone() } else { String::new() };
+    let choosing = hud.0.talking.as_ref().is_some_and(|t| !t.choices.is_empty());
+    text.0 = if hud.0.open_panel == OpenPanel::None && !choosing { hud.0.prompt.text.clone() } else { String::new() };
 }
 
-/// Show the talk panel while it is open, its rows the player's topics,
-/// top to bottom in the panel's own order; rows past the last topic take
-/// no room.
+/// Paint the conversation from `HudState::talking`: the box while there is
+/// one, the name, the last line (the player's own with "You:"), and the
+/// choices part only on the player's turn, rows past the last choice
+/// taking no room.
+#[allow(clippy::type_complexity)]
 pub fn render_talk(
-    episode: Res<crate::Episode>,
-    players: Query<(&Hud, &crate::actor::Memory), With<Player>>,
-    names: Query<(&crate::actor::Actor, &Name)>,
-    mut panels: Query<(&mut Visibility, &Children), (With<TalkPanel>, Without<TopicRow>)>,
-    mut rows: Query<(&mut TopicRow, &Children, &mut Node)>,
-    mut lines: Query<&mut Text, (With<TalkLines>, Without<TopicRow>)>,
-    mut texts: Query<&mut Text, Without<TalkLines>>,
+    players: Query<&Hud, With<Player>>,
+    mut talk_box: Query<&mut Visibility, (With<TalkBox>, Without<ChoiceList>)>,
+    mut name: Query<&mut Text, (With<TalkName>, Without<TalkLine>, Without<ChoiceRow>)>,
+    mut line: Query<(&mut Text, &mut Node), (With<TalkLine>, Without<TalkName>, Without<ChoiceRow>, Without<ChoiceList>)>,
+    mut list: Query<(&mut Node, &Children), (With<ChoiceList>, Without<ChoiceRow>)>,
+    mut rows: Query<(&Children, &mut Node), With<ChoiceRow>>,
+    mut spans: Query<&mut TextSpan>,
 ) {
-    let (Ok((mut panel, in_order)), Ok((hud, memory))) = (panels.single_mut(), players.single()) else {
+    let (Ok(hud), Ok(mut shown), Ok(mut name), Ok((mut line, mut line_node)), Ok((mut list, in_order))) =
+        (players.single(), talk_box.single_mut(), name.single_mut(), line.single_mut(), list.single_mut())
+    else {
         return;
     };
-    if hud.0.open_panel != OpenPanel::Talk {
-        *panel = Visibility::Hidden;
+    let Some(talking) = hud.0.talking.as_ref() else {
+        *shown = Visibility::Hidden;
         return;
-    }
-    *panel = Visibility::Visible;
-    // What was last said between them, from the player's memory, by name.
-    if let (Some(to), Ok(mut shown)) = (hud.0.talking_to, lines.single_mut()) {
-        let name = names.iter().find(|(a, _)| a.0.0 == to).map_or_else(|| "They".to_string(), |(_, n)| n.as_str().to_string());
-        let said: Vec<String> = memory
-            .0
-            .done
-            .iter()
-            .filter_map(|(_, did)| match did {
-                modforge::memory::Did::Talked(whom, words) if whom.0 == to => Some(format!("You: {words}")),
-                modforge::memory::Did::Heard(by, words) if by.0 == to => Some(format!("{name}: {words}")),
-                _ => None,
-            })
-            .collect();
-        shown.0 = said[said.len().saturating_sub(TALK_LINES)..].join("\n");
-    }
-    let topics = talk_rows(&episode, hud.0.talking_to);
-    let rows_in_order = in_order.iter().filter(|c| rows.contains(*c)).collect::<Vec<_>>();
-    for (i, child) in rows_in_order.into_iter().enumerate() {
-        let Ok((mut row, children, mut node)) = rows.get_mut(child) else {
+    };
+    *shown = Visibility::Visible;
+    name.0 = talking.name.clone();
+    line.0 = match &talking.line {
+        Some((who, words)) if *who == talking.name => format!("\"{words}\""),
+        Some((who, words)) => format!("{who}: \"{words}\""),
+        None => String::new(),
+    };
+    // Nothing said yet in this conversation: the line takes no room.
+    line_node.display = if line.0.is_empty() { Display::None } else { Display::Flex };
+    list.display = if talking.choices.is_empty() { Display::None } else { Display::Flex };
+    // Top to bottom in the list's own order.
+    let in_order: Vec<Entity> = in_order.iter().filter(|c| rows.contains(*c)).collect();
+    for (i, child) in in_order.into_iter().enumerate() {
+        let Ok((children, mut node)) = rows.get_mut(child) else {
             continue;
         };
-        let Some((_, words)) = topics.get(i) else {
+        let Some(choice) = talking.choices.get(i) else {
             node.display = Display::None;
             continue;
         };
         node.display = Display::Flex;
-        row.0 = i;
-        if let Some(mut text) = children.first().and_then(|c| texts.get_mut(*c).ok()) {
-            text.0 = words.clone();
+        let tag = if choice.threat { "<Threaten> " } else { "" };
+        for (span, text) in children.iter().zip([tag, choice.words.as_str()]) {
+            if let Ok(mut span) = spans.get_mut(span) {
+                span.0 = text.to_string();
+            }
         }
     }
-}
-
-fn click_topic(
-    click: On<Pointer<Click>>,
-    rows: Query<&TopicRow>,
-    tick: Res<crate::SimTick>,
-    episode: Res<crate::Episode>,
-    mut players: Query<(&Hud, &mut Actions), With<Player>>,
-) {
-    let (Ok(row), Ok((hud, mut actions))) = (rows.get(click.entity), players.single_mut()) else {
-        return;
-    };
-    let offered = talk_rows(&episode, hud.0.talking_to);
-    let (Some(to), Some(said)) = (hud.0.talking_to, offered.get(row.0).map(|(said, _)| *said)) else {
-        return;
-    };
-    actions.0.push(tick.0 + 1, Action::Talk { to, said });
 }
 
 fn click_recipe(

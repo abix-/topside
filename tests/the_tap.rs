@@ -19,11 +19,14 @@ fn far(a: [f64; 2], b: [f64; 2]) -> f64 {
     ((a[0] - b[0]).powi(2) + (a[1] - b[1]).powi(2)).sqrt()
 }
 
-/// Click the row whose words are one of `words` in the open talk panel;
-/// the words clicked.
+/// Say the choice whose words are one of `words` in the open talk box by
+/// its number key (episodes.md "How a conversation looks"); the words
+/// said.
 pub fn click_row(words: &[&str]) -> Option<String> {
-    // The row, at most 8 real seconds (a game just started runs slow).
-    let row_of = |t: &serde_json::Value| t["rows"].as_array().and_then(|r| r.iter().find(|r| words.iter().any(|w| r["words"] == *w)).cloned());
+    // The choice, at most 8 real seconds (a game just started runs slow).
+    let row_of = |t: &serde_json::Value| {
+        t["choices"].as_array().and_then(|c| c.iter().position(|c| words.iter().any(|w| c == *w)).map(|i| (i, c[i].clone())))
+    };
     let mut talk = talk_after(|t| row_of(t).is_some());
     for _ in 0..20 {
         if row_of(&talk).is_some() {
@@ -32,11 +35,9 @@ pub fn click_row(words: &[&str]) -> Option<String> {
         std::thread::sleep(Duration::from_millis(250));
         talk = op("hud")["talk"].clone();
     }
-    let row = row_of(&talk)?;
-    op_with("pointer", serde_json::json!({"at": row["at"]}));
-    std::thread::sleep(Duration::from_millis(400));
-    op_with("pointer", serde_json::json!({"click": true}));
-    row["words"].as_str().map(str::to_string)
+    let (i, said) = row_of(&talk)?;
+    op_with("key", serde_json::json!({"key": (i + 1).to_string()}));
+    said.as_str().map(str::to_string)
 }
 
 fn reached(pivot: &str) -> bool {

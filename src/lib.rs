@@ -5,6 +5,7 @@
 pub mod actor;
 pub mod ai;
 pub mod combat;
+pub mod command;
 pub mod control_plane;
 pub mod episode;
 pub mod held;
@@ -14,6 +15,7 @@ pub mod interact;
 pub mod minimap;
 pub mod model;
 pub mod nav;
+pub mod outline;
 pub mod people;
 pub mod player;
 pub mod profile;
@@ -125,6 +127,7 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind) -> App {
     app.init_resource::<Reality>();
     app.init_resource::<content::EpisodeRegistryRes>();
     app.init_resource::<Episode>();
+    app.init_resource::<talk::Lines>();
     app.init_resource::<content::BiomeRegistryRes>();
     app.init_resource::<content::MonumentRegistryRes>();
     app.init_resource::<content::ItemRegistryRes>();
@@ -144,6 +147,8 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind) -> App {
     app.init_resource::<survival::Day>();
     app.init_resource::<content::RecipeRegistryRes>();
     app.init_resource::<storm::StormRes>();
+    app.init_resource::<command::GivenThisRun>();
+    app.init_resource::<command::Playing>();
     app.add_systems(
         Startup,
         (
@@ -177,6 +182,7 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind) -> App {
                 (
                     terrain::make_chunks,
                     structure::spawn_sites,
+                    terrain::open_the_ground,
                     actor::populate_monuments,
                     actor::populate_topside_people,
                     lap("chunks"),
@@ -184,7 +190,7 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind) -> App {
                     .chain(),
                 ai::think,
                 lap("think"),
-                (input::drain_actions, lap("drain_actions"), ai::follow).chain(),
+                (input::drain_actions, lap("drain_actions"), hud::learn_hints, command::give, command::carry_out, ai::follow).chain(),
                 (nav::record_solids, nav::record_doors),
                 nav::steer,
                 lap("steer"),
@@ -195,11 +201,10 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind) -> App {
                     storm::storm,
                     episode::cast_episode,
                     episode::place_the_tap,
-                    episode::dell_opens_the_tap,
-                    episode::the_players_choice,
+                    episode::pivots_said,
                     episode::the_taps_errands,
-                    episode::the_first_meeting,
                     episode::the_first_drink,
+                    talk::lines,
                     ai::lead,
                 )
                     .chain(),
@@ -212,7 +217,7 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind) -> App {
             )
                 .chain(),
             (
-                (talk::look_at, interact::interact_on_use, talk::talk, talk::conversations, talk::word_spreads).chain(),
+                (talk::look_at, interact::interact_on_use, talk::talk, talk::conversations, talk::speak_up, talk::word_spreads).chain(),
                 lap("interact"),
                 (player::movement, sight::look_around, sight::share_maps).chain(),
                 lap("movement"),
@@ -257,6 +262,7 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind) -> App {
         app.add_systems(FixedUpdate, minimap::toggle_map.after(input::drain_actions));
         app.add_systems(Update, minimap::draw_map);
         app.add_plugins(MaterialPlugin::<model::Cel>::default());
+        app.add_plugins(outline::OutlinePlugin);
         app.init_resource::<model::Tinted>();
         app.init_resource::<model::CelShaded>();
         app.init_resource::<people::Animations>();
@@ -290,6 +296,7 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind) -> App {
                 hud::setup_station,
                 hud::setup_talk,
                 hud::setup_prompt,
+                hud::setup_hints,
                 hud::setup_sky,
             )
                 .after(terrain::roll),
@@ -308,6 +315,7 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind) -> App {
                 hud::render_station,
                 hud::render_talk,
                 hud::render_prompt,
+                hud::render_hints,
                 hud::render_sky,
             ),
         );
@@ -343,6 +351,12 @@ fn spawn_camera(mut commands: Commands, players: Query<Entity, Added<player::Pla
         commands.entity(player).with_children(|c| {
             c.spawn((
                 Camera3d::default(),
+                // The outline pass reads the depth and normal prepasses,
+                // which it reads one sample a pixel: no MSAA.
+                bevy::core_pipeline::prepass::DepthPrepass,
+                bevy::core_pipeline::prepass::NormalPrepass,
+                Msaa::Off,
+                outline::Outlined,
                 player::Eyes::default(),
                 Transform::from_xyz(0.0, EYE_HEIGHT - player::BODY_CENTRE, 0.0)
                     .with_rotation(Quat::from_rotation_y(-std::f32::consts::FRAC_PI_2)),

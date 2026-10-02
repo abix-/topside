@@ -1,0 +1,137 @@
+//! Commands and replays (authority.md "Commands and replays"): the player
+//! given plain orders over the `command` op, carried out with the brain's
+//! own actions in the running game, with no key or mouse; a replay saved
+//! and played gives the same commands again.
+
+use std::time::Duration;
+
+use serde_json::{Value as Json, json};
+
+use crate::endpoint::{op, op_with, people};
+
+fn player_at() -> (f64, f64) {
+    let s = op("status");
+    (s["player"][0].as_f64().unwrap_or(0.0), s["player"][1].as_f64().unwrap_or(0.0))
+}
+
+fn at(p: &Json) -> Option<(f64, f64)> {
+    Some((p["at"][0].as_f64()?, p["at"][1].as_f64()?))
+}
+
+fn apart(a: (f64, f64), b: (f64, f64)) -> f64 {
+    ((a.0 - b.0).powi(2) + (a.1 - b.1).powi(2)).sqrt()
+}
+
+/// The nearest living person farther than `beyond` metres who is no one's
+/// enemy by faction: a bunker person or a stranger of no faction; with
+/// `still`, only one standing still this step (everyone walks at one
+/// speed, so a person walking away is never caught).
+fn someone_near(beyond: f64, still: bool) -> Option<(u64, String, (f64, f64))> {
+    let me = player_at();
+    let standing = |p: &Json| p["actions"].as_array().is_some_and(|a| a.iter().all(|s| s.as_str().is_none_or(|s| !s.starts_with("Move") || s.contains("x: 0.0, y: 0.0"))));
+    people()
+        .into_iter()
+        .filter(|p| p["dead"] != true && (crate::endpoint::is_bunker_person(p) || p["faction"].is_null()))
+        .filter(|p| !still || standing(p))
+        .filter_map(|p| Some((p["id"].as_u64()?, p["name"].as_str().unwrap_or_default().to_string(), at(&p)?)))
+        .filter(|(_, _, there)| apart(*there, me) > beyond)
+        .min_by(|a, b| apart(a.2, me).total_cmp(&apart(b.2, me)))
+}
+
+/// Real seconds to walk `metres` and then some: the player walks
+/// `player::WALK_SPEED`, 15 m a second.
+fn walk_secs(metres: f64) -> u64 {
+    (metres / 10.0) as u64 + 10
+}
+
+/// The player stood on the ground outside the bunker's door, 8 m south of
+/// it: commands walk the ground's walk grid, which has no stairs yet (todo
+/// 13a2), and the player wakes two levels down.
+fn outside() {
+    crate::endpoint::player_alive();
+    let player = op("player")["id"].as_u64().expect("the player op reports the player's id");
+    op_with("use", json!({"id": player, "at": [0.0, 12.0]}));
+    within(3, || op("status")["player_feet"].as_f64().is_some_and(|f| f.abs() < 0.1) && player_at().1 > 8.0);
+}
+
+/// Up to `secs` real seconds for `done`, a quarter second apart.
+fn within(secs: u64, done: impl Fn() -> bool) -> bool {
+    for _ in 0..secs * 4 {
+        if done() {
+            return true;
+        }
+        std::thread::sleep(Duration::from_millis(250));
+    }
+    done()
+}
+
+#[test]
+fn talk_to_walks_the_player_over_and_the_talk_box_opens() {
+    outside();
+    // Farther than talking distance, so the player walks over first.
+    let (id, name, there) = someone_near(5.0, true).expect("a living bunker person or stranger standing somewhere");
+    let from = player_at();
+    eprintln!("talk to {name} ({id}), {:.1} m away", apart(there, from));
+    let given = op_with("command", json!({"do": "talk_to", "who": id}));
+    eprintln!("given: {given}");
+    let opened = within(walk_secs(apart(there, from)), || {
+        let hud = op("hud");
+        let them = people().into_iter().find(|p| p["id"].as_u64() == Some(id)).and_then(|p| at(&p));
+        eprintln!("  the player {:?}, {name} {them:?}, looking at: {}", player_at(), hud["prompt"]);
+        hud["talk"]["to"].as_u64() == Some(id)
+    });
+    crate::talk_ui::shot("command_talk_to");
+    let talk = op("hud")["talk"].clone();
+    eprintln!("the player now at {:?}, walked {:.1} m; the talk box: {talk}", player_at(), apart(player_at(), from));
+    op_with("key", json!({"key": "Escape"}));
+    assert!(opened, "talk to {name} never opened the talk box with them");
+}
+
+#[test]
+fn move_to_walks_the_player_there() {
+    outside();
+    // Where someone stands is ground someone can stand on.
+    let (id, name, there) = someone_near(2.0, false).expect("a living bunker person or stranger somewhere");
+    let from = player_at();
+    eprintln!("move to where {name} ({id}) stands, {there:?}, {:.1} m from {from:?}", apart(there, from));
+    op_with("command", json!({"do": "move_to", "x": there.0, "y": there.1}));
+    let arrived = within(walk_secs(apart(there, from)), || apart(player_at(), there) <= 2.0);
+    crate::talk_ui::shot("command_move_to");
+    eprintln!("the player now at {:?}, {:.1} m from the point", player_at(), apart(player_at(), there));
+    assert!(arrived, "the player never reached {there:?}");
+}
+
+fn replay(name: &str) -> Option<Json> {
+    let path = format!("{}/../replays/{name}.json", env!("CARGO_MANIFEST_DIR"));
+    std::fs::read_to_string(path).ok().and_then(|t| serde_json::from_str(&t).ok())
+}
+
+#[test]
+fn a_saved_replay_played_again_gives_the_same_commands() {
+    crate::endpoint::player_alive();
+    let here = player_at();
+    // A move to where the player stands: given, and done at once.
+    op_with("command", json!({"do": "move_to", "x": here.0, "y": here.1}));
+    std::thread::sleep(Duration::from_millis(300));
+    for name in ["command test", "command test again"] {
+        let _ = std::fs::remove_file(format!("{}/../replays/{name}.json", env!("CARGO_MANIFEST_DIR")));
+    }
+    op_with("replay", json!({"save": "command test"}));
+    let saved = within(3, || replay("command test").is_some());
+    let first = replay("command test").unwrap_or(Json::Null);
+    let given = first["given"].as_array().cloned().unwrap_or_default();
+    eprintln!("saved: {saved}, {} commands, seed {}", given.len(), first["seed"]);
+    assert!(saved, "replays/command test.json was never written");
+    let last = given.last().cloned().unwrap_or(Json::Null);
+    assert_eq!(last["command"]["do"], "move_to", "the move just given is not the last command saved: {last}");
+    // Played: the replay's first command is given again on the next step.
+    op_with("replay", json!({"play": "command test"}));
+    std::thread::sleep(Duration::from_millis(300));
+    op_with("replay", json!({"save": "command test again"}));
+    let again = within(3, || replay("command test again").is_some_and(|r| r["given"].as_array().is_some_and(|g| g.len() > given.len())));
+    let after = replay("command test again").unwrap_or(Json::Null);
+    let replayed = after["given"][given.len()].clone();
+    eprintln!("the first command given again: {replayed}; the replay's first: {}", given[0]);
+    assert!(again, "playing the replay gave no command");
+    assert_eq!((&replayed["who"], &replayed["command"]), (&given[0]["who"], &given[0]["command"]), "the replay gave a different command");
+}

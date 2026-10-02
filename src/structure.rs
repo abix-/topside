@@ -9,7 +9,7 @@ use avian3d::prelude::*;
 use bevy::prelude::*;
 use modforge::hud::InteractKind;
 use modforge::structure::{
-    MonumentDef, Part, PartKind, SLAB, StructureDef, TileKind, TileRun, levels_above_ground, parts_of, tile_plan,
+    MonumentDef, Part, PartKind, SLAB, StructureDef, TileKind, TileRun, levels, open_to_below, parts_of, tile_plan,
     tile_plan_at,
 };
 
@@ -21,7 +21,7 @@ use modforge::monument::Roll;
 use modforge::walk::cell_of;
 
 use crate::content::{
-    BENCH_AT, BUNKER_STORE, BUNKER_STORE_AT, ItemRegistryRes, STARTING_ITEMS,
+    BENCH_AT, BUNKER_STORE, BUNKER_STORE_AT, COMMON_ROOM_FLOOR, ItemRegistryRes, PLAYER_ROOM_FLOOR, STARTING_ITEMS,
     STARTING_NOTE_AT, loot_table,
     starting_bunker, starting_note,
 };
@@ -49,10 +49,13 @@ pub struct Shelter(pub Vec<(Vec2, Vec2)>);
 impl Shelter {
     /// Whether `point` is under this building's roof.
     pub fn covers(&self, point: Vec2) -> bool {
-        self.0
-            .iter()
-            .any(|(min, max)| point.x >= min.x && point.x <= max.x && point.y >= min.y && point.y <= max.y)
+        inside(&self.0, point)
     }
+}
+
+/// Whether `point` is in any of `rects` (world metres, min and max).
+fn inside(rects: &[(Vec2, Vec2)], point: Vec2) -> bool {
+    rects.iter().any(|(min, max)| point.x >= min.x && point.x <= max.x && point.y >= min.y && point.y <= max.y)
 }
 
 /// Whether `point` is under any roof.
@@ -60,16 +63,38 @@ pub fn sheltered(shelters: &Query<&Shelter>, point: Vec2) -> bool {
     shelters.iter().any(|s| s.covers(point))
 }
 
-/// Spawn one building at `at`, every level at and above the ground, on
-/// the tile grid (docs/pathing.md "One grid"): each level from modforge's
-/// `tile_plan_at`, standing at its floor's height, its walls as tall as
-/// the level, its furniture, a slab under every tile walked on above the
-/// ground, a closed door on every door tile run; the stair tower's steps
-/// and landings from `parts_of`. Everything solid is one compound
-/// collider on a static root; the ground floor is its `Shelter`. A
-/// building of this reality (`of_world`) is a `WorldPiece`, gone when
-/// the storm shifts the world; the bunker is not. Basements are not
-/// stood up yet. Returns the root.
+/// What a building has below the ground: where its levels below stand
+/// (world metres, every tile of them), the height of its lowest floor, and
+/// the ground tiles it leaves open over the way down (world tiles). A body
+/// inside it goes as low as that floor (`player::movement`); no ground is
+/// drawn over the open tiles (`terrain`).
+#[derive(Component)]
+pub struct Below {
+    pub rects: Vec<(Vec2, Vec2)>,
+    pub bottom: f32,
+    pub open: Vec<(i32, i32)>,
+}
+
+/// The lowest a body at `point` goes: the floor of the building it stands
+/// in that goes below the ground, else the ground.
+pub fn lowest_at(below: &Query<&Below>, point: Vec2) -> f32 {
+    below
+        .iter()
+        .filter(|b| inside(&b.rects, point))
+        .map(|b| b.bottom)
+        .fold(0.0, f32::min)
+}
+
+/// Spawn one building at `at`, every level below the ground and above it,
+/// on the tile grid (docs/pathing.md "One grid"): each level from
+/// modforge's `tile_plan_at`, standing at its floor's height, its walls as
+/// tall as the level, its furniture, a slab under every tile walked on
+/// above the lowest floor, a closed door on every door tile run; the stair
+/// tower's steps and landings from `parts_of`. Everything solid is one
+/// compound collider on a static root; the ground floor is its `Shelter`;
+/// what it has below the ground is its `Below`. A building of this
+/// reality (`of_world`) is a `WorldPiece`, gone when the storm shifts the
+/// world; the bunker is not. Returns the root.
 pub fn spawn_structure(commands: &mut Commands, def: &StructureDef, at: Vec2, of_world: bool) -> Entity {
     let at = at.round();
     let rect = |r: &TileRun| {
@@ -91,8 +116,18 @@ pub fn spawn_structure(commands: &mut Commands, def: &StructureDef, at: Vec2, of
     let mut shapes: Vec<(Vec3, Rotation, Collider)> = Vec::new();
     let mut pieces: Vec<(Model, Tint, Transform)> = Vec::new();
     let mut doors: Vec<(Vec2, Vec2, f32, f32)> = Vec::new();
-    for (y, height) in levels_above_ground(def) {
+    let levels = levels(def);
+    // The lowest floor: the ground, or the deepest level below it.
+    let bottom = levels.first().map_or(0.0, |(y, _)| y.min(0.0));
+    let mut below: Vec<(Vec2, Vec2)> = Vec::new();
+    for (y, height) in levels {
         let runs = tile_plan_at(def, y);
+        if y < -0.5 {
+            below.extend(runs.iter().map(|r| {
+                let (min, max) = rect(r);
+                (at + min, at + max)
+            }));
+        }
         for r in &runs {
             let (min, max) = rect(r);
             let size = max - min;
@@ -105,8 +140,8 @@ pub fn spawn_structure(commands: &mut Commands, def: &StructureDef, at: Vec2, of
             if let Some(tall) = tall {
                 shapes.push((on_ground(centre, y + tall / 2.0), Rotation::IDENTITY, Collider::cuboid(size.x, tall, size.y)));
             }
-            // Above the ground, what is walked on stands on a slab.
-            if y > 0.5 && r.kind != TileKind::Wall {
+            // Above the lowest floor, what is walked on stands on a slab.
+            if y > bottom + 0.5 && r.kind != TileKind::Wall {
                 shapes.push((on_ground(centre, y - SLAB / 2.0), Rotation::IDENTITY, Collider::cuboid(size.x, SLAB, size.y)));
             }
             match r.kind {
@@ -127,10 +162,10 @@ pub fn spawn_structure(commands: &mut Commands, def: &StructureDef, at: Vec2, of
         }
     }
     // The stair tower's steps and landings, and the slabs it is walked on
-    // at every level (modforge's parts), above the ground.
+    // at every level (modforge's parts), above the ground and below.
     let walked = |p: &&Part| {
         let thin_furniture = p.kind == PartKind::Furniture && p.size.y <= 2.0 * SLAB;
-        (matches!(p.kind, PartKind::Step | PartKind::Landing) || thin_furniture) && p.center.y - p.size.y / 2.0 > -0.5
+        matches!(p.kind, PartKind::Step | PartKind::Landing) || thin_furniture
     };
     for part in parts_of(def).iter().filter(walked) {
         let local = Vec2::new(part.center.x, part.center.z);
@@ -158,6 +193,10 @@ pub fn spawn_structure(commands: &mut Commands, def: &StructureDef, at: Vec2, of
     }
     if of_world {
         root.insert(WorldPiece);
+    }
+    if bottom < -0.5 {
+        let open = open_to_below(def).into_iter().map(|(x, z)| (at.x as i32 + x, at.y as i32 + z)).collect();
+        root.insert(Below { rects: below, bottom, open });
     }
     let root = root.id();
     for piece in pieces {
@@ -195,8 +234,9 @@ pub fn spawn_structure(commands: &mut Commands, def: &StructureDef, at: Vec2, of
     root
 }
 
-/// The starting bunker at the world's bunker point, with its starting
-/// items and the note on the floor.
+/// The starting bunker at the world's bunker point (design.md "The bunker
+/// you start in"): the starting items and the note on the floor of the
+/// player's room, the bench in the common room.
 pub fn spawn_bunker(
     mut commands: Commands,
     world: Res<WorldRes>,
@@ -215,18 +255,18 @@ pub fn spawn_bunker(
         let on: Vec<String> = crate::content::starting_layers(name).iter().map(|l| l.to_string()).collect();
         let stack = item::create_layered(def(name), &on, &layers.0, count, &[], 0.0, salt)
             .unwrap_or_else(|e| panic!("starting item {name}: {e}"));
-        spawn_item(&mut commands, def(name), stack, at + Vec2::new(x, z));
+        spawn_item(&mut commands, def(name), stack, on_ground(at + Vec2::new(x, z), PLAYER_ROOM_FLOOR));
     }
     // The crafting bench, where E opens its recipes.
     let [x, z] = BENCH_AT;
-    spawn_station(&mut commands, StationKind::CraftingBench, at + Vec2::new(x, z));
+    spawn_station(&mut commands, StationKind::CraftingBench, on_ground(at + Vec2::new(x, z), COMMON_ROOM_FLOOR));
     // The note and the world both come from the world's seed.
     let [x, z] = STARTING_NOTE_AT;
     spawn_item(
         &mut commands,
         def("note"),
         write(def("note"), starting_note(world.seed), 0.0, 13).expect("the note def is a note"),
-        at + Vec2::new(x, z),
+        on_ground(at + Vec2::new(x, z), PLAYER_ROOM_FLOOR),
     );
 }
 
@@ -248,7 +288,9 @@ pub fn spawn_other_bunkers(mut commands: Commands, world: Res<WorldRes>, items: 
             &mut commands,
             box_def,
             create(box_def, 1, &[], 0.0, i as u64),
-            at + Vec2::new(x, z),
+            // In the entrance, where its people can reach it until they can
+            // go down the stairs (todo 13a2).
+            on_ground(at + Vec2::new(x, z), 0.0),
         );
         commands.entity(store).insert(Container(contents));
     }
@@ -326,7 +368,8 @@ pub fn spawn_sites(
                         Err(e) => warn!("loot: {e}"),
                     }
                 }
-                let at = site.position + Vec2::new(spot.position.x, spot.position.z);
+                // On the floor its spot is on.
+                let at = on_ground(site.position + Vec2::new(spot.position.x, spot.position.z), spot.position.y);
                 let found = spawn_item(&mut commands, box_def, item::create(box_def, 1, &[], 0.0, k as u64), at);
                 commands.entity(found).insert((Container(contents), WorldPiece));
             }

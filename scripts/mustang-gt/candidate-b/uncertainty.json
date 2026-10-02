@@ -1,0 +1,287 @@
+{
+ "5.0 front end": [
+  1.4,
+  8.7,
+  1.4
+ ],
+ "5.0 rear end": [
+  1.4,
+  8.6,
+  1.1
+ ],
+ "5.0 zero bottom": [
+  1.5,
+  8.8,
+  1.3
+ ],
+ "5.0 zero top": [
+  1.4,
+  8.8,
+  1.3
+ ],
+ "776 6 bottom": [
+  1.6,
+  9.3,
+  1.6
+ ],
+ "776 6 top right": [
+  1.4,
+  9.0,
+  2.0
+ ],
+ "776 first 7 foot": [
+  1.4,
+  8.7,
+  1.1
+ ],
+ "776 first 7 top left": [
+  1.4,
+  8.7,
+  1.2
+ ],
+ "776 right 6 bottom": [
+  1.6,
+  1.7,
+  1.1
+ ],
+ "776 right 6 top right": [
+  1.6,
+  1.7,
+  1.1
+ ],
+ "776 right first 7 foot": [
+  1.5,
+  1.7,
+  1.1
+ ],
+ "776 right first 7 top left": [
+  1.5,
+  1.6,
+  1.2
+ ],
+ "blade top at left plate": [
+  2.0,
+  3.3,
+  1.4
+ ],
+ "blade top at right plate": [
+  4.2,
+  3.6,
+  1.6
+ ],
+ "body front arch top left": [
+  2.2,
+  1.7,
+  0.9
+ ],
+ "body front arch top right": [
+  2.2,
+  1.8,
+  1.4
+ ],
+ "body front hub left": [
+  1.5,
+  1.3,
+  1.5
+ ],
+ "body front hub right": [
+  2.8,
+  4.4,
+  1.9
+ ],
+ "body mirror tip left": [
+  5.3,
+  1.8,
+  0.9
+ ],
+ "body mirror tip right": [
+  2.9,
+  1.5,
+  1.4
+ ],
+ "body pony": [
+  2.0,
+  0.7,
+  0.6
+ ],
+ "body rear arch top left": [
+  1.8,
+  2.0,
+  0.8
+ ],
+ "body rear arch top right": [
+  1.6,
+  1.5,
+  1.1
+ ],
+ "body rear hub left": [
+  3.1,
+  2.1,
+  1.2
+ ],
+ "body rear hub right": [
+  1.5,
+  1.4,
+  1.7
+ ],
+ "body top led bar front left": [
+  1.4,
+  0.7,
+  0.5
+ ],
+ "body top led bar front right": [
+  2.5,
+  1.0,
+  0.6
+ ],
+ "fuel door middle left": [
+  1.7,
+  9.8,
+  1.3
+ ],
+ "middle vent back left": [
+  2.9,
+  0.8,
+  1.1
+ ],
+ "middle vent back right": [
+  3.0,
+  0.8,
+  0.7
+ ],
+ "middle vent front left": [
+  2.8,
+  0.8,
+  0.7
+ ],
+ "middle vent front right": [
+  3.1,
+  0.7,
+  1.1
+ ],
+ "plate bottom left": [
+  2.2,
+  6.8,
+  1.4
+ ],
+ "plate bottom right": [
+  3.0,
+  8.8,
+  2.0
+ ],
+ "plate top left": [
+  2.2,
+  6.8,
+  1.4
+ ],
+ "plate top right": [
+  3.0,
+  8.8,
+  2.5
+ ],
+ "rear tyre bottom left": [
+  2.0,
+  10.2,
+  1.7
+ ],
+ "rear tyre top left": [
+  1.5,
+  9.3,
+  2.3
+ ],
+ "skirt left front top": [
+  1.4,
+  8.7,
+  1.4
+ ],
+ "skirt left rear top": [
+  1.8,
+  9.9,
+  2.5
+ ],
+ "splitter end left bottom rear": [
+  1.6,
+  9.3,
+  1.5
+ ],
+ "splitter end left top front": [
+  1.5,
+  1.3,
+  0.7
+ ],
+ "splitter end left top rear": [
+  1.6,
+  9.2,
+  1.3
+ ],
+ "splitter front tip": [
+  2.4,
+  12.4,
+  1.8
+ ],
+ "texas left el paso": [
+  1.7,
+  5.6,
+  1.4
+ ],
+ "texas left panhandle east": [
+  1.8,
+  5.8,
+  1.5
+ ],
+ "texas left panhandle west": [
+  1.7,
+  5.7,
+  1.4
+ ],
+ "texas right el paso": [
+  5.6,
+  15.4,
+  2.1
+ ],
+ "texas right panhandle east": [
+  5.1,
+  13.7,
+  2.1
+ ],
+ "texas right panhandle west": [
+  5.1,
+  13.6,
+  2.2
+ ],
+ "tow hook bracket bolt": [
+  11.9,
+  1.6,
+  0.8
+ ],
+ "upright left brace foot": [
+  2.7,
+  7.7,
+  1.4
+ ],
+ "upright left post foot": [
+  2.6,
+  7.8,
+  1.7
+ ],
+ "upright left post top": [
+  2.6,
+  7.6,
+  1.5
+ ],
+ "upright right brace foot": [
+  1.6,
+  2.1,
+  1.4
+ ],
+ "upright right post foot": [
+  1.7,
+  2.2,
+  1.4
+ ],
+ "wing left end bottom front": [
+  2.2,
+  3.3,
+  1.8
+ ]
+}

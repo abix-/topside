@@ -56,13 +56,45 @@ Rules:
 | Monuments and buildings | modforge `MonumentTypeDef`, `BuildingTypeDef`, `StructureDef`; content `SMALL_SITES` | Kinds: `MonumentRegistryRes`. Standing: each building an entity; the monuments standing in `structure::MonumentsRes` | Every building through `structure::spawn_structure` (the bunkers too); sites through `structure::spawn_sites` | Not audited |
 | Factions | modforge `FactionDef` | `FactionRegistryRes` (content `register_factions`); a person's faction in their `Npc` | Hostility: modforge `relationship::stands` (own feeling from memory, else the faction's standing from its members, else the registry's table), read in `ai::think` | tests/relationship.rs (2026-09-27) |
 | The storm | modforge `StormDef` (content `STORM`) | `storm::StormRes` | `storm::storm` hits the open through `hit_actor` (a `Shelter` is safe); `storm::shift_world` rolls the world again through `terrain::roll`, bunkers and bunker people kept; topside people die with the world and stay, dead, the storm in their memory | tests/storm.rs passed on the running game |
-| Talking | modforge `actions::Said` (tell, ask, offer, threaten) on `Action::Talk`; `talk::Answer` | Each person's `Memory`: `Did::Talked` and `Did::Heard`; a told thing is `Known` with `told_by` | Pushed like any action (the keys, the brain, an episode); carried out only by `talk::talk`, in `TALK_REACH`, both memories written by modforge `talk::talk`, the answer only from the listener's memory | tests/talk.rs passes on the running game (2026-09-27) |
+| Talking | modforge `actions::Said` (tell, ask, offer, threaten, line) on `Action::Talk`; `talk::Answer`; every line, the player's choices included, one rule: modforge storyteller `LineDef` (name, part, `When` conditions, ways, what it tells, felt; episodes.md "One way for every conversation") | Each person's `Memory`: `Did::Talked` and `Did::Heard`, each a `memory::Line` (the line's name and its words); a told thing is `Known` with `told_by`. The rules: an episode's on its `EpisodeDef`, plain talk in content (`plain_lines`), both in `talk::Lines`. The player's open conversation: `Conversation` on the player (with whom, since when, whether they started it); the panel's copy of their choices: `talk::Choices` | Pushed like any action (the keys, the brain, `talk::speak_up`); carried out only by `talk::talk`, in `TALK_REACH`, both memories written by modforge `talk::talk`, the answer only from the listener's memory; what anyone says and the player's choices picked only by modforge `talk::pick` and `talk::choices` against the speaker's memory, the words worked out when said (`talk::words_of`); pivot points said reached only by `episode::pivots_said` reading memory. Left: an NPC speaks up unasked from `talk::speak_up`, not yet from its brain's tree | modforge talk tests (2026-09-30): an episode conversation and plain talk on the rules alone; the running game not tested since the rules (2026-09-30) |
 | Realities | modforge `RealityDef` (its name, danger, night, whether death sticks; realities.md) | Kinds: `RealityRegistry`, held as `RealityRegistryRes` (content `register_realities`). The reality now: the `Reality` resource | Changed only by `storm::shift_world`: modforge `RealityRegistry::pick`, or the one the `storm` op names; its rules read from `Reality` by the system they change (`survival::night`, `combat::die`) | tests/reality.rs passes on the running game (2026-09-27) |
 | Episodes | modforge `EpisodeDef` (its name and the realities it fits; episodes.md) | Kinds: `EpisodeRegistry`, held as `EpisodeRegistryRes` (content `register_episodes`). The episode running now: the `Episode` resource | Started only by `storm::shift_world` after the reality, through modforge `EpisodeRegistry::pick`; the player learns only what they see or are told | tests/reality.rs: the running game's episode fits its reality (2026-09-27); nothing in the game acts on it yet |
 | Bunkers and their stores | a building (Monuments and buildings) | The bunker building's entity; its store a box, known through `Store` on each bunker person | As Monuments and buildings; the store is a box (Items) | Not audited |
 | Sight | the walls' colliders | `BlocksSight` on each thing that hides what is past it | `sight` (`Sight`), for `ai::think`'s cone and `sight::player_sight` | Not audited |
 | Copies | the JSON each op returns | The control plane's statics in `control_plane.rs` | Published by `control_plane.rs` for tests and watching, never read back by the game | Not audited |
 | Tests | a test function | `tests/`, one binary `all` | Every test reads the running game through the control plane; no headless tests | Built |
+| Commands and replays | modforge `command::Command` (move to, follow, talk to, attack, attack the nearest enemy), `command::Replay` (the world seed and each command with the tick it was given) | The commands a person has left: `command::Commanded` on them; every command given this run, in order: `command::GivenThisRun`; a replay playing: `command::Playing`; saved replays in `replays/` | Given only by `command::give`, from the control plane's `command` op or a replay played by the `replay` op; carried out only by `command::carry_out` through modforge `command::step`, which pushes the same actions a person's brain pushes (modforge `brain::walk_toward`, `turn_toward`), walked by `nav::steer`; follow hands over to `Following`, talk to ends in the same Use as E on the one looked at, attack in the same Attack; an enemy is whoever the person stands hostile to by the brain's one rule, modforge `relationship::stands` | tests/command.rs passes on the running game (2026-10-01): move to walked 52 m and stopped there, talk to walked 72 m and the talk box opened with them, a saved replay played gave its first command again. Follow, attack, and attack the nearest enemy not tested yet |
+
+## Commands and replays (operator, 2026-10-01)
+
+How Claude plays the running game to test it. A replay of every mouse
+movement and click is too low; a command is one plain order a person
+carries out: move to a point, follow someone, talk to someone, attack
+someone, attack the nearest enemy. One command, several, or a whole list
+is given, depending on what is being tested.
+
+Prior art: Minecraft's Baritone bot (`goto`, `follow`, `mine`: an order
+carried out through the normal movement) and StarCraft's and Age of
+Empires' replays (the player's commands are stored, not the mouse, and the
+engine plays them again).
+
+- A command is carried out with the same actions a person's brain pushes:
+  aim, move, Use, Attack. Nothing new reaches the game; `nav::steer` walks
+  the way around walls, as it does for everyone. No player-only rule: any
+  person can be given a command, the player too.
+- Move to: walk to the point. Follow: the same `Following` the game has.
+  Talk to: walk to them, face them, and Use, as E does; the conversation
+  then goes as any (the number keys say the choices). Attack: walk to them,
+  face them, and attack in reach until they are dead. Attack the nearest
+  enemy: the nearest living person they stand hostile to, by the one rule
+  the brain uses, then attack them.
+- The commands a person is given are carried out one after another. A
+  move of their own (the keys) ends them, as it ends following; any
+  command but follow ends following too, being their own order.
+- Every command given in a run is kept in order with the tick it was
+  given. Saved, it is a replay (`replays/<name>.json`, with the world
+  seed); played, each command is given again at the same distance in
+  ticks from the first. On the same world it does the same things again.
 
 ## The one boundary: modforge owns the systems, topside uses them
 
@@ -402,6 +434,12 @@ both drawn over the first person view while the player keeps playing, showing on
 what the player has seen (their map, life.md "The map each person
 carries"), the player at its centre, no live people on it. It is drawn from
 the player's map, not by a second camera.
+
+Things stand at every height (operator, 2026-10-01): x, y and z. A thing,
+a person, a station, or a dropped item can be on any level, below the
+ground or above it, and everything that reaches one (using it, picking it
+up, seeing it, walking to it) works by where it really is, at its height,
+wherever it is placed.
 
 This replaces the 2026-09-25 decision (2D, pictures rendered ahead of time,
 because 3D takes far more work for one person): the 3D models remove the

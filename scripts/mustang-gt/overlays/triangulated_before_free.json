@@ -1,0 +1,327 @@
+{
+ "5.0 front end": [
+  0.964,
+  0.959,
+  0.6743
+ ],
+ "5.0 rear end": [
+  0.8271,
+  0.9699,
+  0.666
+ ],
+ "776 6 bottom": [
+  -0.1557,
+  1.1381,
+  0.5376
+ ],
+ "776 6 top right": [
+  -0.1885,
+  0.9622,
+  0.745
+ ],
+ "776 first 7 foot": [
+  0.2314,
+  0.9855,
+  0.5397
+ ],
+ "776 first 7 top left": [
+  0.2649,
+  0.9808,
+  0.7826
+ ],
+ "776 right 6 bottom": [
+  0.2592,
+  -0.9022,
+  0.5157
+ ],
+ "776 right 6 top right": [
+  0.3128,
+  -0.9104,
+  0.7112
+ ],
+ "776 right first 7 foot": [
+  -0.1192,
+  -0.8921,
+  0.5302
+ ],
+ "776 right first 7 top left": [
+  -0.1468,
+  -0.8967,
+  0.7656
+ ],
+ "blade top at left plate": [
+  -2.3488,
+  0.9121,
+  1.3214
+ ],
+ "blade top at right plate": [
+  -2.3046,
+  -0.8842,
+  1.3665
+ ],
+ "body front arch top left": [
+  1.4582,
+  0.8738,
+  0.715
+ ],
+ "body front arch top right": [
+  1.4578,
+  -0.9175,
+  0.6939
+ ],
+ "body front hub left": [
+  1.4672,
+  0.8923,
+  0.4146
+ ],
+ "body front hub right": [
+  1.4638,
+  -0.922,
+  0.4053
+ ],
+ "body rear arch top left": [
+  -1.2002,
+  1.0147,
+  0.7061
+ ],
+ "body rear arch top right": [
+  -1.271,
+  -0.9587,
+  0.7294
+ ],
+ "body rear hub left": [
+  -1.2206,
+  1.0174,
+  0.3787
+ ],
+ "body rear hub right": [
+  -1.2514,
+  -0.941,
+  0.4025
+ ],
+ "fuel door middle left": [
+  -1.7022,
+  1.0083,
+  0.8432
+ ],
+ "middle vent back left": [
+  1.6157,
+  0.2301,
+  0.958
+ ],
+ "middle vent back right": [
+  1.488,
+  -0.2033,
+  0.9523
+ ],
+ "middle vent front left": [
+  1.9023,
+  0.2055,
+  0.89
+ ],
+ "middle vent front right": [
+  1.8418,
+  -0.1757,
+  0.8914
+ ],
+ "plate bottom left": [
+  -2.3778,
+  0.0344,
+  0.5145
+ ],
+ "plate bottom right": [
+  -2.4083,
+  -0.4198,
+  0.527
+ ],
+ "plate top left": [
+  -2.3535,
+  0.0179,
+  0.6472
+ ],
+ "plate top right": [
+  -2.3773,
+  -0.4245,
+  0.6627
+ ],
+ "rear tyre bottom left": [
+  -1.2655,
+  1.2354,
+  0.0593
+ ],
+ "rear tyre top left": [
+  -1.2183,
+  0.8674,
+  0.6606
+ ],
+ "splitter end left bottom rear": [
+  1.8721,
+  1.0549,
+  0.1344
+ ],
+ "splitter end left top front": [
+  2.0758,
+  0.9849,
+  0.2249
+ ],
+ "splitter end left top rear": [
+  1.8728,
+  1.0337,
+  0.2289
+ ],
+ "splitter front tip": [
+  2.5326,
+  0.187,
+  0.1343
+ ],
+ "texas left el paso": [
+  -1.7962,
+  0.5907,
+  1.3035
+ ],
+ "texas left panhandle east": [
+  -2.0845,
+  0.7691,
+  1.5069
+ ],
+ "texas left panhandle west": [
+  -1.9618,
+  0.6934,
+  1.5129
+ ],
+ "texas right el paso": [
+  -2.0159,
+  -1.3096,
+  1.3598
+ ],
+ "texas right panhandle east": [
+  -2.291,
+  -1.4009,
+  1.5699
+ ],
+ "texas right panhandle west": [
+  -2.191,
+  -1.3959,
+  1.5734
+ ],
+ "tow hook bracket bolt": [
+  2.4156,
+  -0.2093,
+  0.3983
+ ],
+ "upright left brace foot": [
+  -1.904,
+  0.5932,
+  0.9799
+ ],
+ "upright left post foot": [
+  -2.1306,
+  0.5723,
+  0.9994
+ ],
+ "upright left post top": [
+  -2.1341,
+  0.5723,
+  1.1764
+ ],
+ "upright right brace foot": [
+  -1.8974,
+  -0.5932,
+  1.004
+ ],
+ "upright right post foot": [
+  -2.1272,
+  -0.5723,
+  1.018
+ ],
+ "wing left end bottom front": [
+  -2.0405,
+  0.9735,
+  1.3288
+ ],
+ "wing left end top front": [
+  -1.9593,
+  0.9886,
+  1.3986
+ ],
+ "rear 776 7 top left": [
+  -2.2227,
+  0.6495,
+  0.6411
+ ],
+ "rear 776 6 bottom right": [
+  -2.2875,
+  0.334,
+  0.5424
+ ],
+ "3 sticker middle": [
+  0.2033,
+  0.5593,
+  1.2506
+ ],
+ "3 sticker left end": [
+  0.1812,
+  0.5898,
+  1.2522
+ ],
+ "3 sticker right end": [
+  0.2267,
+  0.526,
+  1.2482
+ ],
+ "inspection sticker middle": [
+  0.6615,
+  0.6319,
+  1.0074
+ ],
+ "inspection sticker left end": [
+  0.6422,
+  0.6786,
+  1.0058
+ ],
+ "inspection sticker right end": [
+  0.6682,
+  0.5907,
+  1.0133
+ ],
+ "track sticker 1": [
+  -1.591,
+  -0.3994,
+  1.0815
+ ],
+ "track sticker 2": [
+  -1.5222,
+  -0.3966,
+  1.1034
+ ],
+ "track sticker 3": [
+  -1.4706,
+  -0.4029,
+  1.1187
+ ],
+ "track sticker 4": [
+  -1.3987,
+  -0.4017,
+  1.141
+ ],
+ "track sticker 5": [
+  -1.3375,
+  -0.397,
+  1.1602
+ ],
+ "track sticker 1 left end": [
+  -1.618,
+  -0.3718,
+  1.0777
+ ],
+ "track sticker 1 right end": [
+  -1.5621,
+  -0.4286,
+  1.0854
+ ],
+ "upright left brace top": [
+  -2.2479,
+  0.5723,
+  1.1568
+ ]
+}

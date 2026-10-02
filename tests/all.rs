@@ -3,7 +3,9 @@
 
 mod endpoint;
 
+mod bunker;
 mod chunks;
+mod command;
 mod control_plane;
 mod deaths;
 mod doorways;

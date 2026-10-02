@@ -99,6 +99,9 @@ fn key_code(name: &str) -> Option<KeyCode> {
         "1" => KeyCode::Digit1,
         "2" => KeyCode::Digit2,
         "3" => KeyCode::Digit3,
+        "4" => KeyCode::Digit4,
+        "5" => KeyCode::Digit5,
+        "6" => KeyCode::Digit6,
         _ => return None,
     })
 }
@@ -305,10 +308,11 @@ pub fn answer_use(
     let Some((id, to)) = USE_ASK.lock().ok().and_then(|mut ask| ask.take()) else {
         return;
     };
-    let at = match to {
-        UseAt::Point(at) => at,
+    // The point on the ground, and the floor it is on: a person's own.
+    let (at, floor) = match to {
+        UseAt::Point(at) => (at, 0.0),
         UseAt::Person(whom) => match people.iter().find(|(a, ..)| a.0.0 == whom) {
-            Some((_, there, ..)) => there.translation.ground(),
+            Some((_, there, ..)) => (there.translation.ground(), crate::interact::feet_of(&there).y),
             None => return,
         },
     };
@@ -318,7 +322,7 @@ pub fn answer_use(
         if actor.0.0 != id {
             continue;
         }
-        transform.translation = crate::on_ground(stand, crate::player::BODY_CENTRE);
+        transform.translation = crate::on_ground(stand, floor + crate::player::BODY_CENTRE);
         // The player's eyes on the middle of whatever stands there, a
         // metre off, so what they look at is what is there.
         if is_player && let Ok((mut eye, mut view)) = eyes.single_mut() {
@@ -386,7 +390,7 @@ pub fn answer_npc(
             let in_reach: Vec<String> = view
                 .usable
                 .iter()
-                .filter(|(_, door, _, t)| crate::interact::use_point(*door, t).distance(here) <= crate::interact::REACH)
+                .filter(|(_, door, _, t)| crate::interact::in_reach(crate::interact::feet_of(at), crate::interact::use_point(*door, t)))
                 .map(|(thing, _, item, _)| format!("{:?} {}", thing.kind, item.map_or("", |i| i.stack.item.as_str())))
                 .collect();
             let water_in_reach = view.chunks.as_ref().and_then(|c| crate::interact::nearest_water(c, here, here));
@@ -514,10 +518,9 @@ pub fn publish_ways(tick: Res<crate::SimTick>, failed: Res<crate::nav::FailedWay
 }
 /// How many times real time the game runs, set by the `speed` op
 /// (Factorio's game speed); 1 is normal.
-/// The game starts at 4 times real time (operator, 2026-09-26: a test
-/// waits at most 3 minutes; the first night, where the thirst deaths
-/// were, is past by tick 42,000, 2 minutes 55 seconds at 4x).
-static SPEED_BITS: AtomicU32 = AtomicU32::new(0x4080_0000);
+/// The game starts at real time, 1x (operator, 2026-10-01; it started at
+/// 4x from 2026-09-26).
+static SPEED_BITS: AtomicU32 = AtomicU32::new(0x3F80_0000);
 
 /// The `screenshot` op asked for one, taken the next frame: the path to
 /// save it to.
@@ -650,35 +653,28 @@ pub fn publish_hud(
     panels: Query<(&crate::hud::Panel, &UiGlobalTransform)>,
     slots: Query<(&crate::hud::SlotUi, &crate::hud::SlotIcons)>,
     item_panel: Query<&crate::hud::ItemPanel>,
-    talk_panel: Query<&Visibility, With<crate::hud::TalkPanel>>,
-    talk_rows: Query<(&Node, &Children, &UiGlobalTransform), With<crate::hud::TopicRow>>,
-    talk_lines: Query<&Text, With<crate::hud::TalkLines>>,
+    talk_box: Query<&Visibility, With<crate::hud::TalkBox>>,
+    choice_list: Query<&Node, With<crate::hud::ChoiceList>>,
     pointers: Query<(&bevy::picking::pointer::PointerId, &bevy::picking::pointer::PointerLocation)>,
-    texts: Query<&Text>,
     players: Query<&crate::interact::Hud, With<Player>>,
+    hints: Query<(&crate::hud::HintsDone, &Transform), With<Player>>,
 ) {
     if tick.0 % 60 != 0 {
         return;
     }
-    // The talk panel as drawn: whether it shows, to whom, and each topic
-    // row shown, top to bottom: its words and its centre in the window's
-    // logical pixels (what the `pointer` op takes).
-    let scale = windows.single().map_or(1.0, |w| w.scale_factor());
-    let mut rows: Vec<(String, Vec2)> = talk_rows
-        .iter()
-        .filter(|(node, ..)| node.display != Display::None)
-        .filter_map(|(_, children, at)| {
-            let words = children.first().and_then(|c| texts.get(*c).ok())?.0.clone();
-            Some((words, at.translation / scale))
-        })
-        .collect();
-    rows.sort_by(|a, b| a.1.y.total_cmp(&b.1.y));
+    // The controls still shown (`hud::hints_shown`).
+    let shown_hints = hints.single().map_or(Vec::new(), |(done, at)| crate::hud::hints_shown(done, crate::interact::feet_of(at).y));
+    // The conversation as the HUD shows it (`HudState::talking`): whether
+    // the player is in one, with whom, the last line, the choices (each
+    // said by its number key), and whether the choices are drawn.
+    let talking = players.single().ok().and_then(|h| h.0.talking.clone());
     let talk = json!({
-        "lines": talk_lines.single().map_or(String::new(), |t| t.0.clone()),
-        "open": talk_panel.single().is_ok_and(|v| *v != Visibility::Hidden),
-        "to": players.single().ok().and_then(|h| h.0.talking_to),
-        "topics": rows.iter().map(|(words, _)| words.clone()).collect::<Vec<_>>(),
-        "rows": rows.iter().map(|(words, at)| json!({"words": words, "at": [at.x, at.y]})).collect::<Vec<_>>(),
+        "open": talking.is_some(),
+        "to": talking.as_ref().map(|t| t.with),
+        "name": talking.as_ref().map(|t| t.name.clone()),
+        "line": talking.as_ref().and_then(|t| t.line.clone()).map(|(by, words)| json!({"by": by, "words": words})),
+        "choices": talking.as_ref().map_or(Vec::new(), |t| t.choices.iter().map(|c| c.words.clone()).collect()),
+        "drawn": talk_box.single().is_ok_and(|v| *v != Visibility::Hidden) && choice_list.single().is_ok_and(|n| n.display != Display::None),
     });
     let Ok(window) = windows.single() else {
         return;
@@ -730,6 +726,10 @@ pub fn publish_hud(
             "talk": talk,
             // What the player can do with what they look at.
             "prompt": players.single().map_or(String::new(), |h| h.0.prompt.text.clone()),
+            // Whether a note is open, being read.
+            "reading": players.single().is_ok_and(|h| h.0.reading.is_some()),
+            // The controls still shown, one a line.
+            "hints": shown_hints,
             // Where Bevy picking has the `pointer` op's pointer now, in
             // logical pixels.
             "pointer": pointers
@@ -781,10 +781,18 @@ pub fn publish_world(
     standing: Option<Res<crate::structure::MonumentsRes>>,
     reality: Res<crate::Reality>,
     episode: Res<crate::Episode>,
+    below: Query<(&Transform, &crate::structure::Below)>,
 ) {
     if tick.0 % 60 != 0 {
         return;
     }
+    // Every building that goes below the ground: where it stands, its
+    // lowest floor, and how many ground tiles it leaves open over the way
+    // down.
+    let below: Vec<Json> = below
+        .iter()
+        .map(|(at, b)| json!({"at": [at.translation.x, at.translation.z], "bottom": b.bottom, "open": b.open.len(), "tiles": b.rects.len()}))
+        .collect();
     let night = crate::survival::night(&tick, *day, &reality);
     // The reality the world is in now, and its rules (realities.md).
     let reality = json!({
@@ -901,6 +909,7 @@ pub fn publish_world(
         "did": did,
         "factions": factions,
         "bunkers": bunkers,
+        "below": below,
         "chunks": {"made": made, "missing": missing},
         // The seed this world rolled from, and the road tiles in its chunks.
         "seed": rolled.as_ref().map(|w| w.seed),
@@ -970,11 +979,11 @@ pub fn publish(
                 "killed_by": memory.0.killed_by().map(|(by, of)| json!({"by": by.map(|a| a.0), "of": of})),
                 "knows": memory.0.known.iter().map(|k| json!({"key": k.key, "kind": k.kind, "told_by": k.told_by.map(|a| a.0)})).collect::<Vec<_>>(),
                 "heard": memory.0.done.iter().filter_map(|(t, d)| match d {
-                    modforge::memory::Did::Heard(by, said) => Some(json!({"tick": t, "by": by.0, "said": said})),
+                    modforge::memory::Did::Heard(by, said) => Some(json!({"tick": t, "by": by.0, "said": said.words, "line": said.name})),
                     _ => None,
                 }).collect::<Vec<_>>(),
                 "said": memory.0.done.iter().filter_map(|(t, d)| match d {
-                    modforge::memory::Did::Talked(to, said) => Some(json!({"tick": t, "to": to.0, "said": said})),
+                    modforge::memory::Did::Talked(to, said) => Some(json!({"tick": t, "to": to.0, "said": said.words, "line": said.name})),
                     _ => None,
                 }).collect::<Vec<_>>(),
             });
@@ -1037,7 +1046,7 @@ pub fn publish(
                     "def": npc.def,
                     "faction": npc.faction,
                     "dead": dead,
-                    "at": [at.translation.x, at.translation.y],
+                    "at": [at.translation.x, at.translation.z],
                     "health": health.0.current,
                     "hunger": needs.0.hunger,
                     "thirst": needs.0.thirst,
@@ -1275,6 +1284,45 @@ pub fn start() {
         },
     ));
     OP_REGISTRY.register(OpDef::new(
+        "command",
+        "give a person (`id`, the player when left out) a command on the game's next step, or a list of them (`commands`), carried out one after another with the brain's own actions (authority.md \"Commands and replays\"): {\"do\": \"move_to\", \"x\", \"y\"}, {\"do\": \"follow\", \"who\"}, {\"do\": \"talk_to\", \"who\"}, {\"do\": \"attack\", \"who\"}, {\"do\": \"attack_nearest_enemy\"}; a move of their own ends them",
+        "{\"do\": \"talk_to\", \"who\": 3}",
+        |args| {
+            let id = args.get("id").and_then(Json::as_u64);
+            let list: Vec<Json> = match args.get("commands").and_then(Json::as_array) {
+                Some(list) => list.clone(),
+                None => vec![args.clone()],
+            };
+            let given = list
+                .into_iter()
+                .map(|c| serde_json::from_value::<modforge::command::Command>(c).map_err(|e| format!("not a command: {e}")))
+                .collect::<Result<Vec<_>, _>>()?;
+            if let Ok(mut ask) = crate::command::COMMAND_ASK.lock() {
+                ask.extend(given.iter().map(|c| (id, *c)));
+            }
+            Ok(json!({"id": id, "given": given}))
+        },
+    ));
+    OP_REGISTRY.register(OpDef::new(
+        "replay",
+        "`save`: write every command given this run, with its tick and the world seed, to replays/<name>.json; `play`: give a saved replay's commands again from the game's next step, the same ticks apart",
+        "{\"save\": \"talk to dell\"}",
+        |args| {
+            let ask = match (args.get("save").and_then(Json::as_str), args.get("play").and_then(Json::as_str)) {
+                (Some(name), _) => crate::command::ReplayAsk::Save(name.to_string()),
+                (None, Some(name)) => crate::command::ReplayAsk::Play(name.to_string()),
+                (None, None) => return Err("save: a name, or play: a name".to_string()),
+            };
+            let path = match &ask {
+                crate::command::ReplayAsk::Save(name) | crate::command::ReplayAsk::Play(name) => crate::command::replay_path(name),
+            };
+            if let Ok(mut slot) = crate::command::REPLAY_ASK.lock() {
+                *slot = Some(ask);
+            }
+            Ok(json!({"replay": path}))
+        },
+    ));
+    OP_REGISTRY.register(OpDef::new(
         "pointer",
         "drive the mouse as the player does, through Bevy picking on the real mouse pointer: `at` moves it to a window point in logical pixels (the `hud` op gives where things are), `click` presses the left button this frame and releases it the next",
         "{\"at\": [640.0, 360.0], \"click\": true}",
@@ -1297,7 +1345,7 @@ pub fn start() {
     ));
     OP_REGISTRY.register(OpDef::new(
         "key",
-        "press a key as the player does, into the one key state input::read_input reads: tapped (pressed one frame, released the next) or, with `hold`, pressed until a `key` op with `hold: false` (W, A, S, D, E, I, M, T, O, Tab, Escape, Enter, Space, 1, 2, 3)",
+        "press a key as the player does, into the one key state input::read_input reads: tapped (pressed one frame, released the next) or, with `hold`, pressed until a `key` op with `hold: false` (W, A, S, D, E, I, M, T, O, Tab, Escape, Enter, Space, 1 to 6)",
         "{\"key\": \"E\"}",
         |args| {
             let name = args.get("key").and_then(Json::as_str).ok_or_else(|| "key: a key's name".to_string())?;

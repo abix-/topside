@@ -83,15 +83,15 @@ fn eat_from_source(
     }
 }
 
-/// Where a station stands for E: nothing to draw (the furniture is
-/// drawn), only the spot.
-pub fn spawn_station(commands: &mut Commands, kind: StationKind, at: Vec2) -> Entity {
+/// Where a station stands for E, on its floor (x, height, y): nothing to
+/// draw (the furniture is drawn), only the spot.
+pub fn spawn_station(commands: &mut Commands, kind: StationKind, at: Vec3) -> Entity {
     commands
         .spawn((
             Interactable {
                 kind: InteractKind::Station(kind),
             },
-            Transform::from_translation(on_ground(at, 0.0)),
+            Transform::from_translation(at),
         ))
         .id()
 }
@@ -102,10 +102,11 @@ pub fn spawn_station(commands: &mut Commands, kind: StationKind, at: Vec2) -> En
 const ITEM_SIZE: f32 = 0.35;
 const DEPLOYABLE_SIZE: f32 = 0.7;
 
-/// The ONE path from an item stack to a WorldItem in the world. A
-/// small item is a sensor people walk over and E picks up; a
-/// deployable is solid, and a box among them holds a `Container`.
-pub fn spawn_item(commands: &mut Commands, def: &ItemDef, stack: ItemStack, at: Vec2) -> Entity {
+/// The ONE path from an item stack to a WorldItem in the world, resting
+/// at `at` (x, height, y: on whatever floor it lies on). A small item is a
+/// sensor people walk over and E picks up; a deployable is solid, and a
+/// box among them holds a `Container`.
+pub fn spawn_item(commands: &mut Commands, def: &ItemDef, stack: ItemStack, at: Vec3) -> Entity {
     debug_assert_eq!(def.name, stack.item, "the stack must be of this def");
     let deployable = def.kind == ItemKind::Deployable;
     let size = if deployable { DEPLOYABLE_SIZE } else { ITEM_SIZE };
@@ -123,9 +124,9 @@ pub fn spawn_item(commands: &mut Commands, def: &ItemDef, stack: ItemStack, at: 
         Interactable { kind },
         WorldItem { stack },
         RigidBody::Static,
-        // Resting on the ground: the box raised by half its height.
+        // Resting on its floor: the box raised by half its height.
         Collider::compound(vec![(Vec3::Y * size / 2.0, Rotation::IDENTITY, Collider::cuboid(size, size, size))]),
-        Transform::from_translation(on_ground(at, 0.0)),
+        Transform::from_translation(at),
     ));
     // Its model, made to this size by scripts/models.py; never a box
     // (design.md: no coloured boxes).
@@ -156,9 +157,31 @@ impl Default for Hud {
     }
 }
 
-/// Where a thing is used from: a door from where it stands closed.
-pub(crate) fn use_point(door: Option<&Door>, transform: &Transform) -> Vec2 {
-    door.map_or(transform.translation.ground(), |d| d.closed_center)
+/// Where a thing is used from: a door from where it stands closed, at its
+/// floor's height.
+pub(crate) fn use_point(door: Option<&Door>, transform: &Transform) -> Vec3 {
+    match door {
+        Some(d) => on_ground(d.closed_center, transform.translation.y),
+        None => transform.translation,
+    }
+}
+
+/// How far below a person's feet and above them a thing is in reach: on
+/// their own level, up to a high shelf (authority.md "Presentation":
+/// things stand at every height).
+const BELOW_FEET: f32 = 0.5;
+const ABOVE_FEET: f32 = 2.0;
+
+/// Whether a thing resting at `at` is in reach of a person whose feet are
+/// at `feet`: within `REACH` on the ground, and on their level.
+pub fn in_reach(feet: Vec3, at: Vec3) -> bool {
+    let up = at.y - feet.y;
+    at.ground().distance(feet.ground()) <= REACH && (-BELOW_FEET..=ABOVE_FEET).contains(&up)
+}
+
+/// Where a person's feet are: their body's centre less its height.
+pub fn feet_of(person: &Transform) -> Vec3 {
+    person.translation - Vec3::Y * crate::player::BODY_CENTRE
 }
 
 /// Every person's Use this tick, the player's E and the brain's alike,
@@ -181,6 +204,7 @@ pub fn interact_on_use(
         Without<ThisTick>,
     >,
     mut stores: Query<&mut Container>,
+    names: Query<&Name>,
 ) {
     for ((me, person, this_tick, mut inventory, mut hud, mut open, mut station), (mut needs, mut health, mut memory, facing, looking)) in
         &mut people
@@ -190,11 +214,11 @@ pub fn interact_on_use(
         }
         // Looking at a person: E talks to exactly them (episodes.md
         // "Conversations"), a conversation that ends by itself.
-        if let Some((_, id)) = looking.and_then(|l| l.0) {
-            if hud.0.open_panel != OpenPanel::Talk || hud.0.talking_to != Some(id) {
-                hud.0.open_panel = OpenPanel::Talk;
-                hud.0.talking_to = Some(id);
-                commands.entity(me).insert(crate::talk::Conversation { with: id, started: tick.0, ends_at: None });
+        if let Some((them, id)) = looking.and_then(|l| l.0) {
+            if hud.0.talking.as_ref().is_none_or(|t| t.with != id) {
+                let name = names.get(them).map_or("", |n| n.as_str());
+                hud.0.talking = Some(crate::talk::talking_with(id, name));
+                commands.entity(me).insert(crate::talk::Conversation::new(id, tick.0, true));
             }
             continue;
         }
@@ -202,18 +226,19 @@ pub fn interact_on_use(
         // nearest the point they aim at (what the brain means to use);
         // with no aim (the player, in first person), the point a step
         // ahead of where they face.
-        let at = person.translation.ground();
+        let feet = feet_of(person);
+        let at = feet.ground();
         let pointed = ActionQueue::aim(&this_tick.0).map_or(at + facing.direction(), |(x, y)| Vec2::new(x, y));
         let nearest = things
             .iter()
             .map(|(e, _, door, _, t, _)| (e, use_point(door, t)))
-            .filter(|(_, p)| p.distance(at) <= REACH)
-            .min_by(|a, b| a.1.distance(pointed).total_cmp(&b.1.distance(pointed)))
+            .filter(|(_, p)| in_reach(feet, *p))
+            .min_by(|a, b| a.1.ground().distance(pointed).total_cmp(&b.1.ground().distance(pointed)))
             .map(|(e, _)| e);
         let Some(Ok((entity, thing, door, item, transform, draws_from))) = nearest.map(|e| things.get_mut(e)) else {
             // Nothing to use in reach: a river's water pointed at is drunk
-            // (design.md: rivers are drinkable).
-            if chunks.as_ref().is_some_and(|c| nearest_water(c, at, pointed).is_some()) {
+            // (design.md: rivers are drinkable), from the ground's level.
+            if in_reach(feet, on_ground(at, 0.0)) && chunks.as_ref().is_some_and(|c| nearest_water(c, at, pointed).is_some()) {
                 eat_from_source(WATER, &registry, &mut needs, &mut health, memory.as_deref_mut(), tick.0);
             }
             continue;

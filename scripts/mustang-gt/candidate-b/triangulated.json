@@ -1,0 +1,532 @@
+{
+ "5.0 front end": [
+  0.9569,
+  0.9615,
+  0.6694
+ ],
+ "5.0 rear end": [
+  0.8215,
+  0.9754,
+  0.6621
+ ],
+ "5.0 zero bottom": [
+  0.851,
+  1.0608,
+  0.6402
+ ],
+ "5.0 zero top": [
+  0.8544,
+  1.0339,
+  0.6773
+ ],
+ "776 6 bottom": [
+  -0.1486,
+  1.1635,
+  0.54
+ ],
+ "776 6 top right": [
+  -0.186,
+  0.9739,
+  0.7468
+ ],
+ "776 first 7 foot": [
+  0.2303,
+  0.9952,
+  0.5398
+ ],
+ "776 first 7 top left": [
+  0.2649,
+  0.9912,
+  0.7816
+ ],
+ "776 right 6 bottom": [
+  0.2546,
+  -0.912,
+  0.5142
+ ],
+ "776 right 6 top right": [
+  0.3093,
+  -0.9207,
+  0.7099
+ ],
+ "776 right first 7 foot": [
+  -0.124,
+  -0.8982,
+  0.53
+ ],
+ "776 right first 7 top left": [
+  -0.1503,
+  -0.9026,
+  0.7661
+ ],
+ "blade top at left plate": [
+  -2.3346,
+  0.9044,
+  1.3906
+ ],
+ "blade top at right plate": [
+  -2.3606,
+  -0.9217,
+  1.3905
+ ],
+ "body front arch top left": [
+  1.4365,
+  0.8994,
+  0.7074
+ ],
+ "body front arch top right": [
+  1.4554,
+  -0.9388,
+  0.6898
+ ],
+ "body front hub left": [
+  1.4513,
+  0.8921,
+  0.3904
+ ],
+ "body front hub right": [
+  1.4593,
+  -0.9438,
+  0.4004
+ ],
+ "body mirror tip left": [
+  0.3758,
+  1.0118,
+  1.0046
+ ],
+ "body mirror tip right": [
+  0.3593,
+  -1.0508,
+  0.9998
+ ],
+ "body pony": [
+  2.2946,
+  -0.007,
+  0.5914
+ ],
+ "body rear arch top left": [
+  -1.1887,
+  1.0111,
+  0.7102
+ ],
+ "body rear arch top right": [
+  -1.2762,
+  -0.9532,
+  0.7324
+ ],
+ "body rear hub left": [
+  -1.2067,
+  1.0072,
+  0.3674
+ ],
+ "body rear hub right": [
+  -1.2585,
+  -0.9358,
+  0.4057
+ ],
+ "body top led bar front left": [
+  2.1468,
+  0.5503,
+  0.6564
+ ],
+ "body top led bar front right": [
+  2.1374,
+  -0.5966,
+  0.6573
+ ],
+ "fuel door middle left": [
+  -1.6882,
+  1.0311,
+  0.8539
+ ],
+ "middle vent back left": [
+  1.5823,
+  0.2184,
+  0.957
+ ],
+ "middle vent back right": [
+  1.4661,
+  -0.2174,
+  0.9511
+ ],
+ "middle vent front left": [
+  1.8609,
+  0.1953,
+  0.8874
+ ],
+ "middle vent front right": [
+  1.805,
+  -0.1882,
+  0.8911
+ ],
+ "plate bottom left": [
+  -2.4007,
+  -0.0263,
+  0.5329
+ ],
+ "plate bottom right": [
+  -2.4492,
+  -0.5197,
+  0.5464
+ ],
+ "plate top left": [
+  -2.3764,
+  -0.0444,
+  0.6657
+ ],
+ "plate top right": [
+  -2.4176,
+  -0.5249,
+  0.6824
+ ],
+ "rear tyre bottom left": [
+  -1.2503,
+  1.2692,
+  0.0698
+ ],
+ "rear tyre top left": [
+  -1.2133,
+  0.8739,
+  0.6686
+ ],
+ "skirt left front top": [
+  1.0405,
+  0.8775,
+  0.162
+ ],
+ "skirt left rear top": [
+  -0.8147,
+  1.2142,
+  0.2171
+ ],
+ "splitter end left bottom rear": [
+  1.8562,
+  1.057,
+  0.127
+ ],
+ "splitter end left top front": [
+  2.0563,
+  0.9809,
+  0.2175
+ ],
+ "splitter end left top rear": [
+  1.8569,
+  1.0334,
+  0.2208
+ ],
+ "splitter front tip": [
+  2.4855,
+  0.0984,
+  0.1229
+ ],
+ "texas left el paso": [
+  -1.7935,
+  0.5704,
+  1.3199
+ ],
+ "texas left panhandle east": [
+  -2.0731,
+  0.7689,
+  1.5249
+ ],
+ "texas left panhandle west": [
+  -1.9535,
+  0.6848,
+  1.5304
+ ],
+ "texas right el paso": [
+  -2.088,
+  -1.4837,
+  1.3778
+ ],
+ "texas right panhandle east": [
+  -2.3649,
+  -1.5795,
+  1.5896
+ ],
+ "texas right panhandle west": [
+  -2.2647,
+  -1.5744,
+  1.5925
+ ],
+ "tow hook bracket bolt": [
+  2.361,
+  -0.2119,
+  0.3909
+ ],
+ "upright left brace foot": [
+  -1.9006,
+  0.5806,
+  0.9968
+ ],
+ "upright left post foot": [
+  -2.1289,
+  0.5574,
+  1.0172
+ ],
+ "upright left post top": [
+  -2.1315,
+  0.5574,
+  1.1942
+ ],
+ "upright right brace foot": [
+  -1.8979,
+  -0.5806,
+  1.0114
+ ],
+ "upright right post foot": [
+  -2.1275,
+  -0.5574,
+  1.0262
+ ],
+ "wing left end bottom front": [
+  -2.033,
+  0.9333,
+  1.3264
+ ],
+ "rear 776 7 top left": [
+  -2.2232,
+  0.6531,
+  0.6576
+ ],
+ "rear 776 6 bottom right": [
+  -2.2896,
+  0.2247,
+  0.5577
+ ],
+ "3 sticker middle": [
+  0.2177,
+  0.5413,
+  1.2488
+ ],
+ "3 sticker left end": [
+  0.197,
+  0.5718,
+  1.2502
+ ],
+ "3 sticker right end": [
+  0.2383,
+  0.5078,
+  1.2466
+ ],
+ "inspection sticker middle": [
+  0.6721,
+  0.6176,
+  1.0048
+ ],
+ "inspection sticker left end": [
+  0.6539,
+  0.6644,
+  1.0029
+ ],
+ "inspection sticker right end": [
+  0.6785,
+  0.5763,
+  1.0109
+ ],
+ "track sticker 1": [
+  -1.5831,
+  -0.3739,
+  1.0882
+ ],
+ "track sticker 2": [
+  -1.5145,
+  -0.3728,
+  1.1101
+ ],
+ "track sticker 3": [
+  -1.4629,
+  -0.3799,
+  1.1252
+ ],
+ "track sticker 4": [
+  -1.3909,
+  -0.3799,
+  1.1473
+ ],
+ "track sticker 5": [
+  -1.3296,
+  -0.376,
+  1.1664
+ ],
+ "track sticker 1 left end": [
+  -1.6094,
+  -0.3447,
+  1.0846
+ ],
+ "track sticker 1 right end": [
+  -1.5546,
+  -0.4039,
+  1.0919
+ ],
+ "upright left brace top": [
+  -2.2459,
+  0.5574,
+  1.175
+ ],
+ "hood seam left back": [
+  1.3661,
+  0.8332,
+  0.8808
+ ],
+ "hood seam left front": [
+  1.968,
+  0.7864,
+  0.7402
+ ],
+ "hood seam right back": [
+  0.5689,
+  -0.8127,
+  0.9228
+ ],
+ "hood seam right front": [
+  1.9809,
+  -0.7769,
+  0.7353
+ ],
+ "rod right outer top": [
+  2.2379,
+  -0.5451,
+  0.2982
+ ],
+ "rod right inner top": [
+  2.3133,
+  -0.1617,
+  0.2362
+ ],
+ "rod left inner top": [
+  2.294,
+  0.1579,
+  0.3064
+ ],
+ "rod left outer top": [
+  2.2389,
+  0.5591,
+  0.3021
+ ],
+ "rod right outer foot": [
+  2.4855,
+  -0.6727,
+  0.1488
+ ],
+ "rod right inner foot": [
+  2.4855,
+  -0.1451,
+  0.161
+ ],
+ "rod left inner foot": [
+  2.4855,
+  0.1501,
+  0.1562
+ ],
+ "rod left outer foot": [
+  2.4855,
+  0.711,
+  0.1705
+ ],
+ "wing left end top front": [
+  -1.9556,
+  0.9044,
+  1.4166
+ ],
+ "roof edge left front": [
+  -0.0089,
+  0.6064,
+  1.3018
+ ],
+ "trunk edge left front": [
+  -1.6996,
+  0.6377,
+  0.993
+ ],
+ "trunk edge left rear": [
+  -2.0381,
+  0.7224,
+  0.9641
+ ],
+ "trunk edge right rear": [
+  -2.0926,
+  -0.6203,
+  0.9954
+ ],
+ "hood front edge a": [
+  2.2744,
+  -0.1876,
+  0.7448
+ ],
+ "hood front edge b": [
+  2.2791,
+  0.1134,
+  0.7451
+ ],
+ "hood corner left": [
+  2.0083,
+  0.7744,
+  0.7171
+ ],
+ "hood corner right": [
+  2.0106,
+  -0.7606,
+  0.7183
+ ],
+ "plate bolt front": [
+  -2.1309,
+  -0.9217,
+  1.3188
+ ],
+ "plate bolt back": [
+  -2.277,
+  -0.9217,
+  1.3309
+ ],
+ "side vent left back inner": [
+  1.4309,
+  0.3158,
+  0.9404
+ ],
+ "side vent left back outer": [
+  1.3098,
+  0.5869,
+  0.9331
+ ],
+ "side vent left front inner": [
+  1.9118,
+  0.2482,
+  0.8755
+ ],
+ "side vent left front outer": [
+  1.795,
+  0.451,
+  0.8708
+ ],
+ "side vent right back outer": [
+  1.2878,
+  -0.4998,
+  0.9319
+ ],
+ "side vent right back inner": [
+  1.4019,
+  -0.3282,
+  0.9414
+ ],
+ "side vent right front outer": [
+  1.8784,
+  -0.5469,
+  0.8643
+ ],
+ "side vent right front inner": [
+  1.8793,
+  -0.346,
+  0.8668
+ ],
+ "trunk bottom middle": [
+  -2.0926,
+  -1.3749,
+  0.9062
+ ],
+ "upright left back top": [
+  -2.2459,
+  0.5574,
+  1.175
+ ]
+}

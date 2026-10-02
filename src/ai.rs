@@ -45,7 +45,7 @@ fn water_key(c: modforge::walk::ChunkKey) -> u64 {
 }
 
 /// A point on the 2D ground as the brain's ground point.
-fn ground(p: Vec2) -> Vec3 {
+pub(crate) fn ground(p: Vec2) -> Vec3 {
     Vec3::new(p.x, 0.0, p.y)
 }
 

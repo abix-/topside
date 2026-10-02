@@ -31,5 +31,5 @@ max-threads = 1
 [[profile.default.overrides]]
 # And the tests that move the player (the `use` op) or drive the mouse:
 # one at a time, or they pull the one player two ways.
-filter = 'test(/^game::/) | test(/^control_plane::/) | test(/^talk::/) | test(/^talk_ui::/) | test(/^the_tap::/) | test(/^episode::/) | test(/^relationship::/) | test(/^leading::/)'
+filter = 'test(/^game::/) | test(/^control_plane::/) | test(/^talk::/) | test(/^talk_ui::/) | test(/^the_tap::/) | test(/^episode::/) | test(/^relationship::/) | test(/^leading::/) | test(/^command::/) | test(/^bunker::/)'
 test-group = "real-game"

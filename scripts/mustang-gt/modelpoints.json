@@ -1,0 +1,197 @@
+{
+ "top led bar front left": [
+  2.2789,
+  0.4974,
+  0.7148
+ ],
+ "amber tip left": [
+  1.7956,
+  0.9055,
+  0.7051
+ ],
+ "front arch top left": [
+  1.3993,
+  0.9348,
+  0.7583
+ ],
+ "front hub left": [
+  1.4065,
+  0.875,
+  0.3692
+ ],
+ "windshield bottom corner left": [
+  0.5002,
+  0.7463,
+  1.0241
+ ],
+ "windshield top corner left": [
+  0.0804,
+  0.598,
+  1.2901
+ ],
+ "mirror arm foot left": [
+  0.4664,
+  0.8527,
+  0.9734
+ ],
+ "mirror housing rear top left": [
+  0.2779,
+  1.0309,
+  1.0556
+ ],
+ "handle front left": [
+  -0.3432,
+  0.8971,
+  0.8308
+ ],
+ "handle rear left": [
+  -0.6283,
+  0.9046,
+  0.8308
+ ],
+ "quarter glass tip left": [
+  -1.2422,
+  0.6635,
+  1.1377
+ ],
+ "fuel door middle left": [
+  -1.7932,
+  0.8583,
+  0.8646
+ ],
+ "taillight top inner left": [
+  -2.1668,
+  0.4274,
+  0.9212
+ ],
+ "taillight top inner right": [
+  -2.1668,
+  -0.4274,
+  0.9212
+ ],
+ "plate top left": [
+  -2.2872,
+  0.1576,
+  0.6368
+ ],
+ "plate top right": [
+  -2.2872,
+  -0.1576,
+  0.6368
+ ],
+ "plate bottom left": [
+  -2.2872,
+  0.1576,
+  0.4873
+ ],
+ "plate bottom right": [
+  -2.2872,
+  -0.1576,
+  0.4873
+ ],
+ "rear arch top left": [
+  -1.3316,
+  0.9459,
+  0.7317
+ ],
+ "rear hub left": [
+  -1.3292,
+  0.875,
+  0.3644
+ ],
+ "top led bar front right": [
+  2.2789,
+  -0.4974,
+  0.7148
+ ],
+ "amber tip right": [
+  1.7956,
+  -0.9055,
+  0.7051
+ ],
+ "front arch top right": [
+  1.3993,
+  -0.9348,
+  0.7583
+ ],
+ "front hub right": [
+  1.4065,
+  -0.875,
+  0.3692
+ ],
+ "windshield bottom corner right": [
+  0.5002,
+  -0.7463,
+  1.0241
+ ],
+ "windshield top corner right": [
+  0.0732,
+  -0.6094,
+  1.2901
+ ],
+ "mirror housing rear top right": [
+  0.2779,
+  -1.0309,
+  1.0556
+ ],
+ "handle front right": [
+  -0.3432,
+  -0.8971,
+  0.8308
+ ],
+ "handle rear right": [
+  -0.6283,
+  -0.9046,
+  0.8308
+ ],
+ "quarter glass tip right": [
+  -1.2422,
+  -0.6635,
+  1.1377
+ ],
+ "rear arch top right": [
+  -1.3316,
+  -0.9459,
+  0.7317
+ ],
+ "rear hub right": [
+  -1.3292,
+  -0.875,
+  0.3644
+ ],
+ "pony": [
+  2.2863,
+  0.0,
+  0.5832
+ ],
+ "grille top corner left": [
+  2.3623,
+  0.4404,
+  0.6969
+ ],
+ "grille top corner right": [
+  2.3622,
+  -0.442,
+  0.6969
+ ],
+ "grille outer point left": [
+  2.2975,
+  0.598,
+  0.5539
+ ],
+ "grille outer point right": [
+  2.2975,
+  -0.598,
+  0.5539
+ ],
+ "mirror tip left": [
+  0.3054,
+  1.0368,
+  1.0138
+ ],
+ "mirror tip right": [
+  0.288,
+  -1.04,
+  1.0138
+ ]
+}

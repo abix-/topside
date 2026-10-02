@@ -5,7 +5,6 @@ use bevy::prelude::*;
 use modforge::actor::ActorId;
 use modforge::storyteller::{CastBunker, cast};
 
-use modforge::actions::Said;
 use modforge::item;
 use modforge::memory::Did;
 
@@ -30,37 +29,25 @@ pub struct Episode {
     /// What the episode brought into the world, where, and the key
     /// memory knows it by.
     pub things: Vec<(String, Vec2, u64)>,
-    /// Every line said in this episode, its words as said (one way of
-    /// each, slots filled): a `Said::Line` names its line by its place
-    /// here.
-    pub spoken: Vec<String>,
-    /// The player's choices open now: the line of its words, what
-    /// choosing it is, and who it is said to.
-    pub choices: Vec<(u32, String, ActorId)>,
+    /// The tick it started: what was said before it is not its.
+    pub started: u64,
 }
 
 impl Episode {
-    /// A new episode starts: nobody cast, nothing reached.
-    pub fn start(&mut self, name: Option<String>) {
-        *self = Self::new(name);
+    /// A new episode starts at this tick: nobody cast, nothing reached.
+    pub fn start(&mut self, name: Option<String>, tick: u64) {
+        *self = Self::new(name, tick);
     }
 
-    fn new(name: Option<String>) -> Self {
+    fn new(name: Option<String>, started: u64) -> Self {
         Self {
             name,
             cast: Vec::new(),
             cast_done: false,
             reached: Vec::new(),
             things: Vec::new(),
-            spoken: Vec::new(),
-            choices: Vec::new(),
+            started,
         }
-    }
-
-    /// Keep a line's words; its line number for `Said::Line`.
-    pub fn speak(&mut self, words: String) -> u32 {
-        self.spoken.push(words);
-        (self.spoken.len() - 1) as u32
     }
 
     /// A pivot point reached, once.
@@ -75,14 +62,24 @@ impl Episode {
         self.reached.iter().any(|(p, ..)| p == pivot)
     }
 
+    /// The names of the pivot points reached, for matching lines.
+    pub fn reached_names(&self) -> Vec<String> {
+        self.reached.iter().map(|(p, ..)| p.clone()).collect()
+    }
+
     /// The thing the episode brought in by this name.
-    fn thing(&self, name: &str) -> Option<(Vec2, u64)> {
+    pub fn thing(&self, name: &str) -> Option<(Vec2, u64)> {
         self.things.iter().find(|(n, ..)| n == name).map(|(_, at, key)| (*at, *key))
     }
 
     /// The person cast for a part.
     pub fn cast_as(&self, part: &str) -> Option<ActorId> {
         self.cast.iter().find(|(p, _)| p == part).map(|(_, id)| *id)
+    }
+
+    /// The part a person is cast as, if any.
+    pub fn part_of(&self, who: ActorId) -> Option<&str> {
+        self.cast.iter().find(|(_, id)| *id == who).map(|(p, _)| p.as_str())
     }
 }
 
@@ -91,7 +88,7 @@ impl FromWorld for Episode {
         let reality = world.get_resource_or_init::<crate::Reality>().0.name.clone();
         let seed = world.resource::<crate::WorldSeed>().0;
         let episodes = world.get_resource_or_init::<EpisodeRegistryRes>();
-        Self::new(episodes.0.pick(&reality, seed, 0).map(|e| e.name.clone()))
+        Self::new(episodes.0.pick(&reality, seed, 0).map(|e| e.name.clone()), 0)
     }
 }
 
@@ -147,9 +144,11 @@ pub fn cast_episode(
 /// How far from the way a site can stand and still be on it, metres.
 const ON_THE_WAY: f32 = 80.0;
 
+/// The mark a site's key carries, apart from things' keys.
+pub const SITE: u64 = 1 << 62;
+
 /// The key memory knows a site by: its position, marked apart from things.
 pub fn site_key(at: Vec2) -> u64 {
-    const SITE: u64 = 1 << 62;
     SITE | ((at.x.round() as i32 as u32 as u64) << 24) ^ (at.y.round() as i32 as u32 as u64)
 }
 
@@ -218,7 +217,8 @@ pub fn place_the_tap(
     };
     let member = &site.rolled.members[0];
     let at = site.position + Vec2::new(member.offset.x, member.offset.z);
-    let tap = spawn_item(&mut commands, def, item::create(def, 1, &[], 0.0, 0), at);
+    // On the building's ground floor.
+    let tap = spawn_item(&mut commands, def, item::create(def, 1, &[], 0.0, 0), crate::on_ground(at, 0.0));
     commands.entity(tap).insert(DrawsFrom(store.0));
     let key = tap.to_bits();
     if let Some(dell) = episode.cast_as("Dell")
@@ -242,7 +242,7 @@ pub fn place_the_tap(
 /// (episodes.md "The lines"). {way} out of the bunker door, the {place}
 /// the tap stands in, and the site Dell knows nearest the way there as the
 /// {landmark}, with the {side} it stands on.
-fn the_way(memory: &modforge::memory::Memory, door: (Vec2, Vec2), tap: u64, tap_site: u64) -> Vec<(&'static str, String)> {
+pub fn the_way(memory: &modforge::memory::Memory, door: (Vec2, Vec2), tap: u64, tap_site: u64) -> Vec<(&'static str, String)> {
     let (door, out) = door;
     let ground = |p: Vec3| Vec2::new(p.x, p.z);
     let Some(tap_at) = memory.known.iter().find(|k| k.key == tap).map(|k| ground(k.position)) else {
@@ -256,7 +256,7 @@ fn the_way(memory: &modforge::memory::Memory, door: (Vec2, Vec2), tap: u64, tap_
     let landmark = memory
         .known
         .iter()
-        .filter(|k| k.key != tap_site && k.key & (1 << 62) != 0)
+        .filter(|k| k.key != tap_site && k.key & SITE != 0)
         .map(|k| (k, off_the_way(door, tap_at, ground(k.position))))
         .filter(|(_, (off, along))| *off <= ON_THE_WAY && *along > 0.0 && *along < 1.0)
         .min_by(|a, b| a.1.0.total_cmp(&b.1.0));
@@ -267,118 +267,39 @@ fn the_way(memory: &modforge::memory::Memory, door: (Vec2, Vec2), tap: u64, tap_
     slots
 }
 
-/// How The Tap opens (docs/episodes/the-tap.md "The lines"): Dell, who
-/// found the tap, says her opening lines to the player once, one way of
-/// each, the way filled from her memory; then the player's choices open.
-/// Every word through the same `Talk` anyone pushes.
-#[allow(clippy::too_many_arguments)]
-pub fn dell_opens_the_tap(
+/// Pivot points reached by what was said (episodes.md "One way for every
+/// conversation"): once a game second, every line of the episode said by
+/// anyone since it started, read from memory (the one record), is reached
+/// under its name ("the opening", "believes Dell", "threatens Mara").
+/// Pivot points reached by what was done are reached where it is seen
+/// (`the_taps_errands`, `the_first_drink`).
+pub fn pivots_said(
     tick: Res<crate::SimTick>,
     mut episode: ResMut<Episode>,
     episodes: Res<EpisodeRegistryRes>,
-    seed: Res<crate::WorldSeed>,
-    world: Res<crate::terrain::WorldRes>,
-    player: Query<(&Actor, &Transform), (With<crate::player::Player>, Without<Dead>)>,
-    mut people: Query<(&Actor, &Transform, &Memory, &mut crate::input::Actions), Without<Dead>>,
+    people: Query<(&Actor, &Memory)>,
 ) {
-    if episode.name.as_deref() != Some("The Tap") || episode.reached("the opening") {
+    if tick.0 % 60 != 0 {
         return;
     }
-    let (Some(dell), Some((_, tap)), Some((_, tap_site))) = (episode.cast_as("Dell"), episode.thing("tap"), episode.thing("tap site")) else {
+    let Some(def) = episode.name.as_deref().and_then(|n| episodes.0.def(n)) else {
         return;
     };
-    let (Some(def), Ok((player, near))) = (episodes.0.def("The Tap"), player.single()) else {
-        return;
-    };
-    let Some((_, at, memory, mut actions)) = people.iter_mut().find(|(a, ..)| a.0 == dell) else {
-        return;
-    };
-    if at.translation.ground().distance(near.translation.ground()) > crate::talk::TALK_REACH {
-        return;
-    }
-    let slots = the_way(&memory.0, bunker_door(world.bunker), tap, tap_site);
-    let slots: Vec<(&str, &str)> = slots.iter().map(|(n, v)| (*n, v.as_str())).collect();
-    for (salt, line) in def.lines.iter().filter(|l| l.part == "Dell").enumerate() {
-        let Some(words) = modforge::storyteller::say(&line.ways, &slots, seed.0, salt as u64) else {
-            continue;
-        };
-        let key = if line.at == "the way" { tap } else { 0 };
-        let line = episode.speak(words);
-        actions.0.push(tick.0, crate::input::Action::Talk { to: player.0.0, said: Said::Line { line, key } });
-    }
-    for (salt, choice) in def.choices.iter().filter(|c| c.at == "the opening").enumerate() {
-        if let Some(words) = modforge::storyteller::say(&choice.ways, &[], seed.0, 100 + salt as u64) {
-            let line = episode.speak(words);
-            episode.choices.push((line, choice.choice.clone(), dell));
+    let since = episode.started;
+    let mut said: Vec<(String, ActorId, u64)> = Vec::new();
+    for (actor, memory) in &people {
+        for (t, did) in &memory.0.done {
+            if let Did::Talked(_, line) = did
+                && *t >= since
+                && def.lines.iter().any(|l| l.name == line.name)
+            {
+                said.push((line.name.clone(), actor.0, *t));
+            }
         }
     }
-    episode.reach("the opening", dell, tick.0);
-}
-
-/// The player's choice at the moment open: reached when the player's
-/// memory holds its words said to the one it is for (memory is the one
-/// record). Asked the way, Dell tells it again, another way; any other
-/// choice closes the moment.
-pub fn the_players_choice(
-    tick: Res<crate::SimTick>,
-    mut answered: Local<u64>,
-    mut episode: ResMut<Episode>,
-    episodes: Res<EpisodeRegistryRes>,
-    seed: Res<crate::WorldSeed>,
-    world: Res<crate::terrain::WorldRes>,
-    player: Query<(&Actor, &Memory), (With<crate::player::Player>, Without<Dead>)>,
-    mut people: Query<(&Actor, &Memory, &mut crate::input::Actions), Without<crate::player::Player>>,
-) {
-    if episode.choices.is_empty() {
-        return;
-    }
-    let Ok((player, memory)) = player.single() else {
-        return;
-    };
-    let said = memory.0.done.iter().rev().find_map(|(t, did)| match did {
-        Did::Talked(to, words) if *t > *answered => episode
-            .choices
-            .iter()
-            .find(|(line, _, whom)| whom == to && episode.spoken.get(*line as usize) == Some(words))
-            .map(|(_, choice, whom)| (*t, choice.clone(), *whom)),
-        _ => None,
-    });
-    let Some((when, choice, whom)) = said else {
-        return;
-    };
-    *answered = when;
-    if choice != "asks the way" {
-        episode.reach(&choice, player.0, when);
-        episode.choices.retain(|(_, _, to)| *to != whom);
-        // Their reply (episodes.md "Conversations"), one way of it.
-        let reply = episode
-            .name
-            .as_deref()
-            .and_then(|n| episodes.0.def(n))
-            .and_then(|def| def.choices.iter().find(|c| c.choice == choice))
-            .and_then(|c| modforge::storyteller::say(&c.reply, &[], seed.0, when));
-        if let Some(words) = reply
-            && let Some((_, _, mut actions)) = people.iter_mut().find(|(a, ..)| a.0 == whom)
-        {
-            let line = episode.speak(words);
-            actions.0.push(tick.0, crate::input::Action::Talk { to: player.0.0, said: Said::Line { line, key: 0 } });
-        }
-        return;
-    }
-    // The way again, another way of saying it.
-    let (Some(def), Some((_, tap)), Some((_, tap_site))) = (episodes.0.def("The Tap"), episode.thing("tap"), episode.thing("tap site")) else {
-        return;
-    };
-    let Some((_, dell_memory, mut actions)) = people.iter_mut().find(|(a, ..)| a.0 == whom) else {
-        return;
-    };
-    let slots = the_way(&dell_memory.0, bunker_door(world.bunker), tap, tap_site);
-    let slots: Vec<(&str, &str)> = slots.iter().map(|(n, v)| (*n, v.as_str())).collect();
-    if let Some(way) = def.lines.iter().find(|l| l.at == "the way")
-        && let Some(words) = modforge::storyteller::say(&way.ways, &slots, seed.0, when)
-    {
-        let line = episode.speak(words);
-        actions.0.push(tick.0, crate::input::Action::Talk { to: player.0.0, said: Said::Line { line, key: tap } });
+    said.sort_by_key(|(.., t)| *t);
+    for (pivot, who, t) in said {
+        episode.reach(&pivot, who, t);
     }
 }
 
@@ -386,24 +307,20 @@ pub fn the_players_choice(
 /// second, as `Asked` the brain weighs like any choice: Mara to the tap
 /// from the start (her bunker's water is going); Dell, once the player has
 /// chosen, to the tap ("Show me.", or alone when not believed); sent to
-/// look again, Dell goes to the tap, comes back home, and tells the way
-/// again.
-#[allow(clippy::too_many_arguments)]
+/// look again, Dell goes to the tap and comes back home, and tells the way
+/// again by her rule ("Dell told the way again", content).
 pub fn the_taps_errands(
     mut commands: Commands,
     tick: Res<crate::SimTick>,
     mut episode: ResMut<Episode>,
-    episodes: Res<EpisodeRegistryRes>,
-    seed: Res<crate::WorldSeed>,
-    world: Res<crate::terrain::WorldRes>,
     mut walk: ResMut<crate::nav::Walk>,
-    player: Query<(Entity, &Actor, &Transform), (With<crate::player::Player>, Without<Dead>)>,
-    mut people: Query<(Entity, &Actor, &Transform, &Home, &Memory, &mut crate::input::Actions, Has<crate::ai::Leading>), Without<crate::player::Player>>,
+    player: Query<(Entity, &Actor), (With<crate::player::Player>, Without<Dead>)>,
+    people: Query<(Entity, &Actor, &Transform, &Home, Has<crate::ai::Leading>), Without<crate::player::Player>>,
 ) {
     if tick.0 % 60 != 0 || episode.name.as_deref() != Some("The Tap") {
         return;
     }
-    let Some((tap, tap_key)) = episode.thing("tap") else {
+    let Some((tap, _)) = episode.thing("tap") else {
         return;
     };
     // Where each stands by the tap: two metres off, on a spot they can
@@ -427,10 +344,9 @@ pub fn the_taps_errands(
     let sent = episode.reached("sends Dell");
     let goes = episode.reached("believes Dell") || episode.reached("does not believe it");
     let mut looked = episode.reached("Dell looked");
-    let mut tell_again = None;
     let believed = episode.reached("believes Dell");
-    let player_id = player.single().ok().map(|(e, a, _)| (a.0, e));
-    for (entity, actor, at, home, _, _, leading) in &people {
+    let player_id = player.single().ok().map(|(e, a)| (a.0, e));
+    for (entity, actor, at, home, leading) in &people {
         if Some(actor.0) == mara {
             ask(&mut commands, entity, Some(mara_at));
         } else if Some(actor.0) == dell {
@@ -451,9 +367,6 @@ pub fn the_taps_errands(
             let to = if goes || (sent && !looked) {
                 Some(dell_at)
             } else if sent && looked && !episode.reached("Dell told the way again") {
-                if here.distance(home.0) <= 2.0 {
-                    tell_again = Some(actor.0);
-                }
                 Some(home.0)
             } else {
                 None
@@ -466,70 +379,6 @@ pub fn the_taps_errands(
     {
         episode.reach("Dell looked", dell, tick.0);
     }
-    // Back from looking, with the player in reach: the way again.
-    let (Some(dell), Ok((_, player, near))) = (tell_again, player.single()) else {
-        return;
-    };
-    let (Some(def), Some((_, tap_site))) = (episodes.0.def("The Tap"), episode.thing("tap site")) else {
-        return;
-    };
-    let Some((_, _, at, _, memory, mut actions, _)) = people.iter_mut().find(|(_, a, ..)| a.0 == dell) else {
-        return;
-    };
-    if at.translation.ground().distance(near.translation.ground()) > crate::talk::TALK_REACH {
-        return;
-    }
-    let slots = the_way(&memory.0, bunker_door(world.bunker), tap_key, tap_site);
-    let slots: Vec<(&str, &str)> = slots.iter().map(|(n, v)| (*n, v.as_str())).collect();
-    if let Some(way) = def.lines.iter().find(|l| l.at == "the way")
-        && let Some(words) = modforge::storyteller::say(&way.ways, &slots, seed.0, tick.0)
-    {
-        let line = episode.speak(words);
-        actions.0.push(tick.0, crate::input::Action::Talk { to: player.0.0, said: Said::Line { line, key: tap_key } });
-        episode.reach("Dell told the way again", dell, tick.0);
-    }
-}
-
-/// The Tap's pivot point 4 (docs/episodes/the-tap.md): the first meeting
-/// with Mara at the tap. With the player in reach of her there, she says
-/// her line once, and the player's choices for the meeting open.
-#[allow(clippy::too_many_arguments)]
-pub fn the_first_meeting(
-    tick: Res<crate::SimTick>,
-    mut episode: ResMut<Episode>,
-    episodes: Res<EpisodeRegistryRes>,
-    seed: Res<crate::WorldSeed>,
-    player: Query<(&Actor, &Transform), (With<crate::player::Player>, Without<Dead>)>,
-    mut people: Query<(&Actor, &Transform, &mut crate::input::Actions), (Without<crate::player::Player>, Without<Dead>)>,
-) {
-    if episode.name.as_deref() != Some("The Tap") || episode.reached("the meeting") {
-        return;
-    }
-    let (Some(mara), Some((tap, _)), Some(def), Ok((player, near))) =
-        (episode.cast_as("Mara"), episode.thing("tap"), episodes.0.def("The Tap"), player.single())
-    else {
-        return;
-    };
-    let Some((_, at, mut actions)) = people.iter_mut().find(|(a, ..)| a.0 == mara) else {
-        return;
-    };
-    let here = at.translation.ground();
-    if here.distance(tap) > 6.0 || here.distance(near.translation.ground()) > crate::talk::TALK_REACH {
-        return;
-    }
-    if let Some(line) = def.lines.iter().find(|l| l.part == "Mara" && l.at == "the meeting")
-        && let Some(words) = modforge::storyteller::say(&line.ways, &[], seed.0, 200)
-    {
-        let line = episode.speak(words);
-        actions.0.push(tick.0, crate::input::Action::Talk { to: player.0.0, said: Said::Line { line, key: 0 } });
-    }
-    for (salt, choice) in def.choices.iter().filter(|c| c.at == "the meeting").enumerate() {
-        if let Some(words) = modforge::storyteller::say(&choice.ways, &[], seed.0, 300 + salt as u64) {
-            let line = episode.speak(words);
-            episode.choices.push((line, choice.choice.clone(), mara));
-        }
-    }
-    episode.reach("the meeting", mara, tick.0);
 }
 
 /// The Tap's first pivot point after it opens: the first drink at the

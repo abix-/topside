@@ -507,7 +507,7 @@ pub fn die(
                     &mut commands,
                     box_def,
                     item::create(box_def, 1, &[], tick.0 as f32, salt),
-                    transform.translation.ground(),
+                    crate::interact::feet_of(transform),
                 );
                 commands.entity(dropped).insert(Container(contents));
             }

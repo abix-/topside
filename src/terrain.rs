@@ -223,6 +223,7 @@ pub fn make_chunks(
     mut meshes: Option<ResMut<Assets<Mesh>>>,
     players: Query<&Transform, With<crate::player::Player>>,
     people: Query<&Transform, (With<crate::actor::Npc>, Without<crate::player::Player>)>,
+    below: Query<&crate::structure::Below>,
 ) {
     let mut needed: Vec<ChunkKey> = Vec::new();
     let mut around = |p: Vec2, n: i32| {
@@ -257,6 +258,7 @@ pub fn make_chunks(
         monuments: &monuments.monuments,
         buildings: &monuments.buildings,
     };
+    let open = open_tiles(&below);
     for key in needed {
         if !chunks.made.insert(key) {
             continue;
@@ -278,12 +280,12 @@ pub fn make_chunks(
             if let Some(def) = thing.source.as_ref().and_then(|name| items.0.def(name)) {
                 let stack = modforge::item::create(def, 1, &[], 0.0, k as u64);
                 let at = modforge::walk::centre(thing.tile);
-                let found = crate::interact::spawn_item(&mut commands, def, stack, at);
+                let found = crate::interact::spawn_item(&mut commands, def, stack, on_ground(at, 0.0));
                 commands.entity(found).insert(WorldPiece);
             }
         }
         if let (Some(ground), Some(meshes)) = (ground.as_ref(), meshes.as_mut()) {
-            draw(&mut commands, &chunk, meshes, &ground.0);
+            draw(&mut commands, &chunk, &open, meshes, &ground.0);
         }
         // The sites standing in this chunk, once each.
         let lo = Vec2::new((key.0 * CHUNK) as f32, (key.1 * CHUNK) as f32) * TILE;
@@ -296,17 +298,86 @@ pub fn make_chunks(
     }
 }
 
-/// Draw one chunk: its ground as one flat mesh, a square a tile in its
-/// kind's colour, and every thing on it as its model.
-fn draw(commands: &mut Commands, chunk: &GroundChunk, meshes: &mut Assets<Mesh>, material: &Handle<StandardMaterial>) {
-    let first = chunk.first();
+/// A chunk's ground mesh, by the chunk it draws.
+#[derive(Component)]
+pub struct GroundMesh(pub ChunkKey);
+
+/// Every ground tile left open over a way down (`structure::Below`).
+fn open_tiles(below: &Query<&crate::structure::Below>) -> HashSet<(i32, i32)> {
+    below.iter().flat_map(|b| b.open.iter().copied()).collect()
+}
+
+/// Draw one chunk: its ground, and every thing on it as its model.
+fn draw(commands: &mut Commands, chunk: &GroundChunk, open: &HashSet<(i32, i32)>, meshes: &mut Assets<Mesh>, material: &Handle<StandardMaterial>) {
+    let key = (chunk.first().0.div_euclid(CHUNK), chunk.first().1.div_euclid(CHUNK));
+    draw_ground(commands, key, &chunk.ground, open, meshes, material);
+    for thing in &chunk.things {
+        let r = thing.rect();
+        let at = Transform::from_translation(on_ground((r.min + r.max) / 2.0, 0.0));
+        // Its model; never a box (design.md: no coloured boxes).
+        match &thing.picture {
+            Some(name) => {
+                commands.spawn((WorldPiece, Model(name.clone()), at));
+            }
+            None => warn!("a thing at {:?} has no model", thing.tile),
+        }
+    }
+}
+
+/// A building with a way down stood after the ground under it was drawn:
+/// that ground drawn again, open over the way down.
+pub fn open_the_ground(
+    mut commands: Commands,
+    chunks: Option<Res<Chunks>>,
+    added: Query<&crate::structure::Below, Added<crate::structure::Below>>,
+    below: Query<&crate::structure::Below>,
+    drawn: Query<(Entity, &GroundMesh)>,
+    ground: Option<Res<GroundMaterial>>,
+    mut meshes: Option<ResMut<Assets<Mesh>>>,
+) {
+    let (Some(chunks), Some(ground), Some(meshes)) = (chunks, ground, meshes.as_mut()) else {
+        return;
+    };
+    let keys: HashSet<ChunkKey> = added.iter().flat_map(|b| b.open.iter().map(|t| (t.0.div_euclid(CHUNK), t.1.div_euclid(CHUNK)))).collect();
+    if keys.is_empty() {
+        return;
+    }
+    let open = open_tiles(&below);
+    for key in keys {
+        let Some(tiles) = chunks.ground.get(&key) else {
+            continue;
+        };
+        for (entity, of) in &drawn {
+            if of.0 == key {
+                commands.entity(entity).despawn();
+            }
+        }
+        draw_ground(&mut commands, key, tiles, &open, meshes, &ground.0);
+    }
+}
+
+/// One chunk's ground as one flat mesh, a square a tile in its kind's
+/// colour, none on the tiles open over a way down.
+fn draw_ground(
+    commands: &mut Commands,
+    key: ChunkKey,
+    ground: &[Ground],
+    open: &HashSet<(i32, i32)>,
+    meshes: &mut Assets<Mesh>,
+    material: &Handle<StandardMaterial>,
+) {
+    let first = (key.0 * CHUNK, key.1 * CHUNK);
     let tiles = (CHUNK * CHUNK) as usize;
     let mut positions: Vec<[f32; 3]> = Vec::with_capacity(tiles * 4);
     let mut colors: Vec<[f32; 4]> = Vec::with_capacity(tiles * 4);
     let mut indices: Vec<u32> = Vec::with_capacity(tiles * 6);
-    for (i, g) in chunk.ground.iter().enumerate() {
-        let x = (first.0 + i as i32 % CHUNK) as f32 * TILE;
-        let y = (first.1 + i as i32 / CHUNK) as f32 * TILE;
+    for (i, g) in ground.iter().enumerate() {
+        let tile = (first.0 + i as i32 % CHUNK, first.1 + i as i32 / CHUNK);
+        if open.contains(&tile) {
+            continue;
+        }
+        let x = tile.0 as f32 * TILE;
+        let y = tile.1 as f32 * TILE;
         let [r, gr, b] = ground_color(*g);
         let colour = Color::srgb(r, gr, b).to_linear().to_f32_array();
         let base = positions.len() as u32;
@@ -323,19 +394,9 @@ fn draw(commands: &mut Commands, chunk: &GroundChunk, meshes: &mut Assets<Mesh>,
         .with_inserted_indices(Indices::U32(indices));
     commands.spawn((
         WorldPiece,
+        GroundMesh(key),
         Mesh3d(meshes.add(mesh)),
         MeshMaterial3d(material.clone()),
         Transform::default(),
     ));
-    for thing in &chunk.things {
-        let r = thing.rect();
-        let at = Transform::from_translation(on_ground((r.min + r.max) / 2.0, 0.0));
-        // Its model; never a box (design.md: no coloured boxes).
-        match &thing.picture {
-            Some(name) => {
-                commands.spawn((WorldPiece, Model(name.clone()), at));
-            }
-            None => warn!("a thing at {:?} has no model", thing.tile),
-        }
-    }
 }

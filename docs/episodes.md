@@ -158,6 +158,71 @@ ends. Nothing is always on offer.
 - E on someone with nothing to talk about gets a short line of theirs
   ("Not now." / "What do you want?"), several ways, and it ends.
 
+### How a conversation looks (operator, 2026-10-01)
+
+Fallout: New Vegas's conversation box, read from its screenshots,
+changed for first person. The mockup: docs/mockups/conversation.png.
+
+- One see-through box low in the middle of the screen, its words amber,
+  as New Vegas.
+- On top, the name of the one talked to and the last line said; under a
+  line across the box, the player's choices.
+- The choices are numbered, and the number keys say them: 1 says the
+  first. That is the only way to choose.
+- A choice that does more than words shows its kind in angle brackets,
+  in red, before its words: <Threaten>, <Offer> (New Vegas's <Lie> and
+  <Attack.>).
+- The last line stays on screen while the player chooses. New Vegas
+  swaps the line out for the choices; here nobody speaks aloud, so the
+  words stay to be read.
+- No zoom on the face and no blur: the world goes on, the player keeps
+  walking and looking, and the crosshair stays.
+- Walking away, past twice talking distance, ends the conversation, as
+  Escape does.
+- Under the choices, what the keys do and that walking away leaves.
+
+### One way for every conversation (operator, 2026-09-30)
+
+Every conversation, an episode's or plain talk, works one way. Prior
+art: Valve's response rules (Left 4 Dead, Elan Ruskin, GDC 2012): every
+line has conditions on what the speaker knows and feels, and the line
+whose conditions match best is the one said. Not a written tree of
+moments (Yarn Spinner, Ink): a tree is scripted, and people here react
+from what they know (design.md "Your own story").
+
+- Lines and the player's choices are rules: who may say it, what must
+  be true of the speaker (what they know, how they feel, what they need,
+  the part they are cast as, what was just said to them), the ways of
+  saying it, what it tells, and how hearing it feels. When anyone is to
+  speak, the best matching line is said; with several equally good, one
+  is picked.
+- The player's choices are the lines the player could say now: the
+  rules for the player that match, shown in the panel.
+- A reply is the listener's best matching line to what they just heard.
+  A conversation goes on as long as a line matches, and ends when none
+  does: as many steps as the rules give, never a fixed tree.
+- An episode's lines are rules that need its part (Dell, Mara): while
+  the episode runs they win over plain talk. Plain talk is the same rules
+  with no part: asked about water and knowing a well, a person gives the
+  way; nothing matching, "Not now.".
+- What was said is the one record: both memories (life.md "What a person
+  knows"). The conversation keeps no list of its own; how far it has gone
+  is read from memory.
+- A pivot point is reached when the storyteller reads it from memory,
+  whatever reached it: a choice said, a shot fired, walking away, doing
+  nothing. The talk path never decides a pivot point.
+- Anyone starts a conversation the same way: the player with E, an NPC
+  when its brain chooses to talk (Dell bringing the news, Mara's child
+  asking for water).
+- What a choice does beyond words goes through the system that owns it:
+  telling and asking through talking, an offer through trading, asking
+  someone to come through going with someone (life.md), taking someone
+  in through recruiting, an order to one of your people through your
+  people (design.md "Your people").
+- Each line's words, slots, and ways go through the storyteller's `say`,
+  filled from the speaker's memory; a person says only what they know
+  and nothing they keep quiet.
+
 ## How an episode is written
 
 Episodes are not vanilla (operator, 2026-09-27). Rick and Morty does

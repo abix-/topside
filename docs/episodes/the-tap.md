@@ -35,7 +35,10 @@ by a person who already exists.
 
 ## How it opens
 
-The bunker's water store is low and the people are thirsty. Dell tells
+The bunker's water store is low and the people are thirsty. The player
+wakes alone in their room on the bunker's deepest level; Dell comes
+down and knocks on their door, and the knock starts the conversation
+(operator, 2026-10-01; design.md "The bunker you start in"). Dell tells
 the player about a tap in a building between the player's bunker and
 Mara's, giving the way by landmarks from the bunker door (see "The
 lines"): clean water that never stops.

@@ -68,10 +68,11 @@ pub fn eye_rotation(pitch: f32) -> Quat {
     Quat::from_rotation_y(-std::f32::consts::FRAC_PI_2) * Quat::from_rotation_x(pitch)
 }
 
-/// Where the player wakes: the bunker, at the start and after every
+/// Where the player wakes: their room on the bunker's deepest level
+/// (design.md "The bunker you start in"), at the start and after every
 /// death.
 pub fn wake_point(world: &WorldRes) -> Vec3 {
-    on_ground(world.bunker, BODY_CENTRE)
+    on_ground(world.bunker, crate::content::PLAYER_ROOM_FLOOR + BODY_CENTRE)
 }
 
 /// The one place the player enters the world: at the bunker, a person
@@ -84,7 +85,7 @@ pub fn spawn_player(mut spawn: SpawnActor, registry: Res<ActorRegistryRes>, worl
     spawn
         .commands
         .entity(person)
-        .insert((Player, crate::talk::LookingAt::default(), Transform::from_translation(at)));
+        .insert((Player, crate::talk::LookingAt::default(), crate::hud::HintsDone::default(), Transform::from_translation(at)));
 }
 
 /// Every actor's roll this tick (combat.md "The roll"): Roll starts one
@@ -163,11 +164,13 @@ pub struct Fall(pub f32);
 /// shipped by Avian); a move blocked flat is tried again raised by
 /// `CLIMB`, so steps are climbed (Quake's step slide move); then the body
 /// settles on whatever is under its feet, or falls. The ground itself is
-/// the lowest a body goes. Diagonal is no faster than straight. The 3D
-/// game's movement, for everyone.
+/// the lowest a body goes, but inside a building that goes below it, its
+/// lowest floor (`structure::lowest_at`). Diagonal is no faster than
+/// straight. The 3D game's movement, for everyone.
 pub fn movement(
     time: Res<Time<Fixed>>,
     move_and_slide: MoveAndSlide,
+    below: Query<&crate::structure::Below>,
     mut actors: Query<
         (
             Entity,
@@ -241,8 +244,9 @@ pub fn movement(
             }
             None => centre.y -= fall.0 * dt,
         }
-        if centre.y <= BODY_CENTRE {
-            centre.y = BODY_CENTRE;
+        let lowest = crate::structure::lowest_at(&below, centre.ground()) + BODY_CENTRE;
+        if centre.y <= lowest {
+            centre.y = lowest;
             fall.0 = 0.0;
         }
         transform.translation = centre;
