@@ -180,6 +180,13 @@ changed for first person. The mockup: docs/mockups/conversation.png.
 - Walking away, past twice talking distance, ends the conversation, as
   Escape does.
 - Under the choices, what the keys do and that walking away leaves.
+- Each of their lines stays up as long as it takes to read before what
+  comes after it, their next line or the player's choices (operator,
+  2026-10-02; subtitle practice: about 15 characters a second, never under
+  1.5 s; modforge `talk::reading_secs`, the one rule). The player's turn
+  waits as long as they like. With nothing left to say, the box closes
+  once the last line and the choices still shown have been read; "Let's
+  trade." stays offered until then.
 
 ### One way for every conversation (operator, 2026-09-30)
 

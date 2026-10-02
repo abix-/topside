@@ -135,17 +135,12 @@ fn setup(mut commands: Commands) {
     let archipelago = commands
         .spawn(Archipelago3d::new(ArchipelagoOptions {
             point_sample_distance: sample_distance(),
-            // No steering round people or the mesh's edges (landmass's
-            // dodgy_2d): it stopped the game (a NaN in its solving, seen
-            // three times, the backtrace in topside.err.log through
-            // landmass's avoidance.rs), pushed people into walls on the
-            // stairs, and never parted two people touching nor got anyone
-            // past someone in a doorway. Walkers follow the mesh's way;
-            // people give way by our own rules below (standing people make
-            // way, a stuck walker steps aside), as RimWorld's and Factorio's
-            // do. A reach of nothing gives landmass nobody and no edge to
-            // steer round.
-            neighbourhood: 0.0,
+            // How far ahead the mesh's edges are steered away from, in
+            // seconds: at a walk of 15 m/s, landmass's 0.25 s reaches 3.75 m,
+            // every edge of a stairwell, and turned people back at the top
+            // of the stairs; 0.05 s is 0.75 m. (landmass's steering stopped
+            // the game with a NaN in dodgy's solving: the patched copy in
+            // vendor/landmass guards it, Cargo.toml.)
             obstacle_avoidance_time_horizon: 0.05,
             ..ArchipelagoOptions::from_agent_radius(AGENT_RADIUS)
         }))

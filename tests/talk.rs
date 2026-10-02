@@ -102,3 +102,51 @@ fn the_talk_op_brings_a_talk_now() {
     eprintln!("the player heard Dell {before} times before, {} after: {}", heard(&p), p["heard"]);
     assert!(heard(&p) > before, "Dell told the player through the talk op, and the player heard nothing");
 }
+
+/// A line stays up as long as it takes to read (modforge
+/// `talk::reading_secs`: about 15 characters a second, never under 1.5 s):
+/// while a line of theirs still has reading time left, no choices show and
+/// they say nothing more; the time it starts with is its length's.
+#[test]
+fn each_line_stays_long_enough_to_read_before_what_comes_after() {
+    crate::endpoint::player_alive();
+    op_with("replay", serde_json::json!({"stop": true}));
+    let player = op("player")["id"].as_u64().expect("the player op reports the player's id");
+    let them = crate::endpoint::people()
+        .into_iter()
+        .find(|p| p["name"] == "Roxanne" && p["dead"] != true)
+        .and_then(|p| p["id"].as_u64())
+        .expect("Roxanne, alive");
+    let reading = |words: &str| (words.chars().count() as f64 / 15.0).max(1.5);
+    let (mut theirs_read, mut checked, mut first_seen) = (0, 0, std::collections::HashMap::<String, f64>::new());
+    let start = std::time::Instant::now();
+    while start.elapsed() < std::time::Duration::from_secs(25) {
+        let talk = op("hud")["talk"].clone();
+        if talk["to"].as_u64() != Some(them) {
+            op_with("use", serde_json::json!({"id": player, "person": them}));
+        }
+        let by = talk["line"]["by"].as_str().unwrap_or_default().to_string();
+        let words = talk["line"]["words"].as_str().unwrap_or_default().to_string();
+        let left = talk["reading_for"].as_f64().unwrap_or(0.0);
+        if !words.is_empty() && by != "You" && left > 0.05 {
+            theirs_read += 1;
+            let choices = talk["choices"].as_array().map_or(0, |c| c.len());
+            assert_eq!(choices, 0, "choices shown while \"{words}\" still had {left:.1} s to be read");
+            first_seen.entry(words.clone()).or_insert(left);
+        }
+        // Answer when it is the player's turn, so the conversation goes on.
+        if let Some(n) = talk["choices"].as_array().filter(|c| !c.is_empty()).map(|c| c.len().min(2)) {
+            checked += 1;
+            op_with("key", serde_json::json!({"key": n.to_string()}));
+        }
+        std::thread::sleep(std::time::Duration::from_millis(250));
+    }
+    op_with("key", serde_json::json!({"key": "Escape"}));
+    eprintln!("their lines seen being read {theirs_read} times; choices answered {checked} times; first reading time left per line: {first_seen:?}");
+    assert!(theirs_read > 0, "never saw a line of theirs being read");
+    for (words, left) in &first_seen {
+        // The `hud` op shows the screen once a game second: up to a second
+        // of the reading time has passed by the first look.
+        assert!(*left <= reading(words) + 0.05 && *left >= reading(words) - 1.1, "\"{words}\" first seen with {left:.2} s to read, its length gives {:.2}", reading(words));
+    }
+}

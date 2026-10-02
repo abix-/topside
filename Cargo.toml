@@ -17,13 +17,26 @@ avian3d = { version = "0.7", default-features = false, features = ["3d", "f32", 
 # The navigation mesh (docs/pathing.md "A navigation mesh"): Recast's Rust
 # port built from the Avian colliders, walked with landmass.
 avian_rerecast = "0.6"
-bevy = "0.19"
+# `trace`: every system, schedule and drawing step runs in a span, which
+# the profiler adds up for the `perf` op (src/profile.rs).
+bevy = { version = "0.19", features = ["trace"] }
+# Frames held to 60 a second, as the world's updates are (Factorio's UPS).
+bevy_framepace = "0.22"
 bevy_landmass = "0.12"
 bevy_rerecast = "0.5"
 landmass_rerecast = "0.3"
 modforge = { path = "../modforge/modforge" }
 serde_json = "1"
 topside-content = { path = "content" }
+
+# landmass 0.9.2 with one guard where it hands its steering to dodgy_2d:
+# dodgy's solving failed on a NaN and stopped the game (backtrace through
+# landmass avoidance.rs, 2026-10-02; docs/pathing.md). The guard keeps a
+# velocity that is not a number from dodgy, and if dodgy still fails, that
+# step walks the preferred way. It catches the failure only where panics
+# unwind (not the release profile's abort). Report upstream; drop when fixed.
+[patch.crates-io]
+landmass = { path = "vendor/landmass" }
 
 # Fast iteration: light optimization for our code, full for deps
 # (Bevy is unusably slow fully unoptimized). Deps carry no debug info:

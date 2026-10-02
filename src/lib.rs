@@ -106,7 +106,9 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind) -> App {
                 .set(AssetPlugin {
                     file_path: concat!(env!("CARGO_MANIFEST_DIR"), "/assets").to_string(),
                     ..default()
-                }),
+                })
+                // Every span Bevy runs timed, for the `perf` op (profile.rs).
+                .set(bevy::log::LogPlugin { custom_layer: profile::layer, ..default() }),
         );
     }
     // Avian 3D is the one physics system. Bodies are kinematic and walk
@@ -252,6 +254,10 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind) -> App {
     app.add_systems(Update, talk::end_conversations);
     if !headless {
         app.insert_resource(storm::Windowed);
+        // 60 frames a second, as the world's 60 updates (Factorio's UPS):
+        // drawn faster, the frames cost the CPU and show nothing new.
+        app.add_plugins(bevy_framepace::FramepacePlugin);
+        app.insert_resource(bevy_framepace::FramepaceSettings { limiter: bevy_framepace::Limiter::from_framerate(60.0) });
         app.add_plugins(bevy::diagnostic::FrameTimeDiagnosticsPlugin::default());
         control_plane::start();
         // The `pointer` and `key` ops drive the game as the player's hands

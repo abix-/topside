@@ -35,10 +35,6 @@ pub fn within(a: Vec3, b: Vec3, reach: f32) -> bool {
     a.ground().distance(b.ground()) <= reach && (a.y - b.y).abs() < 1.5
 }
 
-/// Real seconds a conversation stays on screen after its last line, to be
-/// read, before it ends. Tuning.
-const READ_SECS: f64 = 4.0;
-
 /// How far from a thing a known place can be and still be where the thing
 /// is ("the well at the campsite"), in metres. Tuning.
 const PLACE_OF_A_THING: f32 = 60.0;
@@ -50,21 +46,24 @@ pub struct LookingAt(pub Option<(Entity, u64)>);
 
 /// The player's conversation: with whom, the tick it started (only what
 /// is said from then counts), whether the player started it (their E),
-/// the real time their current choices showed (for silence's wait), and
-/// the real time it ends at once its last line has been said. The HUD
-/// shows it from `HudState::talking`.
+/// the real time their current choices showed (for silence's wait), the
+/// last line said (its tick) and the real time it has been read by
+/// (modforge `talk::reading_secs`), and the real time it ends at once its
+/// last line has been said and read. The HUD shows it from
+/// `HudState::talking`.
 #[derive(Component, Debug, Clone, Copy)]
 pub struct Conversation {
     pub with: u64,
     pub started: u64,
     pub opened: bool,
     pub choices_since: Option<f64>,
+    pub read: Option<(u64, f64)>,
     pub ends_at: Option<f64>,
 }
 
 impl Conversation {
     pub fn new(with: u64, started: u64, opened: bool) -> Self {
-        Self { with, started, opened, choices_since: None, ends_at: None }
+        Self { with, started, opened, choices_since: None, read: None, ends_at: None }
     }
 }
 
@@ -289,12 +288,12 @@ pub fn look_at(
 }
 
 /// The player's conversation, four times a game second, into the HUD
-/// (`HudState::talking`): the last line said, as the subtitle; whoever's
-/// turn it is speaks the line modforge picks for them (`talk::pick`), else
-/// the player's choices are what matches for them (`talk::choices`), and
-/// silence said by
-/// itself when its wait runs out; else it has run out and ends
-/// `READ_SECS` after the last word.
+/// (`HudState::talking`): the last line said, as the subtitle, left up as
+/// long as it takes to read (modforge `talk::reading_secs`); once their
+/// line is read, whoever's turn it is speaks the line modforge picks for
+/// them (`talk::pick`), else the player's choices are what matches for
+/// them (`talk::choices`), and silence said by itself when its wait runs
+/// out; else it has run out and ends once its last line is read.
 #[allow(clippy::too_many_arguments)]
 pub fn conversations(
     mut commands: Commands,
@@ -318,13 +317,25 @@ pub fn conversations(
     };
     let with = ActorId(talking.with);
     let now = real.elapsed_secs_f64();
-    // The last line said between them, the subtitle.
+    // The last line said between them, the subtitle: when, whether it is
+    // theirs, by whom, its words; and when it has been read (modforge
+    // `talk::reading_secs`, the one rule for every wait here).
     let their_name = shown.name.clone();
-    shown.line = memory.0.done.iter().rev().find_map(|(t, d)| match d {
-        modforge::memory::Did::Talked(to, l) if *t >= talking.started && *to == with => Some(("You".to_string(), l.words.clone())),
-        modforge::memory::Did::Heard(by, l) if *t >= talking.started && *by == with => Some((their_name.clone(), l.words.clone())),
+    let last = memory.0.done.iter().rev().find_map(|(t, d)| match d {
+        modforge::memory::Did::Talked(to, l) if *t >= talking.started && *to == with => Some((*t, false, "You".to_string(), l.words.clone())),
+        modforge::memory::Did::Heard(by, l) if *t >= talking.started && *by == with => Some((*t, true, their_name.clone(), l.words.clone())),
         _ => None,
     });
+    if let Some((t, _, _, words)) = &last
+        && talking.read.is_none_or(|(seen, _)| seen != *t)
+    {
+        talking.read = Some((*t, now + modforge::talk::reading_secs(words)));
+    }
+    let read_by = talking.read.map_or(now, |(_, at)| at);
+    // A line of theirs still being read: nothing comes after it yet (the
+    // player read their own choice as they chose it).
+    let reading_theirs = last.as_ref().is_some_and(|(_, theirs, ..)| *theirs) && now < read_by;
+    shown.line = last.map(|(_, _, who, words)| (who, words));
     // Ending: nothing more to say, but anyone can still be asked to trade
     // until the box closes.
     if talking.ends_at.is_some() {
@@ -349,6 +360,12 @@ pub fn conversations(
     }
     // They face whoever they talk to, the same Aim the brain pushes.
     actions.0.push(tick.0, Action::Aim { x: here.x, y: here.z });
+    // Their line read first: then their next line, or the player's choices.
+    if reading_theirs {
+        shown.choices.clear();
+        talking.choices_since = None;
+        return;
+    }
     // The player's choices: theirs is the first word in a conversation they
     // started, if they have anything to say (modforge `talk::choices`).
     let mine = Moment::of(&episode, (player.0, true), (with, false), here, Some(survival));
@@ -392,8 +409,10 @@ pub fn conversations(
     }
     if open.is_empty() {
         talking.choices_since = None;
-        // Nobody has anything left to say: read it, then it ends.
-        talking.ends_at = Some(now + READ_SECS);
+        // Nobody has anything left to say: it ends once the last line and
+        // the choices still shown (asking to trade) have been read.
+        let shown_words: String = shown.choices.iter().map(|c| c.words.as_str()).collect::<Vec<_>>().join(" ");
+        talking.ends_at = Some(read_by.max(now + modforge::talk::reading_secs(&shown_words)));
         return;
     }
     let since = *talking.choices_since.get_or_insert(now);

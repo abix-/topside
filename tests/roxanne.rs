@@ -155,6 +155,7 @@ fn knocks_on_the_players_door_and_the_talk_box_opens() {
     let talk = op("hud")["talk"].clone();
     eprintln!("heard: {heard}, Roxanne at {:?}, the talk box: {talk}", spot(&roxanne()));
     if !heard {
+        crate::endpoint::why_they_stopped(id, (room.0, room.2, room.1));
         let her = op_with("npc", json!({"id": id}));
         let did: Vec<Json> = her["did"].as_array().map(|d| d.iter().rev().take(5).cloned().collect()).unwrap_or_default();
         eprintln!("her way: {}, acting: {}, last did: {did:?}", her["way"], her["this_tick"]);

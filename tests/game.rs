@@ -22,6 +22,28 @@ fn op_with(name: &str, args: Json) -> Option<Json> {
     resp.into_body().read_json().ok()
 }
 
+/// What a fixed step costs now, part by part, costliest first, and the
+/// frame rate: read only, the game left as it is.
+#[test]
+fn what_each_step_costs_now() {
+    let (Some(perf), Some(status)) = (op("perf"), op("status")) else {
+        panic!("no game answering");
+    };
+    let p = &perf["result"];
+    eprintln!("whole step {:.2} ms of {:.2}, {} people; {} frames a second", p["step_ms"].as_f64().unwrap_or(0.0), p["budget_ms"].as_f64().unwrap_or(0.0), p["people"], status["result"]["fps"]);
+    for part in p["parts"].as_array().into_iter().flatten().take(15) {
+        eprintln!("  {:<40} {:>7.3} ms", part["part"].as_str().unwrap_or("?"), part["ms"].as_f64().unwrap_or(0.0));
+    }
+    // Bevy's own diagnostics: the whole frame, drawing included.
+    eprintln!("diagnostics: {}", op("diagnostics").map_or(Json::Null, |d| d["result"].clone()));
+    // Every span Bevy ran, ms per frame, the costliest first (profile.rs).
+    let frame = p["frame"].as_array().cloned().unwrap_or_default();
+    for span in frame.iter().take(25) {
+        eprintln!("  frame {:<70} {:>7.3} ms", span["span"].as_str().unwrap_or("?"), span["ms"].as_f64().unwrap_or(0.0));
+    }
+    assert!(!frame.is_empty(), "the perf op reports no spans per frame");
+}
+
 #[test]
 fn the_game_keeps_up_with_real_time_and_its_people_live() {
     let (Some(status), Some(world), Some(perf)) = (op("status"), op("world"), op("perf")) else {
