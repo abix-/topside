@@ -131,9 +131,15 @@ CI runner taking jobs from a queue and reporting each back.
   starting point is reached once by playing and saved, and the test loads
   that save before every run, as speedrunners practise one part of a run
   from a savestate. Saving and loading in place work (src/save.rs: the
-  `save` and `load` ops, `saves/<name>.save`, tests/save.rs); loading into
-  a newly started game does not yet, so until it does a test starts from
-  the running game as it is.
+  `save` and `load` ops, `saves/<name>.save`, tests/save.rs).
+- Save states for everything (operator, 2026-10-02): "we shouldn't be
+  waiting 2 hours for something, just load the save." A test never waits
+  through a long game span for its event: it loads a save made just before
+  the event, and tests the thing. The saves are made by playing through
+  the game once, in order, each from the one before (the play-through,
+  tests/saves.rs, `build.ps1 saves`), which may take longer than a test's 2
+  minutes and is run again when content changes; the saves are committed.
+  A test itself stays under 2 minutes.
 - What a save holds is one list, `saved!` in src/save.rs: every component
   and resource that changes what happens next. A new one that changes
   what happens next goes in that list, or a load loses it. What is worked
