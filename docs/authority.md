@@ -141,6 +141,14 @@ CI runner taking jobs from a queue and reporting each back.
   stand-ins) is never saved: it is made whenever its saved thing comes
   into the world, spawned or loaded (`Actor`'s required parts,
   `interact::item_body`, `interact::door_body`, the `Added` systems).
+- The world is rolled once (operator, 2026-10-02; Factorio's map is made
+  once, not on every load). A save holds its world (the seed, the size,
+  the storms that shifted it) and which chunks were made. Loading a save
+  of the world that is running keeps that world: its ground, buildings and
+  navigation mesh stay, only the saved people and things are swapped, and
+  chunks made after the save are removed. Only a save of another world
+  (after a relaunch or a storm) rolls that world again, once, through the
+  one roll (`terrain::roll`).
 - While tests run, nobody plays that game: the tests drive the world, the
   player and the camera.
 
