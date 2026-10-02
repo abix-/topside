@@ -148,9 +148,12 @@ const ON_THE_WAY: f32 = 80.0;
 /// The mark a site's key carries, apart from things' keys.
 pub const SITE: u64 = 1 << 62;
 
-/// The key memory knows a site by: its position, marked apart from things.
+/// The key memory knows a site by: its position, marked a place (the
+/// brain visits places) and a site, apart from things. The same site has
+/// the same key in every world rolled from the same seed, whatever order
+/// its chunks were made in.
 pub fn site_key(at: Vec2) -> u64 {
-    SITE | ((at.x.round() as i32 as u32 as u64) << 24) ^ (at.y.round() as i32 as u32 as u64)
+    crate::actor::PLACE_KEY | SITE | ((at.x.round() as i32 as u32 as u64) << 24) ^ (at.y.round() as i32 as u32 as u64)
 }
 
 /// Where the player's bunker door stands on the ground (the starting

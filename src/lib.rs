@@ -263,7 +263,7 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind) -> App {
     // Saving and loading answer every frame, paused or not; stepping a
     // paused game hands the fixed loop its ticks before it runs and answers
     // after.
-    app.add_systems(Update, save::answer_save);
+    app.add_systems(First, save::answer_save);
     app.add_systems(
         RunFixedMainLoop,
         (

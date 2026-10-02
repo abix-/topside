@@ -91,13 +91,14 @@ pub fn lowest_at(below: &Query<&Below>, point: Vec2) -> f32 {
 /// tall as the level, its furniture, a slab under every tile walked on
 /// above the lowest floor, every door block (modforge `door_blocks`) its
 /// frame and a closed door of the model `door_model` ("steel door" the
-/// bunker's, "door" in the wild); the stair tower's steps and landings
+/// bunker's, "door" in the wild; None when its doors come from a save,
+/// the building made again after a load); the stair tower's steps and landings
 /// from `parts_of`. Everything solid is one
 /// compound collider on a static root; the ground floor is its `Shelter`;
 /// what it has below the ground is its `Below`. A building of this
 /// reality (`of_world`) is a `WorldPiece`, gone when the storm shifts the
 /// world; the bunker is not. Returns the root.
-pub fn spawn_structure(commands: &mut Commands, def: &StructureDef, at: Vec2, of_world: bool, door_model: &str) -> Entity {
+pub fn spawn_structure(commands: &mut Commands, def: &StructureDef, at: Vec2, of_world: bool, door_model: Option<&str>) -> Entity {
     let at = at.round();
     let rect = |r: &TileRun| {
         (
@@ -245,8 +246,10 @@ pub fn spawn_structure(commands: &mut Commands, def: &StructureDef, at: Vec2, of
     // Every door in its doorway, hung on its block's hinge (modforge
     // `door_blocks`), the model of the building's doors. The door's own
     // place is the hinge; the panel and its collider reach from it across
-    // the doorway, so opening is a quarter turn about the hinge.
-    for (block, floor, _) in &blocks {
+    // the doorway, so opening is a quarter turn about the hinge. Made
+    // again after a load, its doors come from the save.
+    for (block, floor, _) in blocks.iter().filter(|_| door_model.is_some()) {
+        let door_model = door_model.unwrap_or_default();
         let width = block.doorway();
         let centre = at + block.centre;
         let hinge = at + block.hinge();
@@ -283,7 +286,7 @@ pub fn spawn_bunker(
     layers: Res<crate::content::LayerRegistryRes>,
 ) {
     let at = world.bunker;
-    spawn_structure(&mut commands, &starting_bunker(), at, false, BUNKER_DOOR);
+    spawn_structure(&mut commands, &starting_bunker(), at, false, Some(BUNKER_DOOR));
     let def = |name: &str| {
         items
             .0
@@ -315,7 +318,7 @@ pub fn spawn_bunker(
 pub fn spawn_other_bunkers(mut commands: Commands, world: Res<WorldRes>, items: Res<ItemRegistryRes>) {
     let box_def = items.0.def("storage box").expect("the storage box is registered");
     for (i, &at) in world.bunkers.iter().enumerate() {
-        spawn_structure(&mut commands, &starting_bunker(), at, false, BUNKER_DOOR);
+        spawn_structure(&mut commands, &starting_bunker(), at, false, Some(BUNKER_DOOR));
         let mut contents = item::Inventory::new(box_def.storage.unwrap_or(12));
         for (name, count) in BUNKER_STORE {
             if let Some(def) = items.0.def(name) {
@@ -336,10 +339,11 @@ pub fn spawn_other_bunkers(mut commands: Commands, world: Res<WorldRes>, items: 
 }
 
 /// Every spawned site's monument as modforge rolled it, and where it
-/// stands, read by whatever needs its NPC spots or loot spots; and how
-/// many of them have had their people put in.
+/// stands, read by whatever needs its NPC spots or loot spots; and those
+/// (by their place in the list) whose people are still to be put in
+/// (none for a site made again after a load: its people are in the save).
 #[derive(Resource, Default)]
-pub struct MonumentsRes(pub Vec<(Vec2, MonumentDef)>, pub usize);
+pub struct MonumentsRes(pub Vec<(Vec2, MonumentDef)>, pub Vec<usize>);
 
 /// Spawn the sites of the chunks just made: each member building's ground
 /// floor through `spawn_structure`, and its props as one static collider.
@@ -354,11 +358,13 @@ pub fn spawn_sites(
     layers: Res<crate::content::LayerRegistryRes>,
 ) {
     let table = loot_table();
-    for site in new_sites.0.drain(..) {
+    for (site, things) in new_sites.0.drain(..) {
         let monument = site.rolled.clone();
+        // Its doors, loot boxes and people made once a world; made again
+        // after a load, they come from the save.
         for member in &monument.members {
             let at = site.position + Vec2::new(member.offset.x, member.offset.z);
-            spawn_structure(&mut commands, &member.structure, at, true, WILD_DOOR);
+            spawn_structure(&mut commands, &member.structure, at, true, things.then_some(WILD_DOOR));
         }
         if !monument.props.is_empty() {
             let shapes: Vec<(Vec3, Rotation, Collider)> = monument
@@ -392,7 +398,7 @@ pub fn spawn_sites(
         }
         // A box at every loot spot, filled by the spot's danger from the
         // one loot table (modforge's roll, seeded by the site).
-        if let Some(box_def) = items.0.def("storage box") {
+        if let Some(box_def) = items.0.def("storage box").filter(|_| things) {
             for (k, spot) in monument.loot_spots.iter().enumerate() {
                 let mut roll = Roll::new(tile_hash(world.seed, cell_of(site.position), k as u64));
                 let mut contents = item::Inventory::new(box_def.storage.unwrap_or(12));
@@ -412,6 +418,10 @@ pub fn spawn_sites(
                 let (found, _) = spawn_item(&mut commands, box_def, item::create(box_def, 1, &[], 0.0, k as u64), at);
                 commands.entity(found).insert((Container(contents), WorldPiece));
             }
+        }
+        if things {
+            let next = monuments.0.len();
+            monuments.1.push(next);
         }
         monuments.0.push((site.position, monument));
     }

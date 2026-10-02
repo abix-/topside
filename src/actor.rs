@@ -313,8 +313,9 @@ pub fn spawn_door_enemy(mut spawn: SpawnActor, registry: Res<ActorRegistryRes>, 
     spawn_actor(&mut spawn, def, on_ground(world.bunker + Vec2::new(x, z), 0.0), None);
 }
 
-/// The top bit of a remembered key marks a place (a monument, by its
-/// index); without it the key is a thing's id (a box, `ThingId`). Keeps the two from
+/// The top bit of a remembered key marks a place (a site, by
+/// `episode::site_key`; a river's water); without it the key is a thing's
+/// id (a box, `ThingId`). Keeps the two from
 /// ever being mistaken for each other.
 pub const PLACE_KEY: u64 = 1 << 63;
 
@@ -332,10 +333,9 @@ pub fn populate_monuments(
     tick: Res<SimTick>,
     boxes: Query<(&ThingId, &Transform, &WorldItem), With<Container>>,
 ) {
-    let from = monuments.1;
-    monuments.1 = monuments.0.len();
-    for (i, (at, monument)) in monuments.0.iter().enumerate().skip(from) {
-        let known = home_knowledge(i, *at, &monument.kind, &boxes, tick.0);
+    let due = std::mem::take(&mut monuments.1);
+    for (at, monument) in due.into_iter().filter_map(|i| monuments.0.get(i)) {
+        let known = home_knowledge(*at, &monument.kind, &boxes, tick.0);
         for spot in &monument.npc_spots {
             let Some(def) = registry.0.def(def_for_danger(spot.danger)) else {
                 continue;
@@ -354,13 +354,15 @@ pub fn populate_topside_people(
     mut spawn: SpawnActor,
     registry: Res<ActorRegistryRes>,
     mut world: ResMut<WorldRes>,
+    mut things_made: ResMut<crate::terrain::ThingsMade>,
     biomes: Res<BiomeRegistryRes>,
     monuments: Res<MonumentRegistryRes>,
 ) {
-    if world.peopled {
+    // Once a world; after a load they are in the save.
+    if things_made.people {
         return;
     }
-    world.peopled = true;
+    things_made.people = true;
     let r = modforge::world2d::Registries {
         biomes: &biomes.0,
         monuments: &monuments.monuments,
@@ -374,18 +376,17 @@ pub fn populate_topside_people(
     }
 }
 
-/// What someone found at monument `i` (at `at`, of type `kind`) knows
-/// from the start: the place, and every box there, seen but not looked
-/// inside.
+/// What someone found at the monument at `at` (of type `kind`) knows
+/// from the start: the place (by its site's key), and every box there,
+/// seen but not looked inside.
 pub fn home_knowledge(
-    i: usize,
     at: Vec2,
     kind: &str,
     boxes: &Query<(&ThingId, &Transform, &WorldItem), With<Container>>,
     now: u64,
 ) -> Memory {
     let mut known = modforge::memory::Memory::default();
-    known.see(PLACE_KEY | i as u64, kind, on_ground(at, 0.0), now);
+    known.see(crate::episode::site_key(at), kind, on_ground(at, 0.0), now);
     for (id, t, item) in boxes {
         if t.translation.ground().distance(at) <= HOME_BOXES_WITHIN {
             // Where the box rests, its height included.

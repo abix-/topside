@@ -26,7 +26,7 @@ fn load() -> Json {
 /// a person or thing missing from one, or one of theirs that changed.
 fn differences(a: &Json, b: &Json) -> Vec<String> {
     let mut out = Vec::new();
-    for key in ["tick", "episode", "cast", "reached"] {
+    for key in ["tick", "seed", "episode", "cast", "reached"] {
         if a[key] != b[key] {
             out.push(format!("{key}: {} then {}", a[key], b[key]));
         }
@@ -77,13 +77,69 @@ fn load_changed(name: &str, change: impl Fn(&mut Json)) -> Json {
     answer
 }
 
-/// A save made in another world is refused, never loading its people
-/// onto other ground.
+/// Things lying in `after` that stand where a thing of the same kind
+/// stood in `saved` under another id: made a second time.
+fn made_twice(saved: &Json, after: &Json) -> Vec<String> {
+    let things = |m: &Json| m["things"].as_array().cloned().unwrap_or_default();
+    let before = things(saved);
+    things(after)
+        .into_iter()
+        .filter(|t| before.iter().any(|s| s["id"] != t["id"] && s["item"] == t["item"] && s["at"] == t["at"] && s["open"] == t["open"]))
+        .map(|t| t.to_string())
+        .collect()
+}
+
+/// A save loads into the world it was made in, whatever world the game is
+/// in: the storm shifts the game to another world (a new seed), and the
+/// load rolls the save's again, every person and thing as saved; its
+/// chunks made again over the next ticks make none of their own things a
+/// second time.
 #[test]
-fn a_save_from_another_world_is_refused() {
-    let answer = load_changed("save_test_other_world", |h| h["seed"] = json!(h["seed"].as_u64().unwrap_or(0) ^ 1));
-    eprintln!("load answered {answer}");
-    assert!(answer.to_string().contains("another world"), "a save from another world was not refused: {answer}");
+fn a_save_loads_its_own_world_after_the_storm_shifted_the_game() {
+    let (_unpause, saved) = paused_save();
+    op_with("storm", json!({}));
+    // Stepped a game second at a time until the storm has shifted the
+    // world, at most a game minute.
+    let shifted = (0..60)
+        .map(|_| op_with("step", json!({"ticks": 60}))["seed"].clone())
+        .find(|seed| seed.is_u64() && *seed != saved["seed"])
+        .expect("the storm shifted the world to a new seed within a game minute");
+    eprintln!("saved in seed {}, the storm shifted the game to seed {shifted}", saved["seed"]);
+    let loaded = load();
+    let diff = differences(&saved, &loaded);
+    for d in diff.iter().take(20) {
+        eprintln!("  {d}");
+    }
+    assert!(diff.is_empty(), "the load is not the save: {} differences", diff.len());
+    let after = op_with("step", json!({"ticks": 120}));
+    let twice = made_twice(&saved, &after);
+    for t in twice.iter().take(20) {
+        eprintln!("  made twice: {t}");
+    }
+    assert!(twice.is_empty(), "{} things made a second time after the load", twice.len());
+}
+
+/// A test's start comes from its save, made by playing when it is missing
+/// or from an older version of the game (`endpoint::start_from`): no save,
+/// it plays and saves; the next start loads; a save marked an older
+/// version is refused and made again by playing.
+#[test]
+fn a_tests_start_is_made_again_by_playing_when_its_save_will_not_load() {
+    const START: &str = "save_test_start";
+    let file = saves().join(format!("{START}.save"));
+    let _ = std::fs::remove_file(&file);
+    let played = std::cell::Cell::new(0);
+    let reach = || played.set(played.get() + 1);
+    assert!(crate::endpoint::start_from(START, reach), "with no save, the start was not played");
+    assert!(!crate::endpoint::start_from(START, reach), "the save made by playing did not load");
+    let text = std::fs::read_to_string(&file).expect("the start was saved");
+    let (first, rest) = text.split_once('\n').expect("a header line");
+    let mut header: Json = serde_json::from_str(first.strip_prefix("// topside save ").expect("the header line")).expect("the header is JSON");
+    header["version"] = json!(0);
+    std::fs::write(&file, format!("// topside save {header}\n{rest}")).expect("marking the save an older version");
+    assert!(crate::endpoint::start_from(START, reach), "a save of an older version was not made again by playing");
+    assert_eq!(played.get(), 2, "played {} times, not twice", played.get());
+    let _ = std::fs::remove_file(&file);
 }
 
 /// A save of another format's version is refused plainly.
@@ -106,30 +162,56 @@ impl Drop for Unpause {
 /// How many ticks each run plays from the save: ten game seconds.
 const PLAYED: u64 = 600;
 
-/// The same save played the same ticks gives the same result every time
-/// (Factorio's saves, which its replays depend on): paused, saved, and
-/// played; then loaded and played again, twice. All three end at the same
-/// moment, every person and thing where it was and as it was.
-#[test]
-fn a_save_played_the_same_ticks_ends_the_same() {
-    let _unpause = Unpause;
+/// Paused, the moment saved, and the game left paused until the test ends.
+fn paused_save() -> (Unpause, Json) {
+    let unpause = Unpause;
     let paused = op_with("pause", json!({"on": true}));
     assert_eq!(paused["paused"], true, "the game did not pause: {paused}");
-    let saved = save();
-    let first = op_with("step", json!({"ticks": PLAYED}));
-    assert_eq!(first["tick"].as_u64(), saved["tick"].as_u64().map(|t| t + PLAYED), "the first run did not play {PLAYED} ticks: {}", first["tick"]);
-    let mut all_same = true;
-    for n in 1..=2 {
-        load();
-        let again = op_with("step", json!({"ticks": PLAYED}));
-        let diff = differences(&first, &again);
-        eprintln!("run {} from the save: tick {}, {} differences from the first run", n + 1, again["tick"], diff.len());
-        for d in diff.iter().take(20) {
-            eprintln!("  {d}");
-        }
-        all_same &= diff.is_empty();
+    (unpause, save())
+}
+
+/// Played `PLAYED` ticks from where the game stands: the moment there.
+fn play() -> Json {
+    op_with("step", json!({"ticks": PLAYED}))
+}
+
+/// Prints where two runs ended apart, and answers whether they ended the
+/// same.
+fn same_end(what: &str, first: &Json, again: &Json) -> bool {
+    let diff = differences(first, again);
+    eprintln!("{what}: tick {}, {} differences", again["tick"], diff.len());
+    for d in diff.iter().take(20) {
+        eprintln!("  {d}");
     }
-    assert!(all_same, "the same save played the same {PLAYED} ticks ended differently");
+    diff.is_empty()
+}
+
+/// What every test from a save depends on (todo 9k: a test loads its save
+/// and drives the game only by stepping): the same save loaded and played
+/// the same ticks ends at the same moment every time, every person and
+/// thing where it was and as it was.
+#[test]
+fn a_save_loaded_and_played_the_same_ticks_ends_the_same() {
+    let (_unpause, saved) = paused_save();
+    load();
+    let first = play();
+    assert_eq!(first["tick"].as_u64(), saved["tick"].as_u64().map(|t| t + PLAYED), "the run did not play {PLAYED} ticks: {}", first["tick"]);
+    load();
+    let again = play();
+    assert!(same_end("the second run from the save", &first, &again), "the same save loaded and played {PLAYED} ticks ended differently");
+}
+
+/// A savestate is exact (Factorio's saves, which its replays depend on):
+/// the game played on from the moment it was saved, and the save loaded
+/// and played the same ticks, end at the same moment.
+#[test]
+fn a_save_played_on_and_loaded_and_played_end_the_same() {
+    let (_unpause, saved) = paused_save();
+    let live = play();
+    assert_eq!(live["tick"].as_u64(), saved["tick"].as_u64().map(|t| t + PLAYED), "the game did not play {PLAYED} ticks: {}", live["tick"]);
+    load();
+    let loaded = play();
+    assert!(same_end("the run from the save against the game played on", &live, &loaded), "the game played on and its save played the same ticks ended differently");
 }
 
 /// Save, load, load again: both loads hold exactly what was saved, every
@@ -137,21 +219,15 @@ fn a_save_played_the_same_ticks_ends_the_same() {
 /// it was saved at.
 #[test]
 fn a_save_loads_as_it_was_twice() {
-    let saved = save();
+    let (_unpause, saved) = paused_save();
     let people = saved["people"].as_array().map_or(0, |p| p.len());
     let things = saved["things"].as_array().map_or(0, |t| t.len());
     eprintln!("saved at tick {}: {people} people, {things} things, episode {}", saved["tick"], saved["episode"]);
     assert!(people > 0 && things > 0, "nothing to save: {people} people, {things} things");
-    // Let the game move on, so a load has something to undo.
-    std::thread::sleep(std::time::Duration::from_secs(2));
     for n in 1..=2 {
+        // The game played on, so a load has something to undo.
+        play();
         let loaded = load();
-        let diff = differences(&saved, &loaded);
-        eprintln!("load {n}: tick {}, {} differences", loaded["tick"], diff.len());
-        for d in diff.iter().take(20) {
-            eprintln!("  {d}");
-        }
-        assert!(diff.is_empty(), "load {n} is not the save: {} differences", diff.len());
-        std::thread::sleep(std::time::Duration::from_secs(2));
+        assert!(same_end(&format!("load {n} against the save"), &saved, &loaded), "load {n} is not the save");
     }
 }

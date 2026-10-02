@@ -9,7 +9,10 @@
 //! built again alone. Prior art: Factorio's chunk pathfinding (Friday Facts
 //! #317) and Unreal's tiled Recast mesh.
 
-use std::collections::{HashMap, HashSet};
+// Ordered maps and sets: whatever is iterated goes in the same order every
+// run, so the mesh and the walk are a pure result of the game's state
+// (authority.md "Pathing").
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::sync::Mutex;
 
 use avian3d::prelude::*;
@@ -59,10 +62,11 @@ const STEP_ASIDE: f32 = 1.0;
 const STUCK_STEPS: u32 = 30;
 /// Steps a walker stands aside before going on: a second.
 const STEP_ASIDE_FOR: u64 = 60;
-/// The most chunk meshes started in one frame, so making many chunks at
-/// once does not stall a frame (the building itself runs in the
-/// background).
-const PER_FRAME: usize = 8;
+/// The most chunk meshes started in one tick, so making many chunks at
+/// once does not stall a step (the building itself runs in the
+/// background); counted in ticks, so how many are built by a tick is the
+/// same however many frames it took.
+const PER_TICK: usize = 8;
 
 pub struct NavPlugin;
 
@@ -75,7 +79,10 @@ impl Plugin for NavPlugin {
             LandmassRerecastPlugin::default(),
         ));
         app.add_systems(Startup, setup);
-        app.add_systems(Update, (wait_for_chunks, build_chunk_meshes, answer_path).chain());
+        // In the fixed step, after the chunks are made: the mesh follows
+        // the ticks, never the frames.
+        app.add_systems(FixedUpdate, (wait_for_chunks, build_chunk_meshes).chain().after(crate::actor::populate_topside_people));
+        app.add_systems(Update, answer_path);
     }
 }
 
@@ -84,8 +91,8 @@ impl Plugin for NavPlugin {
 #[derive(Resource)]
 pub struct Nav {
     pub archipelago: Entity,
-    islands: HashMap<ChunkKey, (Handle<Navmesh>, Entity)>,
-    waiting: HashMap<ChunkKey, u64>,
+    islands: BTreeMap<ChunkKey, (Handle<Navmesh>, Entity)>,
+    waiting: BTreeMap<ChunkKey, u64>,
 }
 
 /// How far from the mesh a point may be and still be on it. Every point
@@ -145,7 +152,7 @@ fn setup(mut commands: Commands) {
             ..ArchipelagoOptions::from_agent_radius(AGENT_RADIUS)
         }))
         .id();
-    commands.insert_resource(Nav { archipelago, islands: HashMap::new(), waiting: HashMap::new() });
+    commands.insert_resource(Nav { archipelago, islands: BTreeMap::new(), waiting: BTreeMap::new() });
 }
 
 /// The chunks of a ground rectangle, and the eight round them (a building
@@ -182,7 +189,7 @@ fn wait_for_chunks(
     for key in new {
         nav.waiting.insert(key, ready);
     }
-    let mut again: HashSet<ChunkKey> = HashSet::new();
+    let mut again: BTreeSet<ChunkKey> = BTreeSet::new();
     for shelter in &buildings {
         for (lo, hi) in &shelter.0 {
             again.extend(chunks_round(*lo, *hi));
@@ -208,7 +215,7 @@ fn build_chunk_meshes(
     spatial: SpatialQuery,
     mut generator: NavmeshGenerator,
 ) {
-    let due: Vec<ChunkKey> = nav.waiting.iter().filter(|(_, t)| **t <= tick.0).map(|(k, _)| *k).take(PER_FRAME).collect();
+    let due: Vec<ChunkKey> = nav.waiting.iter().filter(|(_, t)| **t <= tick.0).map(|(k, _)| *k).take(PER_TICK).collect();
     let size = CHUNK as f32 * TILE;
     let cell = AGENT_RADIUS / CELL_FRACTION;
     // Recast's border round a tile: the agent's radius in cells, and 3.
@@ -272,8 +279,8 @@ pub fn walk(
     actors: Query<&crate::actor::Actor>,
     // Each walker's feet last step, how many steps they have made no way,
     // and the spot they step aside to, until the tick they go on.
-    mut stuck: Local<HashMap<Entity, (Vec3, u32)>>,
-    mut aside: Local<HashMap<Entity, (Vec3, u64)>>,
+    mut stuck: Local<BTreeMap<Entity, (Vec3, u32)>>,
+    mut aside: Local<BTreeMap<Entity, (Vec3, u64)>>,
 ) {
     use crate::input::Action;
     use modforge::actions::{ActionQueue, Stamped};

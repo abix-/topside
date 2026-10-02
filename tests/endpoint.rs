@@ -4,19 +4,44 @@ use serde_json::{Value as Json, json};
 
 pub const URL: &str = "http://127.0.0.1:15703/topside";
 
-/// The `result` of op `name` with `args`; a test fails when no game answers.
+/// The `result` of op `name` with `args`; a test fails when no game
+/// answers, or with the op's own error when the op answers one.
 pub fn op_with(name: &str, args: Json) -> Json {
     let answer: Option<Json> = ureq::post(URL)
         .send_json(json!({"op": name, "args": args}))
         .ok()
         .and_then(|r| r.into_body().read_json().ok());
     let answer = answer.unwrap_or_else(|| panic!("no topside game answering on {URL}; start it with scripts/build.ps1 run"));
+    if answer["ok"] == false {
+        panic!("the {name} op failed: {}", answer["error"]);
+    }
     answer["result"].clone()
 }
 
 /// The `result` of op `name`.
 pub fn op(name: &str) -> Json {
     op_with(name, json!({}))
+}
+
+/// Start a test from its own save (todo 9k, authority.md "Running
+/// tests"): `saves/<name>.save` loaded; if there is none, or the game
+/// refuses it (made by another version of the game), the start is reached
+/// once by playing (`reach`) and saved under that name for the next run.
+/// Answers whether it played (true) or loaded (false).
+pub fn start_from(name: &str, reach: impl FnOnce()) -> bool {
+    let answer: Option<Json> = ureq::post(URL)
+        .send_json(json!({"op": "load", "args": {"name": name}}))
+        .ok()
+        .and_then(|r| r.into_body().read_json().ok());
+    let answer = answer.unwrap_or_else(|| panic!("no topside game answering on {URL}; start it with scripts/build.ps1 run"));
+    if answer["ok"] == true {
+        return false;
+    }
+    eprintln!("{name}: not loaded ({}); reaching the start by playing and saving it", answer["error"]);
+    reach();
+    let saved = op_with("save", json!({"name": name}));
+    assert!(saved["tick"].is_u64(), "{name}: the start was reached but not saved: {saved}");
+    true
 }
 
 /// Everyone the `people` op lists.

@@ -37,8 +37,6 @@ pub struct WorldRes {
     pub seed: u64,
     pub bunker: Vec2,
     pub bunkers: Vec<Vec2>,
-    /// Whether this world's topside people have been put in it.
-    pub peopled: bool,
 }
 
 /// Anything that belongs to this reality and goes when the storm shifts
@@ -111,9 +109,25 @@ fn shore_of(chunk: &GroundChunk) -> Vec<Shore> {
     out
 }
 
-/// Sites found in newly made chunks, waiting to be spawned.
+/// Sites found in newly made chunks, waiting to be spawned, each with
+/// whether its things are to be made (false: they come from a save).
 #[derive(Resource, Default)]
-pub struct NewSites(pub Vec<Place>);
+pub struct NewSites(pub Vec<(Place, bool)>);
+
+/// What this world has made of its own things so far (Minecraft's
+/// populated chunks): the chunks whose wells and bushes were put out, the
+/// sites (by their tile) whose doors, loot boxes and people were, and
+/// whether the topside people on open land were. Saved; a load rolls the
+/// world again from its seed and makes the ground, walls and props of
+/// every chunk it needs, but the things of these only come from the save,
+/// never a second time. A new world (`roll`) has made none.
+#[derive(Resource, Default, Clone, serde::Serialize, serde::Deserialize, Reflect)]
+#[reflect(opaque, Resource, Serialize, Deserialize)]
+pub struct ThingsMade {
+    pub chunks: HashSet<ChunkKey>,
+    pub sites: HashSet<(i32, i32)>,
+    pub people: bool,
+}
 
 /// With a window: the one material every chunk's ground mesh is drawn
 /// with, its colour from each tile's corners (the ground kind's colour).
@@ -152,10 +166,10 @@ pub fn roll(
         seed: seed.0,
         bunker: BUNKER_AT,
         bunkers: kind.other_bunkers(),
-        peopled: false,
     });
     commands.insert_resource(Chunks::default());
     commands.insert_resource(NewSites::default());
+    commands.insert_resource(ThingsMade::default());
     commands.insert_resource(crate::structure::MonumentsRes::default());
 }
 
@@ -236,6 +250,7 @@ pub fn make_chunks(
     mut world: ResMut<WorldRes>,
     mut chunks: ResMut<Chunks>,
     mut new_sites: ResMut<NewSites>,
+    mut things_made: ResMut<ThingsMade>,
     biomes: Res<BiomeRegistryRes>,
     monuments: Res<MonumentRegistryRes>,
     items: Res<crate::content::ItemRegistryRes>,
@@ -297,8 +312,10 @@ pub fn make_chunks(
             chunks.shores.insert(key, shore);
         }
         // The sources (wells, berry bushes) are items standing in the world,
-        // through the one `spawn_item`; they stop nobody.
-        for (k, thing) in chunk.things.iter().enumerate() {
+        // through the one `spawn_item`; they stop nobody. Once a world:
+        // a chunk made again after a load has its sources in the save.
+        let sources = things_made.chunks.insert(key);
+        for (k, thing) in chunk.things.iter().enumerate().filter(|_| sources) {
             if let Some(def) = thing.source.as_ref().and_then(|name| items.0.def(name)) {
                 let stack = modforge::item::create(def, 1, &[], 0.0, k as u64);
                 let at = modforge::walk::centre(thing.tile);
@@ -313,8 +330,10 @@ pub fn make_chunks(
         let lo = Vec2::new((key.0 * CHUNK) as f32, (key.1 * CHUNK) as f32) * TILE;
         let hi = lo + Vec2::splat(CHUNK as f32 * TILE);
         for site in world.world.sites_in(r, lo, hi) {
-            if chunks.sites.insert(cell_of(site.position)) {
-                new_sites.0.push(site);
+            let cell = cell_of(site.position);
+            if chunks.sites.insert(cell) {
+                let things = things_made.sites.insert(cell);
+                new_sites.0.push((site, things));
             }
         }
     }

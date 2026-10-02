@@ -111,6 +111,7 @@ saved! {
         crate::survival::Day,
         crate::command::GivenThisRun,
         crate::command::Playing,
+        crate::terrain::ThingsMade,
     ]
 }
 
@@ -147,7 +148,7 @@ fn answer(result: Result<serde_json::Value, String>) {
 /// resource changes its fields, so an older save is refused plainly
 /// instead of failing halfway (todo 31a). Test saves are then made again
 /// by playing (9k).
-pub const VERSION: u32 = 1;
+pub const VERSION: u32 = 2;
 
 /// What a save says first, on its own line, before the saved world: the
 /// format's version and the world it was made in (the seed, the world's
@@ -178,38 +179,68 @@ impl Header {
     }
 
     /// Why a save with this header cannot load into the running game
-    /// (`now`), if it cannot: another version, or another world.
+    /// (`now`), if it cannot: another version, or a world size this game
+    /// does not know. Another world never refuses: the load rolls the
+    /// save's (`roll_saved_world`).
     fn refuses(&self, now: &Header) -> Option<String> {
         if self.version != now.version {
             return Some(format!("the save is version {}, this game reads version {}: make the save again by playing", self.version, now.version));
         }
-        if (self.seed, &self.world, self.shifts) != (now.seed, &now.world, now.shifts) {
-            return Some(format!(
-                "the save was made in another world (seed {}, {} world, shifted {} times), this game is in seed {}, {} world, shifted {} times",
-                self.seed, self.world, self.shifts, now.seed, now.world, now.shifts
-            ));
+        if crate::content::WorldKind::from_name(&self.world).is_none() {
+            return Some(format!("the save's world is {:?}, not one this game makes (small or big)", self.world));
         }
         None
     }
 }
 
-/// Every step: a save or a load asked for is started, and answers from
-/// `saved` or `loaded` once done, or at once with why it cannot be.
-pub fn answer_save(mut commands: Commands) {
+/// The world the save was made in, rolled again whatever world the game
+/// is in (a new launch rolls from the clock, a storm shifts it): the seed
+/// and size set, this world's pieces gone, and the world rolled through
+/// the one roll, as a storm rolls the next (`storm::shift_world`). Its
+/// chunks are made again round the loaded people from the next step, their
+/// own things only from the save (`terrain::ThingsMade`, loaded after).
+/// Saved things are not despawned here: the load unloads them.
+fn roll_saved_world(world: &mut World, header: &Header) {
+    world.resource_mut::<crate::WorldSeed>().0 = header.seed;
+    if let Some(kind) = crate::content::WorldKind::from_name(&header.world) {
+        world.insert_resource(kind);
+    }
+    let pieces: Vec<Entity> = world
+        .query_filtered::<Entity, (With<crate::terrain::WorldPiece>, Without<Save>)>()
+        .iter(world)
+        .collect();
+    for piece in pieces {
+        if let Ok(piece) = world.get_entity_mut(piece) {
+            piece.despawn();
+        }
+    }
+    if let Err(e) = world.run_system_cached(crate::terrain::roll) {
+        error!("rolling the saved world: {e}");
+    }
+}
+
+/// Every frame, first, before any other system has queued a command on
+/// the world a load replaces (a command left for an entity the load
+/// despawned stopped the game): a save or a load asked for is done, and
+/// answers from `saved` or `loaded`, or at once with why it cannot be.
+pub fn answer_save(world: &mut World) {
     let Some(ask) = ASK.lock().ok().and_then(|mut ask| ask.take()) else {
         return;
     };
-    commands.queue(move |world: &mut World| match ask {
+    match ask {
         Ask::Save(name) => {
             if let Err(e) = start_save(world, &name) {
                 answer(Err(e));
             }
         }
         Ask::Load(name) => match read_save(world, &name) {
-            Ok(saved) => world.trigger_load(LoadWorld::<moonshine_save::load::DefaultUnloadFilter>::new(LoadInput::World(saved), Default::default())),
+            Ok((header, saved)) => {
+                roll_saved_world(world, &header);
+                world.trigger_load(LoadWorld::<moonshine_save::load::DefaultUnloadFilter>::new(LoadInput::World(saved), Default::default()));
+            }
             Err(e) => answer(Err(e)),
         },
-    });
+    }
 }
 
 /// The save's file opened with its header line written, and the saved
@@ -228,9 +259,9 @@ fn start_save(world: &mut World, name: &str) -> Result<(), String> {
     Ok(())
 }
 
-/// The saved world in a save, read only if its header says it loads into
-/// this game; every way it cannot, said plainly.
-fn read_save(world: &mut World, name: &str) -> Result<bevy::world_serialization::DynamicWorld, String> {
+/// A save's header and saved world, read only if its header says it loads
+/// into this game; every way it cannot, said plainly.
+fn read_save(world: &mut World, name: &str) -> Result<(Header, bevy::world_serialization::DynamicWorld), String> {
     use serde::de::DeserializeSeed;
     let path = path_of(name);
     let bytes = std::fs::read(&path).map_err(|e| format!("no save at {}: {e}", path.display()))?;
@@ -247,18 +278,21 @@ fn read_save(world: &mut World, name: &str) -> Result<bevy::world_serialization:
     let registry = world.resource::<AppTypeRegistry>().clone();
     let registry = registry.read();
     let mut ron = ron::Deserializer::from_bytes(&bytes).map_err(|e| format!("{} not loaded: {e}", path.display()))?;
-    bevy::world_serialization::serde::WorldDeserializer { type_registry: &registry, load_from_path: &mut assets }
+    let saved = bevy::world_serialization::serde::WorldDeserializer { type_registry: &registry, load_from_path: &mut assets }
         .deserialize(&mut ron)
-        .map_err(|e| format!("{} not loaded, it does not read as this version's save (a saved type changed without raising VERSION?): {e}", path.display()))
+        .map_err(|e| format!("{} not loaded, it does not read as this version's save (a saved type changed without raising VERSION?): {e}", path.display()))?;
+    Ok((header, saved))
 }
 
 /// What the game holds at one moment, read the same way when saved and
-/// when loaded, so a test compares the two exactly: the tick, the episode,
+/// when loaded, so a test compares the two exactly: the tick, the world's
+/// seed, the episode,
 /// every person by ActorId (where their feet are, health, needs, what they
 /// are doing) and every thing by its ThingId (where, what, a door open).
 #[derive(bevy::ecs::system::SystemParam)]
 pub struct Moment<'w, 's> {
     tick: Res<'w, SimTick>,
+    seed: Res<'w, crate::WorldSeed>,
     episode: Res<'w, crate::episode::Episode>,
     people: Query<
         'w,
@@ -306,6 +340,7 @@ impl Moment<'_, '_> {
         things.sort_by_key(|t| t["id"].as_u64());
         serde_json::json!({
             "tick": self.tick.0,
+            "seed": self.seed.0,
             "episode": self.episode.name,
             "cast": self.episode.cast.iter().map(|(part, id)| (part.clone(), id.0)).collect::<Vec<_>>(),
             "reached": self.episode.reached.len(),
