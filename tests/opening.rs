@@ -158,16 +158,33 @@ fn woke() {
     });
 }
 
-/// The talk box open with Roxanne, at her knock on the player's shut door,
-/// her opening not yet said. Reached by commanding her knock (the knock
-/// itself, todo 15b), not by the note, so it does not wait on tests 3-6.
+/// Whether the player has heard `her` knock.
+fn heard_her_knock(her: u64) -> bool {
+    op("player")["heard_knocking"].as_array().is_some_and(|h| h.iter().any(|k| k["by"].as_u64() == Some(her)))
+}
+
+/// The player opens the door of their room (the `use` op at the door: a
+/// metre from it, Use, as E does).
+fn open_the_door() {
+    let door = the_players_door();
+    op_with("use", json!({"id": player(), "at": door["at"], "height": door["floor"]}));
+    step(SECOND);
+}
+
+/// The talk box open with Roxanne, her opening not yet said: she knocked,
+/// the player heard it and opened their door, and within talking reach
+/// (authority.md "Talking": the conversation starts within TALK_REACH) the
+/// talk opened. Reached by commanding her knock (todo 15b), not by the
+/// note, so it does not wait on tests 3-6.
 fn talking() {
     start_from("opening_talking", || {
         woke();
         let her = roxanne();
         op_with("command", json!({"id": her, "do": "knock", "who": player()}));
-        let open = within(90, || talk()["to"].as_u64() == Some(her));
-        assert!(open, "reaching opening_talking: Roxanne's knock never opened the talk box");
+        assert!(within(90, || heard_her_knock(her)), "reaching opening_talking: the player never heard Roxanne's commanded knock");
+        open_the_door();
+        let open = within(10, || talk()["to"].as_u64() == Some(her));
+        assert!(open, "reaching opening_talking: the door open, the talk never opened with Roxanne");
     });
 }
 
@@ -259,24 +276,21 @@ fn roxanne_comes_to_the_players_shut_door() {
     assert!(came, "Roxanne never came to the player's door at {at:?}: she stands at {:?}", spot_of(her));
 }
 
-/// 5. Roxanne knocks on her own, the player hears it, and the talk box
-/// opens with her.
+/// 5. Roxanne knocks on her own, and the player hears it.
 #[test]
-fn roxanne_knocks_and_the_talk_box_opens_with_her() {
+fn roxanne_knocks_and_the_player_hears_it() {
     let _paused = pause();
     woke();
     let her = roxanne();
     read_the_note();
-    let heard = within(90, || op("player")["heard_knocking"].as_array().is_some_and(|h| h.iter().any(|k| k["by"].as_u64() == Some(her))));
-    assert!(heard, "the player never heard Roxanne knock after reading the note");
-    let open = within(5, || talk()["to"].as_u64() == Some(her));
-    assert!(open, "the talk box never opened with Roxanne after her knock: {}", talk());
+    assert!(within(90, || heard_her_knock(her)), "the player never heard Roxanne knock after reading the note");
 }
 
-/// 6. Roxanne's first words come through the shut door: "You awake in
-/// there?" (todo 11aj), before the opening.
+/// 6. With her knock, Roxanne calls "You awake in there?" through the shut
+/// door (todo 11aj; authority.md "Talking": a knock can carry one called
+/// line), heard before any conversation opens.
 #[test]
-fn roxanne_says_you_awake_in_there_through_the_door_first() {
+fn roxanne_calls_you_awake_in_there_through_the_door() {
     let _paused = pause();
     woke();
     let her = roxanne();
@@ -284,7 +298,22 @@ fn roxanne_says_you_awake_in_there_through_the_door_first() {
     let said = within(90, || !heard_from(her).is_empty());
     assert!(said, "Roxanne said nothing to the player after reading the note");
     let first = heard_from(her)[0].1.clone();
-    assert_eq!(first, "You awake in there?", "Roxanne's first words were not through the door");
+    assert_eq!(first, "You awake in there?", "Roxanne's first words were not the line through the door");
+    assert!(talk()["open"] != true, "a conversation opened through the shut door: {}", talk());
+}
+
+/// 6b. The player opens their door to her knock, and within talking reach
+/// the conversation opens with Roxanne.
+#[test]
+fn opening_the_door_to_her_knock_starts_the_talk() {
+    let _paused = pause();
+    woke();
+    let her = roxanne();
+    read_the_note();
+    assert!(within(90, || heard_her_knock(her)), "the player never heard Roxanne knock after reading the note");
+    open_the_door();
+    let open = within(10, || talk()["to"].as_u64() == Some(her));
+    assert!(open, "the door open, no conversation with Roxanne: {}", talk());
 }
 
 /// 7. Roxanne says the water is nearly gone and gives the way to the tap
