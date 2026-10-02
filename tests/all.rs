@@ -22,6 +22,7 @@ mod monuments;
 mod names;
 mod opening;
 mod night;
+mod perf;
 mod people_drawn;
 mod leading;
 mod queue;
