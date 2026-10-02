@@ -4,7 +4,7 @@
 //! POST http://127.0.0.1:15703/topside with {"op": "...", "args": {}}.
 
 use std::sync::Mutex;
-use std::sync::atomic::{AtomicU32, AtomicU64, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, AtomicUsize, Ordering};
 
 use bevy::diagnostic::{DiagnosticsStore, FrameTimeDiagnosticsPlugin};
 use bevy::prelude::*;
@@ -846,11 +846,68 @@ pub fn take_screenshot(mut commands: Commands) {
 /// fixed step runs on: the same game, more steps each frame. A frame may
 /// catch up at most a second of game time, so a slow machine runs as fast
 /// as it can, never skips steps.
-pub fn apply_speed(mut time: ResMut<Time<Virtual>>) {
+pub fn apply_speed(mut time: ResMut<Time<Virtual>>, tick: Res<crate::SimTick>) {
     let speed = f32::from_bits(SPEED_BITS.load(Ordering::Relaxed));
     if time.relative_speed() != speed {
         time.set_relative_speed(speed);
         time.set_max_delta(std::time::Duration::from_secs(1));
+    }
+    // Paused or not, as the `pause` op asked; the tick it stopped at is
+    // what the op answers.
+    let paused = PAUSED.load(Ordering::Relaxed);
+    if paused != time.is_paused() {
+        if paused {
+            time.pause();
+        } else {
+            time.unpause();
+        }
+    }
+    PAUSED_AT.store(if time.is_paused() { tick.0 } else { u64::MAX }, Ordering::Relaxed);
+}
+
+/// The game paused by the `pause` op (Factorio's pause, for tests: the
+/// world stands still while a test reads it), the tick it stands at
+/// (`u64::MAX` while running), the ticks the `step` op asked for, and the
+/// tick that stepping ends at.
+static PAUSED: AtomicBool = AtomicBool::new(false);
+static PAUSED_AT: AtomicU64 = AtomicU64::new(u64::MAX);
+static STEP_ASK: AtomicU64 = AtomicU64::new(0);
+static STEP_TO: Mutex<Option<u64>> = Mutex::new(None);
+static STEP_ANSWER: Mutex<Option<Json>> = Mutex::new(None);
+
+/// Before the fixed steps run, while paused: the steps the `step` op asked
+/// for are handed to the fixed step's own clock, exactly that many steps'
+/// time and nothing left over, so Bevy's fixed loop runs exactly that many
+/// ticks the way it always runs them.
+pub fn step_ticks(mut fixed: ResMut<Time<Fixed>>, time: Res<Time<Virtual>>, tick: Res<crate::SimTick>) {
+    if !time.is_paused() {
+        return;
+    }
+    let steps = STEP_ASK.swap(0, Ordering::Relaxed);
+    if steps == 0 {
+        return;
+    }
+    let left = fixed.overstep();
+    fixed.discard_overstep(left);
+    let timestep = fixed.timestep();
+    fixed.accumulate_overstep(timestep * steps as u32);
+    if let Ok(mut to) = STEP_TO.lock() {
+        *to = Some(tick.0 + steps);
+    }
+}
+
+/// After the fixed steps, once stepping has reached its tick: the `step`
+/// op answered with the moment there (crate::save::Moment).
+pub fn answer_step(tick: Res<crate::SimTick>, moment: crate::save::Moment) {
+    let Ok(mut to) = STEP_TO.lock() else {
+        return;
+    };
+    if *to != Some(tick.0) {
+        return;
+    }
+    *to = None;
+    if let Ok(mut slot) = STEP_ANSWER.lock() {
+        *slot = Some(moment.read());
     }
 }
 
@@ -1368,6 +1425,50 @@ pub fn start() {
         "load saves/<name>.save into the running game in place of what is there; answers once loaded, with the tick it is at (the saved one)",
         "{\"name\": \"the_tap_start\"}",
         move |args| save_or_load(args, crate::save::Ask::Load),
+    ));
+    OP_REGISTRY.register(OpDef::new(
+        "pause",
+        "pause the game (true) or let it run (false); answers once it stands still, with the tick it stands at. While paused, ops act on the next tick `step` runs",
+        "{\"on\": true}",
+        |args| {
+            let on = args.get("on").and_then(Json::as_bool).ok_or_else(|| "on: true or false".to_string())?;
+            PAUSED.store(on, Ordering::Relaxed);
+            for _ in 0..500 {
+                std::thread::sleep(std::time::Duration::from_millis(10));
+                let at = PAUSED_AT.load(Ordering::Relaxed);
+                if on && at != u64::MAX {
+                    return Ok(json!({"paused": true, "tick": at}));
+                }
+                if !on && at == u64::MAX {
+                    return Ok(json!({"paused": false}));
+                }
+            }
+            Err("the game did not pause or run within 5 seconds".to_string())
+        },
+    ));
+    OP_REGISTRY.register(OpDef::new(
+        "step",
+        "while paused, run exactly this many ticks, as the game always runs them; answers with the moment after them (the tick, the episode, every person and thing), as `save` does",
+        "{\"ticks\": 600}",
+        |args| {
+            let ticks = args.get("ticks").and_then(Json::as_u64).filter(|t| (1..=36_000).contains(t)).ok_or_else(|| "ticks: 1 to 36000".to_string())?;
+            if PAUSED_AT.load(Ordering::Relaxed) == u64::MAX {
+                return Err("the game is running: pause it first".to_string());
+            }
+            if let Ok(mut slot) = STEP_ANSWER.lock() {
+                *slot = None;
+            }
+            STEP_ASK.store(ticks, Ordering::Relaxed);
+            for _ in 0..12_000 {
+                std::thread::sleep(std::time::Duration::from_millis(10));
+                if let Ok(mut slot) = STEP_ANSWER.lock()
+                    && let Some(moment) = slot.take()
+                {
+                    return Ok(moment);
+                }
+            }
+            Err("the steps did not finish within 2 minutes".to_string())
+        },
     ));
     OP_REGISTRY.register(OpDef::new(
         "ways",

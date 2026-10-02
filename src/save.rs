@@ -275,7 +275,7 @@ pub struct Moment<'w, 's> {
 }
 
 impl Moment<'_, '_> {
-    fn read(&self) -> serde_json::Value {
+    pub fn read(&self) -> serde_json::Value {
         let mut people: Vec<_> = self
             .people
             .iter()

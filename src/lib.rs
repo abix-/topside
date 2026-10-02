@@ -252,7 +252,7 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind) -> App {
                 control_plane::publish,
                 control_plane::publish_world,
                 control_plane::publish_ways,
-                (control_plane::answer_npc, control_plane::answer_kill, control_plane::answer_give, control_plane::answer_needs, control_plane::answer_use, control_plane::answer_talk, control_plane::answer_walk, save::answer_save).chain(),
+                (control_plane::answer_npc, control_plane::answer_kill, control_plane::answer_give, control_plane::answer_needs, control_plane::answer_use, control_plane::answer_talk, control_plane::answer_walk).chain(),
                 lap("publish"),
             )
                 .chain(),
@@ -260,6 +260,17 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind) -> App {
             .chain(),
     );
     app.add_systems(Update, profile::start);
+    // Saving and loading answer every frame, paused or not; stepping a
+    // paused game hands the fixed loop its ticks before it runs and answers
+    // after.
+    app.add_systems(Update, save::answer_save);
+    app.add_systems(
+        RunFixedMainLoop,
+        (
+            control_plane::step_ticks.in_set(RunFixedMainLoopSystems::BeforeFixedMainLoop),
+            control_plane::answer_step.in_set(RunFixedMainLoopSystems::AfterFixedMainLoop),
+        ),
+    );
     // A conversation ends on real time, so it can be read at any speed.
     app.add_systems(Update, talk::end_conversations);
     if !headless {

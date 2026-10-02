@@ -94,6 +94,44 @@ fn a_save_of_another_version_is_refused() {
     assert!(answer.to_string().contains("version 0"), "a save of another version was not refused: {answer}");
 }
 
+/// Lets the game run again when the test ends, passed or failed.
+struct Unpause;
+
+impl Drop for Unpause {
+    fn drop(&mut self) {
+        op_with("pause", json!({"on": false}));
+    }
+}
+
+/// How many ticks each run plays from the save: ten game seconds.
+const PLAYED: u64 = 600;
+
+/// The same save played the same ticks gives the same result every time
+/// (Factorio's saves, which its replays depend on): paused, saved, and
+/// played; then loaded and played again, twice. All three end at the same
+/// moment, every person and thing where it was and as it was.
+#[test]
+fn a_save_played_the_same_ticks_ends_the_same() {
+    let _unpause = Unpause;
+    let paused = op_with("pause", json!({"on": true}));
+    assert_eq!(paused["paused"], true, "the game did not pause: {paused}");
+    let saved = save();
+    let first = op_with("step", json!({"ticks": PLAYED}));
+    assert_eq!(first["tick"].as_u64(), saved["tick"].as_u64().map(|t| t + PLAYED), "the first run did not play {PLAYED} ticks: {}", first["tick"]);
+    let mut all_same = true;
+    for n in 1..=2 {
+        load();
+        let again = op_with("step", json!({"ticks": PLAYED}));
+        let diff = differences(&first, &again);
+        eprintln!("run {} from the save: tick {}, {} differences from the first run", n + 1, again["tick"], diff.len());
+        for d in diff.iter().take(20) {
+            eprintln!("  {d}");
+        }
+        all_same &= diff.is_empty();
+    }
+    assert!(all_same, "the same save played the same {PLAYED} ticks ended differently");
+}
+
 /// Save, load, load again: both loads hold exactly what was saved, every
 /// person with the ActorId they had, every thing with its id, at the tick
 /// it was saved at.
