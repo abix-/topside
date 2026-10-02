@@ -18,16 +18,26 @@ pub const SUN: Vec3 = Vec3::new(0.5, 1.0, 0.3);
 
 /// The cel shade on top of Bevy's standard material (assets/shaders/
 /// cel_shade.wgsl): the model's colours, the sun's light cut into hard
-/// bands. The one material every mesh in the game is drawn with.
+/// bands. The one material every mesh in the game is drawn with. Whether
+/// it gets outlines (src/outline.rs) is in its prepass
+/// (assets/shaders/cel_prepass.wgsl): not a material cut out by its
+/// alpha (leaves), whose every cut edge would be a line.
 #[derive(Asset, AsBindGroup, Reflect, Debug, Clone)]
 pub struct CelShade {
     #[uniform(100)]
     pub sun: Vec4,
+    /// 1 outlined, 0 not.
+    #[uniform(100)]
+    pub outlined: f32,
 }
 
 impl MaterialExtension for CelShade {
     fn fragment_shader() -> ShaderRef {
         "shaders/cel_shade.wgsl".into()
+    }
+
+    fn prepass_fragment_shader() -> ShaderRef {
+        "shaders/cel_prepass.wgsl".into()
     }
 }
 
@@ -56,9 +66,11 @@ pub fn cel_shade(
                 let Some(base) = standard.get(id).cloned() else {
                     continue;
                 };
+                // Cut out by its alpha (leaves): no outlines.
+                let outlined = if matches!(base.alpha_mode, AlphaMode::Mask(_)) { 0.0 } else { 1.0 };
                 let handle = cel.add(Cel {
                     base,
-                    extension: CelShade { sun: SUN.normalize().extend(0.0) },
+                    extension: CelShade { sun: SUN.normalize().extend(0.0), outlined },
                 });
                 shaded.0.insert(id, handle.clone());
                 handle

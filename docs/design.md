@@ -1385,14 +1385,46 @@ once" means the player closes the game and starts a new session
 because the last one was fun, not because they have progress to
 continue.
 
-## Cel shading, no textures
+## Art design (operator, 2026-10-01)
+
+Low poly, cel shaded, outlined. Every piece of it below is decided.
+
+### Cel shading, no textures
 
 Everything in the game uses one cel shade material: a base color quantized
 into hard light bands, no smooth gradients, no textures (operator-locked
 2026-08-20: "i want all our stuff to be cell shading so i dont waste time
 with textures until i want to. and maybe thats never tbh"). One material
 struct, one shader, every mesh in the game goes through it. Colors only.
-The material lives in topside (it is Bevy-specific presentation).
+The material lives in topside (it is Bevy-specific presentation):
+src/model.rs `CelShade`, assets/shaders/cel_shade.wgsl.
+
+### Outlines on edges
+
+A dark line on every edge, so walls, corners, steps, doorways and people
+read against each other even when they are one colour (operator,
+2026-10-01). Prior art: Borderlands, Sable, Hi-Fi Rush. One full-screen
+pass after the scene (src/outline.rs, assets/shaders/outline.wgsl) draws a
+line where the depth bends or neighbouring surfaces face apart; flat runs
+of floor and wall tiles make no line. The line is about four pixels wide.
+
+- Leaves get no lines: a material cut out by its alpha (scripts/models.py's
+  leaf cut-outs) is marked not outlined in its prepass
+  (assets/shaders/cel_prepass.wgsl), so its every cut edge is not a line.
+  Trees keep their soft canopies; trunks are outlined.
+- Something outlined in front of the leaves still has its edge against
+  them; leaves in front of something put no line on it.
+
+### Walls and floors by what they are made of
+
+Each building material has its own low poly look, so a wall reads apart
+from a floor: concrete for the bunker, wood, stone, and the rest for what
+the player builds (operator, 2026-10-01; todo 15d).
+
+### The conversation box
+
+Fallout: New Vegas's amber box, low in the middle of the screen
+(episodes.md "How a conversation looks"; docs/mockups/conversation.png).
 
 ## Decided elsewhere
 

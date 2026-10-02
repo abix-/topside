@@ -9,14 +9,18 @@
     forward_io::{VertexOutput, FragmentOutput},
 }
 
-// Towards the sun, in the world (src/model.rs CelShade::sun).
-@group(#{MATERIAL_BIND_GROUP}) @binding(100) var<uniform> sun: vec4<f32>;
+// src/model.rs CelShade: towards the sun, in the world; whether outlined.
+struct CelShade {
+    sun: vec4<f32>,
+    outlined: f32,
+}
+@group(#{MATERIAL_BIND_GROUP}) @binding(100) var<uniform> cel: CelShade;
 
 @fragment
 fn fragment(in: VertexOutput, @builtin(front_facing) is_front: bool) -> FragmentOutput {
     var pbr_input = pbr_input_from_standard_material(in, is_front);
     let color = alpha_discard(pbr_input.material, pbr_input.material.base_color);
-    let light = dot(normalize(pbr_input.world_normal), normalize(sun.xyz));
+    let light = dot(normalize(pbr_input.world_normal), normalize(cel.sun.xyz));
     // The bands: (light above this, brightness).
     var band = 0.45;
     if light > 0.6 {

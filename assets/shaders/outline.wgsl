@@ -25,9 +25,20 @@ fn depth_at(p: vec2<i32>) -> f32 {
     return textureLoad(depth, clamp(p, vec2<i32>(0), size - 1), 0);
 }
 
-fn facing_at(p: vec2<i32>) -> vec3<f32> {
+fn normal_at(p: vec2<i32>) -> vec4<f32> {
     let size = vec2<i32>(textureDimensions(normals));
-    return textureLoad(normals, clamp(p, vec2<i32>(0), size - 1), 0).xyz * 2.0 - 1.0;
+    return textureLoad(normals, clamp(p, vec2<i32>(0), size - 1), 0);
+}
+
+fn facing_at(p: vec2<i32>) -> vec3<f32> {
+    return normal_at(p).xyz * 2.0 - 1.0;
+}
+
+// Whether what is drawn here gets lines: the normal's alpha, written by
+// the cel material's prepass (0 for a material cut out by its alpha:
+// leaves).
+fn outlined_at(p: vec2<i32>) -> bool {
+    return normal_at(p).a > 0.5;
 }
 
 @fragment
@@ -36,10 +47,19 @@ fn fragment(in: FullscreenVertexOutput) -> @location(0) vec4<f32> {
     let p = vec2<i32>(in.position.xy);
     let offsets = array<vec2<i32>, 4>(vec2<i32>(WIDTH, 0), vec2<i32>(-WIDTH, 0), vec2<i32>(0, WIDTH), vec2<i32>(0, -WIDTH));
     let d = depth_at(p);
+    // Nothing drawn here gets lines: no line.
+    if d > 0.0 && !outlined_at(p) {
+        return color;
+    }
     var sum = 0.0;
     var nearest = d;
     for (var i = 0; i < 4; i++) {
-        let n = depth_at(p + offsets[i]);
+        var n = depth_at(p + offsets[i]);
+        // A neighbour with no lines in front of this pixel (a leaf) counts
+        // as this pixel; behind it, it still makes this pixel's edge.
+        if n > d && !outlined_at(p + offsets[i]) {
+            n = d;
+        }
         sum += n;
         nearest = max(nearest, n);
     }
@@ -49,7 +69,7 @@ fn fragment(in: FullscreenVertexOutput) -> @location(0) vec4<f32> {
     if d > 0.0 {
         let here = facing_at(p);
         for (var i = 0; i < 4; i++) {
-            if depth_at(p + offsets[i]) > 0.0 {
+            if depth_at(p + offsets[i]) > 0.0 && outlined_at(p + offsets[i]) {
                 turn = max(turn, 1.0 - dot(here, facing_at(p + offsets[i])));
             }
         }
