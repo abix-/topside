@@ -247,6 +247,15 @@ give for it?" (trade), "Not today." (do nothing), "Tell Mara it's hers if
 she stands with us." (use it). Replies: "Thank you." / "Ask Mara." /
 silence / "I'll tell her."
 
+Pivot names (draft), each choice reached under its name, as "believes
+Dell" and "threatens Mara" are: pivot point 5: "stops Dell", "lets Dell
+store", "takes Dell's side" (say nothing is the conversation ending with
+no answer); pivot point 6: "trades with the strangers", "sends the
+strangers away", "points the strangers at Mara", "takes a stranger in";
+pivot point 7: "finds Mara's well dry" (going there), "hears of the well"
+(Mara's line); pivot point 8: "brings Mara water", "trades water to
+Mara", "does nothing for the child", "uses the water".
+
 Pivot point 9, the fight for the tap (draft). It starts the first game
 morning after both of these are true, whether or not the player is
 there: Mara's people hold the tap, and strangers have come for the water

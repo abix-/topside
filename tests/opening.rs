@@ -18,11 +18,11 @@ use serde_json::{Value as Json, json};
 use crate::endpoint::{op, op_with, pause, start_from, step};
 
 /// One game second, in ticks.
-const SECOND: u64 = 60;
+pub(crate) const SECOND: u64 = 60;
 
 /// Play a game second at a time, at most `secs` game seconds, until `done`
 /// holds; whether it did.
-fn within(secs: u64, done: impl Fn() -> bool) -> bool {
+pub(crate) fn within(secs: u64, done: impl Fn() -> bool) -> bool {
     for _ in 0..secs {
         if done() {
             return true;
@@ -33,33 +33,33 @@ fn within(secs: u64, done: impl Fn() -> bool) -> bool {
 }
 
 /// Roxanne's ActorId: the person playing The Tap's "Dell" part.
-fn roxanne() -> u64 {
+pub(crate) fn roxanne() -> u64 {
     let w = op("world");
     w["cast"].as_array().and_then(|c| c.iter().find(|p| p["part"] == "Dell")).and_then(|p| p["id"].as_u64()).unwrap_or_else(|| panic!("The Tap has no one in Roxanne's part: episode {}", w["episode"]))
 }
 
-fn player() -> u64 {
+pub(crate) fn player() -> u64 {
     op("player")["id"].as_u64().expect("the player op reports the player's id")
 }
 
 /// Where a person stands: ground x, ground z, and their feet's height.
-fn spot_of(id: u64) -> (f64, f64, f64) {
+pub(crate) fn spot_of(id: u64) -> (f64, f64, f64) {
     let p = op_with("npc", json!({"id": id}));
     (p["at"][0].as_f64().unwrap_or(f64::NAN), p["at"][1].as_f64().unwrap_or(f64::NAN), p["feet"].as_f64().unwrap_or(f64::NAN))
 }
 
-fn player_spot() -> (f64, f64, f64) {
+pub(crate) fn player_spot() -> (f64, f64, f64) {
     let s = op("status");
     (s["player"][0].as_f64().unwrap_or(f64::NAN), s["player"][1].as_f64().unwrap_or(f64::NAN), s["player_feet"].as_f64().unwrap_or(f64::NAN))
 }
 
 /// Ground distance between two spots, and whether they are on one level.
-fn apart(a: (f64, f64, f64), b: (f64, f64, f64)) -> (f64, bool) {
+pub(crate) fn apart(a: (f64, f64, f64), b: (f64, f64, f64)) -> (f64, bool) {
     (((a.0 - b.0).powi(2) + (a.1 - b.1).powi(2)).sqrt(), (a.2 - b.2).abs() < 1.0)
 }
 
 /// The tap: where it stands (ground x, ground z, height 0).
-fn the_tap() -> (f64, f64, f64) {
+pub(crate) fn the_tap() -> (f64, f64, f64) {
     let w = op("world");
     let tap = w["things"].as_array().and_then(|t| t.iter().find(|t| t["name"] == "tap")).cloned().expect("The Tap has its tap in the world");
     (tap["at"][0].as_f64().unwrap_or(f64::NAN), tap["at"][1].as_f64().unwrap_or(f64::NAN), 0.0)
@@ -83,7 +83,7 @@ fn the_players_door() -> Json {
 }
 
 /// Every line `by` said to the player, in order: (tick, words).
-fn heard_from(by: u64) -> Vec<(u64, String)> {
+pub(crate) fn heard_from(by: u64) -> Vec<(u64, String)> {
     op("player")["heard"]
         .as_array()
         .into_iter()
@@ -93,21 +93,21 @@ fn heard_from(by: u64) -> Vec<(u64, String)> {
         .collect()
 }
 
-fn reached(pivot: &str) -> bool {
+pub(crate) fn reached(pivot: &str) -> bool {
     op("world")["reached"].as_array().is_some_and(|r| r.iter().any(|p| p["pivot"] == pivot))
 }
 
-fn talk() -> Json {
+pub(crate) fn talk() -> Json {
     op("hud")["talk"].clone()
 }
 
-fn choices() -> Vec<String> {
+pub(crate) fn choices() -> Vec<String> {
     talk()["choices"].as_array().into_iter().flatten().filter_map(|c| c.as_str().map(str::to_string)).collect()
 }
 
 /// Press the number key of the first choice shown that is one of `words`;
 /// the words chosen.
-fn choose(words: &[&str]) -> String {
+pub(crate) fn choose(words: &[&str]) -> String {
     let shown = choices();
     let i = shown.iter().position(|c| words.contains(&c.as_str())).unwrap_or_else(|| panic!("none of {words:?} among the choices {shown:?}"));
     op_with("key", json!({"key": (i + 1).to_string()}));
@@ -137,7 +137,7 @@ fn read_the_note() {
     step(SECOND);
 }
 
-fn dist(a: (f64, f64), b: (f64, f64)) -> f64 {
+pub(crate) fn dist(a: (f64, f64), b: (f64, f64)) -> f64 {
     ((a.0 - b.0).powi(2) + (a.1 - b.1).powi(2)).sqrt()
 }
 
@@ -214,7 +214,7 @@ fn the_way_is_true(line: &str) {
 /// The player just woke in their room on the deepest level, nothing of
 /// the opening done. Made only on a game just launched. Every save below
 /// is loaded into a paused game: the test pauses first.
-fn woke() {
+pub(crate) fn woke() {
     start_from("opening_woke", || {
         // A game just launched and paused at once has not yet published
         // its world: one game second first.
@@ -261,7 +261,7 @@ fn talking() {
 }
 
 /// The opening said and the player's answers shown.
-fn choosing() {
+pub(crate) fn choosing() {
     start_from("opening_choosing", || {
         talking();
         let shown = within(60, || !choices().is_empty());
@@ -271,7 +271,7 @@ fn choosing() {
 
 /// "Show me." chosen; the player following Roxanne, out of the bunker on
 /// the ground.
-fn out_the_door() {
+pub(crate) fn out_the_door() {
     start_from("opening_out_the_door", || {
         choosing();
         choose(&["Show me.", "Let's go."]);
@@ -281,7 +281,7 @@ fn out_the_door() {
 }
 
 /// The player and Roxanne at the tap.
-fn at_the_tap() {
+pub(crate) fn at_the_tap() {
     start_from("opening_at_the_tap", || {
         out_the_door();
         let tap = the_tap();
