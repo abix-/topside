@@ -10,6 +10,7 @@ mod navmesh;
 mod control_plane;
 mod deaths;
 mod doorways;
+mod drawn_from;
 mod eating;
 mod equipment;
 mod game;
