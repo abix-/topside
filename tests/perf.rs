@@ -8,7 +8,7 @@
 
 use std::time::Duration;
 
-use serde_json::{Value as Json, json};
+use serde_json::json;
 
 use crate::endpoint::{op, op_with};
 
