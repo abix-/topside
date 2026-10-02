@@ -47,7 +47,9 @@ Rules:
    a load. Work done off the main loop (a background task, another thread)
    lands at a fixed tick, and the loop waits for it if it is late; it never
    lands whenever it happens to finish. Nothing that decides anything is
-   ordered by a hash map's iteration or counted per frame. A failure lands
+   ordered by a hash map's iteration, by the order Bevy's queries walk
+   entities (a load spawns them in another order), or counted per frame:
+   who goes first, and who is issued an id first, is by ActorId or ThingId. A failure lands
    too, as its own plain result, never a hang. The Pathing row is the
    first system held to this.
 
