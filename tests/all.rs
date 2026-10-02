@@ -17,6 +17,7 @@ mod hauling;
 mod holding;
 mod hud;
 mod items;
+mod joining;
 mod map;
 mod monuments;
 mod names;
