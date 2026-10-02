@@ -38,8 +38,19 @@ topside-content = { path = "content" }
 # velocity that is not a number from dodgy, and if dodgy still fails, that
 # step walks the preferred way. It catches the failure only where panics
 # unwind (not the release profile's abort). Report upstream; drop when fixed.
+#
+# bevy_rerecast_core 0.5.0 with its generator made callable from the fixed
+# step (generator/mod.rs, "topside patch"): no once-a-frame gathering and
+# landing in PostUpdate; `gather` and `land` for the game to call, and a
+# `NavmeshFailed` event where a failed build was a silent skip. Why:
+# authority.md rule 5, every tick a pure result of state (a mesh is the
+# world at the tick it was asked for and lands at a fixed tick, the step
+# waiting for it if late; a failure lands as its own result, never a hang),
+# 2026-10-02. Drop when bevy_rerecast lets the game drive when meshes are
+# gathered and landed, and reports failures.
 [patch.crates-io]
 landmass = { path = "vendor/landmass" }
+bevy_rerecast_core = { path = "vendor/bevy_rerecast_core" }
 
 # Fast iteration: light optimization for our code, full for deps
 # (Bevy is unusably slow fully unoptimized). Deps carry no debug info:

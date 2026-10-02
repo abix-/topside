@@ -81,7 +81,9 @@ impl Plugin for NavPlugin {
         app.add_systems(Startup, setup);
         // In the fixed step, after the chunks are made: the mesh follows
         // the ticks, never the frames.
-        app.add_systems(FixedUpdate, (wait_for_chunks, build_chunk_meshes).chain().after(crate::actor::populate_topside_people));
+        app.add_systems(FixedUpdate, (wait_for_chunks, build_chunk_meshes, gather_meshes).chain().after(crate::actor::populate_topside_people));
+        app.add_systems(FixedFirst, land_meshes);
+        app.add_observer(mesh_failed);
         app.add_systems(Update, answer_path);
     }
 }
@@ -93,6 +95,16 @@ pub struct Nav {
     pub archipelago: Entity,
     islands: BTreeMap<ChunkKey, (Handle<Navmesh>, Entity)>,
     waiting: BTreeMap<ChunkKey, u64>,
+    /// Each chunk mesh being built: the tick it lands at (`land_meshes`).
+    landing: BTreeMap<ChunkKey, (u64, AssetId<Navmesh>)>,
+}
+
+impl Nav {
+    /// Whether every chunk made has its mesh landed: none waiting to be
+    /// built, none being built.
+    pub fn settled(&self) -> bool {
+        self.waiting.is_empty() && self.landing.is_empty()
+    }
 }
 
 /// How far from the mesh a point may be and still be on it. Every point
@@ -152,7 +164,7 @@ fn setup(mut commands: Commands) {
             ..ArchipelagoOptions::from_agent_radius(AGENT_RADIUS)
         }))
         .id();
-    commands.insert_resource(Nav { archipelago, islands: BTreeMap::new(), waiting: BTreeMap::new() });
+    commands.insert_resource(Nav { archipelago, islands: BTreeMap::new(), waiting: BTreeMap::new(), landing: BTreeMap::new() });
 }
 
 /// The chunks of a ground rectangle, and the eight round them (a building
@@ -252,8 +264,51 @@ fn build_chunk_meshes(
                 handle
             }
         };
-        generator.regenerate(&handle, settings);
+        // Built from the world as it is this tick (`gather_meshes`, next),
+        // landing `LAND_AFTER` ticks on. One already being built lands as
+        // it was asked.
+        if generator.regenerate(&handle, settings) {
+            nav.landing.insert(key, (tick.0 + LAND_AFTER, handle.id()));
+        }
     }
+}
+
+/// Ticks after a chunk's mesh is asked for that it lands: time for its
+/// building in the background, so the step seldom waits for it.
+const LAND_AFTER: u64 = 30;
+
+/// Right after the meshes are asked for, the same tick: their obstacles
+/// gathered from the world as it is now, and their building started in the
+/// background (the patched bevy_rerecast's `gather`).
+fn gather_meshes(world: &mut World) {
+    bevy_rerecast::generator::gather(world);
+}
+
+/// First in every fixed step: every chunk mesh due by the tick about to
+/// run lands, its building waited for if it is not done (how long is
+/// logged), so the mesh at each tick is the same however fast the
+/// background was (authority.md rule 5). One that failed lands as no mesh
+/// for its chunk, logged.
+fn land_meshes(world: &mut World) {
+    let next = world.resource::<crate::SimTick>().0 + 1;
+    let due: Vec<(ChunkKey, AssetId<Navmesh>)> = {
+        let mut nav = world.resource_mut::<Nav>();
+        let keys: Vec<ChunkKey> = nav.landing.iter().filter(|(_, (at, _))| *at <= next).map(|(k, _)| *k).collect();
+        keys.into_iter().filter_map(|k| nav.landing.remove(&k).map(|(_, id)| (k, id))).collect()
+    };
+    for (key, id) in due {
+        let start = std::time::Instant::now();
+        bevy_rerecast::generator::land(world, id);
+        let waited = start.elapsed();
+        if waited > std::time::Duration::from_millis(1) {
+            info!("tick {next}: chunk {key:?}'s mesh was late; the step waited {:.1} ms for it", waited.as_secs_f64() * 1000.0);
+        }
+    }
+}
+
+/// A chunk mesh that failed to build: no mesh for that chunk, said.
+fn mesh_failed(failed: On<bevy_rerecast::generator::NavmeshFailed>) {
+    warn!("a chunk's navigation mesh failed to build, so that chunk has no mesh: {}", failed.1);
 }
 
 /// Every step, once the queues have drained: everyone sent somewhere this

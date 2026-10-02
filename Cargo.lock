@@ -1659,8 +1659,6 @@ dependencies = [
 [[package]]
 name = "bevy_rerecast_core"
 version = "0.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a2752a8852edcc1ca5b8dd2421fca3a03cf9e5e2278876acf226fe29a22ea064"
 dependencies = [
  "anyhow",
  "bevy_app",
