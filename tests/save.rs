@@ -26,7 +26,7 @@ fn load() -> Json {
 /// a person or thing missing from one, or one of theirs that changed.
 fn differences(a: &Json, b: &Json) -> Vec<String> {
     let mut out = Vec::new();
-    for key in ["tick", "seed", "episode", "cast", "reached"] {
+    for key in ["tick", "seed", "chunks_made", "mesh", "next_thing_id", "episode", "cast", "reached"] {
         if a[key] != b[key] {
             out.push(format!("{key}: {} then {}", a[key], b[key]));
         }

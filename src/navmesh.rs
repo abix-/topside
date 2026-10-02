@@ -103,6 +103,17 @@ impl Nav {
     pub fn settled(&self) -> bool {
         self.waiting.is_empty() && self.landing.is_empty()
     }
+
+    /// The mesh's state as a moment holds it (save::Moment): the chunks
+    /// with an island, those waiting to be built, and those being built
+    /// with the tick each lands at.
+    pub fn moment(&self) -> serde_json::Value {
+        serde_json::json!({
+            "islands": self.islands.keys().collect::<Vec<_>>(),
+            "waiting": self.waiting.keys().collect::<Vec<_>>(),
+            "landing": self.landing.iter().map(|(k, (at, _))| (k, at)).collect::<Vec<_>>(),
+        })
+    }
 }
 
 /// How far from the mesh a point may be and still be on it. Every point

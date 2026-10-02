@@ -54,6 +54,11 @@ impl Default for ThingIssuer {
 }
 
 impl ThingIssuer {
+    /// The id it gives next.
+    pub fn next(&self) -> u64 {
+        self.0
+    }
+
     /// The one place a thing id is given.
     pub fn issue(&mut self) -> ThingId {
         let id = ThingId(self.0);

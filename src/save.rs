@@ -326,6 +326,9 @@ fn read_save(world: &mut World, name: &str) -> Result<(Header, bevy::world_seria
 pub struct Moment<'w, 's> {
     tick: Res<'w, SimTick>,
     seed: Res<'w, crate::WorldSeed>,
+    chunks: Option<Res<'w, crate::terrain::Chunks>>,
+    nav: Option<Res<'w, crate::navmesh::Nav>>,
+    issuer: Res<'w, crate::interact::ThingIssuer>,
     episode: Res<'w, crate::episode::Episode>,
     people: Query<
         'w,
@@ -371,9 +374,21 @@ impl Moment<'_, '_> {
             })
             .collect();
         things.sort_by_key(|t| t["id"].as_u64());
+        // What the chunks and the mesh are at this moment, so two moments
+        // that should be one show where the world under people differs.
+        let made: std::collections::BTreeSet<_> = self.chunks.as_ref().map(|c| c.made.iter().copied().collect()).unwrap_or_default();
+        let made_hash = {
+            use std::hash::{Hash, Hasher};
+            let mut h = std::collections::hash_map::DefaultHasher::new();
+            made.hash(&mut h);
+            h.finish()
+        };
         serde_json::json!({
             "tick": self.tick.0,
             "seed": self.seed.0,
+            "chunks_made": [made.len(), made_hash],
+            "mesh": self.nav.as_ref().map(|n| n.moment()),
+            "next_thing_id": self.issuer.next(),
             "episode": self.episode.name,
             "cast": self.episode.cast.iter().map(|(part, id)| (part.clone(), id.0)).collect::<Vec<_>>(),
             "reached": self.episode.reached.len(),
