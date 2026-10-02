@@ -159,9 +159,15 @@ pub fn site_key(at: Vec2) -> u64 {
 /// Where the player's bunker door stands on the ground (the starting
 /// bunker's one door, `structure::doors_of`), and which way it faces out.
 pub fn bunker_door(bunker: Vec2) -> (Vec2, Vec2) {
+    // The front door: of the bunker's doors (every level's, the
+    // stairwell's), the one on the ground farthest out from the bunker
+    // point, in its outside wall.
     let door = modforge::structure::doors_of(&crate::content::starting_bunker())
-        .first()
-        .map_or(Vec2::ZERO, |d| Vec2::new(d.center.x, d.center.z));
+        .into_iter()
+        .filter(|d| (0.0..modforge::structure::DOORWAY_HEIGHT).contains(&d.center.y))
+        .map(|d| Vec2::new(d.center.x, d.center.z))
+        .max_by(|a, b| a.length().total_cmp(&b.length()))
+        .unwrap_or(Vec2::ZERO);
     (bunker + door, door.normalize_or(Vec2::Y))
 }
 
