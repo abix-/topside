@@ -138,6 +138,19 @@ people is killing someone else's.
     nine before it: who trusts you, who is alive, whether Dell is still
     home, whether you learned the cost.
 
+## How pivot points 2 and 4 are reached (operator, 2026-10-02)
+
+- Pivot point 2, who you take: whoever goes with the player. When the
+  player first comes within 4 m of the tap, whoever is following them or
+  being led by them is who they took: Dell after "Show me.", a bunker
+  person who follows, or no one. Reached as "takes Dell", "takes someone
+  else", or "takes no one".
+- Pivot point 4, what you tell your people: by who they tell. The player
+  tells bunker people of the tap with the talk box's Tell choice. When the
+  player first comes home after drinking at the tap: every person of their
+  bunker told is "tells everyone"; none told but Dell is "tells only
+  Dell"; nobody told is "tells no one".
+
 ## The lines
 
 Each line has several ways of saying it, one picked each time; the slots
@@ -204,6 +217,42 @@ the water Mara's people drink from now, by what it is.)
 
 Pivot point 8, Mara's child: "Is there water today?" / "I'm thirsty."
 
+Drafts below, written 2026-10-02 for the operator to correct; the tests
+use them as written until then.
+
+Pivot point 6, the strangers arrive (draft), the first time the player
+talks with a stranger who came for the water. The stranger: "We heard
+there's water here." / "Word is you've got water to spare." Choices: "What
+have you got?" (trade: the trade panel opens), "Not for you. Move on."
+(send them away), "Try the people at the tap. They've got plenty." (point
+them at Mara), "You can stay with us." (take one in). Replies: to send
+away: "Your loss." / "We'll find it anyway."; to point at Mara: "We'll go
+see." / "Thanks. We'll take it from them."; to take in: "Thank you. I
+won't forget it."
+
+Pivot point 8, Mara's child (draft), the choices: "Here. Take this water."
+(bring water: a water from the player's inventory given), "What will Mara
+give for it?" (trade), "Not today." (do nothing), "Tell Mara it's hers if
+she stands with us." (use it). Replies: "Thank you." / "Ask Mara." /
+silence / "I'll tell her."
+
+Pivot point 9, the fight for the tap (draft). It starts the first game
+morning after both of these are true, whether or not the player is
+there: Mara's people hold the tap, and strangers have come for the water
+(pivot point 6 reached). The strangers attack Mara's people at the tap.
+The player's choice is what they do, read from memory, not said: hitting
+a stranger in the fight is "joins Mara"; hitting one of Mara's people is
+"joins the strangers"; hitting both is "fights everyone"; hitting no one
+before the fight ends is "stays out".
+
+Pivot point 10, the last choice (draft), made between the sky's warning
+of the storm and the storm: "It's for both bunkers." said to Mara is
+"shares it"; the tap broken (Use on it with a tool in hand) is "breaks
+it"; "The tap is draining your well." said to anyone, only once pivot
+point 7 was reached, is "tells the truth"; standing at the tap when the
+storm comes with none of Mara's people or the strangers alive within 20 m
+is "holds it"; none of these is "walks away".
+
 ## The endings
 
 - Share it: a fragile peace with Mara. Dell hates it and may leave for
@@ -216,6 +265,13 @@ Pivot point 8, Mara's child: "Is there water today?" / "I'm thirsty."
   you a liar and keep drinking.
 - Walk away: Mara's people take the tap and grow strong. Dell joins
   them.
+
+Which ending (draft, 2026-10-02, for the operator to correct; todo 11ae:
+each ending lists the pivot points it needs, the first that matches
+wins, shown as a text screen before the storm): Break it needs "breaks
+it"; Tell everyone the truth needs "tells the truth"; Share it needs
+"shares it" and Mara alive; Hold it needs "holds it"; Walk away needs
+nothing, so it is the ending when no other matches.
 
 ## What carries across the storm
 
