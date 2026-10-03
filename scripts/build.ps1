@@ -22,8 +22,9 @@ queue: run the tests named in Name through the running game's test
 queue (authority.md "Running tests", tests/queue.rs): queued on the game,
 run one at a time, each result reported to the game's `tests` op; fails
 when any test failed. The run is in logs/queue.log.
-build: build, then read every episode file through the loader (the
-topside-content test); either failing fails it (logs/build.log).
+build: build, then run the content crate's own tests (topside-content:
+every episode file reads, the generic brain); either failing fails it
+(logs/build.log).
 .PARAMETER Name
 For test: one test file under tests/, without .rs. Empty runs every
 test. For queue: the first test file or full test name to queue; more
@@ -147,11 +148,11 @@ switch ($Action) {
         Stop-Game
         $log = Join-Path $logs 'build.log'
         $code = Invoke-Cargo 'build' $log
-        # Built, the episode files are read through the loader (the
-        # topside-content test): a data file that does not read fails the
-        # build.
+        # Built, the content's own tests (the topside-content crate: every
+        # episode file reads through the loader, the generic brain): a data
+        # file that does not read or a brain rule broken fails the build.
         if ($code -eq 0) {
-            $code = Invoke-Cargo 'test -p topside-content --lib -- --exact tests::the_episodes_read_from_their_files' $log -Append
+            $code = Invoke-Cargo 'test -p topside-content --lib' $log -Append
             Select-String -Path $log -Pattern '^test |^test result:' | ForEach-Object {
                 $color = if ($_.Line -match 'FAILED') { 'Red' } else { 'Gray' }
                 Write-Host $_.Line -ForegroundColor $color

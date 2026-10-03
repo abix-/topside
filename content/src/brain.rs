@@ -499,8 +499,9 @@ mod tests {
         think(&p, &mut record, &mut Roll::new(1));
         let going_to_the_well = record;
         assert!(matches!(going_to_the_well.target, Target::Thing { key: 9, .. }));
-        // Hungrier now than thirsty, with a box close by: still the well.
-        p.needs.hunger = 10.0;
+        // Hungrier now than thirsty, with a box close by, but not
+        // critical: still the well.
+        p.needs.hunger = 20.0;
         let rolled = std::cell::Cell::new(0);
         let counting = |_: Vec3| {
             rolled.set(rolled.get() + 1);
@@ -514,6 +515,25 @@ mod tests {
             assert!(has_move(&actions));
         }
         assert_eq!(rolled.get(), 0, "no stroll or trip out was rolled on the way");
+    }
+
+    /// On the way to the well, hunger going critical (below
+    /// `NEED_CRITICAL`) with a box close by: they leave for the box.
+    #[test]
+    fn a_person_walking_to_a_well_leaves_for_a_critical_need() {
+        let mut memory = Memory::default();
+        memory.see(9, "well", Vec3::new(0.0, 0.0, -40.0), 1);
+        memory.see(7, "storage box", Vec3::new(0.0, 0.0, 5.0), 1);
+        let personality = Personality::default();
+        let mut p = perception(&memory, &personality);
+        p.needs.thirst = 30.0;
+        let mut record = Record::default();
+        think(&p, &mut record, &mut Roll::new(1));
+        assert!(matches!(record.target, Target::Thing { key: 9, .. }), "to the well");
+        p.needs.hunger = modforge::brain::NEED_CRITICAL - 5.0;
+        p.position = Vec3::new(0.0, 0.0, -1.0);
+        think(&p, &mut record, &mut Roll::new(2));
+        assert!(matches!(record.target, Target::Thing { key: 7, need: Some(Need::Hunger), .. }), "to the box: {record:?}");
     }
 
     #[test]
@@ -754,7 +774,12 @@ mod tests {
         let memory = Memory::default();
         let personality = Personality::default();
         let mut p = perception(&memory, &personality);
-        p.home = Some(Vec3::new(100.0, 0.0, 100.0));
+        let home = Vec3::new(100.0, 0.0, 100.0);
+        p.home = Some(home);
+        // Spots they can reach every metre around home, out past the
+        // widest home radius, so the radius is what keeps them in.
+        let spots = || (-60..=60).flat_map(|x| (-60..=60).map(move |z| home + Vec3::new(x as f32, 0.0, z as f32))).collect();
+        p.reachable = &spots;
         for behaviour in [Behaviour::Guard, Behaviour::Hunter] {
             p.behaviour = behaviour;
             let mut roll = Roll::new(3);
