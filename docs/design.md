@@ -1460,7 +1460,9 @@ built from pieces, items in layers).
   are the same in first person (the four melee moves, the roll).
 - People walk three times as fast as in the 3D game: 15 m/s.
 - A scavenger waits outside the bunker door, as in the 3D game, so the
-  first fight is close.
+  first fight is close. Not during The Tap's opening (operator,
+  2026-10-02): while Roxanne leads the player out to the tap, there is no
+  scavenger at the door; the first fight comes later.
 - The models are made in Blender (2026-09-26), by Claude through an MCP
   and automation; the operator does not model by hand. scripts/models.py
   builds every model and exports it for the game (authority.md
