@@ -30,12 +30,30 @@ The generic systems episode 1 needs, and what The Tap gives each as data:
 | Episodes | the tap placed, the pivots and the endings as data | 11ae, 11aj |
 | The storm | ends the episode, keeps people and memory, casts the next | 11ae |
 
-Order: (1) list every piece of code that exists only for The Tap and the
-generic system it belongs in (topside-dc, reading); (2) move each into its
-generic system, The Tap's part becoming data on its `EpisodeDef`; (3) the
-save points for each test made again on that build; (4) the finish check
-passes. Rows 11ad, 11ag and 11z below are written generic; their The Tap
-numbers are the episode's data.
+Done so far: the episode places its things, sends its people on errands,
+reaches its pivots and gives its orders, all from data (no code for The
+Tap alone). All saves were deleted on 2026-10-03 (operator).
+
+What is left, in this order: systems first, then the episode, then saves.
+
+1. One general way to say what has to be true. Today each pivot has its
+   own check written in code. Replace them with a few general parts that
+   any episode combines in its data: what someone remembers doing, to
+   whom, and since when; who is near what; whether anyone of a group is
+   alive nearby; whether the storm has come; whether a pivot was reached.
+   They combine with all, any, not, and first. Both errands and pivots use
+   it. Prior art: Skyrim's quest conditions.
+2. Errands for a whole group, not only one person, and starting "the
+   first morning after" as well as at once. This is how a fight starts:
+   the episode orders one group to attack another at a place.
+3. Then The Tap's missing parts, as data only: pivot 3 hiding and
+   watching, shooting first; pivot 5 saying nothing; pivot 7 Mara's line
+   about her well; pivot 9 the whole fight for the tap; pivot 10 sharing
+   the tap, telling the truth, holding it.
+4. Then one save per pivot (authority.md "Running tests"), each made just
+   before its pivot, nothing waiting, then the finish check passes.
+   Rows 11ad, 11ag and 11z below are written generic; their The Tap
+   numbers are the episode's data.
 
 | Priority | Version | System | Todo | Done when |
 |---:|---|---|---|---|
