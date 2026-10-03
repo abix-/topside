@@ -54,6 +54,12 @@ pub struct Agent<CS: CoordinateSystem> {
   pub velocity: CS::Coordinate,
   /// The radius of the agent.
   pub radius: f32,
+  /// topside patch (todo 9n): how tall the agent stands. Avoidance leaves
+  /// out anyone whose height differs from this agent's by half their two
+  /// heights or more (Detour's crowd, DetourCrowd.cpp getNeighbours), so
+  /// someone a floor up or down is not in the way. `f32::INFINITY`, the
+  /// default, leaves no one out.
+  pub height: f32,
   /// The speed the agent prefers to move at. This should often be set lower
   /// than the [`Self::max_speed`] to allow the agent to "speed up" in order to
   /// get out of another agent's way.
@@ -199,6 +205,7 @@ impl<CS: CoordinateSystem> Agent<CS> {
       position,
       velocity,
       radius,
+      height: f32::INFINITY,
       desired_speed,
       max_speed,
       current_target: None,

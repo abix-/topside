@@ -626,7 +626,7 @@ pub fn walk(
             commands.entity(stand_in).remove::<(bevy_landmass::Character<ThreeD>, CharacterSettings)>().insert((
                 Agent3dBundle {
                     agent: Default::default(),
-                    settings: AgentSettings { radius: AGENT_RADIUS, desired_speed: speed, max_speed: speed * 1.2 },
+                    settings: AgentSettings { radius: AGENT_RADIUS, height: BODY_HEIGHT, desired_speed: speed, max_speed: speed * 1.2 },
                     archipelago_ref: ArchipelagoRef3d::new(nav.archipelago),
                 },
                 AgentTarget3d::Point(to),
@@ -689,11 +689,12 @@ pub fn walk(
 }
 
 /// A person standing, as landmass knows them: a character the walkers
-/// steer round, as wide as a body.
+/// steer round, as wide and as tall as a body (a walker steers round no one
+/// a floor up or down: landmass avoidance, Detour's height band).
 fn character(archipelago: Entity) -> Character3dBundle {
     Character3dBundle {
         character: Default::default(),
-        settings: CharacterSettings { radius: AGENT_RADIUS },
+        settings: CharacterSettings { radius: AGENT_RADIUS, height: BODY_HEIGHT },
         archipelago_ref: ArchipelagoRef3d::new(archipelago),
     }
 }

@@ -45,6 +45,9 @@ impl<CS: CoordinateSystem> Default for Character<CS> {
 pub struct CharacterSettings {
   /// The radius of the character.
   pub radius: f32,
+  /// topside patch (todo 9n): how tall the character stands (landmass
+  /// `Character::height`).
+  pub height: f32,
 }
 
 /// The current velocity of the agent/character. This must be set to match
@@ -108,6 +111,7 @@ pub(crate) fn add_characters_to_archipelago<CS: CoordinateSystem>(
           position: Default::default(),
           velocity: Default::default(),
           radius: new_character.radius,
+          height: new_character.height,
         });
       archipelago.characters.insert(new_character_entity, character_id);
     }
@@ -152,5 +156,6 @@ pub(crate) fn sync_character_state<CS: CoordinateSystem>(
       CS::Coordinate::default()
     };
     landmass_character.radius = character.radius;
+    landmass_character.height = character.height;
   }
 }

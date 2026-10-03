@@ -75,14 +75,20 @@ pub(crate) fn apply_avoidance_to_agents<CS: CoordinateSystem>(
     character_kdtree
       .add(
         [character_point.x, character_point.y, character_point.z],
-        dodgy_2d::Agent {
-          position: to_dodgy_vec2(character_point.xy()),
-          velocity: to_dodgy_vec2(CS::to_landmass(&character.velocity).xy()),
-          radius: character.radius,
-          // Characters are not responsible for any avoidance since landmass has
-          // no control over them.
-          avoidance_responsibility: 0.0,
-        },
+        (
+          dodgy_2d::Agent {
+            position: to_dodgy_vec2(character_point.xy()),
+            velocity: to_dodgy_vec2(CS::to_landmass(&character.velocity).xy()),
+            radius: character.radius,
+            // Characters are not responsible for any avoidance since landmass
+            // has no control over them.
+            avoidance_responsibility: 0.0,
+          },
+          // topside patch (todo 9n): its height, and how tall it stands,
+          // for the height band (`in_height_band`).
+          character_point.z,
+          character.height,
+        ),
       )
       .expect("Character point is finite");
   }
@@ -93,7 +99,7 @@ pub(crate) fn apply_avoidance_to_agents<CS: CoordinateSystem>(
   let neighbourhood = agent_max_radius + agent_options.neighbourhood;
   let neighbourhood_squared = neighbourhood * neighbourhood;
   let mut agent_id_to_neighbours = HashMap::new();
-  for (agent_id, _) in agents.iter() {
+  for (agent_id, agent) in agents.iter() {
     let agent_node = match agent_id_to_agent_node.get(&agent_id) {
       None => continue,
       Some(agent_node) => agent_node,
@@ -122,6 +128,13 @@ pub(crate) fn apply_avoidance_to_agents<CS: CoordinateSystem>(
         }
 
         let dodgy_agent = agent_id_to_dodgy_agent.get(neighbour_id).unwrap();
+        // topside patch (todo 9n): someone a floor up or down is not in the
+        // way (`in_height_band`).
+        let their_z = agent_id_to_agent_node.get(neighbour_id).unwrap().0.z;
+        let their_height = agents.get(*neighbour_id).unwrap().height;
+        if !in_height_band(their_z - agent_point.z, agent.height, their_height) {
+          return None;
+        }
 
         let neighbourhood = agent_options.neighbourhood + dodgy_agent.radius;
         if distance_squared < neighbourhood * neighbourhood {
@@ -131,7 +144,10 @@ pub(crate) fn apply_avoidance_to_agents<CS: CoordinateSystem>(
         }
       })
       .chain(nearby_characters.iter().filter_map(
-        |&(distance_squared, dodgy_agent)| {
+        |&(distance_squared, (dodgy_agent, their_z, their_height))| {
+          if !in_height_band(their_z - agent_point.z, agent.height, *their_height) {
+            return None;
+          }
           if distance_squared < neighbourhood_squared {
             Some(std::borrow::Cow::Borrowed(dodgy_agent))
           } else {
@@ -225,6 +241,16 @@ pub(crate) fn apply_avoidance_to_agents<CS: CoordinateSystem>(
     agent.current_desired_move =
       CS::from_landmass(&glam::Vec3::new(desired_move.x, desired_move.y, 0.0));
   }
+}
+
+/// topside patch (todo 9n): whether someone `dz` above (or below) an agent
+/// is in its way by height: avoidance steers on the ground alone, so
+/// without this someone a floor down, under the agent's way, blocked it
+/// (topside, 2026-10-03: Roxanne turned back over the player below). The
+/// band is Detour's crowd's (DetourCrowd.cpp getNeighbours: a neighbour
+/// whose height differs by half the two heights or more is skipped).
+fn in_height_band(dz: f32, height: f32, their_height: f32) -> bool {
+  dz.abs() < (height + their_height) / 2.0
 }
 
 fn to_dodgy_vec2(v: glam::Vec2) -> dodgy_2d::Vec2 {

@@ -53,6 +53,9 @@ impl<CS: CoordinateSystem> Default for Agent<CS> {
 pub struct AgentSettings {
   /// The radius of the agent.
   pub radius: f32,
+  /// topside patch (todo 9n): how tall the agent stands (landmass
+  /// `Agent::height`: avoidance leaves out anyone a floor up or down).
+  pub height: f32,
   /// The speed the agent prefers to move at. This should often be set lower
   /// than the [`Self::max_speed`] to allow the agent to "speed up" in order to
   /// get out of another agent's way.
@@ -269,14 +272,15 @@ pub(crate) fn add_agents_to_archipelagos<CS: CoordinateSystem>(
     });
 
     for (new_agent_entity, new_agent) in new_agent_map.drain() {
-      let agent_id =
-        archipelago.archipelago.add_agent(landmass::Agent::create(
-          /* position= */ CS::from_landmass(&landmass::Vec3::ZERO),
-          /* velocity= */ CS::from_landmass(&landmass::Vec3::ZERO),
-          new_agent.radius,
-          new_agent.desired_speed,
-          new_agent.max_speed,
-        ));
+      let mut agent = landmass::Agent::create(
+        /* position= */ CS::from_landmass(&landmass::Vec3::ZERO),
+        /* velocity= */ CS::from_landmass(&landmass::Vec3::ZERO),
+        new_agent.radius,
+        new_agent.desired_speed,
+        new_agent.max_speed,
+      );
+      agent.height = new_agent.height;
+      let agent_id = archipelago.archipelago.add_agent(agent);
       archipelago.agents.insert(new_agent_entity, agent_id);
       archipelago.reverse_agents.insert(agent_id, new_agent_entity);
     }
@@ -346,6 +350,7 @@ pub(crate) fn sync_agent_input_state<CS: CoordinateSystem>(
       landmass_agent.velocity = velocity.clone();
     }
     landmass_agent.radius = agent.radius;
+    landmass_agent.height = agent.height;
     landmass_agent.desired_speed = agent.desired_speed;
     landmass_agent.max_speed = agent.max_speed;
     landmass_agent.current_target =
