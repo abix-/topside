@@ -82,28 +82,29 @@ fn where_the_time_goes_in_play() {
 }
 
 /// What a stepped tick costs, as a test pays it: the `opening_woke` save
-/// loaded, the game paused, 60 ticks stepped three times, each step timed
-/// by the real clock from asking to the answer. Added to logs/perf.txt.
+/// loaded, the game paused, 60 ticks stepped ten times, each step timed
+/// by the real clock from asking to the answer, and the median of the
+/// last five. Added to logs/perf.txt.
 #[test]
 fn what_a_stepped_tick_costs() {
     crate::endpoint::start_from("opening_woke", || panic!("no opening_woke save to load"));
     let _paused = crate::endpoint::pause();
     let mut rows = vec!["stepping from opening_woke:".to_string()];
     let mut all = Vec::new();
-    for _ in 0..6 {
+    for _ in 0..10 {
         let started = std::time::Instant::now();
         let at = crate::endpoint::step(60);
         let ms = started.elapsed().as_secs_f64() * 1000.0;
         all.push(ms);
         rows.push(format!("  60 ticks to tick {} in {ms:.0} ms: {:.2} ms a tick", at["tick"], ms / 60.0));
     }
-    // The first steps after a load pay for the load's settling; the
-    // median is the step's own cost.
-    let mut sorted = all.clone();
-    sorted.sort_by(f64::total_cmp);
-    let median = sorted[sorted.len() / 2];
-    rows.push(format!("  median: 60 ticks in {median:.0} ms, {:.2} ms a tick", median / 60.0));
-    let worst = sorted[sorted.len() - 1];
+    // The first steps after a load pay for the load's settling (chunk
+    // meshes landing); the median of the last five is the step's own cost.
+    let mut settled = all[all.len() - 5..].to_vec();
+    settled.sort_by(f64::total_cmp);
+    let median = settled[settled.len() / 2];
+    rows.push(format!("  settled median (last 5): 60 ticks in {median:.0} ms, {:.2} ms a tick", median / 60.0));
+    let worst = all.iter().copied().fold(0.0, f64::max);
     let perf = op("perf");
     rows.push(format!("  the perf op's whole step {:.3} ms", perf["step_ms"].as_f64().unwrap_or(0.0)));
     let text = format!("{}\n\n", rows.join("\n"));

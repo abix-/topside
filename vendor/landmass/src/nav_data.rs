@@ -59,6 +59,12 @@ pub(crate) struct NavigationData<CS: CoordinateSystem> {
   new_animation_links: HashSet<AnimationLinkId>,
   /// The set of animation links deleted since the last update.
   deleted_animation_links: HashSet<AnimationLinkId>,
+  /// topside patch (todo 9n): every island with nav data by its bounds,
+  /// built once when the islands change (`update_islands`), so placing a
+  /// point looks only at the islands near it instead of walking every
+  /// island. Read only while not dirty, as all navigation data is. Worth
+  /// offering upstream: landmass main still walks every island.
+  island_bbh: Option<BoundingBoxHierarchy<IslandId>>,
 }
 
 /// A reference to a node in the navigation data.
@@ -159,6 +165,7 @@ impl<CS: CoordinateSystem> NavigationData<CS> {
       deleted_islands: HashSet::new(),
       new_animation_links: HashSet::new(),
       deleted_animation_links: HashSet::new(),
+      island_bbh: None,
     }
   }
 
@@ -272,7 +279,28 @@ impl<CS: CoordinateSystem> NavigationData<CS> {
     point_sample_distance: &CorePointSampleDistance,
   ) -> Option<(Vec3, NodeRef)> {
     let mut best_point = None;
-    for (island_id, island) in self.islands.iter() {
+    // topside patch (todo 9n): only the islands whose bounds come within
+    // the sample distance of the point, from the kept hierarchy (a turned
+    // island's bounds are boxed in the world's axes, hence the root two);
+    // each then tested exactly as before. In IslandId order, so a tie
+    // between islands goes the same way every time (authority.md rule 5).
+    let Some(island_bbh) = &self.island_bbh else {
+      return None;
+    };
+    let reach = point_sample_distance.horizontal_distance * std::f32::consts::SQRT_2;
+    let mut near = island_bbh
+      .query_box(BoundingBox::new_box(
+        point - Vec3::new(reach, reach, point_sample_distance.distance_below),
+        point + Vec3::new(reach, reach, point_sample_distance.distance_above),
+      ))
+      .into_iter()
+      .copied()
+      .collect::<Vec<IslandId>>();
+    near.sort();
+    for island_id in near {
+      let Some(island) = self.islands.get(island_id) else {
+        continue;
+      };
       let relative_point = island.transform.apply_inverse(point);
       if !island
         .nav_mesh
@@ -425,6 +453,19 @@ impl<CS: CoordinateSystem> NavigationData<CS> {
     self.deleted_islands.clear();
     self.deleted_animation_links.clear();
 
+    // topside patch (todo 9n): the one island hierarchy, made again only
+    // when an island changed or went, and kept for linking and placing.
+    if !changed_islands.is_empty() {
+      let mut island_bounds = self
+        .islands
+        .iter()
+        .filter(|(_, island)| !island.transformed_bounds.is_empty())
+        .map(|(island_id, island)| (island.transformed_bounds, Some(island_id)))
+        .collect::<Vec<_>>();
+      self.island_bbh = (!island_bounds.is_empty())
+        .then(|| BoundingBoxHierarchy::new(&mut island_bounds));
+    }
+
     if dirty_islands.is_empty() && self.new_animation_links.is_empty() {
       // No changed islands or animation links, so no need to check for new
       // links.
@@ -435,18 +476,11 @@ impl<CS: CoordinateSystem> NavigationData<CS> {
     // won't be considered new anymore.
     let new_animation_links = std::mem::take(&mut self.new_animation_links);
 
-    let mut island_bounds = self
-      .islands
-      .iter()
-      .filter(|(_, island)| !island.transformed_bounds.is_empty())
-      .map(|(island_id, island)| (island.transformed_bounds, Some(island_id)))
-      .collect::<Vec<_>>();
     // There are no islands with nav data, so no islands to link and prevents a
     // panic.
-    if island_bounds.is_empty() {
+    let Some(island_bbh) = self.island_bbh.take() else {
       return (dropped_links, changed_islands, modified_node_refs_to_update);
-    }
-    let island_bbh = BoundingBoxHierarchy::new(&mut island_bounds);
+    };
 
     self.create_boundary_links(
       &island_bbh,
@@ -461,6 +495,7 @@ impl<CS: CoordinateSystem> NavigationData<CS> {
       &island_bbh,
       animation_link_distance,
     );
+    self.island_bbh = Some(island_bbh);
 
     (dropped_links, changed_islands, modified_node_refs_to_update)
   }
