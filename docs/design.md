@@ -1122,7 +1122,7 @@ litres in its containers, read for every rule that counts it (days of
 water, a store reading dry). Water bottles come in several sizes. Every
 bunker starts with a water barrel (holds 200 L, starts with 10 L) and 2
 bottles of 5 L; its people fill the bottles at a source, carry them
-home, and pour them into the barrel. The player and everyone else use the one same
+home, and pour them into the barrel. A litre drunk fills 100 thirst. The player and everyone else use the one same
 way.
 
 ## Survival pressures
