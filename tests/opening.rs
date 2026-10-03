@@ -559,6 +559,11 @@ fn roxanne_waits_when_the_player_falls_behind_and_goes_on() {
     out_the_door();
     let her = roxanne();
     let tap = the_tap();
+    // She may be waiting already when the save loads (she can get ahead on
+    // the stairs before it is made); let her walk on first, so the wait
+    // measured is the one the player's stopping causes.
+    let waiting = || !op_with("npc", json!({"id": her}))["leading"]["waiting_at"].is_null();
+    assert!(within(30, || !waiting()), "setup: Roxanne never walked on with the player following");
     // The player stops: an order of their own (stand where they are) ends
     // following (authority.md "Commands and replays").
     let (x, z, feet) = player_spot();
