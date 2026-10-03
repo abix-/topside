@@ -32,25 +32,18 @@ pub fn op(name: &str) -> Json {
 }
 
 /// Start a test from its own save (todo 9k, authority.md "Running
-/// tests"): `saves/<name>.save` loaded; if there is none, or the game
-/// refuses it (made by another version of the game), the start is reached
-/// once by playing (`reach`) and saved under that name for the next run.
-/// Answers whether it played (true) or loaded (false).
-pub fn start_from(name: &str, reach: impl FnOnce()) -> bool {
+/// tests"): `saves/<name>.save` loaded. A save that does not load fails the
+/// test at once, naming the save and the load's error (operator,
+/// 2026-10-03: no silent remake). Answers false: it loaded.
+pub fn start_from(name: &str, _reach: impl FnOnce()) -> bool {
     let answer: Option<Json> = ureq::post(url())
         .send_json(json!({"op": "load", "args": {"name": name}}))
         .ok()
         .and_then(|r| r.into_body().read_json().ok());
     let answer = answer.unwrap_or_else(|| panic!("no topside game answering on {}; start it with scripts/build.ps1 run", url()));
-    if answer["ok"] == true {
-        loaded();
-        return false;
-    }
-    eprintln!("{name}: not loaded ({}); reaching the start by playing and saving it", answer["error"]);
-    reach();
-    let saved = op_with("save", json!({"name": name}));
-    assert!(saved["tick"].is_u64(), "{name}: the start was reached but not saved: {saved}");
-    true
+    assert!(answer["ok"] == true, "the save {name} did not load: {}", answer["error"]);
+    loaded();
+    false
 }
 
 /// Wait until the game's loading screen is gone (authority.md "Running

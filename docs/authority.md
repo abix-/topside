@@ -145,10 +145,17 @@ CI runner taking jobs from a queue and reporting each back.
   waiting 2 hours for something, just load the save." A test never waits
   through a long game span for its event: it loads a save made just before
   the event, and tests the thing. As we go through the game, each save is
-  reached once organically, from the one before, and saved
-  (`endpoint::start_from`; the opening's in tests/opening.rs, the rest in
-  tests/saves.rs); the saves are committed, and every test after loads
-  them.
+  reached once organically, from the one before, and saved; the saves are
+  committed, and every test after loads them.
+- Nothing waits (operator, 2026-10-03). No test and no save point plays
+  game minutes or hours to reach anything: every segment, a test's or a
+  save point's, is a few game seconds. An event the game puts far in game
+  time is reached from a checkpoint just before it, never by playing the
+  span out; a rule with a long span (one group a game hour, ten days of
+  water) is read from the game's state, never waited out.
+- A test whose save does not load fails at once, naming the save and why
+  (operator, 2026-10-03). A test never makes its save again on its own and
+  never writes over a committed save.
 - Save states are made once and reused over and over (operator,
   2026-10-03). There is one game being tested, and every save carries
   over: a save has no version, and nothing (a content change, a code

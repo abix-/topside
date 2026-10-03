@@ -166,43 +166,18 @@ pub fn answer(result: Result<serde_json::Value, String>) {
     }
 }
 
-/// The save format's version: raised whenever a saved component or
-/// resource changes its fields, so an older save is refused plainly
-/// instead of failing halfway (todo 31a). Test saves are then made again
-/// by playing (9k).
-pub const VERSION: u32 = 12;
-
 /// What a save says first, on its own line, before the saved world: the
-/// format's version and the world it was made in (the seed, the world's
-/// size, how many times the storm has shifted it), and its tick. A RON
-/// comment, so the save is still plain RON.
+/// world it was made in (the seed, the world's size, how many times the
+/// storm has shifted it), and its tick. A RON comment, so the save is still
+/// plain RON. Every save carries over (operator, 2026-10-03): there is no
+/// version and no content check; content comes from the game, never from
+/// the save.
 #[derive(serde::Serialize, serde::Deserialize, Debug, PartialEq)]
 pub struct Header {
-    pub version: u32,
     pub seed: u64,
     pub world: String,
     pub shifts: u32,
     pub tick: u64,
-    /// The game's content the save was made with (`content_hash`): a save
-    /// of other content is refused as one of another version is, and made
-    /// again by playing (a line's words edited, an item changed).
-    #[serde(default)]
-    pub content: u64,
-}
-
-/// A hash of the game's content as it is (every episode with its lines and
-/// cues, plain talk, every item), the same in every build of the same
-/// content (FNV-1a over their written-out form, all kept in order).
-fn content_hash(world: &World) -> u64 {
-    let episodes = world.get_resource::<crate::content::EpisodeRegistryRes>().map(|e| format!("{:?}", e.0.all())).unwrap_or_default();
-    let items = world.get_resource::<crate::content::ItemRegistryRes>().map(|i| format!("{:?}", i.0.all())).unwrap_or_default();
-    let talk = format!("{:?}", crate::content::plain_lines());
-    let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
-    for byte in episodes.bytes().chain(items.bytes()).chain(talk.bytes()) {
-        hash ^= u64::from(byte);
-        hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
-    }
-    hash
 }
 
 /// How a save's first line begins.
@@ -212,26 +187,17 @@ impl Header {
     /// The running game's.
     fn of(world: &World) -> Self {
         Self {
-            version: VERSION,
             seed: world.resource::<crate::WorldSeed>().0,
             world: format!("{:?}", world.resource::<crate::content::WorldKind>()).to_lowercase(),
             shifts: world.resource::<crate::storm::StormRes>().shifts,
             tick: world.resource::<SimTick>().0,
-            content: content_hash(world),
         }
     }
 
-    /// Why a save with this header cannot load into the running game
-    /// (`now`), if it cannot: another version, or a world size this game
-    /// does not know. Another world never refuses: the load rolls the
-    /// save's (`roll_saved_world`).
-    fn refuses(&self, now: &Header) -> Option<String> {
-        if self.version != now.version {
-            return Some(format!("the save is version {}, this game reads version {}: make the save again by playing", self.version, now.version));
-        }
-        if self.content != now.content {
-            return Some(format!("the save was made with other content (lines, items or episodes changed since; {:x}, this game {:x}): make the save again by playing", self.content, now.content));
-        }
+    /// Why a save with this header cannot load into the running game, if it
+    /// cannot: a world size this game does not know. Another world never
+    /// refuses: the load rolls the save's (`roll_saved_world`).
+    fn refuses(&self) -> Option<String> {
         if crate::content::WorldKind::from_name(&self.world).is_none() {
             return Some(format!("the save's world is {:?}, not one this game makes (small or big)", self.world));
         }
@@ -331,7 +297,7 @@ fn read_save(world: &mut World, name: &str) -> Result<(Header, bevy::world_seria
         .and_then(|line| line.trim_end().strip_prefix(HEADER))
         .and_then(|json| serde_json::from_str(json).ok())
         .ok_or_else(|| format!("{} has no topside save header: make the save again by playing", path.display()))?;
-    if let Some(why) = header.refuses(&Header::of(world)) {
+    if let Some(why) = header.refuses() {
         return Err(format!("{} not loaded: {why}", path.display()));
     }
     let mut assets = world.resource::<AssetServer>().clone();
@@ -340,7 +306,7 @@ fn read_save(world: &mut World, name: &str) -> Result<(Header, bevy::world_seria
     let mut ron = ron::Deserializer::from_bytes(&bytes).map_err(|e| format!("{} not loaded: {e}", path.display()))?;
     let saved = bevy::world_serialization::serde::WorldDeserializer { type_registry: &registry, load_from_path: &mut assets }
         .deserialize(&mut ron)
-        .map_err(|e| format!("{} not loaded, it does not read as this version's save (a saved type changed without raising VERSION?): {e}", path.display()))?;
+        .map_err(|e| format!("{} not loaded, it does not read (a saved type changed its fields?): {e}", path.display()))?;
     Ok((header, saved))
 }
 

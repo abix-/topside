@@ -119,35 +119,38 @@ fn a_save_loads_its_own_world_after_the_storm_shifted_the_game() {
     assert!(twice.is_empty(), "{} things made a second time after the load", twice.len());
 }
 
-/// A test's start comes from its save, made by playing when it is missing
-/// or from an older version of the game (`endpoint::start_from`): no save,
-/// it plays and saves; the next start loads; a save marked an older
-/// version is refused and made again by playing.
+/// A test whose save does not load fails at once, naming the save and why
+/// (authority.md "Running tests", operator 2026-10-03), and never makes the
+/// save again on its own: a save that loads starts it; the same save with
+/// its header line taken away fails the start, naming it, and is left as it
+/// was, not written over.
 #[test]
-fn a_tests_start_is_made_again_by_playing_when_its_save_will_not_load() {
+fn a_tests_start_fails_at_once_when_its_save_will_not_load() {
     const START: &str = "save_test_start";
     let file = saves().join(format!("{START}.save"));
-    let _ = std::fs::remove_file(&file);
-    let played = std::cell::Cell::new(0);
-    let reach = || played.set(played.get() + 1);
-    assert!(crate::endpoint::start_from(START, reach), "with no save, the start was not played");
-    assert!(!crate::endpoint::start_from(START, reach), "the save made by playing did not load");
+    op_with("save", json!({"name": START}));
+    assert!(!crate::endpoint::start_from(START, || panic!("a start played to make its save")), "the save did not load");
     let text = std::fs::read_to_string(&file).expect("the start was saved");
-    let (first, rest) = text.split_once('\n').expect("a header line");
-    let mut header: Json = serde_json::from_str(first.strip_prefix("// topside save ").expect("the header line")).expect("the header is JSON");
-    header["version"] = json!(0);
-    std::fs::write(&file, format!("// topside save {header}\n{rest}")).expect("marking the save an older version");
-    assert!(crate::endpoint::start_from(START, reach), "a save of an older version was not made again by playing");
-    assert_eq!(played.get(), 2, "played {} times, not twice", played.get());
+    let (_, rest) = text.split_once('\n').expect("a header line");
+    std::fs::write(&file, rest).expect("taking the save's header line away");
+    let failed = std::panic::catch_unwind(|| crate::endpoint::start_from(START, || panic!("a start played to make its save"))).expect_err("a save that does not read started the test");
+    let why = failed.downcast_ref::<String>().cloned().unwrap_or_default();
+    assert!(why.contains(START) && why.contains("did not load"), "the failure does not name the save and say it did not load: {why}");
+    assert_eq!(std::fs::read_to_string(&file).expect("the save is still there"), rest, "the save that did not load was written over");
     let _ = std::fs::remove_file(&file);
 }
 
-/// A save of another format's version is refused plainly.
+/// Every save carries over (operator, 2026-10-03): a save whose header says
+/// an older version and other content, as older saves do, loads.
 #[test]
-fn a_save_of_another_version_is_refused() {
-    let answer = load_changed("save_test_old_version", |h| h["version"] = json!(0));
+fn a_save_from_an_older_game_loads() {
+    let answer = load_changed("save_test_old_version", |h| {
+        h["version"] = json!(0);
+        h["content"] = json!(1);
+    });
     eprintln!("load answered {answer}");
-    assert!(answer.to_string().contains("version 0"), "a save of another version was not refused: {answer}");
+    assert!(answer["ok"] == true, "a save marked an older version and other content did not load: {answer}");
+    crate::endpoint::loaded();
 }
 
 /// Lets the game run again when the test ends, passed or failed.
