@@ -405,7 +405,7 @@ pub fn make_chunks(
 pub struct GroundMesh(pub ChunkKey);
 
 /// Every ground tile left open over a way down (`structure::Below`).
-fn open_tiles(below: &Query<&crate::structure::Below>) -> HashSet<(i32, i32)> {
+pub(crate) fn open_tiles(below: &Query<&crate::structure::Below>) -> HashSet<(i32, i32)> {
     below.iter().flat_map(|b| b.open.iter().copied()).collect()
 }
 
@@ -469,6 +469,9 @@ pub fn open_the_ground(
     }
 }
 
+/// The height the ground is drawn at: the ground, y 0.
+pub const GROUND_DRAWN_AT: f32 = 0.0;
+
 /// One chunk's ground as one flat mesh, a square a tile in its kind's
 /// colour, none on the tiles open over a way down.
 fn draw_ground(
@@ -495,7 +498,8 @@ fn draw_ground(
         let colour = Color::srgb(r, gr, b).to_linear().to_f32_array();
         let base = positions.len() as u32;
         // The corners a, b, c, d; each triangle wound so its face points up.
-        positions.extend([[x, 0.0, y], [x + TILE, 0.0, y], [x + TILE, 0.0, y + TILE], [x, 0.0, y + TILE]]);
+        let h = GROUND_DRAWN_AT;
+        positions.extend([[x, h, y], [x + TILE, h, y], [x + TILE, h, y + TILE], [x, h, y + TILE]]);
         colors.extend([colour; 4]);
         indices.extend([base, base + 3, base + 1, base + 1, base + 3, base + 2]);
     }

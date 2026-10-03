@@ -86,7 +86,7 @@ pub fn eye_rotation(pitch: f32) -> Quat {
 /// (design.md "The bunker you start in"), at the start and after every
 /// death.
 pub fn wake_point(world: &WorldRes) -> Vec3 {
-    on_ground(world.bunker, crate::content::PLAYER_ROOM_FLOOR + BODY_CENTRE)
+    crate::structure::on_floor(world.bunker, crate::content::PLAYER_ROOM_FLOOR) + Vec3::Y * BODY_CENTRE
 }
 
 /// The one place the player enters the world: at the bunker, a person

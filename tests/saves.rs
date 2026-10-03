@@ -182,8 +182,7 @@ pub(crate) fn tap_fight_morning() {
     start_from("tap_fight_morning", || {
         let go_home = || {
             tap_a_stranger_came();
-            let room = op("world")["bunker_doors"].as_array().into_iter().flatten().find(|d| d["floor"].as_f64().is_some_and(|f| f < -5.0)).cloned().expect("the player's room door");
-            walk_to(None, (room["at"][0].as_f64().unwrap_or(0.0), room["at"][1].as_f64().unwrap_or(0.0), room["floor"].as_f64().unwrap_or(-6.0)));
+            walk_to(None, crate::opening::middle_of(&crate::opening::bunker_room("below")));
         };
         let hurt = |p: &serde_json::Value| p["health"].as_f64().unwrap_or(100.0) < 100.0 || p["dead"] == true;
         let fighting = || {

@@ -254,7 +254,7 @@ pub fn place_the_tap(
     let member = &site.rolled.members[0];
     let at = site.position + Vec2::new(member.offset.x, member.offset.z);
     // On the building's ground floor.
-    let tap_at = crate::on_ground(at, 0.0);
+    let tap_at = crate::structure::on_floor(at, 0.0);
     let (tap, id) = spawn_item(&mut commands, &mut ids, def, item::create(def, 1, &[], 0.0, 0), tap_at);
     commands.entity(tap).insert(DrawsFrom(store.0));
     // What Mara's store holds as the tap starts drawing from it.
@@ -266,11 +266,18 @@ pub fn place_the_tap(
         && let Some((_, mut memory)) = memories.iter_mut().find(|(a, _)| a.0 == dell)
     {
         memory.0.see(key, "tap", tap_at, tick.0);
+        // She found it, so she has been there: never a thing she has yet
+        // to look at (the brain's look picked it and walked her out of the
+        // bunker before the opening, the operator's playtest 2026-10-03).
+        // The episode's own errand still sends her (`the_taps_errands`).
+        memory.0.visited(key, tick.0);
         // Dell wants it kept secret (docs/episodes/the-tap.md "Pushed all
         // the way"): she never passes it on.
         memory.0.keep_quiet(key);
         for passed in sites.iter().filter(|p| off_the_way(door, at, p.position).0 <= ON_THE_WAY) {
             memory.0.see(site_key(passed.position), &passed.monument, ground(passed.position), tick.0);
+            // Passed on her way to the tap: been there, as the tap.
+            memory.0.visited(site_key(passed.position), tick.0);
         }
     }
     episode.things.push(("tap".to_string(), tap_at, key));

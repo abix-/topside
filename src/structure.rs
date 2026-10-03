@@ -21,7 +21,7 @@ use modforge::monument::Roll;
 use modforge::walk::cell_of;
 
 use crate::content::{
-    BENCH_AT, BUNKER_STORE, BUNKER_STORE_AT, COMMON_ROOM_FLOOR, ItemRegistryRes, PLAYER_ROOM_FLOOR, STARTING_ITEMS,
+    BENCH_AT, BUNKER_STORE, BUNKER_STORE_AT, ItemRegistryRes, PLAYER_ROOM_FLOOR, STARTING_ITEMS, SURFACE_ROOM_FLOOR,
     STARTING_NOTE_AT, loot_table,
     starting_bunker, starting_note,
 };
@@ -36,6 +36,19 @@ pub const WALL_HEIGHT: f32 = 3.0;
 /// How tall furniture stands, in metres: under the eyes, so it is seen
 /// over.
 pub const FURNITURE_HEIGHT: f32 = 0.9;
+/// How thick the floor model is, about its place, in metres
+/// (scripts/models.py `floor`).
+pub const FLOOR_TILE: f32 = 0.02;
+
+/// The 3D point on a building's floor over the ground point `g`, the floor
+/// of the level at height `level` (0 the ground floor): on the top of the
+/// level's slab, which lies on the level, so a ground floor stands above
+/// the ground by the slab's thickness (operator, 2026-10-03: the floor sits
+/// above the ground, never in it). Everything standing on a floor (people,
+/// furniture, doors, items) stands here.
+pub fn on_floor(g: Vec2, level: f32) -> Vec3 {
+    on_ground(g, level + SLAB)
+}
 
 /// A building's root: the body holding its one collider.
 #[derive(Component)]
@@ -75,13 +88,13 @@ pub struct Below {
     pub open: Vec<(i32, i32)>,
 }
 
-/// The lowest a body at `point` goes: the floor of the building it stands
-/// in that goes below the ground, else the ground.
+/// The lowest a body at `point` goes: the top of the lowest floor of the
+/// building it stands in that goes below the ground, else the ground.
 pub fn lowest_at(below: &Query<&Below>, point: Vec2) -> f32 {
     below
         .iter()
         .filter(|b| inside(&b.rects, point))
-        .map(|b| b.bottom)
+        .map(|b| on_floor(point, b.bottom).y)
         .fold(0.0, f32::min)
 }
 
@@ -134,49 +147,57 @@ pub fn spawn_structure(commands: &mut Commands, ids: &mut crate::interact::Thing
             let (min, max) = rect(r);
             let size = max - min;
             let centre = (min + max) / 2.0;
-            let tall = match r.kind {
-                TileKind::Wall => Some(height),
-                TileKind::Furniture => Some(FURNITURE_HEIGHT),
-                _ => None,
-            };
-            if let Some(tall) = tall {
+            // Every level, the ground floor too, stands on its slab: the slab
+            // lies on the level and what stands on the level stands on its
+            // top (`on_floor`), so no floor lies in the ground (operator,
+            // 2026-10-03), and the navigation mesh sees every floor. A wall
+            // stands from the level up, the slab's thickness taller, so
+            // nothing shows under it.
+            // A hatch's hole has neither: its door lies over the way down.
+            if r.kind == TileKind::Hatch {
+                continue;
+            }
+            let floor_tint = Tint(Color::srgb(def.floor_color[0], def.floor_color[1], def.floor_color[2]));
+            let tint = Tint(Color::srgb(r.color[0], r.color[1], r.color[2]));
+            if r.kind == TileKind::Wall {
+                let tall = height + SLAB;
                 shapes.push((on_ground(centre, y + tall / 2.0), Rotation::IDENTITY, Collider::cuboid(size.x, tall, size.y)));
+            } else {
+                shapes.push((on_ground(centre, y + SLAB / 2.0), Rotation::IDENTITY, Collider::cuboid(size.x, SLAB, size.y)));
             }
-            // What is walked on stands on a slab: on every level but the
-            // ground's, which the ground's own slab holds (terrain), the
-            // lowest below the ground included, so the navigation mesh
-            // sees every floor.
-            if y.abs() > 0.5 && r.kind != TileKind::Wall {
-                shapes.push((on_ground(centre, y - SLAB / 2.0), Rotation::IDENTITY, Collider::cuboid(size.x, SLAB, size.y)));
+            if r.kind == TileKind::Furniture {
+                shapes.push((on_floor(centre, y) + Vec3::Y * (FURNITURE_HEIGHT / 2.0), Rotation::IDENTITY, Collider::cuboid(size.x, FURNITURE_HEIGHT, size.y)));
             }
-            match r.kind {
-                // The doors themselves stand below, from the doorways.
-                TileKind::Door => {}
-                kind => {
-                    let (model, scale) = match kind {
-                        TileKind::Floor => ("floor", Vec3::ONE),
-                        TileKind::Furniture => ("furniture", Vec3::ONE),
-                        _ => ("wall", Vec3::new(1.0, height / WALL_HEIGHT, 1.0)),
-                    };
-                    let tint = Tint(Color::srgb(r.color[0], r.color[1], r.color[2]));
-                    for x in r.from..r.to {
-                        let tile = at + Vec2::new(x as f32 + 0.5, r.row as f32 + 0.5);
-                        pieces.push((Model(model.to_string()), tint, Transform::from_translation(on_ground(tile, y)).with_scale(scale)));
-                    }
+            for x in r.from..r.to {
+                let tile = at + Vec2::new(x as f32 + 0.5, r.row as f32 + 0.5);
+                if r.kind == TileKind::Wall {
+                    pieces.push((Model("wall".to_string()), tint, Transform::from_translation(on_ground(tile, y)).with_scale(Vec3::new(1.0, (height + SLAB) / WALL_HEIGHT, 1.0))));
+                    continue;
+                }
+                // The slab, drawn as the floor tile stretched to its
+                // thickness (the floor model is FLOOR_TILE thick about its
+                // place); the doors themselves stand below, from the
+                // doorways.
+                let colour = if r.kind == TileKind::Floor { tint } else { floor_tint };
+                pieces.push((Model("floor".to_string()), colour, Transform::from_translation(on_ground(tile, y + SLAB / 2.0)).with_scale(Vec3::new(1.0, SLAB / FLOOR_TILE, 1.0))));
+                if r.kind == TileKind::Furniture {
+                    pieces.push((Model("furniture".to_string()), tint, Transform::from_translation(on_floor(tile, y))));
                 }
             }
         }
     }
-    // The stair tower's steps and landings, and the slabs it is walked on
-    // at every level (modforge's parts), above the ground and below.
+    // The stairs' steps and landings, and the slabs a stair tower is walked
+    // on at every level (modforge's parts), above the ground and below.
     let walked = |p: &&Part| {
         let thin_furniture = p.kind == PartKind::Furniture && p.size.y <= 2.0 * SLAB;
         matches!(p.kind, PartKind::Step | PartKind::Landing) || thin_furniture
     };
+    // Each from the floor it rises from (`on_floor`): a flight climbs from
+    // one level's slab top to the next's, its landing level with it.
     for part in parts_of(def).iter().filter(walked) {
         let local = Vec2::new(part.center.x, part.center.z);
         shapes.push((
-            on_ground(local, part.center.y),
+            on_floor(local, part.center.y),
             Rotation::IDENTITY,
             Collider::cuboid(part.size.x, part.size.y, part.size.z),
         ));
@@ -185,7 +206,7 @@ pub fn spawn_structure(commands: &mut Commands, ids: &mut crate::interact::Thing
         pieces.push((
             Model("furniture".to_string()),
             Tint(Color::srgb(part.color[0], part.color[1], part.color[2])),
-            Transform::from_translation(on_ground(at + local, part.center.y - part.size.y / 2.0)).with_scale(scale),
+            Transform::from_translation(on_floor(at + local, part.center.y - part.size.y / 2.0)).with_scale(scale),
         ));
     }
     // Every door block (modforge `door_blocks`): its frame, two posts either
@@ -215,8 +236,10 @@ pub fn spawn_structure(commands: &mut Commands, ids: &mut crate::interact::Thing
                 Transform::from_translation(on_ground(at + middle, bottom)).with_scale(Vec3::new(size.x, tall / WALL_HEIGHT, size.y)),
             ));
         };
+        // From the floor's top (`on_floor`) to the level's top.
+        let floor = on_floor(Vec2::ZERO, *floor).y;
         for (middle, along) in block.posts() {
-            frame(middle, along, *floor, *height);
+            frame(middle, along, floor, *height);
         }
         frame(block.centre, block.doorway(), floor + DOORWAY_HEIGHT, height - DOORWAY_HEIGHT);
     }
@@ -248,21 +271,37 @@ pub fn spawn_structure(commands: &mut Commands, ids: &mut crate::interact::Thing
     // place is the hinge; the panel and its collider reach from it across
     // the doorway, so opening is a quarter turn about the hinge. Made
     // again after a load, its doors come from the save.
-    for (block, floor, _) in blocks.iter().filter(|_| door_model.is_some()) {
-        let door_model = door_model.unwrap_or_default();
-        let width = block.doorway();
-        let centre = at + block.centre;
-        let hinge = at + block.hinge();
-        let closed = Door::facing(hinge, centre);
-        // Standing on its floor at the hinge; its body and panel are made
-        // from it (interact::door_body).
+    // Every hatch lying in its floor over its hole (modforge `Hatch`), the
+    // same door.
+    let Some(door_model) = door_model else {
+        return root;
+    };
+    let standing = blocks.iter().map(|(block, floor, _)| {
+        let (centre, hinge) = (at + block.centre, at + block.hinge());
+        let door = Door {
+            open: false,
+            closed_center: centre,
+            hinge,
+            closed: Door::facing(hinge, centre),
+            width: block.doorway(),
+            height: DOORWAY_HEIGHT,
+            lying: false,
+            model: door_model.to_string(),
+        };
+        (door, *floor)
+    });
+    let lying = def.hatches.iter().map(|h| (Door::hatch(h, at, door_model), h.level));
+    for (made, floor) in standing.chain(lying).collect::<Vec<_>>() {
+        // On its floor at the hinge; its body and panel are made from it
+        // (interact::door_body).
+        let place = Transform::from_translation(on_floor(made.hinge, floor)).with_rotation(made.closed);
         let mut door = commands.spawn((
-            Door { open: false, closed_center: centre, hinge, closed, width, model: door_model.to_string() },
+            made,
             Interactable {
                 kind: InteractKind::Door { open: false },
             },
             ids.issue(),
-            Transform::from_translation(on_ground(hinge, *floor)).with_rotation(closed),
+            place,
         ));
         if of_world {
             door.insert(WorldPiece);
@@ -278,7 +317,7 @@ pub const WILD_DOOR: &str = "door";
 
 /// The starting bunker at the world's bunker point (design.md "The bunker
 /// you start in"): the starting items and the note on the floor of the
-/// player's room, the bench in the common room.
+/// player's room, the bench in the surface room.
 pub fn spawn_bunker(
     mut commands: Commands,
     world: Res<WorldRes>,
@@ -298,13 +337,13 @@ pub fn spawn_bunker(
         let on: Vec<String> = crate::content::starting_layers(name).iter().map(|l| l.to_string()).collect();
         let stack = item::create_layered(def(name), &on, &layers.0, count, &[], 0.0, salt)
             .unwrap_or_else(|e| panic!("starting item {name}: {e}"));
-        spawn_item(&mut commands, &mut ids, def(name), stack, on_ground(at + Vec2::new(x, z), PLAYER_ROOM_FLOOR));
+        spawn_item(&mut commands, &mut ids, def(name), stack, on_floor(at + Vec2::new(x, z), PLAYER_ROOM_FLOOR));
     }
     // Its store, as every bunker's (Roxanne's, and anyone who joins).
     spawn_store(&mut commands, &mut ids, &items, at, PLAYER_STORE_SALT);
     // The crafting bench, where E opens its recipes.
     let [x, z] = BENCH_AT;
-    spawn_station(&mut commands, &mut ids, StationKind::CraftingBench, on_ground(at + Vec2::new(x, z), COMMON_ROOM_FLOOR));
+    spawn_station(&mut commands, &mut ids, StationKind::CraftingBench, on_floor(at + Vec2::new(x, z), SURFACE_ROOM_FLOOR));
     // The note and the world both come from the world's seed.
     let [x, z] = STARTING_NOTE_AT;
     spawn_item(
@@ -312,7 +351,7 @@ pub fn spawn_bunker(
         &mut ids,
         def("note"),
         write(def("note"), starting_note(world.seed), 0.0, 13).expect("the note def is a note"),
-        on_ground(at + Vec2::new(x, z), PLAYER_ROOM_FLOOR),
+        on_floor(at + Vec2::new(x, z), PLAYER_ROOM_FLOOR),
     );
 }
 
@@ -346,9 +385,9 @@ fn spawn_store(commands: &mut Commands, ids: &mut crate::interact::ThingIssuer, 
         ids,
         box_def,
         create(box_def, 1, &[], 0.0, salt),
-        // In the entrance, where its people can reach it until they can
-        // go down the stairs (todo 13a2).
-        on_ground(bunker + Vec2::new(x, z), 0.0),
+        // In the surface room, where its people live (design.md "The
+        // bunker you start in").
+        on_floor(bunker + Vec2::new(x, z), SURFACE_ROOM_FLOOR),
     );
     commands.entity(store).insert(Container(contents));
 }
@@ -434,7 +473,7 @@ pub fn spawn_sites(
                     }
                 }
                 // On the floor its spot is on.
-                let at = on_ground(site.position + Vec2::new(spot.position.x, spot.position.z), spot.position.y);
+                let at = on_floor(site.position + Vec2::new(spot.position.x, spot.position.z), spot.position.y);
                 let (found, _) = spawn_item(&mut commands, &mut ids, box_def, item::create(box_def, 1, &[], 0.0, k as u64), at);
                 commands.entity(found).insert((Container(contents), WorldPiece));
             }

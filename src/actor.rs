@@ -361,7 +361,7 @@ pub fn populate_monuments(
                 continue;
             };
             // On the floor its spot is on.
-            let stand = on_ground(*at + Vec2::new(spot.position.x, spot.position.z), spot.position.y);
+            let stand = crate::structure::on_floor(*at + Vec2::new(spot.position.x, spot.position.z), spot.position.y);
             settle(&mut spawn, def, stand, &known);
         }
     }
@@ -469,9 +469,9 @@ pub fn populate_bunkers(
             .find(|(_, t, ..)| t.translation.ground().distance(store_at) < 0.5)
             .map(|(entity, ..)| entity);
         for (name, [x, z]) in people {
-            // In the entrance, on the ground, until they can go down the
-            // stairs to their rooms (todo 13a2).
-            let stand = on_ground(at + Vec2::new(x, z), 0.0);
+            // In the surface room, where they live (design.md "The bunker
+            // you start in").
+            let stand = crate::structure::on_floor(at + Vec2::new(x, z), crate::content::SURFACE_ROOM_FLOOR);
             if let Some(npc) = spawn_actor(&mut spawn, def, stand, Some(&faction)) {
                 // They know one thing: this bunker is home (life.md
                 // "Learning to stay alive"). The store is theirs, but

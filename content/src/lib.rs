@@ -28,7 +28,8 @@ use modforge::crafting::{RecipeDef, RecipeRegistry, StationKind};
 use modforge::loot::{LootEntry, LootTable};
 use modforge::storm::StormDef;
 use modforge::structure::{
-    CONCRETE_FLOOR, CONCRETE_WALL, LightDef, Rgb, SolidDef, StructureDef,
+    CONCRETE_FLOOR, CONCRETE_WALL, Hatch, LightDef, Opening, Rgb, RoomDef, STEP_DEPTH, STEP_RISE_MAX, Side, SolidDef, StairDef,
+    StructureDef,
 };
 
 /// What lies on the floor of the player's room (design.md: three days of
@@ -41,22 +42,23 @@ pub const STARTING_ITEMS: [(&str, u32, u64, [f32; 2], Rgb); 9] = [
     ("canned food", 6, 1, [-1.0, 2.0], [0.2, 0.6, 0.2]),
     ("water bottle", 5, 3, [-1.0, 2.6], [0.3, 0.5, 0.8]),
     ("water bottle", 1, 4, [-1.6, 2.6], [0.3, 0.5, 0.8]),
-    ("scrap", 3, 2, [1.0, 2.0], [0.5, 0.5, 0.5]),
-    ("pipe shotgun", 1, 9, [1.6, 2.0], [0.3, 0.3, 0.3]),
-    ("shotgun shell", 8, 10, [1.6, 2.6], [0.8, 0.3, 0.2]),
-    ("pipe", 1, 11, [1.0, 2.6], [0.4, 0.4, 0.45]),
-    ("road sign vest", 1, 12, [2.2, 2.0], [0.2, 0.5, 0.2]),
+    // West of the stairs (x 1.4 to 2.6).
+    ("scrap", 3, 2, [-0.4, 2.0], [0.5, 0.5, 0.5]),
+    ("pipe shotgun", 1, 9, [0.2, 2.0], [0.3, 0.3, 0.3]),
+    ("shotgun shell", 8, 10, [0.2, 2.6], [0.8, 0.3, 0.2]),
+    ("pipe", 1, 11, [-0.4, 2.6], [0.4, 0.4, 0.45]),
+    ("road sign vest", 1, 12, [0.8, 2.0], [0.2, 0.5, 0.2]),
 ];
 
-/// How tall each level of the bunker you start in is, and the floors of
-/// its two rooms below the ground (design.md "The bunker you start in"):
-/// the player's room the deepest, the common room above it.
+/// How tall each level of the bunker you start in is, and the levels of
+/// its two rooms (design.md "The bunker you start in"): the surface room
+/// on the ground, the player's room below it.
 pub const BUNKER_LEVEL: f32 = 3.0;
-pub const PLAYER_ROOM_FLOOR: f32 = -2.0 * BUNKER_LEVEL;
-pub const COMMON_ROOM_FLOOR: f32 = -BUNKER_LEVEL;
+pub const PLAYER_ROOM_FLOOR: f32 = -BUNKER_LEVEL;
+pub const SURFACE_ROOM_FLOOR: f32 = 0.0;
 
 /// Where the crafting bench is used in the starting bunker's plan
-/// (x, z), in the common room: its right end.
+/// (x, z), in the surface room: its right end.
 pub const BENCH_AT: [f32; 2] = [2.8, 3.5];
 
 /// Where the note lies in the starting bunker's plan (x, z), in the
@@ -154,71 +156,89 @@ pub fn def_for_danger(danger: u32) -> &'static str {
     if danger < 3 { "scavenger" } else { "raider" }
 }
 
-/// The bunker you start in (design.md "The bunker you start in"): the
-/// entrance on the ground with the one door topside, south, and two levels
-/// below it, one room each, joined by the stair tower; built by modforge
-/// `generate_building` like every building with floors below the ground,
-/// the same every time (every bunker is the same building). The bed and
-/// the food crate in the player's room, the deepest; every doorway into
-/// the stair tower a door; the crafting bench in the common room above.
+/// The hatch over the starting bunker's stairs (design.md "The bunker you
+/// start in": the player's room's door, lying in the surface room's floor
+/// over the stairs): its hole's first tile in the bunker's plan (x, z) and
+/// how many tiles across x and z, turning up on its east edge against the
+/// wall. As long as the stairs need headroom under it: someone on a step
+/// whose top is higher than the room below's ceiling less a body's height
+/// is under the hole (the flight starts 0.48 m into it from the south).
+pub const HATCH_MIN: (i32, i32) = (1, -2);
+pub const HATCH_SIZE: (i32, i32) = (2, 4);
+
+/// The bunker you start in (design.md "The bunker you start in"): two
+/// rooms, the surface room on the ground with the one door topside in its
+/// south wall, and the player's room right below it; stairs in the
+/// player's room climb north along its east wall to the hatch in the
+/// surface room's floor. Every bunker is this building. The bed and the
+/// food crate in the player's room; the crafting bench in the surface room.
 pub fn starting_bunker() -> StructureDef {
-    let kind = BuildingTypeDef {
-        name: "the bunker you start in".to_string(),
-        size: BuildingSize::Small,
-        columns: (1, 1),
-        rows: (1, 1),
-        floors: (1, 1),
-        basements: (2, 2),
-        width: (6.0, 6.0),
-        length: (8.0, 8.0),
-        height: (BUNKER_LEVEL, BUNKER_LEVEL),
-        windows: 0,
-        clutter: 0,
-        lights: 0,
-        damage: 0,
-        carve: 0,
-        palette: vec![CONCRETE_WALL],
+    let room = |level: f32, openings: Vec<Opening>| RoomDef {
+        origin: Vec3::new(0.0, level, 0.0),
+        interior: Vec3::new(6.0, BUNKER_LEVEL, 8.0),
+        wall_thickness: 0.2,
+        openings,
+        floor: true,
+        ceiling: level >= SURFACE_ROOM_FLOOR,
     };
-    let mut built = modforge::monument::generate_building(&kind, &mut Roll::new(1));
-    // The stairwell's doorway on every level a door (design.md "Built in 1 m
-    // blocks, doors as blocks": the bunker's doors), the player's room's
-    // shut on the deepest.
-    for room in built.rooms.iter_mut().filter(|r| (r.origin.y - PLAYER_ROOM_FLOOR).abs() < 0.5 && r.interior.y > BUNKER_LEVEL + 0.5) {
-        for opening in room.openings.iter_mut() {
-            opening.door = true;
-        }
-    }
+    // The front door: a 2 m door block in the middle of the south wall.
+    let front_door = Opening {
+        side: Side::South,
+        offset: 0.0,
+        width: 2.0,
+        sill: 0.0,
+        door: true,
+    };
+    // The flight: 1.2 m wide in the hatch's hole, its top at the hole's
+    // north edge, level with the surface room's floor.
+    let flight_length = (BUNKER_LEVEL / STEP_RISE_MAX).ceil() * STEP_DEPTH;
+    let hole_x = HATCH_MIN.0 as f32 + HATCH_SIZE.0 as f32 / 2.0;
     StructureDef {
         name: "the starting bunker".to_string(),
         wall_color: CONCRETE_WALL,
         floor_color: CONCRETE_FLOOR,
-        furniture: [built.furniture.clone(), vec![
+        rooms: vec![room(SURFACE_ROOM_FLOOR, vec![front_door]), room(PLAYER_ROOM_FLOOR, Vec::new())],
+        stairs: vec![StairDef {
+            base: Vec3::new(hole_x, PLAYER_ROOM_FLOOR, HATCH_MIN.1 as f32 + flight_length),
+            side: Side::North,
+            width: 1.2,
+            rise: BUNKER_LEVEL,
+            landing: 0.0,
+        }],
+        hatches: vec![Hatch {
+            level: SURFACE_ROOM_FLOOR,
+            min: HATCH_MIN,
+            size: HATCH_SIZE,
+            hinge: Side::East,
+        }],
+        furniture: vec![
             // The bed, in the player's room.
             SolidDef {
                 center: Vec3::new(-2.4, PLAYER_ROOM_FLOOR + 0.25, 3.0),
                 size: Vec3::new(1.0, 0.5, 2.0),
                 color: [0.30, 0.35, 0.55],
             },
-            // The crafting bench, in the common room.
+            // The crafting bench, in the surface room.
             SolidDef {
-                center: Vec3::new(2.2, COMMON_ROOM_FLOOR + 0.45, 3.5),
+                center: Vec3::new(2.2, SURFACE_ROOM_FLOOR + 0.45, 3.5),
                 size: Vec3::new(1.6, 0.9, 0.7),
                 color: [0.45, 0.32, 0.18],
             },
             // The food crate, in the player's room.
             SolidDef {
-                center: Vec3::new(2.5, PLAYER_ROOM_FLOOR + 0.35, -3.3),
+                center: Vec3::new(-2.5, PLAYER_ROOM_FLOOR + 0.35, -3.3),
                 size: Vec3::new(0.7, 0.7, 0.7),
                 color: [0.55, 0.45, 0.20],
             },
-        ]]
-        .concat(),
-        lights: vec![LightDef {
-            position: Vec3::new(0.0, 2.7, 0.0),
-            color: [1.0, 0.9, 0.7],
-            intensity: 400_000.0,
-        }],
-        ..built
+        ],
+        lights: [SURFACE_ROOM_FLOOR, PLAYER_ROOM_FLOOR]
+            .map(|level| LightDef {
+                position: Vec3::new(0.0, level + 2.7, 0.0),
+                color: [1.0, 0.9, 0.7],
+                intensity: 400_000.0,
+            })
+            .to_vec(),
+        parts: Vec::new(),
     }
 }
 
@@ -1128,16 +1148,17 @@ pub const OTHER_BUNKERS: [Vec2; 4] = [
 /// How many bunker people live in each other bunker. Tuning.
 pub const BUNKER_PEOPLE: usize = 5;
 
-/// Where the bunker people stand in the bunker's plan (x, z), one each.
+/// Where the bunker people stand in the bunker's plan (x, z), one each, in
+/// the surface room clear of the hatch (`HATCH_MIN`, x 1 to 3).
 pub const BUNKER_PEOPLE_AT: [[f32; 2]; BUNKER_PEOPLE] =
-    [[-1.5, 0.0], [0.0, 0.0], [1.5, 0.0], [-1.0, 1.5], [1.0, 1.5]];
+    [[-2.0, -1.0], [-0.5, -1.0], [-2.0, 1.0], [-0.5, 1.0], [-1.0, 2.5]];
 
 /// The people of the player's bunker besides the player (operator,
 /// 2026-09-27: "two people. me and Roxanne"), each named, where they
 /// stand in the bunker's plan (x, z), and their fear of not having enough
 /// (0 to 1): Roxanne, cast as Dell, stores past what is needed (the-tap.md
 /// "Too much water").
-pub const PLAYER_BUNKER_PEOPLE: [(&str, [f32; 2], f32); 1] = [("Roxanne", [1.5, 0.0], 1.0)];
+pub const PLAYER_BUNKER_PEOPLE: [(&str, [f32; 2], f32); 1] = [("Roxanne", [-2.2, 3.0], 1.0)];
 
 /// A bunker's store (design.md: factions have real stores): one box in
 /// the bunker's plan (x, z) and what is in it. Tuning.

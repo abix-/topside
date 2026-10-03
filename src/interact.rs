@@ -107,13 +107,18 @@ pub struct Door {
     pub hinge: Vec2,
     pub closed: Quat,
     pub width: f32,
+    /// How far its panel reaches along its hinge: a doorway's height, or
+    /// a hatch's length.
+    pub height: f32,
+    /// A hatch: lying in a floor over a way down (modforge `Hatch`), its
+    /// two sides above and below it.
+    pub lying: bool,
     pub model: String,
 }
 
 /// How thick a door is, in metres (scripts/models.py's panel, made 1 m
 /// wide and a wall tall).
 const DOOR_THICK: f32 = 0.12;
-use modforge::structure::DOORWAY_HEIGHT;
 
 /// A door's body, made whenever a door comes into the world, built or
 /// loaded: solid from the hinge across the doorway (no wall to the
@@ -130,15 +135,15 @@ pub fn door_body(add: On<Add, Door>, doors: Query<&Door>, mut commands: Commands
         RigidBody::Static,
         avian_rerecast::prelude::ExcludeColliderFromNavmesh,
         Collider::compound(vec![(
-            Vec3::new(width / 2.0, DOORWAY_HEIGHT / 2.0, 0.0),
+            Vec3::new(width / 2.0, door.height / 2.0, 0.0),
             Rotation::IDENTITY,
-            Collider::cuboid(width, DOORWAY_HEIGHT, DOOR_THICK),
+            Collider::cuboid(width, door.height, DOOR_THICK),
         )]),
         Visibility::default(),
     ));
     body.with_child((
         Model(door.model.clone()),
-        Transform::from_xyz(width / 2.0, 0.0, 0.0).with_scale(Vec3::new(width, DOORWAY_HEIGHT / crate::structure::WALL_HEIGHT, 1.0)),
+        Transform::from_xyz(width / 2.0, 0.0, 0.0).with_scale(Vec3::new(width, door.height / crate::structure::WALL_HEIGHT, 1.0)),
     ));
     if door.open {
         body.insert(ColliderDisabled);
@@ -153,14 +158,83 @@ impl Door {
         Quat::from_rotation_y((-d.y).atan2(d.x))
     }
 
-    /// The way through the doorway on the ground, across the closed door.
-    pub fn across(&self) -> Vec2 {
-        (self.closed_center - self.hinge).perp().normalize_or_zero()
+    /// A hatch over the hole of modforge `hatch`, its building at `at`: its
+    /// panel lies flat, reaching across the hole from the hinge edge along
+    /// its own +x and along the edge along its own +y, its own +z down, so
+    /// the same quarter turn about its own +y that opens a door stands it
+    /// up on its hinge edge (`open_turn`).
+    pub fn hatch(hatch: &modforge::structure::Hatch, at: Vec2, model: &str) -> Self {
+        let (ends, across, width) = hatch.hinge_edge();
+        let x = Vec3::new(across.x, 0.0, across.y);
+        let y = x.cross(Vec3::Y);
+        // The hinge: the end of the edge its +y runs on from.
+        let hinge = if (ends[1] - ends[0]).dot(Vec2::new(y.x, y.z)) > 0.0 { ends[0] } else { ends[1] };
+        let length = ends[0].distance(ends[1]);
+        let centre = hinge + across * width / 2.0 + Vec2::new(y.x, y.z) * length / 2.0;
+        Self {
+            open: false,
+            closed_center: at + centre,
+            hinge: at + hinge,
+            closed: Quat::from_mat3(&Mat3::from_cols(x, y, x.cross(y))),
+            width,
+            height: length,
+            lying: true,
+            model: model.to_string(),
+        }
     }
 
-    /// Which side of the closed door a ground point is on: 1 or -1.
-    pub fn side_of(&self, p: Vec2) -> f32 {
-        if (p - self.closed_center).dot(self.across()) >= 0.0 { 1.0 } else { -1.0 }
+    /// The turn of an open door: a quarter turn about its hinge (its own
+    /// +y), a door swinging aside, a hatch standing up.
+    pub fn open_turn(&self) -> Quat {
+        let turn = if self.open { FRAC_PI_2 } else { 0.0 };
+        self.closed * Quat::from_rotation_y(turn)
+    }
+
+    /// The way through the doorway on the ground, across the closed door;
+    /// for a hatch, across its hole from the hinge, the way off it.
+    pub fn across(&self) -> Vec2 {
+        let along = (self.closed * Vec3::X).normalize_or_zero();
+        let along = Vec2::new(along.x, along.z);
+        if self.lying { along } else { along.perp() }
+    }
+
+    /// Which side of the closed door, standing on its floor at `floor`, a
+    /// point is on: 1 or -1; a hatch's sides are above and below it.
+    pub fn side_of(&self, p: Vec3, floor: f32) -> f32 {
+        let ahead = if self.lying { p.y - (floor - 0.5) } else { (p.ground() - self.closed_center).dot(self.across()) };
+        if ahead >= 0.0 { 1.0 } else { -1.0 }
+    }
+
+    /// Whether a knock from `knocker` on this door, standing on its floor
+    /// at `floor`, is heard by someone at `ear` (feet): on the door's other
+    /// side within `KNOCK_HEARD`, on its floor (a door) or on the floor
+    /// below (a hatch).
+    pub fn heard_through(&self, floor: f32, knocker: Vec3, ear: Vec3) -> bool {
+        self.side_of(ear, floor) != self.side_of(knocker, floor) && self.within_hearing(floor, ear)
+    }
+
+    /// Whether someone at `ear` (feet) is within a knock's hearing of this
+    /// door on its floor at `floor`: on that floor within `KNOCK_HEARD` of
+    /// its doorway (a door), or on the floor below within it (a hatch).
+    pub fn within_hearing(&self, floor: f32, ear: Vec3) -> bool {
+        if self.lying {
+            let below = floor - ear.y;
+            below > 0.5 && below < crate::content::BUNKER_LEVEL + 1.5 && on_ground(self.closed_center, floor).distance(ear) <= KNOCK_HEARD
+        } else {
+            (ear.y - floor).abs() < 1.5 && ear.ground().distance(self.closed_center) <= KNOCK_HEARD
+        }
+    }
+
+    /// Along its hinge on the ground: a door's doorway, a hatch's edge.
+    pub fn along(&self) -> Vec2 {
+        let along = (self.closed * if self.lying { Vec3::Y } else { Vec3::X }).normalize_or_zero();
+        Vec2::new(along.x, along.z)
+    }
+
+    /// How far its edge stands out from its middle across it: none for a
+    /// door in its doorway, half the hole for a hatch.
+    pub fn edge_out(&self) -> f32 {
+        if self.lying { self.width / 2.0 } else { 0.0 }
     }
 }
 
@@ -181,21 +255,22 @@ pub const KNOCK_REACH: f32 = 2.4;
 pub const KNOCK_HEARD: f32 = 6.0;
 
 /// Where to stand to knock on the door between `them` and a knocker: the
-/// closed door on their level nearest them within a knock's hearing, and
-/// on its side away from them the first spot on the mesh there (`on_mesh`
-/// gives the mesh's point for a spot, which must be the spot itself, not
-/// somewhere near it): beside the doorway away from the hinge (where the
-/// door does not swing), beside it on the hinge's side, straight out from
-/// it far enough to pass; at its floor.
+/// closed door nearest them whose knock they would hear (`within_hearing`:
+/// a door on their level, a hatch over them), and on its side away from
+/// them the first spot on the mesh there (`on_mesh` gives the mesh's point
+/// for a spot, which must be the spot itself, not somewhere near it):
+/// beside the doorway away from the hinge (where the door does not swing),
+/// beside it on the hinge's side, straight out from it far enough to pass
+/// (a hatch: out past its free edge); at its floor.
 pub fn knock_spot<'a>(doors: impl Iterator<Item = (&'a Door, &'a Transform)>, them: Vec3, on_mesh: impl Fn(Vec3) -> Option<Vec3>) -> Option<Vec3> {
     let (door, floor) = doors
-        .filter(|(d, at)| !d.open && (at.translation.y - them.y).abs() < 1.5)
+        .filter(|(d, at)| !d.open && d.within_hearing(at.translation.y, them))
         .map(|(d, at)| (d, at.translation.y))
-        .filter(|(d, _)| d.closed_center.distance(them.ground()) <= KNOCK_HEARD)
         .min_by(|a, b| a.0.closed_center.distance(them.ground()).total_cmp(&b.0.closed_center.distance(them.ground())))?;
-    let away = door.across() * -door.side_of(them.ground());
-    let along = (door.closed_center - door.hinge).normalize_or_zero() * KNOCK_ASIDE;
-    [away * KNOCK_OUT + along, away * KNOCK_OUT - along, away * KNOCK_OUT_FAR]
+    let away = door.across() * -door.side_of(them, floor);
+    let along = door.along() * KNOCK_ASIDE;
+    let out = door.edge_out();
+    [away * (out + KNOCK_OUT) + along, away * (out + KNOCK_OUT) - along, away * (out + KNOCK_OUT_FAR)]
         .into_iter()
         .map(|off| on_ground(door.closed_center + off, floor))
         .find_map(|spot| on_mesh(spot).filter(|p| p.ground().distance(spot.ground()) <= modforge::command::KNOCK_ARRIVE / 2.0))
@@ -230,13 +305,9 @@ pub fn knock(
         else {
             continue;
         };
-        let knocker_side = door.side_of(feet.ground());
-        // Who hears it: on its floor, within hearing, on the door's other
-        // side.
-        let hears = |there: &Transform| {
-            let ear = feet_of(there);
-            (ear.y - floor).abs() < 1.5 && ear.ground().distance(door.closed_center) <= KNOCK_HEARD && door.side_of(ear.ground()) != knocker_side
-        };
+        // Who hears it: within hearing on the door's other side (`Door::
+        // heard_through`: a door's floor, a hatch's floor below).
+        let hears = |there: &Transform| door.heard_through(floor, feet, feet_of(there));
         // The one called line the knock carries to the player behind the
         // door, if one fits (authority.md "Talking"); no conversation opens
         // through a shut door, it starts once the two are within talking
@@ -486,7 +557,7 @@ pub fn interact_on_use(
     mut people: Query<
         (
             (Entity, &Transform, &ThisTick, &mut Inventory, &mut Hud, &mut OpenContainer, &mut OpenStation),
-            (&mut Survival, &mut Health, Option<&mut Memory>, &Facing, Option<&crate::talk::LookingAt>, Option<&crate::actor::Actor>, Option<&crate::actor::Hotbar>),
+            (&mut Survival, &mut Health, Option<&mut Memory>, &Facing, Option<&crate::talk::LookingAt>, Option<&crate::actor::Actor>, (Option<&crate::actor::Hotbar>, Has<crate::player::Player>)),
         ),
         Without<Dead>,
     >,
@@ -501,7 +572,7 @@ pub fn interact_on_use(
     // in one tick, who gets it is the same after a load.
     let order = crate::actor::in_actor_order(people.iter().map(|((me, ..), (.., actor, _))| (actor.map(|a| a.0), me)));
     for entity in order {
-        let Ok(((me, person, this_tick, mut inventory, mut hud, mut open, mut station), (mut needs, mut health, mut memory, facing, looking, _, hotbar))) =
+        let Ok(((me, person, this_tick, mut inventory, mut hud, mut open, mut station), (mut needs, mut health, mut memory, facing, looking, _, (hotbar, is_player)))) =
             people.get_mut(entity)
         else {
             continue;
@@ -547,7 +618,10 @@ pub fn interact_on_use(
                     .and_then(|s| registry.0.def(&s.item))
                     .and_then(|d| d.combat.as_ref())
                     .is_some_and(|c| c.ammo.is_none());
-                if draws_from.is_some() && melee_in_hand {
+                // The player's own Use (first person: Use acts with what is
+                // held); a person's brain uses the tap to drink, pipe in
+                // hand or not (Mara's people broke it drinking).
+                if is_player && draws_from.is_some() && melee_in_hand {
                     commands.entity(entity).despawn();
                     continue;
                 }
@@ -642,8 +716,7 @@ fn use_thing(
             door.open = !door.open;
             thing.kind = InteractKind::Door { open: door.open };
             // A quarter turn about the hinge, where the door stands.
-            let turn = if door.open { FRAC_PI_2 } else { 0.0 };
-            transform.rotation = Quat::from_rotation_y(turn) * door.closed;
+            transform.rotation = door.open_turn();
             if door.open {
                 commands.entity(entity).insert(ColliderDisabled);
             } else {

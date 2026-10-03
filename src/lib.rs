@@ -343,7 +343,7 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind, port: u16
     app.add_systems(First, save::answer_save);
     // The ops that only read answer every frame, paused or not; the ops
     // that change the game act at the next tick (in the fixed chain).
-    app.add_systems(Update, (control_plane::answer_npc, control_plane::answer_walk));
+    app.add_systems(Update, (control_plane::answer_npc, control_plane::answer_walk, control_plane::answer_ground_on_floors));
     app.add_systems(
         RunFixedMainLoop,
         (

@@ -362,12 +362,13 @@ pub fn answer_use(
     let Some((id, to)) = USE_ASK.lock().ok().and_then(|mut ask| ask.take()) else {
         return;
     };
-    // The point on the ground, and the floor it is on: as asked, or a
-    // person's own.
-    let (at, floor) = match to {
-        UseAt::Point(at, floor) => (at, floor),
+    // The point on the ground, the floor it is on, and the height on them
+    // the eyes look at: a point's own ground (the eyes on a person's middle
+    // would look over a tap at whoever stands past it), a person's middle.
+    let (at, floor, look) = match to {
+        UseAt::Point(at, floor) => (at, floor, 0.0),
         UseAt::Person(whom) => match people.iter().find(|(a, ..)| a.0.0 == whom) {
-            Some((_, there, ..)) => (there.translation.ground(), crate::interact::feet_of(&there).y),
+            Some((_, there, ..)) => (there.translation.ground(), crate::interact::feet_of(&there).y, crate::player::BODY_CENTRE),
             None => return,
         },
     };
@@ -384,10 +385,10 @@ pub fn answer_use(
             continue;
         }
         transform.translation = stand + Vec3::Y * crate::player::BODY_CENTRE;
-        // The player's eyes on the middle of whatever stands there, a
-        // metre off, so what they look at is what is there.
+        // The player's eyes on what stands there, a metre off, so what
+        // they look at is what is there.
         if is_player && let Ok((mut eye, mut view)) = eyes.single_mut() {
-            eye.pitch = (crate::player::BODY_CENTRE - crate::EYE_HEIGHT).atan2(1.0);
+            eye.pitch = (look - crate::EYE_HEIGHT).atan2(1.0);
             view.rotation = crate::player::eye_rotation(eye.pitch);
         }
         actions.0.push(tick.0, crate::input::Action::Aim { x: at.x, y: at.y });
@@ -514,6 +515,8 @@ pub fn answer_npc(
                 "way": {
                     "state": walking.map(|s| format!("{s:?}")),
                     "to": going_to.and_then(crate::navmesh::going_to).map(|p| [p.x, p.y, p.z]),
+                    // The velocity landmass wants of them this step.
+                    "wanted": crate::navmesh::wanted_velocity(walker, &view.ways).map(|v| [v.x, v.y, v.z]),
                 },
                 "chunk": picture,
                 "did": memory.0.done.iter().map(|(t, d)| json!({"tick": t, "did": d.words()})).collect::<Vec<_>>(),
@@ -601,6 +604,82 @@ const SCREENSHOT_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/logs");
 
 /// What the camera sees, once a second, for the `view` op.
 static VIEW: Mutex<Json> = Mutex::new(Json::Null);
+
+/// The `ground_on_floors` op asked, answered the next frame.
+static GROUND_ASK: AtomicBool = AtomicBool::new(false);
+static GROUND_ANSWER: Mutex<Option<Json>> = Mutex::new(None);
+
+/// How near a drawn floor's top the drawn ground may lie before the two
+/// show through each other, metres.
+const SHOWS_THROUGH: f32 = 0.05;
+/// A floor tile, step or landing with its top this near the ground is on
+/// a building's ground floor, metres: every one of them is looked at.
+const ON_THE_GROUND_FLOOR: f32 = 0.5;
+
+/// Asked by the `ground_on_floors` op: every floor tile, step and landing
+/// drawn with its top within `SHOWS_THROUGH` of the ground drawn under it.
+/// Read from what is drawn: the models' places, and the ground as
+/// `terrain::draw_ground` draws it from the same inputs: a quad at height
+/// 0 on every tile of each chunk with a ground mesh, but the tiles left
+/// open over a way down (the mesh itself lives only in the render world).
+pub fn answer_ground_on_floors(
+    models: Query<(&crate::model::Model, &Transform)>,
+    ground: Query<&crate::terrain::GroundMesh>,
+    below: Query<&crate::structure::Below>,
+) {
+    if !GROUND_ASK.swap(false, Ordering::Relaxed) {
+        return;
+    }
+    let answer = match ground.is_empty() {
+        true => json!({"error": "no ground is drawn (no window)"}),
+        false => {
+            // Each floor tile, step and landing drawn with its top near the
+            // ground: its model, its footprint (min and max on the ground)
+            // and its top. A floor tile is the floor model, FLOOR_TILE thick
+            // about its place, stretched (scripts/models.py `floor`); a step
+            // or landing the furniture block from its bottom, stretched
+            // (structure.rs).
+            let near: Vec<(&str, Vec2, Vec2, f32)> = models
+                .iter()
+                .filter_map(|(model, at)| {
+                    let (half, top) = match model.0.as_str() {
+                        "floor" => (Vec2::new(at.scale.x, at.scale.z) / 2.0, at.translation.y + at.scale.y * crate::structure::FLOOR_TILE / 2.0),
+                        "furniture" => (Vec2::new(at.scale.x, at.scale.z) * 0.45, at.translation.y + at.scale.y * crate::structure::FURNITURE_HEIGHT),
+                        _ => return None,
+                    };
+                    let centre = at.translation.ground();
+                    (top.abs() <= ON_THE_GROUND_FLOOR).then_some((model.0.as_str(), centre - half, centre + half, top))
+                })
+                .collect();
+            let tile_of = |x: f32, z: f32| ((x / modforge::walk::TILE).floor() as i32, (z / modforge::walk::TILE).floor() as i32);
+            let chunk_of = |t: (i32, i32)| (t.0.div_euclid(modforge::walk::CHUNK), t.1.div_euclid(modforge::walk::CHUNK));
+            let tiles_under = |min: Vec2, max: Vec2| {
+                let (lo, hi) = (tile_of(min.x + 0.01, min.y + 0.01), tile_of(max.x - 0.01, max.y - 0.01));
+                (lo.1..=hi.1).flat_map(move |z| (lo.0..=hi.0).map(move |x| (x, z)))
+            };
+            // The ground's height where it is drawn: on a tile of a chunk
+            // with a ground mesh, not left open over a way down.
+            let drawn_chunks: std::collections::HashSet<(i32, i32)> = ground.iter().map(|g| g.0).collect();
+            let open = crate::terrain::open_tiles(&below);
+            let drawn_at = |t: &(i32, i32)| (drawn_chunks.contains(&chunk_of(*t)) && !open.contains(t)).then_some(crate::terrain::GROUND_DRAWN_AT);
+            let showing: Vec<Json> = near
+                .iter()
+                .filter_map(|(model, min, max, top)| {
+                    let under: Vec<[i32; 2]> = tiles_under(*min, *max).filter(|t| drawn_at(t).is_some_and(|y| (y - top).abs() <= SHOWS_THROUGH)).map(|t| [t.0, t.1]).collect();
+                    (!under.is_empty()).then(|| json!({"model": model, "at": [(min.x + max.x) / 2.0, (min.y + max.y) / 2.0], "top": top, "ground_tiles": under}))
+                })
+                .collect();
+            json!({
+                "near_the_ground": near.len(),
+                "ground_on_floors": showing.len(),
+                "first": showing.iter().take(20).cloned().collect::<Vec<_>>(),
+            })
+        }
+    };
+    if let Ok(mut slot) = GROUND_ANSWER.lock() {
+        *slot = Some(answer);
+    }
+}
 
 /// Once a second: where the camera is and looks, and how many meshes
 /// there are, by material, and how many the camera sees.
@@ -1012,12 +1091,62 @@ pub fn publish_world(
     reality: Res<crate::Reality>,
     episode: Res<crate::Episode>,
     below: Query<(&Transform, &crate::structure::Below)>,
-    doors: Query<(&crate::interact::Door, &Transform)>,
+    (doors, things, everyone): (
+        Query<(&crate::interact::Door, &Transform)>,
+        Query<(&crate::interact::Interactable, Option<&crate::interact::WorldItem>, &Transform), Without<crate::interact::Door>>,
+        Query<(&Transform, Option<&Name>, Has<Player>), With<Actor>>,
+    ),
     edge: Res<crate::edge::EdgeRes>,
 ) {
     if !due(tick.0) {
         return;
     }
+    // The player's bunker, room by room (design.md "The bunker you start
+    // in"): each room's level, whether it is on the surface or below it,
+    // and what is in it now: its items, stations, people, and doors (a door
+    // on the room's floor at its walls, a hatch lying in it).
+    let at_bunker = rolled.as_ref().map_or(Vec2::ZERO, |w| w.bunker.round());
+    let starting_bunker: Vec<Json> = crate::content::starting_bunker()
+        .rooms
+        .iter()
+        .map(|room| {
+            let level = room.origin.y;
+            let middle = at_bunker + Vec2::new(room.origin.x, room.origin.z);
+            let inside = |p: Vec3, margin: f32| {
+                let off = (p.ground() - middle).abs();
+                off.x <= room.interior.x / 2.0 + margin && off.y <= room.interior.z / 2.0 + margin && p.y >= level - 0.5 && p.y < level + room.interior.y - 0.5
+            };
+            let things_here: Vec<Json> = things
+                .iter()
+                .filter(|(.., at)| inside(at.translation, 0.0))
+                .map(|(thing, item, _)| match (item, &thing.kind) {
+                    (Some(item), _) => json!(item.stack.item),
+                    (None, kind) => json!(format!("{kind:?}")),
+                })
+                .collect();
+            let people_here: Vec<Json> = everyone
+                .iter()
+                .filter(|(at, ..)| inside(crate::interact::feet_of(at), 0.0))
+                .map(|(_, name, is_player)| if is_player { json!("the player") } else { json!(name.map(|n| n.as_str().to_string())) })
+                .collect();
+            let doors_here: Vec<Json> = doors
+                .iter()
+                .filter(|(d, at)| inside(crate::on_ground(d.closed_center, at.translation.y), 1.0))
+                .map(|(d, at)| json!({"at": [d.closed_center.x, d.closed_center.y], "floor": at.translation.y, "hatch": d.lying, "open": d.open}))
+                .collect();
+            json!({
+                "level": level,
+                "on": if level < -0.5 { "below" } else { "surface" },
+                // Its middle on the ground, and the height of its floor's top.
+                "at": [middle.x, middle.y],
+                "floor": crate::structure::on_floor(middle, level).y,
+                "size": [room.interior.x, room.interior.z],
+                "things": things_here,
+                "people": people_here,
+                "doors": doors_here,
+            })
+        })
+        .collect();
     // Every building that goes below the ground: where it stands, its
     // lowest floor, and how many ground tiles it leaves open over the way
     // down.
@@ -1031,7 +1160,19 @@ pub fn publish_world(
     let bunker_doors: Vec<Json> = doors
         .iter()
         .filter(|(d, _)| d.closed_center.distance(bunker) <= 30.0)
-        .map(|(d, at)| json!({"at": [d.closed_center.x, d.closed_center.y], "floor": at.translation.y, "open": d.open}))
+        .map(|(d, at)| {
+            json!({
+                "at": [d.closed_center.x, d.closed_center.y],
+                "floor": at.translation.y,
+                "open": d.open,
+                "hatch": d.lying,
+                // Along its hinge on the ground, and how far its panel
+                // reaches that way (a doorway's height, a hatch's length).
+                "along": [d.along().x, d.along().y],
+                "length": d.height,
+                "width": d.width,
+            })
+        })
         .collect();
     let night = crate::survival::night(&tick, *day, &reality);
     // The reality the world is in now, and its rules (realities.md).
@@ -1164,6 +1305,7 @@ pub fn publish_world(
         "edge": {"next_group_at": edge.0.next_group_at},
         "below": below,
         "bunker_doors": bunker_doors,
+        "starting_bunker": starting_bunker,
         "chunks": {"made": made, "missing": missing},
         // The seed this world rolled from, and the road tiles in its chunks.
         "seed": rolled.as_ref().map(|w| w.seed),
@@ -1596,6 +1738,22 @@ pub fn start(port: u16) {
         "where the camera is and looks, how many meshes there are by material, and how many the camera sees",
         "",
         |_| Ok(VIEW.lock().map(|v| v.clone()).unwrap_or(Json::Null)),
+    ));
+    OP_REGISTRY.register(OpDef::new(
+        "ground_on_floors",
+        "every floor tile, step and landing drawn on a building's ground floor (its top within 0.5 m of the ground) whose top has the ground drawn under it within 5 cm (the two show through each other): how many are on the ground floor (near_the_ground), how many have ground drawn that near, and the first 20 with the ground tiles under them",
+        "",
+        |_| {
+            GROUND_ASK.store(true, Ordering::Relaxed);
+            // The game answers on its next frame, paused or not (it only
+            // reads), as the npc op does.
+            loop {
+                std::thread::sleep(std::time::Duration::from_millis(10));
+                if let Some(answer) = GROUND_ANSWER.lock().ok().and_then(|mut slot| slot.take()) {
+                    return Ok(answer);
+                }
+            }
+        },
     ));
     OP_REGISTRY.register(OpDef::new(
         "items",

@@ -172,13 +172,20 @@ pub fn going_to(target: &AgentTarget3d) -> Option<Vec3> {
 #[derive(Component)]
 pub struct Walker(pub Entity);
 
-/// Every agent's walk: landmass's state and where it is going.
-pub type Ways<'w, 's> = Query<'w, 's, (&'static AgentState, &'static AgentTarget3d)>;
+/// Every agent's walk: landmass's state, where it is going, and the
+/// velocity it wants this step.
+pub type Ways<'w, 's> = Query<'w, 's, (&'static AgentState, &'static AgentTarget3d, Option<&'static AgentDesiredVelocity3d>)>;
 
 /// A person's walk on the mesh, through their `Walker`: landmass's state
 /// and where they are going; None before their agent stands.
 pub fn way_of<'a>(walker: Option<&Walker>, ways: &'a Ways) -> Option<(&'a AgentState, &'a AgentTarget3d)> {
-    walker.and_then(|w| ways.get(w.0).ok())
+    walker.and_then(|w| ways.get(w.0).ok()).map(|(state, target, _)| (state, target))
+}
+
+/// The velocity landmass wants a person's walk to have this step, through
+/// their `Walker`.
+pub fn wanted_velocity(walker: Option<&Walker>, ways: &Ways) -> Option<Vec3> {
+    walker.and_then(|w| ways.get(w.0).ok()).and_then(|(.., desired)| desired).map(|d| d.velocity())
 }
 
 fn setup(mut commands: Commands) {
@@ -563,7 +570,7 @@ pub fn walk(
             let out_of_a_doorway = || {
                 let door = crate::nav::doorway_at(&door_index, &doors, feet, IN_THE_WAY_OF_A_DOORWAY)?;
                 let (d, door_at) = doors.get(door).ok()?;
-                let out = d.closed_center + d.across() * d.side_of(feet.ground()) * STEP_OUT_OF_A_DOORWAY;
+                let out = d.closed_center + d.across() * d.side_of(feet, door_at.translation.y) * STEP_OUT_OF_A_DOORWAY;
                 Some(crate::on_ground(out, door_at.translation.y))
             };
             let out_of_a_walkers_way = || {

@@ -23,10 +23,9 @@ fn says(by: u64, ways: &[&str]) -> bool {
     heard_from(by).iter().any(|(_, w)| ways.contains(&w.as_str()))
 }
 
-/// The player's room door, 6 m down: coming home.
+/// The middle of the player's room, below the surface room: coming home.
 fn home() -> (f64, f64, f64) {
-    let door = op("world")["bunker_doors"].as_array().into_iter().flatten().find(|d| d["floor"].as_f64().is_some_and(|f| f < -5.0)).cloned().expect("the player's room door");
-    (door["at"][0].as_f64().unwrap_or(0.0), door["at"][1].as_f64().unwrap_or(0.0), door["floor"].as_f64().unwrap_or(-6.0))
+    crate::opening::middle_of(&crate::opening::bunker_room("below"))
 }
 
 /// From the save with Mara at the tap, the player walks within talking
@@ -106,7 +105,8 @@ fn sending_roxanne_she_goes_alone_and_comes_back() {
     assert!(within(5, || reached("sends Dell")), "{words:?} reached nothing: {}", op("world")["reached"]);
     assert!(within(5, || says(her, &["Fine. Don't drink anything while I'm gone.", "Back soon."])), "Roxanne never answered {words:?}");
     assert!(within(300, || apart(spot_of(her), tap).0 < 4.0), "Roxanne never reached the tap");
-    assert!(within(300, || spot_of(her).2 < -0.5), "Roxanne never came back down into the bunker");
+    let her_room = crate::opening::bunker_room("surface");
+    assert!(within(300, || crate::opening::in_room(&her_room, spot_of(her))), "Roxanne never came back home into the bunker's surface room");
 }
 
 // Pivot point 2, who you take.

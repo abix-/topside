@@ -119,7 +119,7 @@ pub fn closed_door_ahead(index: &DoorIndex, doors: &Query<(&Door, &Transform)>, 
         .any(|(d, t)| {
             let ahead = d.closed_center - feet.ground();
             let come_to = (to.y - t.translation.y).abs() < 1.5
-                && d.side_of(to.ground()) == d.side_of(feet.ground())
+                && d.side_of(to, t.translation.y) == d.side_of(feet, t.translation.y)
                 && d.closed_center.distance(to.ground()) <= COME_TO_A_DOOR;
             !d.open && !come_to && crate::interact::in_reach(feet, crate::on_ground(d.closed_center, t.translation.y)) && ahead.dot(way) > 0.0
         })

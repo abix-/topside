@@ -239,21 +239,17 @@ point; the bottom is the vault.
 You start with just the bunker. The silo expansion is the progression:
 you dig down, carve out new levels, and build your underground base over
 time. Vertical progression gives the bunker its own curve:
-- The bunker you start in (operator, 2026-10-01): underground, two
-  levels. On the surface only the entrance, with the one door to
-  topside. Level 1 below it: the common room, with the water store, the
-  bench, and where Roxanne lives. Level 2, the deepest: the player's own
-  room, with the bed, the food and the note, its door shut. A stair
-  tower joins them, built like every building's with floors below the
-  ground. The stairwell is a room of its own, upgraded like the rest
-  of the base (operator, 2026-10-01; sized from Obenseuer's tenement,
-  measured in its running game, modforge
-  obenseuer-mod/docs/apartment-colliders.txt): 3 m floor to floor;
-  two flights side by side, each 1.8 m wide so two people walk side by
-  side, nothing between them; landings the full width of both; a
-  landing on the door side with a 2 by 2 m spot for a future elevator
-  beside the stairs, empty for now; steps a comfortable climb, not a
-  ladder. The player wakes alone in their room; once they have read
+- The bunker you start in (operator, 2026-10-03, replacing the layout
+  of 2026-10-01): two rooms, one on the surface and one below it, and
+  nothing else: no separate entrance, common room, or stair tower.
+  Stairs join them. Which room holds what is the orchestrator's until
+  the operator says otherwise (2026-10-03): the surface room has the
+  one door to topside, the water store, the bench, and where Roxanne
+  lives; the room below is the player's own, with the bed, the food
+  and the note, its door shut. That door is a hatch: a door lying in
+  the surface room's floor over the stairs, which Roxanne knocks on
+  from above (orchestrator, 2026-10-03). The player wakes alone in
+  their room; once they have read
   the note, Roxanne comes down and knocks on their door (operator,
   2026-10-01), and that starts the first conversation (The
   Tap, docs/episodes/the-tap.md). The basic controls are shown once
@@ -1426,9 +1422,8 @@ The world is assembled in 1 m blocks, as 7 Days to Die's is (operator,
 7 wide, read from its blocks.xml): inside the block a frame, and in the
 frame the doorway and its door. The standard door, everywhere, is a door
 block 2 tiles wide with a doorway 1.2 m wide in its frame (operator,
-2026-10-01). The bunker's doors (its front door, the stairwell's doors
-on every level, the player's room) are steel; doors in the wild are wood
-for now.
+2026-10-01). The bunker's doors (its front door, and the hatch over the
+player's room) are steel; doors in the wild are wood for now.
 
 ### Walls and floors by what they are made of
 
