@@ -990,7 +990,7 @@ pub fn publish_world(
     items: Res<crate::content::ItemRegistryRes>,
     episodes: Res<crate::content::EpisodeRegistryRes>,
     memories: Query<(&crate::actor::Memory, &Actor, Option<&Npc>)>,
-    stores: Query<&crate::interact::Container>,
+    stores: Query<(&crate::interact::Container, &Transform, Option<&crate::interact::Drawn>)>,
     people: Query<
         (
             (&crate::actor::Store, &Npc, Has<crate::actor::Dead>, &Survival),
@@ -1045,20 +1045,19 @@ pub fn publish_world(
     for ((store, npc, dead, needs), (home, at, condition, memory)) in &people {
         let name = npc.faction.clone().unwrap_or_default();
         let entry = bunkers.entry(name).or_insert_with(|| {
-            let (mut food, mut water) = (0, 0);
-            if let Ok(held) = stores.get(store.0) {
+            let (mut food, mut water, mut dry, mut place) = (0, 0, false, Json::Null);
+            if let Ok((held, at, drawn)) = stores.get(store.0) {
                 for stack in held.0.slots.iter().flatten() {
-                    if let Some(f) = items.0.def(&stack.item).and_then(|d| d.food) {
-                        if f.hunger > 0.0 {
-                            food += stack.count;
-                        }
-                        if f.thirst > 0.0 {
-                            water += stack.count;
-                        }
+                    if items.0.def(&stack.item).and_then(|d| d.food).is_some_and(|f| f.hunger > 0.0) {
+                        food += stack.count;
                     }
                 }
+                water = crate::interact::water_in(&held.0, &items);
+                // Drawn from by another place, it reads dry when low.
+                dry = drawn.is_some_and(|d| d.dry(water));
+                place = json!({"at": [at.translation.x, at.translation.z], "floor": at.translation.y});
             }
-            json!({"food": food, "water": water, "alive": 0, "starving": 0, "at_home": 0, "asleep": 0, "stocked": 0})
+            json!({"food": food, "water": water, "dry": dry, "store": place, "alive": 0, "starving": 0, "at_home": 0, "asleep": 0, "stocked": 0})
         });
         let add = |entry: &mut Json, field: &str, n: u64| {
             entry[field] = json!(entry[field].as_u64().unwrap_or(0) + n);

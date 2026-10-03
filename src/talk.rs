@@ -319,6 +319,8 @@ pub fn look_at(
     eyes: Query<(&Transform, &Eyes), Without<Player>>,
     mut players: Query<(Entity, &Transform, &crate::actor::Facing, &mut LookingAt, &mut Hud), With<Player>>,
     people: Query<(&Actor, &Name), Without<Dead>>,
+    drawn: Query<&crate::interact::Container, With<crate::interact::Drawn>>,
+    items: Res<crate::content::ItemRegistryRes>,
 ) {
     let (Ok((eye, eyes)), Ok((me, body, facing, mut looking, mut hud))) = (eyes.single(), players.single_mut()) else {
         return;
@@ -335,7 +337,14 @@ pub fn look_at(
     let hit = spatial.cast_ray(from, view, TALK_REACH, true, &SpatialQueryFilter::from_excluded_entities([me]));
     let person = hit.and_then(|h| people.get(h.entity).ok().map(|(actor, name)| (h.entity, actor.0.0, name.as_str())));
     looking.0 = person.map(|(entity, id, _)| (entity, id));
-    hud.0.prompt = person.map_or_else(Prompt::default, |(_, _, name)| modforge::hud::talk_prompt(name));
+    // A store another place draws from says how much water it holds when
+    // looked at (todo 11ad).
+    let store = hit.and_then(|h| drawn.get(h.entity).ok()).map(|held| crate::interact::water_in(&held.0, &items));
+    hud.0.prompt = match (person, store) {
+        (Some((_, _, name)), _) => modforge::hud::talk_prompt(name),
+        (None, Some(water)) => Prompt { text: format!("Store: {water} water"), can_interact: true },
+        (None, None) => Prompt::default(),
+    };
 }
 
 /// The player's conversation, four times a game second, into the HUD

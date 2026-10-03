@@ -285,6 +285,29 @@ pub struct Container(pub item::Inventory);
 #[reflect(opaque, Component, Serialize, Deserialize)]
 pub struct DrawsFrom(#[entities] pub Entity);
 
+/// A store another place draws from (`DrawsFrom`), and the water it held
+/// when that began (the episode's start: The Tap's tap placed). It says how
+/// much it holds when looked at, and reads dry under a quarter of what it
+/// held (todo 11ad; the-tap.md "Mara's well").
+#[derive(Component, Clone, Copy, serde::Serialize, serde::Deserialize, Reflect)]
+#[reflect(opaque, Component, Serialize, Deserialize)]
+pub struct Drawn {
+    pub held: u32,
+}
+
+impl Drawn {
+    /// Whether it reads dry holding `water` now.
+    pub fn dry(&self, water: u32) -> bool {
+        water * 4 < self.held
+    }
+}
+
+/// How much water a store holds: every stack of something drunk (its food
+/// answers thirst).
+pub fn water_in(held: &item::Inventory, items: &ItemRegistryRes) -> u32 {
+    held.slots.iter().flatten().filter(|s| items.0.def(&s.item).and_then(|d| d.food).is_some_and(|f| f.thirst > 0.0)).map(|s| s.count).sum()
+}
+
 /// The box this person has open, if any.
 #[derive(Component, Default, Clone, serde::Serialize, serde::Deserialize, Reflect)]
 #[reflect(opaque, Component, Serialize, Deserialize)]
@@ -503,11 +526,12 @@ pub fn interact_on_use(
         // A source item (a well, a bush), decided by modforge's interact.
         if thing.kind == InteractKind::Source {
             if let Some(item) = item {
-                eat_from_source(&item.stack.item, &registry, &mut needs, &mut health, memory.as_deref_mut(), tick.0);
-                // Water drawn from a store: one of its waters goes.
-                if let Some(from) = draws_from
-                    && let Ok(mut store) = stores.get_mut(from.0)
-                {
+                // Water drawn from a store: one of its waters goes, and
+                // with none left the source gives nothing.
+                if let Some(from) = draws_from {
+                    let Ok(mut store) = stores.get_mut(from.0) else {
+                        continue;
+                    };
                     let water = store
                         .0
                         .slots
@@ -515,10 +539,12 @@ pub fn interact_on_use(
                         .flatten()
                         .find(|s| registry.0.def(&s.item).and_then(|d| d.food).is_some_and(|f| f.thirst > 0.0))
                         .map(|s| s.item.clone());
-                    if let Some(water) = water {
-                        store.0.take_one(&water);
-                    }
+                    let Some(water) = water else {
+                        continue;
+                    };
+                    store.0.take_one(&water);
                 }
+                eat_from_source(&item.stack.item, &registry, &mut needs, &mut health, memory.as_deref_mut(), tick.0);
             }
             continue;
         }

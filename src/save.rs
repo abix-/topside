@@ -107,6 +107,7 @@ saved! {
         crate::interact::WorldItem,
         crate::interact::Container,
         crate::interact::DrawsFrom,
+        crate::interact::Drawn,
         crate::interact::OpenContainer,
         crate::interact::OpenStation,
         crate::interact::Hud,
