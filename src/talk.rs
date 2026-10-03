@@ -158,6 +158,7 @@ struct Moment {
     reached: Vec<String>,
     near: Vec<(String, f32)>,
     needs: Vec<(String, f32)>,
+    feels: f32,
 }
 
 impl Moment {
@@ -169,7 +170,23 @@ impl Moment {
             reached: episode.reached_names(),
             near: episode.things.iter().map(|(name, there, _)| (name.clone(), there.distance(at))).collect(),
             needs: survival.map_or_else(Vec::new, |s| vec![("hunger".to_string(), s.0.hunger), ("thirst".to_string(), s.0.thirst)]),
+            feels: 0.0,
         }
+    }
+
+    /// The one spoken to belongs to no group and plays no part: a
+    /// stranger, the part a line names as "stranger" (todo 11af).
+    fn to_a_stranger(mut self, stranger: bool) -> Self {
+        if stranger && self.to_part.is_empty() {
+            self.to_part = "stranger".to_string();
+        }
+        self
+    }
+
+    /// How the speaker feels toward the one spoken to (`When::Feels`).
+    fn feeling(mut self, feels: f32) -> Self {
+        self.feels = feels;
+        self
     }
 
     fn speaking<'a>(&'a self, to: ActorId, memory: &'a Mind, since: u64, opened: bool) -> modforge::talk::Speaking<'a> {
@@ -185,6 +202,7 @@ impl Moment {
             needs: &self.needs,
             knocking: false,
             warning: false,
+            feels: self.feels,
         }
     }
 }
@@ -245,6 +263,7 @@ pub fn talk(
     seed: Res<crate::WorldSeed>,
     speakers: Query<(Entity, &Actor, &ThisTick, &Name), Without<Dead>>,
     mut people: Query<(&Transform, &mut Memory, &Inventory, &mut Hud, Has<Player>, Option<&Conversation>), Without<Dead>>,
+    mut joins: ResMut<crate::joining::Joins>,
 ) {
     // In ActorId order (authority.md rule 5): of two speaking to the player
     // in one tick, whom the player ends up talking to is the same after a
@@ -294,6 +313,11 @@ pub fn talk(
                 tick.0,
             );
             debug!("{:?} to {to}: {said:?}, {answer:?}", id.0);
+            // Agreeing to stay with the player, said: they join the
+            // player's bunker (todo 11af).
+            if is_player && words.as_ref().is_some_and(|(name, _)| name == crate::content::AGREES_TO_STAY) {
+                joins.0.push((speaker, crate::content::PLAYER_FACTION.to_string()));
+            }
             if is_player {
                 spoken_to(&mut commands, listener, &mut hud, (id.0.0, name.as_str()), tick.0);
             }
@@ -367,7 +391,8 @@ pub fn conversations(
     lines: Res<Lines>,
     world: Res<crate::terrain::WorldRes>,
     mut players: Query<(&Actor, &Transform, &Memory, &Survival, &mut Conversation, &mut Hud, &mut crate::input::Actions), With<Player>>,
-    mut people: Query<(Entity, &Actor, &Transform, &Memory, Option<&Survival>, &mut crate::input::Actions, Has<crate::actor::Asked>), Without<Player>>,
+    mut people: Query<(Entity, &Actor, &Transform, &Memory, Option<&Survival>, &mut crate::input::Actions, Has<crate::actor::Asked>, Option<&crate::actor::Npc>), Without<Player>>,
+    episodes: Res<EpisodeRegistryRes>,
 ) {
     if tick.0 % 15 != 0 {
         return;
@@ -405,7 +430,7 @@ pub fn conversations(
         shown.choices.retain(|c| matches!(c.said, Said::Trade));
         return;
     }
-    let Some((them, _, there, their_memory, their_survival, mut actions, asked)) = people.iter_mut().find(|(_, a, ..)| a.0 == with) else {
+    let Some((them, _, there, their_memory, their_survival, mut actions, asked, their_npc)) = people.iter_mut().find(|(_, a, ..)| a.0 == with) else {
         // They are gone: it ends now.
         talking.ends_at = Some(now);
         return;
@@ -433,7 +458,8 @@ pub fn conversations(
     }
     // The player's choices: theirs is the first word in a conversation they
     // started, if they have anything to say (modforge `talk::choices`).
-    let mine = Moment::of(&episode, (player.0, true), (with, false), here, Some(survival));
+    let stranger = their_npc.is_some_and(|n| n.faction.is_none());
+    let mine = Moment::of(&episode, (player.0, true), (with, false), here, Some(survival)).to_a_stranger(stranger);
     let open = modforge::talk::choices(&lines.0, &mine.speaking(with, &memory.0, talking.started, !talking.opened));
     let nothing_said = !memory.0.done.iter().any(|(t, d)| {
         *t >= talking.started
@@ -441,7 +467,8 @@ pub fn conversations(
     });
     let player_first = talking.opened && nothing_said && !open.is_empty();
     // Their turn: the line modforge picks for them.
-    let theirs = Moment::of(&episode, (with, false), (player.0, true), their_at, their_survival);
+    let feels = modforge::relationship::feeling(&their_memory.0, player.0, |line| episodes.felt(line)).unwrap_or(0.0);
+    let theirs = Moment::of(&episode, (with, false), (player.0, true), their_at, their_survival).feeling(feels);
     if !player_first
         && let Some(line) = modforge::talk::pick(&lines.0, &theirs.speaking(player.0, &their_memory.0, talking.started, talking.opened), seed.0 ^ tick.0)
     {
@@ -575,7 +602,7 @@ pub fn word_spreads(
             let Ok([(_, _, _, _, mut a_memory), (_, _, _, _, mut b_memory)]) = people.get_many_mut([*a, *b]) else {
                 continue;
             };
-            let heard = |line: &str| episodes.0.felt(line);
+            let heard = |line: &str| episodes.felt(line);
             modforge::talk::share((*a_id, &a_memory.0), (*b_id, &mut b_memory.0), heard, tick.0);
             modforge::talk::share((*b_id, &b_memory.0), (*a_id, &mut a_memory.0), heard, tick.0);
         }

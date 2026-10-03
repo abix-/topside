@@ -520,7 +520,7 @@ pub fn answer_npc(
                 // How they feel toward each person in their memory (life.md
                 // "How a person feels about others"), -1 to 1, and the
                 // last hostile they saw.
-                "feelings": modforge::relationship::feelings(&memory.0, |w| episodes.0.felt(w))
+                "feelings": modforge::relationship::feelings(&memory.0, |w| episodes.felt(w))
                     .into_iter()
                     .map(|(who, felt)| json!({"toward": who.0, "feeling": felt, "relation": format!("{:?}", modforge::relationship::relation_of(felt))}))
                     .collect::<Vec<_>>(),
@@ -1111,7 +1111,7 @@ pub fn publish_world(
         let members: Vec<Vec<(modforge::actor::ActorId, f32)>> = memories
             .iter()
             .filter(|(_, actor, _)| faction_of.get(&actor.0.0) == Some(*from))
-            .map(|(memory, ..)| modforge::relationship::feelings(&memory.0, |w| episodes.0.felt(w)))
+            .map(|(memory, ..)| modforge::relationship::feelings(&memory.0, |w| episodes.felt(w)))
             .collect();
         for to in &names {
             let toward = members.iter().map(|felt| {

@@ -399,8 +399,19 @@ pub fn plain_lines() -> Vec<LineDef> {
         // Holding a place, the one warning to anyone they stand hostile to
         // who comes for it (todo 11z), called to them.
         line("warns off", "", vec![When::Warning], &["Stay back. This place is held.", "Not one step closer.", "Turn around. This is ours."], "", 0.0),
+        // Joining (todo 11af; the-tap.md pivot point 6, draft): the player
+        // asks a stranger to stay; they say yes feeling well enough toward
+        // the player (relationship::FRIENDLY, orchestrator 2026-10-02), and
+        // saying it, they join (`AGREES_TO_STAY`).
+        line("asks to stay", "player", vec![When::To("stranger".to_string())], &["You can stay with us."], "", 0.0),
+        line(AGREES_TO_STAY, "", vec![heard("asks to stay"), When::Feels(modforge::relationship::FRIENDLY)], &["All right. I'll stay with you.", "Yes. I'd like that."], "", 0.0),
+        line("will not stay", "", vec![heard("asks to stay")], &["No. I don't know you well enough.", "I'll keep to myself."], "", 0.0),
     ]
 }
+
+/// The line a person says agreeing to stay with the one who asked: said,
+/// they join that one's group (todo 11af, `joining::join`).
+pub const AGREES_TO_STAY: &str = "agrees to stay";
 
 /// Thirst at or below which the player can ask anyone for water (modforge
 /// `SurvivalStats`, full at 100). Tuning.
@@ -458,6 +469,22 @@ impl Default for EpisodeRegistryRes {
         Self(reg)
     }
 }
+
+impl EpisodeRegistryRes {
+    /// How hearing a line feels, by its name (modforge relationship::feeling's
+    /// `heard`): an episode line's own value, and the talk path's own words
+    /// (`SAID_FELT`). The one lookup every feeling uses.
+    pub fn felt(&self, line: &str) -> f32 {
+        self.0.felt(line) + SAID_FELT.iter().find(|(name, _)| *name == line).map_or(0.0, |(_, f)| *f)
+    }
+}
+
+/// How the talk path's own words feel to the one who hears them (modforge
+/// talk records an Offer as "offered", a Threaten as "threatened"):
+/// a gift warms them a little, a threat a lot the other way (orchestrator,
+/// 2026-10-02, life.md "How a person feels about others"; for the operator
+/// to change).
+pub const SAID_FELT: [(&str, f32); 2] = [("offered", 0.2), ("threatened", -0.5)];
 
 /// The episodes written so far (docs/episodes/), each with the realities
 /// its file says it fits; an empty list fits any. The Tap is first: the
