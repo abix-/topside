@@ -302,6 +302,16 @@ impl Drawn {
     }
 }
 
+/// The thing a person at `feet` uses with E: within reach, the one nearest
+/// the point they aim at (`pointed`). Also what the prompt names.
+pub fn pointed_thing<'a>(feet: Vec3, pointed: Vec2, things: impl Iterator<Item = (Entity, Option<&'a Door>, &'a Transform)>) -> Option<Entity> {
+    things
+        .map(|(e, door, t)| (e, use_point(door, t)))
+        .filter(|(_, p)| in_reach(feet, *p))
+        .min_by(|a, b| a.1.ground().distance(pointed).total_cmp(&b.1.ground().distance(pointed)))
+        .map(|(e, _)| e)
+}
+
 /// How much water a store holds: every stack of something drunk (its food
 /// answers thirst).
 pub fn water_in(held: &item::Inventory, items: &ItemRegistryRes) -> u32 {
@@ -509,12 +519,7 @@ pub fn interact_on_use(
         let feet = feet_of(person);
         let at = feet.ground();
         let pointed = ActionQueue::aim(&this_tick.0).map_or(at + facing.direction(), |(x, y)| Vec2::new(x, y));
-        let nearest = things
-            .iter()
-            .map(|(e, _, door, _, t, _)| (e, use_point(door, t)))
-            .filter(|(_, p)| in_reach(feet, *p))
-            .min_by(|a, b| a.1.ground().distance(pointed).total_cmp(&b.1.ground().distance(pointed)))
-            .map(|(e, _)| e);
+        let nearest = pointed_thing(feet, pointed, things.iter().map(|(e, _, door, _, t, _)| (e, door, t)));
         let Some(Ok((entity, thing, door, item, transform, draws_from))) = nearest.map(|e| things.get_mut(e)) else {
             // Nothing to use in reach: a river's water pointed at is drunk
             // (design.md: rivers are drinkable), from the ground's level.

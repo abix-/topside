@@ -319,6 +319,7 @@ pub fn look_at(
     eyes: Query<(&Transform, &Eyes), Without<Player>>,
     mut players: Query<(Entity, &Transform, &crate::actor::Facing, &mut LookingAt, &mut Hud), With<Player>>,
     people: Query<(&Actor, &Name), Without<Dead>>,
+    things: Query<(Entity, Option<&crate::interact::Door>, &Transform), (With<crate::interact::Interactable>, Without<Player>)>,
     drawn: Query<&crate::interact::Container, With<crate::interact::Drawn>>,
     items: Res<crate::content::ItemRegistryRes>,
 ) {
@@ -337,9 +338,12 @@ pub fn look_at(
     let hit = spatial.cast_ray(from, view, TALK_REACH, true, &SpatialQueryFilter::from_excluded_entities([me]));
     let person = hit.and_then(|h| people.get(h.entity).ok().map(|(actor, name)| (h.entity, actor.0.0, name.as_str())));
     looking.0 = person.map(|(entity, id, _)| (entity, id));
-    // A store another place draws from says how much water it holds when
-    // looked at (todo 11ad).
-    let store = hit.and_then(|h| drawn.get(h.entity).ok()).map(|held| crate::interact::water_in(&held.0, &items));
+    // The thing E would use (interact::pointed_thing, a step ahead of where
+    // they face): a store another place draws from says how much water it
+    // holds (todo 11ad).
+    let feet = crate::interact::feet_of(body);
+    let thing = crate::interact::pointed_thing(feet, feet.ground() + ground, things.iter());
+    let store = thing.and_then(|e| drawn.get(e).ok()).map(|held| crate::interact::water_in(&held.0, &items));
     hud.0.prompt = match (person, store) {
         (Some((_, _, name)), _) => modforge::hud::talk_prompt(name),
         (None, Some(water)) => Prompt { text: format!("Store: {water} water"), can_interact: true },
