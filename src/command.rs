@@ -183,6 +183,7 @@ pub fn carry_out(
     doors: Query<(&crate::interact::Door, &Transform)>,
     nav: Res<crate::navmesh::Nav>,
     archipelagos: Query<&bevy_landmass::prelude::Archipelago3d>,
+    talks: Query<(&Actor, &crate::talk::Conversation)>,
 ) {
     let archipelago = archipelagos.get(nav.archipelago).ok();
     let on_mesh = |at: Vec3| archipelago.and_then(|a| crate::navmesh::on_mesh(a, at));
@@ -273,14 +274,20 @@ pub fn carry_out(
                 Command::MoveTo { x, y, z } => (Some(Vec3::new(x, y, z)), None),
                 Command::TalkTo { who } | Command::Attack { who } => (alive_at(who), Some(who)),
                 // The spot beside the closed door between them.
+                // Knocked, the spot is where they stand, waiting (the door
+                // may stand open now).
+                Command::Knock { who } if commanded.started => (alive_at(who).map(|_| here), Some(who)),
                 Command::Knock { who } => (alive_at(who).and_then(|them| crate::interact::knock_spot(doors.iter(), them, on_mesh)), Some(who)),
                 Command::Follow { .. } | Command::Lead { .. } | Command::Hold { .. } | Command::AttackNearestEnemy => (None, None),
             };
             let talking_with = hud.and_then(|h| h.0.talking.as_ref()).map(|t| t.with);
-            // Talking with them, or (a knock) knocked once.
+            // Talking with them; or (a knock) answered: a talk between the
+            // two has started (orchestrator, 2026-10-03: someone who knocks
+            // waits to be answered).
+            let in_a_talk = |a: u64, b: u64| talks.iter().any(|(actor, talk)| (actor.0.0 == a && talk.with == b) || (actor.0.0 == b && talk.with == a));
             let ended = match command {
                 Command::TalkTo { .. } => talking_with.is_some() && talking_with == who,
-                Command::Knock { .. } => commanded.started,
+                Command::Knock { who } => commanded.started && in_a_talk(actor.0.0, who),
                 _ => false,
             };
             let looking_at_them = who.is_some() && looking.and_then(|l| l.0).map(|(_, id)| id) == who;
@@ -289,6 +296,8 @@ pub fn carry_out(
                     commanded.next();
                     continue;
                 }
+                // Knocked once, they stand at the knock spot until answered.
+                Step::Act(_) if matches!(command, Command::Knock { .. }) && commanded.started => Vec::new(),
                 Step::Act(actions) => actions,
             };
             this_tick.0.retain(|s| !matches!(s.action, Action::Go { .. } | Action::Aim { .. }));

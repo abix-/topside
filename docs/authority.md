@@ -101,7 +101,11 @@ engine plays them again).
   then goes as any (the number keys say the choices). Attack: walk to them,
   face them, and attack in reach until they are dead. Attack the nearest
   enemy: the nearest living person they stand hostile to, by the one rule
-  the brain uses, then attack them.
+  the brain uses, then attack them. Knock: walk to the closed door between
+  one and them, knock once, and stand at the knock spot until answered: a
+  talk between the two starts (orchestrator, 2026-10-03: someone who
+  knocks waits to be answered; ending it when the door opens freed the
+  knocker before they could speak).
 - The commands a person is given are carried out one after another. A
   move of their own (the keys) ends them, as it ends following; any
   command but follow ends following too, being their own order.

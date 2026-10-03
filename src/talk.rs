@@ -70,6 +70,16 @@ impl Conversation {
 }
 
 /// A time in game seconds as ticks (60 a second), rounded up.
+/// Whether the last line `memory` heard from `by` is still being read now
+/// (modforge `talk::reading_secs`): nothing more is said to them until it
+/// is, in a talk or before one.
+fn still_reading(memory: &modforge::memory::Memory, by: ActorId, now: u64) -> bool {
+    memory.done.iter().rev().find_map(|(t, d)| match d {
+        modforge::memory::Did::Heard(from, l) if *from == by => Some(*t + ticks_of(modforge::talk::reading_secs(&l.words))),
+        _ => None,
+    }).is_some_and(|until| now < until)
+}
+
 pub fn ticks_of(secs: f64) -> u64 {
     (secs * 60.0).ceil() as u64
 }
@@ -444,11 +454,7 @@ pub fn conversations(
     // player read their own choice as they chose it).
     // So is one heard from them just before it began (called through the
     // shut door with a knock), while it is still being read.
-    let called_still_read = last.is_none()
-        && memory.0.done.iter().rev().find_map(|(t, d)| match d {
-            modforge::memory::Did::Heard(by, l) if *by == with => Some(*t + ticks_of(modforge::talk::reading_secs(&l.words))),
-            _ => None,
-        }).is_some_and(|until| now < until);
+    let called_still_read = last.is_none() && still_reading(&memory.0, with, now);
     let reading_theirs = (last.as_ref().is_some_and(|(_, theirs, ..)| *theirs) && now < read_by) || called_still_read;
     shown.line = last.map(|(_, _, who, words)| (who, words));
     // Ending: nothing more to say, but anyone can still be asked to trade
@@ -555,19 +561,21 @@ pub fn speak_up(
     seed: Res<crate::WorldSeed>,
     episode: Res<Episode>,
     lines: Res<Lines>,
-    players: Query<(&Actor, &Transform), (With<Player>, Without<Conversation>, Without<Dead>)>,
+    players: Query<(&Actor, &Transform, &Memory), (With<Player>, Without<Conversation>, Without<Dead>)>,
     mut people: Query<(&Actor, &Transform, &Memory, Option<&Survival>, &mut crate::input::Actions), (Without<Player>, Without<Dead>)>,
 ) {
     if tick.0 % 60 != 0 {
         return;
     }
-    let Ok((player, here)) = players.single() else {
+    let Ok((player, here, player_memory)) = players.single() else {
         return;
     };
     let here = here.translation;
     for (actor, there, memory, survival, mut actions) in &mut people {
         let at = crate::interact::feet_of(there);
-        if !within(there.translation, here, TALK_REACH) {
+        // Not while a line of theirs the player heard (called through a
+        // shut door) is still being read.
+        if !within(there.translation, here, TALK_REACH) || still_reading(&player_memory.0, actor.0, tick.0) {
             continue;
         }
         let moment = Moment::of(&episode, (actor.0, false), (player.0, true), at, survival);
