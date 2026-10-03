@@ -194,10 +194,16 @@ switch ($Action) {
             # this script's handles: a Start-Process child with redirected
             # output keeps the caller's pipe open, and whoever ran this
             # script waits until the game closes.
+            # cmd's console is hidden (ShowWindow 0, SW_HIDE; Win32_Process.
+            # Create refuses CREATE_NO_WINDOW in CreateFlags, returning 21),
+            # and the game shares it, so only the topside window opens
+            # (operator, 2026-10-03); the redirect still fills the logs.
             $command = "cmd /c `"`"$exe`" --port $Port $($GameArgs -join ' ') > `"$out`" 2> `"$err`"`""
+            $startup = New-CimInstance -CimClass (Get-CimClass -ClassName Win32_ProcessStartup) -ClientOnly -Property @{ ShowWindow = [uint16]0 }
             $launched = Invoke-CimMethod -ClassName Win32_Process -MethodName Create -Arguments @{
-                CommandLine      = $command
-                CurrentDirectory = $repo
+                CommandLine               = $command
+                CurrentDirectory          = $repo
+                ProcessStartupInformation = $startup
             }
             if ($launched.ReturnValue -ne 0) {
                 Write-Host "[build] launching topside FAILED (Win32_Process.Create returned $($launched.ReturnValue))" -ForegroundColor Red
