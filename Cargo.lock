@@ -4336,8 +4336,6 @@ dependencies = [
 [[package]]
 name = "landmass_rerecast"
 version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "52bada7c137575ff59588d617395b61ade1077e877f6c68f43ca0611445868a8"
 dependencies = [
  "bevy_app",
  "bevy_asset",

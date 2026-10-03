@@ -430,31 +430,28 @@ fn saved(_: On<Saved>, moment: Moment) {
 }
 
 /// A load has spawned the save: every person's entity in the actor map
-/// swapped for their new one (their ActorId kept); then, at the load's
-/// tick and without a tick passing, the chunks round the loaded people made
-/// by the chunk systems that make them in play (their own things only from
-/// the save, `terrain::ThingsMade`) and every chunk's mesh landed
-/// (`navmesh::mesh_the_loaded_world`); only then the `load` op answered
-/// with what the game holds (`Moment`), the saved moment.
+/// swapped for their new one (their ActorId kept); the loading screen
+/// started, behind which, without a tick passing, the chunks round the
+/// loaded people are made by the chunk systems that make them in play
+/// (their own things only from the save, `terrain::ThingsMade`) and every
+/// chunk's mesh lands (`loading::ready_the_world`). The `load` op answers
+/// with what the game holds (`Moment`), the saved moment, maybe before
+/// loading is done (authority.md "Running tests": loading).
 fn loaded(loaded: On<Loaded>, mut actors: ResMut<crate::actor::ActorMapRes>, mut commands: Commands) {
     actors.0.map_handles(|e| loaded.entity_map.get(&e).copied());
     commands.queue(move |world: &mut World| {
         let (rolled, start) = world.remove_resource::<LoadRolled>().map_or((false, std::time::Instant::now()), |r| (r.0, r.1));
-        if rolled {
-            let _ = world.run_system_cached(crate::terrain::make_chunks);
-            let _ = world.run_system_cached(crate::structure::spawn_sites);
-            let _ = world.run_system_cached(crate::terrain::open_the_ground);
-            let _ = world.run_system_cached(crate::actor::populate_monuments);
-            let _ = world.run_system_cached(crate::actor::populate_topside_people);
-            crate::navmesh::mesh_the_loaded_world(world);
-        } else {
+        if !rolled {
             // The same world: the chunks made since the save taken back.
             let saved = world.get_resource::<crate::terrain::SavedChunks>().map(|s| s.0.clone()).unwrap_or_default();
             let since: std::collections::BTreeSet<_> = crate::terrain::chunks_now(world).0.difference(&saved).copied().collect();
             crate::terrain::unmake(world, &since);
             crate::navmesh::mesh_as_saved(world);
         }
-        info!("load done in {:.0} ms ({})", start.elapsed().as_secs_f64() * 1000.0, if rolled { "its world rolled and meshed" } else { "the same world" });
+        // The rest of the world, its chunks and meshes, made ready behind
+        // the loading screen (`loading::ready_the_world`).
+        world.insert_resource(crate::loading::Loading::start());
+        info!("load done in {:.0} ms ({})", start.elapsed().as_secs_f64() * 1000.0, if rolled { "its world rolled" } else { "the same world" });
         // A stop: what the ops read published and the load answered at
         // this frame's end, once the HUD has drawn the loaded game.
         crate::control_plane::stopped(crate::control_plane::Stop::Load);

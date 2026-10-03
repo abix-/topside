@@ -17,6 +17,7 @@ use std::sync::Mutex;
 
 use avian3d::prelude::*;
 use avian_rerecast::prelude::*;
+use bevy::ecs::schedule::ScheduleLabel;
 use bevy::math::bounding::Aabb3d;
 use bevy::prelude::*;
 use bevy_landmass::PointSampleDistance3d;
@@ -67,9 +68,11 @@ impl Plugin for NavPlugin {
         app.add_plugins((
             NavmeshPlugins::default(),
             AvianBackendPlugin::default(),
-            Landmass3dPlugin::default(),
-            LandmassRerecastPlugin::default(),
+            Landmass3dPlugin::default().in_schedule(Landmass),
+            LandmassRerecastPlugin::default().in_schedule(Landmass),
         ));
+        // Every tick; and once when the loading screen readies the world.
+        app.add_systems(FixedPreUpdate, run_landmass);
         app.add_systems(Startup, setup);
         // In the fixed step, after the chunks are made: the mesh follows
         // the ticks, never the frames.
@@ -80,6 +83,25 @@ impl Plugin for NavPlugin {
         app.add_observer(chunks_changed_by_the_ground);
         app.add_systems(Update, answer_path);
     }
+}
+
+/// Landmass's own schedule (bevy_landmass and landmass_rerecast run in it),
+/// run from the fixed step and once at the end of a load, as Bevy runs
+/// FixedMain from an exclusive system.
+#[derive(ScheduleLabel, Debug, Clone, PartialEq, Eq, Hash)]
+struct Landmass;
+
+/// Landmass takes in what exists (islands, agents, characters), links its
+/// islands and works out its agents' ways: every tick, first, and exactly
+/// once when the loading screen readies the world (`loading`).
+pub fn run_landmass(world: &mut World) {
+    world.run_schedule(Landmass);
+}
+
+/// A chunk's mesh lands, and its landmass mesh with it, the same tick.
+fn land(world: &mut World, id: AssetId<Navmesh>) {
+    bevy_rerecast::generator::land(world, id);
+    landmass_rerecast::convert(world, id);
 }
 
 /// The archipelago everyone walks in, and every chunk's mesh: its island,
@@ -306,7 +328,7 @@ fn land_meshes(world: &mut World) {
     };
     for (key, id) in due {
         let start = std::time::Instant::now();
-        bevy_rerecast::generator::land(world, id);
+        land(world, id);
         let waited = start.elapsed();
         if waited > std::time::Duration::from_millis(1) {
             info!("tick {next}: chunk {key:?}'s mesh was late; the step waited {:.1} ms for it", waited.as_secs_f64() * 1000.0);
@@ -341,11 +363,12 @@ pub fn forget(world: &mut World) {
     let Some(mut nav) = world.get_resource_mut::<Nav>() else {
         return;
     };
-    let islands: Vec<Entity> = std::mem::take(&mut nav.islands).into_values().map(|(_, island)| island).collect();
+    let islands: Vec<(Handle<Navmesh>, Entity)> = std::mem::take(&mut nav.islands).into_values().collect();
     nav.waiting.clear();
     nav.landing.clear();
     nav.changed.clear();
-    for island in islands {
+    for (handle, island) in islands {
+        landmass_rerecast::forget(world, handle.id());
         if let Ok(island) = world.get_entity_mut(island) {
             island.despawn();
         }
@@ -365,16 +388,17 @@ pub fn landing_now(world: &World) -> MeshesLanding {
     MeshesLanding(world.get_resource::<Nav>().map(|nav| nav.landing.iter().map(|(k, (at, _))| (*k, *at)).collect()).unwrap_or_default())
 }
 
-/// After a load, at its tick, the game paused: the chunk systems made the
-/// chunks round the loaded people, and here every chunk's mesh is asked
-/// and gathered the same way as in play, then landed now, waited for,
-/// except those the saved game still had building (`MeshesLanding`, from
-/// the save), which land at their own ticks.
-pub fn mesh_the_loaded_world(world: &mut World) {
+/// Behind the loading screen (`loading`, after a launch or a load), no
+/// tick passing: the chunk systems made the chunks round the people, and
+/// here every chunk's mesh is asked and gathered the same way as in play,
+/// then landed now, waited for, except those a loaded game still had
+/// building (`MeshesLanding`, from the save, used once), which land at
+/// their own ticks.
+pub fn mesh_the_world(world: &mut World) {
     let _ = world.run_system_cached(wait_for_chunks);
     let _ = world.run_system_cached(build_chunk_meshes);
     gather_meshes(world);
-    let later = world.get_resource::<MeshesLanding>().map(|m| m.0.clone()).unwrap_or_default();
+    let later = world.get_resource_mut::<MeshesLanding>().map(|mut m| std::mem::take(&mut m.0)).unwrap_or_default();
     let now: Vec<(ChunkKey, AssetId<Navmesh>)> = {
         let mut nav = world.resource_mut::<Nav>();
         let mut now = Vec::new();
@@ -392,31 +416,31 @@ pub fn mesh_the_loaded_world(world: &mut World) {
     let start = std::time::Instant::now();
     let count = now.len();
     for (_, id) in now {
-        bevy_rerecast::generator::land(world, id);
+        land(world, id);
     }
-    info!("the loaded world's {count} chunk meshes landed in {:.0} ms", start.elapsed().as_secs_f64() * 1000.0);
+    info!("the world's {count} chunk meshes landed in {:.0} ms", start.elapsed().as_secs_f64() * 1000.0);
 }
 
 /// After a load into the same world, the mesh as it was at the save: what
 /// is building now that the saved game was not building is dropped, and
-/// every chunk mesh the saved game was still building (`MeshesLanding`) is
-/// asked again now and lands at its saved tick, its island before then
-/// gone, as in the saved game.
+/// every chunk mesh the saved game was still building (`MeshesLanding`)
+/// loses its island, to be asked again behind the loading screen
+/// (`mesh_the_world`) and land at its saved tick, as in the saved game.
 pub fn mesh_as_saved(world: &mut World) {
     let saved = world.get_resource::<MeshesLanding>().map(|m| m.0.clone()).unwrap_or_default();
-    let islands: Vec<Entity> = {
+    let islands: Vec<(Handle<Navmesh>, Entity)> = {
         let mut nav = world.resource_mut::<Nav>();
         nav.landing.retain(|key, _| saved.contains_key(key));
         nav.waiting.clear();
         nav.changed.clear();
-        saved.keys().filter_map(|key| nav.islands.remove(key)).map(|(_, island)| island).collect()
+        saved.keys().filter_map(|key| nav.islands.remove(key)).collect()
     };
-    for island in islands {
+    for (handle, island) in islands {
+        landmass_rerecast::forget(world, handle.id());
         if let Ok(island) = world.get_entity_mut(island) {
             island.despawn();
         }
     }
-    mesh_the_loaded_world(world);
 }
 
 /// A chunk mesh that failed to build: no mesh for that chunk, said with

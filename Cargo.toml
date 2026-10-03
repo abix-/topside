@@ -49,9 +49,17 @@ topside-content = { path = "content" }
 # waiting for it if late; a failure lands as its own result, never a hang),
 # 2026-10-02. Drop when bevy_rerecast lets the game drive when meshes are
 # gathered and landed, and reports failures.
+#
+# landmass_rerecast 0.3.0 with no conversion system of its own (lib.rs,
+# "topside patch"): it converted a landed mesh into landmass's only in
+# FixedPreUpdate on an asset event sent in PostUpdate, so after a paused
+# load no island had a landmass mesh and nothing could be walked or asked
+# (2026-10-02). Now `convert` runs as each mesh lands and `forget` when its
+# island goes. Drop when landmass_rerecast lets the game convert on demand.
 [patch.crates-io]
 landmass = { path = "vendor/landmass" }
 bevy_rerecast_core = { path = "vendor/bevy_rerecast_core" }
+landmass_rerecast = { path = "vendor/landmass_rerecast" }
 
 # Fast iteration: light optimization for our code, full for deps
 # (Bevy is unusably slow fully unoptimized). Deps carry no debug info:

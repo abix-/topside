@@ -12,6 +12,7 @@ pub mod held;
 pub mod hud;
 pub mod input;
 pub mod interact;
+pub mod loading;
 pub mod minimap;
 pub mod model;
 pub mod nav;
@@ -184,6 +185,12 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind) -> App {
         )
             .chain(),
     );
+    // The loading screen (authority.md "Running tests": loading): from the
+    // launch, and after a load, until the world is ready; no tick runs
+    // while it shows.
+    app.insert_resource(loading::Loading::start());
+    app.configure_sets(RunFixedMainLoop, RunFixedMainLoopSystems::FixedMainLoop.run_if(loading::not_loading));
+    app.add_systems(Update, loading::ready_the_world);
     // Every fixed step: count it, drain each actor's due actions, then
     // every system reads actions, never keys. A lap after each system
     // times it (profile.rs).
@@ -347,6 +354,8 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind) -> App {
         // A stop for a test (a step, a load, a pause) is answered last in
         // the frame, after the HUD has drawn what the player sees.
         app.add_systems(Last, control_plane::answer_at_stop);
+        app.add_systems(Startup, loading::spawn_screen);
+        app.add_systems(Update, loading::show_screen.after(loading::ready_the_world));
         app.add_systems(
             Update,
             (

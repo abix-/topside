@@ -1376,6 +1376,7 @@ fn snapshot() -> Json {
         "thirst": f(&THIRST_BITS),
         "fps": f(&FPS_BITS),
         "speed": f(&RUNS_AT_BITS),
+        "loading": crate::loading::LOADING.load(Ordering::Relaxed),
     })
 }
 
