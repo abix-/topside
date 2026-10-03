@@ -2,13 +2,13 @@
 //! person told to hold a place stays at it, and turns on anyone they stand
 //! hostile to who comes for it within 8 m: one warning line, then a fight if
 //! the intruder stays. Started here by the `hold` command (todo 11z: "a
-//! `hold` command or an episode asking"). From the opening's first save,
+//! `hold` command or an episode asking"). From pivot point 1's save,
 //! paused, moved only by `step`.
 
 use serde_json::json;
 
 use crate::endpoint::{op_with, pause, people, step};
-use crate::opening::{SECOND, apart, spot_of, within, woke};
+use crate::opening::{SECOND, apart, choosing, spot_of, within};
 
 /// Two living people far from the player's bunker: the holder, and one who
 /// will come for the holder's place.
@@ -27,7 +27,7 @@ fn two_people() -> (u64, u64) {
 #[test]
 fn told_to_hold_a_place_they_stay() {
     let _p = pause();
-    woke();
+    choosing();
     let (holder, _) = two_people();
     let place = spot_of(holder);
     op_with("command", json!({"id": holder, "do": "hold", "x": place.0, "y": place.2, "z": place.1}));

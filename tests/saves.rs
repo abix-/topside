@@ -9,7 +9,7 @@
 use serde_json::{Value as Json, json};
 
 use crate::endpoint::{Until, grow, grow_doing, op, op_with, people, start_from, step};
-use crate::opening::{SECOND, apart, at_the_tap, choose, choosing, player, player_spot, roxanne, spot_of, the_tap, within, woke};
+use crate::opening::{SECOND, apart, at_the_tap, choosing, player, player_spot, roxanne, spot_of, the_tap, within};
 
 pub(crate) fn part(name: &str) -> u64 {
     op("world")["cast"].as_array().and_then(|c| c.iter().find(|p| p["part"] == name)).and_then(|p| p["id"].as_u64()).unwrap_or_else(|| panic!("no one plays {name}"))
@@ -105,17 +105,6 @@ pub(crate) fn the_stranger() -> u64 {
 pub(crate) fn tap_maras_people_coming() {
     start_from("tap_maras_people_coming", || {
         grow("tap_maras_people_coming", 60, at_the_tap, maras_arriving_at_the_tap(), Until::Before);
-    });
-}
-
-/// Not believing Roxanne, just before Mara's people come to the tap.
-pub(crate) fn tap_not_believed() {
-    start_from("tap_not_believed", || {
-        let disbelieve = || {
-            choosing();
-            choose(&["Water doesn't just run out there. You're wrong.", "I don't believe it."]);
-        };
-        grow("tap_not_believed", 60, disbelieve, maras_arriving_at_the_tap(), Until::Before);
     });
 }
 
@@ -299,7 +288,7 @@ pub(crate) fn the_holder() -> (u64, (f64, f64, f64)) {
 pub(crate) fn holding_raider_coming() {
     start_from("holding_raider_coming", || {
         let send_the_raider = || {
-            woke();
+            choosing();
             let holder = lowest_living("bunker person").expect("a living person of another bunker");
             let place = spot_of(holder);
             op_with("command", json!({"id": holder, "do": "hold", "x": place.0, "y": place.2, "z": place.1}));
@@ -335,7 +324,7 @@ pub(crate) fn stocking_past_need() {
                 p["traits"]["fear of not having enough"].as_f64().is_some_and(|f| f >= 0.9) && p["faction"].as_str().and_then(days_of_water).is_some_and(|d| d > 10.0)
             })
         };
-        grow("stocking_past_need", 120, woke, past, Until::Before);
+        grow("stocking_past_need", 120, choosing, past, Until::Before);
     });
 }
 
@@ -343,7 +332,7 @@ pub(crate) fn stocking_past_need() {
 pub(crate) fn newcomers_roxanne_at_mara() {
     start_from("newcomers_roxanne_at_mara", || {
         let send = || {
-            woke();
+            choosing();
             follow(Some(roxanne()), part("Mara"));
         };
         grow("newcomers_roxanne_at_mara", 15, send, || apart(spot_of(roxanne()), spot_of(part("Mara"))).0 < 2.5, Until::At);
@@ -403,7 +392,7 @@ fn a_stranger() -> u64 {
 pub(crate) fn beside_a_stranger() {
     start_from("beside_a_stranger", || {
         let go = || {
-            woke();
+            choosing();
             follow(None, a_stranger());
         };
         // Within talking reach (3 m): a follower stands once 2.5 m off.

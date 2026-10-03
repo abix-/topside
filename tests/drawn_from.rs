@@ -66,8 +66,8 @@ fn a_dry_store_gives_nothing_at_the_tap() {
 #[test]
 fn the_store_reads_dry_under_a_quarter() {
     let _p = pause();
-    // What it held when the episode started: the opening's first save.
-    crate::opening::woke();
+    // What it held when the episode started: pivot point 1's save.
+    crate::opening::choosing();
     let maras = maras_bunker();
     let full = water(&maras);
     crate::saves::tap_maras_store_nearly_dry();
@@ -111,11 +111,11 @@ fn the_store_says_how_much_it_holds() {
 /// (`move_to`, done on arrival, so their own brain decides after), sees
 /// it, and made thirsty drinks there: their drinks at the tap go up, their
 /// bunker's store goes down, and nothing is in their hands. From the
-/// opening's first save, paused.
+/// pivot point 1's save, paused.
 #[test]
 fn a_person_drinking_at_the_tap_puts_their_weapon_away_first() {
     let _p = pause();
-    crate::opening::woke();
+    crate::opening::choosing();
     let maras = maras_bunker();
     let cast: Vec<u64> = op("world")["cast"].as_array().into_iter().flatten().filter_map(|p| p["id"].as_u64()).collect();
     let who = people()

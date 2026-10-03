@@ -240,25 +240,113 @@ fn the_way_is_true(line: &str) {
     }
 }
 
-// The opening's saves, each made once by playing from the one before.
+// The opening: one play from a game just launched to pivot point 1, every
+// check along the way (orchestrator, 2026-10-03: what playing to pivot 1
+// does is checked in that play, no saves before it).
 
-/// The player just woke in their room below the surface room, nothing of
-/// the opening done. Made only on a game just launched. Every save below
-/// is loaded into a paused game: the test pauses first.
-pub(crate) fn woke() {
-    start_from("opening_woke", || {
-        // A game just launched and paused at once has not yet published
-        // its world: one game second first.
-        step(SECOND);
-        let w = op("world");
-        let feet = player_spot().2;
-        let fresh = w["episode"] == "The Tap" && w["reached"].as_array().is_some_and(|r| r.is_empty()) && (feet + 3.0).abs() < 0.3 && talk()["open"] != true;
-        assert!(
-            fresh,
-            "the save opening_woke is made on a game just launched, before anyone plays: run scripts/build.ps1 run, then the opening tests (now: episode {}, reached {}, the player's feet at {feet:.2})",
-            w["episode"], w["reached"]
-        );
+/// The opening played from a game just launched to Roxanne's answers shown,
+/// checked as it goes:
+/// 1. The Tap's people already exist: Roxanne of the player's bunker plays
+///    Dell, Mara's part is a person of another bunker.
+/// 2. The player wakes in their room, 3 m below the surface room.
+/// 3. Without the note read, Roxanne stays away from the hatch over the
+///    player's room; the note read, she is on her way to it within ten game
+///    seconds, nearer than 3 m to its hole.
+/// 4. She comes to the shut hatch on its floor within a game minute.
+/// 5. She knocks, the player hears it, and 6. her first words are "You
+///    awake in there?", called through the shut door, no talk opened.
+/// 7. The player opens the hatch walking up the stairs and stands in the
+///    surface room; within talking reach the talk opens with her.
+/// 8. She says the water is nearly gone and gives the way to the tap, true
+///    to the world, and the player then knows the tap, told by her.
+/// 9. Each of her lines stays up long enough to read (modforge
+///    `talk::reading_secs`) before the next or the answers.
+pub(crate) fn play_to_pivot_1() {
+    // A game just launched and paused at once has not yet published its
+    // world: one game second first.
+    step(SECOND);
+    let w = op("world");
+    let fresh = w["episode"] == "The Tap" && w["reached"].as_array().is_some_and(|r| r.is_empty()) && talk()["open"] != true;
+    assert!(fresh, "the opening is played on a game just launched: run scripts/build.ps1 run first (now: episode {}, reached {})", w["episode"], w["reached"]);
+    // 1.
+    let part = |name: &str| w["cast"].as_array().and_then(|c| c.iter().find(|p| p["part"] == name)).and_then(|p| p["id"].as_u64());
+    let faction = |id: u64| crate::endpoint::people().into_iter().find(|p| p["id"].as_u64() == Some(id)).map(|p| p["faction"].clone()).unwrap_or(Json::Null);
+    let (her, mara) = (part("Dell").expect("someone plays Roxanne's part"), part("Mara").expect("someone plays Mara's part"));
+    let name = crate::endpoint::people().into_iter().find(|p| p["id"].as_u64() == Some(her)).and_then(|p| p["name"].as_str().map(str::to_string));
+    assert_eq!(name.as_deref(), Some("Roxanne"), "Roxanne's part is played by {name:?}");
+    assert_eq!(faction(her), "player", "Roxanne is of the player's bunker");
+    assert!(faction(mara) != "player" && !faction(mara).is_null(), "Mara is of another bunker, not {}", faction(mara));
+    // 2. And the bunker is its two rooms as they wake (bunker.rs).
+    let feet = player_spot().2;
+    assert!((feet + 3.0).abs() < 0.3, "the player woke with their feet at {feet:.2}, not 3 m down");
+    crate::bunker::the_bunker_is_two_rooms_the_surface_room_and_the_players_room_below();
+    // 3.
+    let hatch = the_players_door();
+    let near = || {
+        let (x, z, _) = spot_of(her);
+        from_the_hole(&hatch, (x, z)) < 3.0
+    };
+    assert!(!within(10, near), "Roxanne came to the hatch before the note was read: she stands at {:?}", spot_of(her));
+    read_the_note();
+    assert!(within(10, near), "Roxanne did not go to the hatch after the note was read: she stands at {:?}", spot_of(her));
+    // 4.
+    let floor = hatch["floor"].as_f64().unwrap_or(f64::NAN);
+    let came = within(60, || {
+        let (x, z, feet) = spot_of(her);
+        // Her knock spot is 0.7 m out from the hatch's free edge, and she
+        // arrives within 0.5 m of it (interact.rs knock_spot, KNOCK_ARRIVE).
+        from_the_hole(&hatch, (x, z)) < 1.3 && (feet - floor).abs() < 1.0
     });
+    assert!(came, "Roxanne never came to the player's hatch {hatch}: she stands at {:?}", spot_of(her));
+    // 5. and 6.
+    assert!(within(30, || heard_her_knock(her)), "the player never heard Roxanne knock after reading the note");
+    assert!(within(5, || !heard_from(her).is_empty()), "Roxanne said nothing with her knock");
+    assert_eq!(heard_from(her)[0].1, "You awake in there?", "Roxanne's first words were not the line through the door");
+    assert!(talk()["open"] != true, "a conversation opened through the shut door: {}", talk());
+    // 7.
+    open_the_door();
+    let surface = bunker_room("surface");
+    assert!(within(10, || in_room(&surface, player_spot())), "the player never came up into the surface room: they stand at {:?}", player_spot());
+    crate::talk_ui::shot("bunker_stairs");
+    assert!(within(10, || talk()["to"].as_u64() == Some(her)), "the door open, no conversation with Roxanne: {}", talk());
+    // 8. and 9.: her lines until the answers show, a quarter second at a
+    // time.
+    let mut shown_at = None;
+    for _ in 0..60 * 4 {
+        if !choices().is_empty() {
+            shown_at = Some(op("status")["tick"].as_u64().unwrap_or(0));
+            break;
+        }
+        step(SECOND / 4);
+    }
+    let shown_at = shown_at.expect("no answers shown within a game minute of the talk opening");
+    let lines = heard_from(her);
+    eprintln!("Roxanne's lines (tick, words): {lines:?}; answers shown at tick {shown_at}");
+    let opening_said = op("player")["heard"].as_array().into_iter().flatten().any(|h| h["by"].as_u64() == Some(her) && h["line"] == "the opening");
+    assert!(opening_said, "Roxanne never said the opening line, that the water is nearly gone: {lines:?}");
+    let way = lines.iter().map(|(_, w)| w).find(|l| l.contains("tap")).cloned().unwrap_or_else(|| panic!("Roxanne never gave the way to the tap"));
+    assert!(!way.contains('{'), "a part of the way left unfilled: {way:?}");
+    the_way_is_true(&way);
+    let tap_key = op("world")["things"].as_array().and_then(|t| t.iter().find(|t| t["name"] == "tap")).and_then(|t| t["key"].as_u64()).expect("the tap's key");
+    let told = op("player")["knows"].as_array().and_then(|k| k.iter().find(|k| k["key"].as_u64() == Some(tap_key))).and_then(|k| k["told_by"].as_u64());
+    assert_eq!(told, Some(her), "the player does not know the tap, told by Roxanne");
+    let reading = |words: &str| ((words.chars().count() as f64 / 15.0).max(1.5) * SECOND as f64) as u64;
+    for pair in lines.windows(2) {
+        let ((t, words), (next, _)) = (&pair[0], &pair[1]);
+        assert!(next - t >= reading(words), "{words:?} was up {} ticks, {} needed to read it", next - t, reading(words));
+    }
+    let (last, words) = lines.last().cloned().unwrap_or_default();
+    // The answers are seen a quarter game second at a time.
+    let up = (shown_at + SECOND / 4).saturating_sub(last);
+    assert!(up >= reading(&words), "the answers came {up} ticks after {words:?}, {} needed to read it", reading(&words));
+}
+
+/// The opening plays to pivot point 1 (`play_to_pivot_1`), on a game just
+/// launched (scripts/build.ps1 run).
+#[test]
+fn the_opening_plays_to_roxannes_answers() {
+    let _paused = pause();
+    play_to_pivot_1();
 }
 
 /// Whether the player has heard `her` knock.
@@ -282,61 +370,12 @@ pub(crate) fn open_the_door() {
     assert!(opened, "the player never opened the hatch walking up the stairs to {to:?}; they stand at {:?}", player_spot());
 }
 
-/// The talk box open with Roxanne, her opening not yet said: she knocked,
-/// the player heard it and opened their door, and within talking reach
-/// (authority.md "Talking": the conversation starts within TALK_REACH) the
-/// talk opened. Reached by commanding her knock (todo 15b), not by the
-/// note, so it does not wait on tests 3-6.
-fn talking() {
-    start_from("opening_talking", || {
-        woke();
-        let her = roxanne();
-        op_with("command", json!({"id": her, "do": "knock", "who": player()}));
-        // Each second where she is and how she walks, printed if her knock
-        // is never heard.
-        let track = std::cell::RefCell::new(Vec::new());
-        let heard = within(90, || {
-            let rox = op_with("npc", json!({"id": her}));
-            track.borrow_mut().push(format!("tick {} at {} feet {:.2} doing {} way {} acting {}", rox["tick"], rox["at"], rox["feet"], rox["doing"], rox["way"], rox["this_tick"]));
-            heard_her_knock(her)
-        });
-        if !heard {
-            let rox = op_with("npc", json!({"id": her}));
-            eprintln!("Roxanne, each second:\n{}", track.borrow().join("\n"));
-            eprintln!("Roxanne at {} feet {} doing {} about {} way {} commands {} acting {} did {}", rox["at"], rox["feet"], rox["doing"], rox["about"], rox["way"], rox["commands"], rox["this_tick"], rox["did"]);
-            eprintln!("the player's hatch {}; the player at {:?}", the_players_door(), player_spot());
-            let to = &rox["way"]["to"];
-            if let (Some(x), Some(y), Some(z)) = (to[0].as_f64(), to[1].as_f64(), to[2].as_f64()) {
-                crate::endpoint::why_they_stopped(her, (x, y, z));
-            }
-        }
-        assert!(heard, "reaching opening_talking: the player never heard Roxanne's commanded knock");
-        open_the_door();
-        let open = within(10, || talk()["to"].as_u64() == Some(her));
-        assert!(open, "reaching opening_talking: the door open, the talk never opened with Roxanne");
-    });
-}
-
 /// Pivot point 1's save (authority.md "Running tests": one save per pivot,
 /// just before it): Roxanne's opening said and the player's answers shown.
-/// Made on a game just launched by playing it: the note read, her knock
-/// heard, the hatch opened, the talk with her, her lines, the answers.
+/// Made on a game just launched by the opening's one play
+/// (`play_to_pivot_1`).
 pub(crate) fn choosing() {
-    start_from("tap_1_dell_tells_you", || {
-        step(SECOND);
-        let w = op("world");
-        let fresh = w["episode"] == "The Tap" && w["reached"].as_array().is_some_and(|r| r.is_empty()) && talk()["open"] != true;
-        assert!(fresh, "the pivot 1 save is made on a game just launched: run scripts/build.ps1 run first (now: episode {}, reached {})", w["episode"], w["reached"]);
-        let her = roxanne();
-        read_the_note();
-        let heard = within(60, || heard_her_knock(her));
-        assert!(heard, "making tap_1_dell_tells_you: the player never heard Roxanne knock after reading the note");
-        open_the_door();
-        let open = within(10, || talk()["to"].as_u64() == Some(her));
-        assert!(open, "making tap_1_dell_tells_you: the hatch open, the talk never opened with Roxanne");
-        let shown = within(60, || !choices().is_empty());
-        assert!(shown, "making tap_1_dell_tells_you: no answers shown within a game minute");
-    });
+    start_from("tap_1_dell_tells_you", play_to_pivot_1);
 }
 
 /// "Show me." chosen; the player following Roxanne, out of the bunker on
@@ -369,154 +408,15 @@ pub(crate) fn at_the_tap() {
 
 // The tests, in the order the opening plays.
 
-/// 1. The Tap's people already exist: Roxanne in the player's bunker, and
-/// Mara's part a person of another bunker.
-#[test]
-fn the_taps_people_are_roxanne_of_the_players_bunker_and_mara_of_another() {
-    let _paused = pause();
-    woke();
-    let w = op("world");
-    let part = |name: &str| w["cast"].as_array().and_then(|c| c.iter().find(|p| p["part"] == name)).and_then(|p| p["id"].as_u64());
-    let faction = |id: u64| crate::endpoint::people().into_iter().find(|p| p["id"].as_u64() == Some(id)).map(|p| p["faction"].clone()).unwrap_or(Json::Null);
-    let (her, mara) = (part("Dell").expect("someone plays Roxanne's part"), part("Mara").expect("someone plays Mara's part"));
-    let name = crate::endpoint::people().into_iter().find(|p| p["id"].as_u64() == Some(her)).and_then(|p| p["name"].as_str().map(str::to_string));
-    assert_eq!(name.as_deref(), Some("Roxanne"), "Roxanne's part is played by {name:?}");
-    assert_eq!(faction(her), "player", "Roxanne is of the player's bunker");
-    assert!(faction(mara) != "player" && !faction(mara).is_null(), "Mara is of another bunker, not {}", faction(mara));
-}
-
-/// 2. The player wakes in their room, the room below the surface room, and
-/// reads the note there.
-#[test]
-fn the_player_wakes_in_their_room_and_reads_the_note() {
-    let _paused = pause();
-    woke();
-    let feet = player_spot().2;
-    assert!((feet + 3.0).abs() < 0.3, "the player woke with their feet at {feet:.2}, not 3 m down");
-    read_the_note();
-}
-
-/// 3. Reading the note sends Roxanne to the hatch over the player's room at
-/// once: within ten game seconds she is on her way to it, nearer than 3 m
-/// to its hole, from the far side of the surface room.
-#[test]
-fn reading_the_note_sends_roxanne_to_the_hatch_at_once() {
-    let _paused = pause();
-    woke();
-    let her = roxanne();
-    let hatch = the_players_door();
-    // Each second where she is and what she does, printed if she never
-    // comes.
-    // Her deaths and respawns are in what she did; the storm and a load in
-    // the world op and status.
-    let track = std::cell::RefCell::new(Vec::new());
-    let last_tick = std::cell::Cell::new(0u64);
-    let near = || {
-        let rox = op_with("npc", json!({"id": her}));
-        let (w, s) = (op("world"), op("status"));
-        let (x, z) = (rox["at"][0].as_f64().unwrap_or(f64::NAN), rox["at"][1].as_f64().unwrap_or(f64::NAN));
-        let since = last_tick.replace(rox["tick"].as_u64().unwrap_or(0));
-        let did: Vec<Json> = rox["did"].as_array().into_iter().flatten().filter(|d| d["tick"].as_u64().is_some_and(|t| t >= since)).cloned().collect();
-        track.borrow_mut().push(format!(
-            "tick {} at ({x:.1}, {z:.1}) feet {:.2} dead {} doing {} about {} way {} commands {} acting {} did since {since}: {:?}; storm {} storms {} loading {}",
-            rox["tick"], rox["feet"], rox["dead"], rox["doing"], rox["about"], rox["way"], rox["commands"], rox["this_tick"], did, w["storm"], w["storms"], s["loading"]
-        ));
-        from_the_hole(&hatch, (x, z)) < 3.0
-    };
-    let show = || eprintln!("Roxanne, each second:\n{}", track.borrow().join("\n"));
-    // The first ticks after the load one at a time (the navigation mesh's
-    // chunks land then): where she is, and which chunks are made and wait.
-    for _ in 0..20 {
-        let rox = op_with("npc", json!({"id": her}));
-        track.borrow_mut().push(format!("tick {} at {} feet {:.2} way {} loading {} chunks {}", rox["tick"], rox["at"], rox["feet"], rox["way"], op("status")["loading"], op("world")["chunks"]));
-        step(1);
-    }
-    // Without the note read she stays away: ten game seconds and she is
-    // still not near it, so what follows is the note's doing.
-    let stays_away = !within(10, near);
-    if !stays_away {
-        show();
-    }
-    assert!(stays_away, "Roxanne came to the hatch before the note was read: she stands at {:?}", spot_of(her));
-    read_the_note();
-    let going = within(10, near);
-    if !going {
-        show();
-    }
-    assert!(going, "Roxanne did not go to the hatch after the note was read: she stands at {:?}", spot_of(her));
-}
-
-/// 4. Roxanne comes to the player's shut hatch on her own, within a game
-/// minute of the note, on its floor.
-#[test]
-fn roxanne_comes_to_the_players_shut_door() {
-    let _paused = pause();
-    woke();
-    let her = roxanne();
-    let door = the_players_door();
-    let floor = door["floor"].as_f64().unwrap_or(f64::NAN);
-    read_the_note();
-    let came = within(60, || {
-        let (x, z, feet) = spot_of(her);
-        // Her knock spot is 0.7 m out from the hatch's free edge, and she
-        // arrives within 0.5 m of it (interact.rs knock_spot,
-        // KNOCK_ARRIVE): up to about 1.2 m from its hole.
-        from_the_hole(&door, (x, z)) < 1.3 && (feet - floor).abs() < 1.0
-    });
-    assert!(came, "Roxanne never came to the player's hatch {door}: she stands at {:?}", spot_of(her));
-}
-
-/// 5. Roxanne knocks on her own, and the player hears it.
-#[test]
-fn roxanne_knocks_and_the_player_hears_it() {
-    let _paused = pause();
-    woke();
-    let her = roxanne();
-    read_the_note();
-    assert!(within(90, || heard_her_knock(her)), "the player never heard Roxanne knock after reading the note");
-}
-
-/// 6. With her knock, Roxanne calls "You awake in there?" through the shut
-/// door (todo 11aj; authority.md "Talking": a knock can carry one called
-/// line), heard before any conversation opens.
-#[test]
-fn roxanne_calls_you_awake_in_there_through_the_door() {
-    let _paused = pause();
-    woke();
-    let her = roxanne();
-    read_the_note();
-    let said = within(90, || !heard_from(her).is_empty());
-    assert!(said, "Roxanne said nothing to the player after reading the note");
-    let first = heard_from(her)[0].1.clone();
-    assert_eq!(first, "You awake in there?", "Roxanne's first words were not the line through the door");
-    assert!(talk()["open"] != true, "a conversation opened through the shut door: {}", talk());
-}
-
-/// 6b. The player opens their door to her knock, and within talking reach
-/// the conversation opens with Roxanne.
-#[test]
-fn opening_the_door_to_her_knock_starts_the_talk() {
-    let _paused = pause();
-    woke();
-    let her = roxanne();
-    read_the_note();
-    assert!(within(90, || heard_her_knock(her)), "the player never heard Roxanne knock after reading the note");
-    open_the_door();
-    let open = within(10, || talk()["to"].as_u64() == Some(her));
-    assert!(open, "the door open, no conversation with Roxanne: {}", talk());
-}
-
-/// The player woke three game minutes ago and has not read the note: the
-/// game played on from `opening_woke` (the operator's playtest of
-/// 2026-10-03 read the note only after time had passed).
+/// The player woke three game minutes ago and has not read the note (the
+/// operator's playtest of 2026-10-03 read the note only after time had
+/// passed): a game just launched, played on three game minutes. It waits,
+/// and fits no pivot's save: with the orchestrator to decide.
 fn woke_minutes_ago() {
-    const NAME: &str = "opening_woke_minutes_ago";
-    start_from(NAME, || {
-        woke();
-        let woke_at = op("world")["tick"].as_u64().expect("the world op reports the tick");
-        let later = move || op("world")["tick"].as_u64().is_some_and(|t| t >= woke_at + 3 * 60 * SECOND);
-        crate::endpoint::grow(NAME, 3, || {}, later, crate::endpoint::Until::At);
-    });
+    step(SECOND);
+    let w = op("world");
+    assert!(w["reached"].as_array().is_some_and(|r| r.is_empty()), "played on a game just launched: run scripts/build.ps1 run first (reached {})", w["reached"]);
+    step(3 * 60 * SECOND);
 }
 
 /// 6c. Read three game minutes after waking, the note still sends Roxanne
@@ -574,60 +474,6 @@ fn read_minutes_after_waking_the_note_still_brings_roxanne_to_knock() {
         let hits = fought(id);
         assert!(hits.is_empty(), "person {id} of the player's bunker fought: {hits:?}");
     }
-}
-
-/// 7. Roxanne says the water is nearly gone and gives the way to the tap
-/// from the bunker door; the player then knows the tap, told by her.
-#[test]
-fn roxanne_says_the_water_is_low_and_tells_the_way_to_the_tap() {
-    let _paused = pause();
-    talking();
-    let her = roxanne();
-    let shown = within(60, || !choices().is_empty());
-    let lines: Vec<String> = heard_from(her).into_iter().map(|(_, w)| w).collect();
-    eprintln!("Roxanne said: {lines:?}");
-    assert!(shown, "no answers shown within a game minute");
-    // "The opening" is the line that says the water is nearly gone, in any
-    // of its three ways (one says "the store's down to a few bottles").
-    let opening_said = op("player")["heard"].as_array().into_iter().flatten().any(|h| h["by"].as_u64() == Some(her) && h["line"] == "the opening");
-    assert!(opening_said, "Roxanne never said the opening line, that the water is nearly gone: {lines:?}");
-    let way = lines.iter().find(|l| l.contains("tap")).cloned().unwrap_or_else(|| panic!("Roxanne never gave the way to the tap"));
-    assert!(!way.contains('{'), "a part of the way left unfilled: {way:?}");
-    the_way_is_true(&way);
-    let tap_key = op("world")["things"].as_array().and_then(|t| t.iter().find(|t| t["name"] == "tap")).and_then(|t| t["key"].as_u64()).expect("the tap's key");
-    let told = op("player")["knows"].as_array().and_then(|k| k.iter().find(|k| k["key"].as_u64() == Some(tap_key))).and_then(|k| k["told_by"].as_u64());
-    assert_eq!(told, Some(her), "the player does not know the tap, told by Roxanne");
-}
-
-/// 8. Each of Roxanne's lines stays up long enough to read (modforge
-/// `talk::reading_secs`: about 15 characters a second, never under 1.5 s)
-/// before her next line or the answers.
-#[test]
-fn each_line_stays_long_enough_to_read() {
-    let _paused = pause();
-    talking();
-    let her = roxanne();
-    let reading = |words: &str| ((words.chars().count() as f64 / 15.0).max(1.5) * SECOND as f64) as u64;
-    let mut shown_at = None;
-    for _ in 0..60 * 4 {
-        if !choices().is_empty() {
-            shown_at = Some(op("status")["tick"].as_u64().unwrap_or(0));
-            break;
-        }
-        step(SECOND / 4);
-    }
-    let shown_at = shown_at.expect("no answers shown within a game minute");
-    let lines = heard_from(her);
-    eprintln!("Roxanne's lines (tick, words): {lines:?}; answers shown at tick {shown_at}");
-    assert!(!lines.is_empty(), "Roxanne said nothing");
-    for pair in lines.windows(2) {
-        let ((t, words), (next, _)) = (&pair[0], &pair[1]);
-        assert!(next - t >= reading(words), "{words:?} was up {} ticks, {} needed to read it", next - t, reading(words));
-    }
-    let (last, words) = lines.last().cloned().unwrap_or_default();
-    // The answers are seen a quarter game second at a time.
-    let up = (shown_at + SECOND / 4).saturating_sub(last);
-    assert!(up >= reading(&words), "the answers came {up} ticks after {words:?}, {} needed to read it", reading(&words));
 }
 
 /// 9. The four answers show, each said one of its ways, and a number key

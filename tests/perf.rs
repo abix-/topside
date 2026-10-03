@@ -109,16 +109,17 @@ fn where_the_time_goes_in_play() {
     assert!((main_per_step - step).abs() <= step * 0.05, "FixedMain is {main_per_step:.3} ms a step ({fixed_main:.3} a frame, {per_frame:.2} steps a frame), the whole step {step:.3}");
 }
 
-/// The chunks made, stepping from `opening_woke`: after each of ten steps
-/// of 60 ticks, the moment's `chunks_made` (how many, and a hash of which)
-/// and `next_thing_id` (a chunk's things take their ids in the order chunks
-/// are made), and the chunks lap. A change to how chunks are asked for
-/// must give the same list (docs/performance.md). Added to logs/perf.txt.
+/// The chunks made, stepping from pivot point 1's save: after each of ten
+/// steps of 60 ticks, the moment's `chunks_made` (how many, and a hash of
+/// which) and `next_thing_id` (a chunk's things take their ids in the order
+/// chunks are made), and the chunks lap. A change to how chunks are asked
+/// for must give the same list (docs/performance.md). Added to
+/// logs/perf.txt.
 #[test]
-fn the_chunks_made_stepping_from_woke() {
+fn the_chunks_made_stepping_from_pivot_1() {
     let _paused = crate::endpoint::pause();
-    crate::opening::woke();
-    chunks_made_stepping("opening_woke");
+    crate::opening::choosing();
+    chunks_made_stepping("tap_1_dell_tells_you");
 }
 
 /// The same on a game launched with `--world big` (no edge: chunks are made
@@ -171,15 +172,15 @@ fn chunks_made_stepping(from: &str) -> Vec<String> {
     checks
 }
 
-/// What a stepped tick costs, as a test pays it: the `opening_woke` save
+/// What a stepped tick costs, as a test pays it: pivot point 1's save
 /// loaded, the game paused, 60 ticks stepped ten times, each step timed
 /// by the real clock from asking to the answer, and the median of the
 /// last five. Added to logs/perf.txt.
 #[test]
 fn what_a_stepped_tick_costs() {
     let _paused = crate::endpoint::pause();
-    crate::opening::woke();
-    let mut rows = vec!["stepping from opening_woke:".to_string()];
+    crate::opening::choosing();
+    let mut rows = vec!["stepping from tap_1_dell_tells_you:".to_string()];
     let mut all = Vec::new();
     for _ in 0..10 {
         let started = std::time::Instant::now();

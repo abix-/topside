@@ -119,11 +119,11 @@ fn thirsty_topside_people_see_to_their_thirst() {
 /// (modforge brain NEED_CRITICAL; RimWorld's ThinkTree): Mara, asked by The
 /// Tap's errand to wait at the tap, made critically thirsty (the `needs` op,
 /// as tests/drawn_from.rs does) drinks at the tap, then waits where she
-/// was asked again. From the opening's first save, paused.
+/// was asked again. From pivot point 1's save, paused.
 #[test]
 fn a_critical_need_outranks_being_asked_then_they_go_back() {
     let _p = pause();
-    crate::opening::woke();
+    crate::opening::choosing();
     let mara = op("world")["cast"].as_array().and_then(|c| c.iter().find(|p| p["part"] == "Mara")).and_then(|p| p["id"].as_u64()).expect("Mara's part");
     let her = || people().into_iter().find(|p| p["id"].as_u64() == Some(mara)).unwrap_or(Json::Null);
     let tap = crate::opening::the_tap();

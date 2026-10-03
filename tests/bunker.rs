@@ -25,13 +25,12 @@ fn within(secs: u64, done: impl Fn() -> bool) -> bool {
 /// the bench and Roxanne; the player's room below it with the player, the
 /// note and the food; the hatch lying shut in the surface room's floor,
 /// over the room below. Read from the world op just after waking.
-#[test]
-fn the_bunker_is_two_rooms_the_surface_room_and_the_players_room_below() {
-    let _paused = crate::endpoint::pause();
-    crate::opening::woke();
+/// Checked in the opening's one play as the player wakes
+/// (opening::play_to_pivot_1).
+pub(crate) fn the_bunker_is_two_rooms_the_surface_room_and_the_players_room_below() {
     let w = op("world");
     let rooms = w["starting_bunker"].as_array().cloned().unwrap_or_default();
-    eprintln!("opening_woke at tick {}; the starting bunker: {}", w["tick"], serde_json::Value::Array(rooms.clone()));
+    eprintln!("just woke at tick {}; the starting bunker: {}", w["tick"], serde_json::Value::Array(rooms.clone()));
     // Who of the player's bunker is where, and what they did (who went
     // through the front door).
     for p in crate::endpoint::people().into_iter().filter(|p| p["faction"] == "player") {
@@ -145,28 +144,14 @@ fn the_controls_show_in_the_room_and_each_goes_once_done() {
     assert!(gone, "E pressed and its line still shown: {after}");
 }
 
-/// The player, just woken, walks up the stairs out of their room: the
-/// hatch over them opens as they come (a walker opens the closed door
-/// ahead) and they stand in the surface room, in logs/bunker_stairs.png.
-#[test]
-fn the_player_walks_up_the_stairs_through_the_hatch() {
-    let _paused = crate::endpoint::pause();
-    crate::opening::woke();
-    crate::opening::open_the_door();
-    let surface = crate::opening::bunker_room("surface");
-    let up = crate::opening::within(10, || crate::opening::in_room(&surface, crate::opening::player_spot()));
-    crate::talk_ui::shot("bunker_stairs");
-    assert!(up, "the player never came up into the surface room: they stand at {:?}", crate::opening::player_spot());
-}
-
 /// No ground is drawn within 5 cm of a floor tile, step or landing (the
 /// operator's playtest of 2026-10-03: the ground showed through the floors
 /// on the stairs), read from what the game draws (the `ground_on_floors`
-/// op), in the player's bunker just after waking.
+/// op), in the player's bunker, from pivot point 1's save.
 #[test]
 fn no_ground_shows_through_a_floor_or_a_step() {
     let _paused = crate::endpoint::pause();
-    crate::opening::woke();
+    crate::opening::choosing();
     let seen = op("ground_on_floors");
     let near = seen["near_the_ground"].as_u64().unwrap_or_else(|| panic!("the ground_on_floors op answered no count: {seen}"));
     assert!(near > 0, "no floor tile, step or landing drawn on a ground floor: nothing to test ({seen})");

@@ -67,46 +67,36 @@ fn hold_in_hand(item: &str) {
 // Pivot point 1, the other answers.
 
 /// "I don't believe it.": the pivot point is "does not believe it", Roxanne
-/// answers, and she goes to the tap on her own.
+/// answers, and she sets off toward the tap on her own (Mara's people
+/// finding it first is not waited out: orchestrator, 2026-10-03).
 #[test]
 fn not_believing_roxanne_she_goes_on_her_own() {
     let _p = pause();
     choosing();
     let her = roxanne();
     let tap = the_tap();
+    let from = apart(spot_of(her), tap).0;
     let words = choose(&["Water doesn't just run out there. You're wrong.", "I don't believe it."]);
     assert!(within(5, || reached("does not believe it")), "{words:?} reached nothing: {}", op("world")["reached"]);
     assert!(within(5, || says(her, &["Suit yourself. I'll go on my own.", "Then stay thirsty."])), "Roxanne never answered {words:?}");
-    let from = apart(spot_of(her), tap).0;
-    assert!(within(60, || apart(spot_of(her), tap).0 < from - 10.0), "Roxanne did not go toward the tap on her own: still {:.0} m off", apart(spot_of(her), tap).0);
-}
-
-/// Not believing her, Mara's people find the tap first: from just before
-/// they come, one of Mara's bunker comes to it.
-#[test]
-fn not_believing_roxanne_maras_people_find_the_tap_first() {
-    let _p = pause();
-    crate::saves::tap_not_believed();
-    assert!(reached("does not believe it"), "the save is not after not believing Roxanne");
-    let maras = faction_of(part("Mara"));
-    let tap = the_tap();
-    assert!(within(120, || of_faction(&maras).iter().any(|id| apart(spot_of(*id), tap).0 < 8.0)), "none of Mara's people came to the tap");
+    assert!(within(10, || apart(spot_of(her), tap).0 < from - 5.0), "Roxanne did not set off toward the tap on her own: still {:.0} m off, {from:.0} before", apart(spot_of(her), tap).0);
 }
 
 /// "Check it again first.": the pivot point is "sends Dell", Roxanne
-/// answers, goes to the tap alone, and comes back home.
+/// answers, and she sets off toward the tap alone (orchestrator,
+/// 2026-10-03: a pivot's tests check what it decides within a few game
+/// seconds of its save; her look and her return are not waited out).
 #[test]
-fn sending_roxanne_she_goes_alone_and_comes_back() {
+fn sending_roxanne_she_goes_alone() {
     let _p = pause();
     choosing();
     let her = roxanne();
     let tap = the_tap();
+    let from = apart(spot_of(her), tap).0;
     let words = choose(&["Go and look again. I'll wait.", "Check it again first."]);
     assert!(within(5, || reached("sends Dell")), "{words:?} reached nothing: {}", op("world")["reached"]);
     assert!(within(5, || says(her, &["Fine. Don't drink anything while I'm gone.", "Back soon."])), "Roxanne never answered {words:?}");
-    assert!(within(300, || apart(spot_of(her), tap).0 < 4.0), "Roxanne never reached the tap");
-    let her_room = crate::opening::bunker_room("surface");
-    assert!(within(300, || crate::opening::in_room(&her_room, spot_of(her))), "Roxanne never came back home into the bunker's surface room");
+    assert!(within(10, || apart(spot_of(her), tap).0 < from - 5.0), "Roxanne did not set off toward the tap: still {:.0} m off, {from:.0} before", apart(spot_of(her), tap).0);
 }
 
 // Pivot point 2, who you take.
