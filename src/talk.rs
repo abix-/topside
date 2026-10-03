@@ -115,9 +115,17 @@ pub fn let_go(commands: &mut Commands, them: Entity) {
 }
 
 /// Every line anyone can say now: the running episode's, then plain talk
-/// (content). A `Said::Line` names its line by its place here.
+/// (content). A `Said::Line` names its line by its id (modforge
+/// `LineDef::id`), never its place here.
 #[derive(Resource, Default)]
 pub struct Lines(pub Vec<LineDef>);
+
+impl Lines {
+    /// The line with this id, and its place here.
+    pub fn by_id(&self, id: u64) -> Option<(usize, &LineDef)> {
+        self.0.iter().enumerate().find(|(_, l)| l.id() == id)
+    }
+}
 
 /// The lines, rebuilt when another episode starts.
 pub fn lines(episode: Res<Episode>, episodes: Res<EpisodeRegistryRes>, mut lines: ResMut<Lines>, mut for_episode: Local<Option<Option<String>>>) {
@@ -255,10 +263,10 @@ pub fn talk(
             let since = speaker_talking.or(listener_talking).map_or(tick.0, |c| c.started);
             let (said, words) = match said {
                 Said::Line { line, key } => {
-                    let Some(def) = lines.0.get(line as usize) else {
+                    let Some((index, def)) = lines.by_id(line) else {
                         continue;
                     };
-                    let Some((words, told)) = words_of(def, line as usize, (id.0, &speaker_memory.0), since, &episode, world.bunker, seed.0) else {
+                    let Some((words, told)) = words_of(def, index, (id.0, &speaker_memory.0), since, &episode, world.bunker, seed.0) else {
                         continue;
                     };
                     let key = if key != 0 { key } else { told };
@@ -412,7 +420,7 @@ pub fn conversations(
     if !player_first
         && let Some(line) = modforge::talk::pick(&lines.0, &theirs.speaking(player.0, &their_memory.0, talking.started, talking.opened), seed.0 ^ tick.0)
     {
-        actions.0.push(tick.0, Action::Talk { to: player.0.0, said: Said::Line { line: line as u32, key: 0 } });
+        actions.0.push(tick.0, Action::Talk { to: player.0.0, said: Said::Line { line: lines.0[line].id(), key: 0 } });
         shown.choices.clear();
         talking.choices_since = None;
         return;
@@ -427,7 +435,7 @@ pub fn conversations(
         .filter_map(|i| {
             let (words, _) = words_of(&lines.0[i], i, (player.0, &memory.0), talking.started, &episode, world.bunker, seed.0)?;
             Some(modforge::hud::Choice {
-                said: Said::Line { line: i as u32, key: 0 },
+                said: Said::Line { line: lines.0[i].id(), key: 0 },
                 words,
                 threat: lines.0[i].felt < modforge::relationship::HOSTILE,
             })
@@ -452,7 +460,7 @@ pub fn conversations(
     if let Some(quiet) = silence
         && now.saturating_sub(since) >= ticks_of(f64::from(lines.0[quiet].wait))
     {
-        mine_to_push.0.push(tick.0, Action::Talk { to: with.0, said: Said::Line { line: quiet as u32, key: 0 } });
+        mine_to_push.0.push(tick.0, Action::Talk { to: with.0, said: Said::Line { line: lines.0[quiet].id(), key: 0 } });
         shown.choices.clear();
         talking.choices_since = None;
     }
@@ -486,7 +494,7 @@ pub fn speak_up(
         let moment = Moment::of(&episode, (actor.0, false), (player.0, true), at, survival);
         // Nothing of this conversation said yet: it starts now.
         if let Some(line) = modforge::talk::pick(&lines.0, &moment.speaking(player.0, &memory.0, tick.0, false), seed.0 ^ tick.0) {
-            actions.0.push(tick.0, Action::Talk { to: player.0.0, said: Said::Line { line: line as u32, key: 0 } });
+            actions.0.push(tick.0, Action::Talk { to: player.0.0, said: Said::Line { line: lines.0[line].id(), key: 0 } });
             return;
         }
     }
