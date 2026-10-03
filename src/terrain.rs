@@ -67,6 +67,33 @@ pub struct Chunks {
     /// one answer for what a tile is: water is seen over, and the map
     /// draws each kind its colour.
     pub ground: std::collections::HashMap<ChunkKey, Vec<Ground>>,
+    /// What `make_chunks` already asked for (`Asked`).
+    asked: Asked,
+}
+
+/// What `make_chunks` already asked for, so a step where no one has come
+/// into another chunk asks for nothing: each person's chunk (the
+/// player's too) when the chunks round them were last asked for, and
+/// whether the bunkers' chunks and an edged world's whole range were.
+/// Everything asked for is made the step it is asked, and the chunks made
+/// only shrink by `unmake`, which forgets this; so the chunks made, and
+/// their order, are the same as asking for everything every step. Worked
+/// out from where people are, never saved: empty after a load
+/// (`forget_asked`), so the first step after one asks for everything.
+/// Prior art: Minecraft's server updates a player's loaded chunks only
+/// when they cross into another chunk (ChunkMap.move).
+#[derive(Default)]
+struct Asked {
+    round: std::collections::HashMap<Entity, ChunkKey>,
+    fixed: bool,
+}
+
+/// The chunks asked for forgotten: a load (save.rs `loaded`) gives every
+/// person a new entity and may take chunks back.
+pub fn forget_asked(world: &mut World) {
+    if let Some(mut chunks) = world.get_resource_mut::<Chunks>() {
+        chunks.asked = Asked::default();
+    }
 }
 
 impl Chunks {
@@ -159,6 +186,8 @@ pub fn unmake(world: &mut World, keys: &std::collections::BTreeSet<ChunkKey>) {
     }
     let of = |cell: (i32, i32)| keys.contains(&(cell.0.div_euclid(CHUNK), cell.1.div_euclid(CHUNK)));
     if let Some(mut chunks) = world.get_resource_mut::<Chunks>() {
+        // Chunks no longer made: what was asked for is asked again.
+        chunks.asked = Asked::default();
         for key in keys {
             chunks.made.remove(key);
             chunks.ground.remove(key);
@@ -227,6 +256,25 @@ pub fn roll(
 pub fn chunk_of(p: Vec2) -> ChunkKey {
     let t = cell_of(p);
     (t.0.div_euclid(CHUNK), t.1.div_euclid(CHUNK))
+}
+
+/// The chunks a person at `p` needs made round them: `AROUND_PLAYER` each
+/// way for the player, `AROUND_PERSON` for anyone else. The one rule,
+/// read by `make_chunks` and by the world op's check (`not_made_round`).
+pub fn round(p: Vec2, is_player: bool) -> impl Iterator<Item = ChunkKey> {
+    let c = chunk_of(p);
+    let n = if is_player { AROUND_PLAYER } else { AROUND_PERSON };
+    (-n..=n).flat_map(move |dy| (-n..=n).map(move |dx| (c.0 + dx, c.1 + dy)))
+}
+
+/// How many chunks round the people at `people` ((ground point, is the
+/// player)) are not made: none, once each step's chunks are made.
+pub fn not_made_round(chunks: &Chunks, people: impl Iterator<Item = (Vec2, bool)>) -> usize {
+    let mut not_made: HashSet<ChunkKey> = HashSet::new();
+    for (p, is_player) in people {
+        not_made.extend(round(p, is_player).filter(|key| !chunks.made.contains(key)));
+    }
+    not_made.len()
 }
 
 /// The rectangles of the tiles `of` picks (by its tile and ground), as
@@ -314,40 +362,44 @@ pub fn make_chunks(
     items: Res<crate::content::ItemRegistryRes>,
     ground: Option<Res<GroundMaterial>>,
     mut meshes: Option<ResMut<Assets<Mesh>>>,
-    players: Query<&Transform, With<crate::player::Player>>,
-    people: Query<&Transform, (With<crate::actor::Npc>, Without<crate::player::Player>)>,
+    players: Query<(Entity, &Transform), With<crate::player::Player>>,
+    people: Query<(Entity, &Transform), (With<crate::actor::Npc>, Without<crate::player::Player>)>,
     below: Query<&crate::structure::Below>,
 ) {
     // In key order, whoever is near (authority.md rule 5): the order chunks
     // are made in is the order their things are issued ids, the same after
     // a load.
     let mut needed: std::collections::BTreeSet<ChunkKey> = std::collections::BTreeSet::new();
-    let mut around = |p: Vec2, n: i32| {
+    // Round each person only when they are new or in another chunk than
+    // when last asked (`Asked`): the chunks round where they were are made.
+    let last = std::mem::take(&mut chunks.asked.round);
+    for (who, t, is_player) in players.iter().map(|(e, t)| (e, t, true)).chain(people.iter().map(|(e, t)| (e, t, false))) {
+        let p = t.translation.ground();
         let c = chunk_of(p);
-        for dy in -n..=n {
-            for dx in -n..=n {
-                needed.insert((c.0 + dx, c.1 + dy));
+        if last.get(&who) != Some(&c) {
+            needed.extend(round(p, is_player));
+        }
+        chunks.asked.round.insert(who, c);
+    }
+    if !chunks.asked.fixed {
+        chunks.asked.fixed = true;
+        for b in std::iter::once(world.bunker).chain(world.bunkers.iter().copied()) {
+            let c = chunk_of(b);
+            needed.extend((-2..=2).flat_map(|dy| (-2..=2).map(move |dx| (c.0 + dx, c.1 + dy))));
+        }
+        // A world with an edge is made whole, and the ring of chunks past
+        // the edge with it, so the edge stops a body wherever anyone walks.
+        if let Some((lo, hi)) = world.world.ground.chunk_range() {
+            for y in lo - 1..=hi {
+                for x in lo - 1..=hi {
+                    needed.insert((x, y));
+                }
             }
         }
-    };
-    for t in &players {
-        around(t.translation.ground(), AROUND_PLAYER);
     }
-    for t in &people {
-        around(t.translation.ground(), AROUND_PERSON);
-    }
-    around(world.bunker, 2);
-    for b in world.bunkers.clone() {
-        around(b, 2);
-    }
-    // A world with an edge is made whole, and the ring of chunks past the
-    // edge with it, so the edge stops a body wherever anyone walks.
-    if let Some((lo, hi)) = world.world.ground.chunk_range() {
-        for y in lo - 1..=hi {
-            for x in lo - 1..=hi {
-                needed.insert((x, y));
-            }
-        }
+    needed.retain(|key| !chunks.made.contains(key));
+    if needed.is_empty() {
+        return;
     }
     let r = Registries {
         biomes: &biomes.0,
