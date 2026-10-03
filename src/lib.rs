@@ -88,6 +88,22 @@ impl FromWorld for Reality {
 
 pub use episode::Episode;
 
+/// Every physics body whose Transform changed gets its GlobalTransform
+/// worked out now, from its own Transform and its parents' (a door under
+/// its building too), before Avian reads them; nothing else in the tree
+/// under it. In Avian's own Propagate set, in place of its whole-tree
+/// propagation (`PhysicsTransformConfig::propagate_before_physics`, off).
+fn bodies_placed(
+    helper: bevy::transform::helper::TransformHelper,
+    mut bodies: Query<(Entity, &mut GlobalTransform), (With<avian3d::prelude::RigidBody>, Changed<Transform>)>,
+) {
+    for (entity, mut global) in &mut bodies {
+        if let Ok(placed) = helper.compute_global_transform(entity) {
+            *global = placed;
+        }
+    }
+}
+
 /// Build the app. `headless` skips the window and the drawing so
 /// tests can run the simulation bare; `world` is the 2D world to make;
 /// `port` is the control plane's.
@@ -136,6 +152,16 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind, port: u16
     // Avian 3D is the one physics system. Bodies are kinematic and walk
     // the ground; nothing falls yet (one floor, flat ground).
     app.add_plugins(avian3d::prelude::PhysicsPlugins::default());
+    // Before each physics step Avian needs every body's GlobalTransform
+    // current (its transform_to_position reads it), and by default it
+    // propagates every transform tree to get it: a person who moved has
+    // their whole drawn body under them (rig bones, worn pieces, what they
+    // hold) worked out again, every tick. Only the bodies are needed, so
+    // only theirs is worked out (`bodies_placed`); the drawn trees are
+    // propagated once a frame by Bevy in PostUpdate, which only drawing
+    // reads. Avian's own config for this: `propagate_before_physics`.
+    app.insert_resource(avian3d::physics_transform::PhysicsTransformConfig { propagate_before_physics: false, ..default() });
+    app.add_systems(FixedPostUpdate, bodies_placed.in_set(avian3d::physics_transform::PhysicsTransformSystems::Propagate));
     // The navigation mesh from those colliders (docs/pathing.md).
     app.add_plugins(navmesh::NavPlugin);
     app.add_plugins(profile::ProfilePlugin);
