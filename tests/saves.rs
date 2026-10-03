@@ -275,6 +275,26 @@ pub(crate) fn joined_with_mara_near() {
     });
 }
 
+// The opening's saves (tests/opening.rs), made by the play-through too, so
+// every test save comes from the one fixed world. opening_woke needs a game
+// just launched: build.ps1 saves launches one, and every maker's chain
+// starts with it, so the first maker to run makes it before anything plays.
+pub(crate) fn opening_woke() {
+    crate::opening::woke();
+}
+pub(crate) fn opening_talking() {
+    crate::opening::talking();
+}
+pub(crate) fn opening_choosing() {
+    crate::opening::choosing();
+}
+pub(crate) fn opening_out_the_door() {
+    crate::opening::out_the_door();
+}
+pub(crate) fn opening_at_the_tap() {
+    crate::opening::at_the_tap();
+}
+
 // The makers: each its own ignored test, run by build.ps1 saves.
 
 macro_rules! makers {
@@ -293,6 +313,11 @@ macro_rules! makers {
 mod make {
     use crate::endpoint::pause;
     makers!(
+        opening_woke,
+        opening_talking,
+        opening_choosing,
+        opening_out_the_door,
+        opening_at_the_tap,
         tap_maras_people_coming,
         tap_not_believed,
         tap_mara_at_the_tap,
