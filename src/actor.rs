@@ -333,11 +333,21 @@ pub fn spawn_door_enemy(
     spawn_actor(&mut spawn, def, on_ground(world.bunker + Vec2::new(x, z), 0.0), None);
 }
 
-/// The top bit of a remembered key marks a place (a site, by
-/// `episode::site_key`; a river's water); without it the key is a thing's
-/// id (a box, `ThingId`). Keeps the two from
-/// ever being mistaken for each other.
+/// The top bit of a remembered key marks a place (a site, by `site_key`; a
+/// river's water); without it the key is a thing's id (a box, `ThingId`).
+/// Keeps the two from ever being mistaken for each other.
 pub const PLACE_KEY: u64 = 1 << 63;
+
+/// The mark a site's key carries, apart from things' keys.
+pub const SITE: u64 = 1 << 62;
+
+/// The key memory knows a site by: its position, marked a place (the
+/// brain visits places) and a site, apart from things. The same site has
+/// the same key in every world rolled from the same seed, whatever order
+/// its chunks were made in.
+pub fn site_key(at: Vec2) -> u64 {
+    PLACE_KEY | SITE | ((at.x.round() as i32 as u32 as u64) << 24) ^ (at.y.round() as i32 as u32 as u64)
+}
 
 /// How far from a monument's centre its boxes count as home, in metres.
 const HOME_BOXES_WITHIN: f32 = 60.0;
@@ -406,7 +416,7 @@ pub fn home_knowledge(
     now: u64,
 ) -> Memory {
     let mut known = modforge::memory::Memory::default();
-    known.see(crate::episode::site_key(at), kind, on_ground(at, 0.0), now);
+    known.see(site_key(at), kind, on_ground(at, 0.0), now);
     for (id, t, item) in boxes {
         if t.translation.ground().distance(at) <= HOME_BOXES_WITHIN {
             // Where the box rests, its height included.

@@ -9,7 +9,7 @@ use modforge::item;
 use modforge::memory::Did;
 
 use crate::Ground;
-use crate::actor::{Actor, Dead, Home, Memory, Npc, Store};
+use crate::actor::{Actor, Dead, Home, Memory, Npc, Store, site_key};
 use crate::content::{BUNKER_AT, EpisodeRegistryRes, ItemRegistryRes, PLAYER_FACTION};
 use crate::interact::{DrawsFrom, spawn_item};
 
@@ -159,43 +159,11 @@ pub fn cast_episode(
 }
 
 /// How far from the way a site can stand and still be on it, metres.
-const ON_THE_WAY: f32 = 80.0;
-
-/// The mark a site's key carries, apart from things' keys.
-pub const SITE: u64 = 1 << 62;
-
-/// The key memory knows a site by: its position, marked a place (the
-/// brain visits places) and a site, apart from things. The same site has
-/// the same key in every world rolled from the same seed, whatever order
-/// its chunks were made in.
-pub fn site_key(at: Vec2) -> u64 {
-    crate::actor::PLACE_KEY | SITE | ((at.x.round() as i32 as u32 as u64) << 24) ^ (at.y.round() as i32 as u32 as u64)
-}
-
-/// Where the player's bunker door stands on the ground (the starting
-/// bunker's one door, `structure::doors_of`), and which way it faces out.
-pub fn bunker_door(bunker: Vec2) -> (Vec2, Vec2) {
-    // The front door: of the bunker's door blocks on the ground (modforge
-    // `door_blocks`, what its doors are built from), the one with a side
-    // outside every room on the ground, a step through its wall; a door
-    // between two rooms has a room on both sides. It faces that way out.
-    let plan = crate::content::starting_bunker();
-    let in_a_room = |p: Vec2| {
-        plan.rooms.iter().any(|r| {
-            r.origin.y <= 0.01 && r.origin.y + r.interior.y > 0.01 && (p.x - r.origin.x).abs() < r.interior.x / 2.0 && (p.y - r.origin.z).abs() < r.interior.z / 2.0
-        })
-    };
-    let front = modforge::structure::door_blocks(&plan).into_iter().filter(|b| b.floor.abs() < 0.01).find_map(|b| {
-        let through = b.along.perp();
-        [through, -through].into_iter().find(|out| !in_a_room(b.centre + *out)).map(|out| (b.centre, out))
-    });
-    let (door, out) = front.unwrap_or((Vec2::ZERO, Vec2::Y));
-    (bunker + door, out)
-}
+pub(crate) const ON_THE_WAY: f32 = 80.0;
 
 /// How far `at` stands from the way `from` to `to`, and how far along it
 /// (0 at `from`, 1 at `to`).
-fn off_the_way(from: Vec2, to: Vec2, at: Vec2) -> (f32, f32) {
+pub(crate) fn off_the_way(from: Vec2, to: Vec2, at: Vec2) -> (f32, f32) {
     let way = to - from;
     let along = ((at - from).dot(way) / way.length_squared().max(1.0)).clamp(0.0, 1.0);
     (at.distance(from + way * along), along)
@@ -240,7 +208,7 @@ pub fn place_things(
         // (sites stand on the ground, so the way between is read there).
         let home_of = |part: &str| episode.cast_as(part).and_then(|id| people.iter().find(|(a, ..)| a.0 == id)).map(|(_, home, _)| home.0.ground());
         let place = |p: &modforge::storyteller::Place| match p {
-            modforge::storyteller::Place::PlayerBunkerDoor => Some(bunker_door(world.bunker).0),
+            modforge::storyteller::Place::PlayerBunkerDoor => Some(crate::structure::bunker_door(world.bunker).0),
             modforge::storyteller::Place::HomeOf(part) => home_of(part),
         };
         let (Some(from), Some(to)) = (place(&thing.between.0), place(&thing.between.1)) else {
@@ -328,10 +296,18 @@ pub fn cues(
         let Some(who) = episode.cast_as(&cue.part) else {
             continue;
         };
-        let order = match cue.does {
-            modforge::storyteller::CueAct::KnockOnThePlayer => modforge::command::Command::Knock { who: player.0.0 },
+        // Whom the order names and where, worked out now (the one map,
+        // modforge `Command::resolve`): the player or a part, an episode
+        // thing where it stands.
+        let whom = |w: modforge::storyteller::Who| match w {
+            modforge::storyteller::Who::ThePlayer => Some(player.0.0),
+            modforge::storyteller::Who::Part(part) => episode.cast_as(&part).map(|id| id.0),
         };
-        crate::command::order(&mut people, &mut new, who.0, order);
+        let at = |thing: String| episode.thing(&thing).map(|(at, _)| modforge::command::Point::from(at));
+        match cue.does.clone().resolve(whom, at) {
+            Some(order) => crate::command::order(&mut people, &mut new, who.0, order),
+            None => warn!("cue {}: its order {:?} names someone or something not there; not given", cue.name, cue.does),
+        }
         info!("cue {}: {} ({:?}) {:?}", cue.name, cue.part, who, cue.does);
         episode.reached.push((cue.name.clone(), who, tick.0));
     }
@@ -340,34 +316,6 @@ pub fn cues(
     }
 }
 
-/// Dell's way to the tap, from what Dell knows: the slots of "the way"
-/// (episodes.md "The lines"). {way} out of the bunker door, the {place}
-/// the tap stands in, and the site Dell knows nearest the way there as the
-/// {landmark}, with the {side} it stands on.
-pub fn the_way(memory: &modforge::memory::Memory, door: (Vec2, Vec2), tap: u64, tap_site: u64) -> Vec<(&'static str, String)> {
-    let (door, out) = door;
-    let ground = |p: Vec3| Vec2::new(p.x, p.z);
-    let Some(tap_at) = memory.known.iter().find(|k| k.key == tap).map(|k| ground(k.position)) else {
-        return Vec::new();
-    };
-    let to = tap_at - door;
-    let mut slots = vec![("way", modforge::talk::way_out(out, to).to_string())];
-    if let Some(place) = memory.known.iter().find(|k| k.key == tap_site) {
-        slots.push(("place", place.kind.clone()));
-    }
-    let landmark = memory
-        .known
-        .iter()
-        .filter(|k| k.key != tap_site && k.key & SITE != 0)
-        .map(|k| (k, off_the_way(door, tap_at, ground(k.position))))
-        .filter(|(_, (off, along))| *off <= ON_THE_WAY && *along > 0.0 && *along < 1.0)
-        .min_by(|a, b| a.1.0.total_cmp(&b.1.0));
-    if let Some((k, _)) = landmark {
-        slots.push(("landmark", k.kind.clone()));
-        slots.push(("side", modforge::talk::side_of(to, ground(k.position) - door).to_string()));
-    }
-    slots
-}
 
 /// Pivot points reached by what was said (episodes.md "One way for every
 /// conversation"): once a game second, every line of the episode said by

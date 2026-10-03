@@ -219,9 +219,9 @@ pub fn carry_out(
                 }
                 // Leading does it, until both are there (ai::lead); then the
                 // next.
-                Command::Lead { who, x, y, z } => {
+                Command::Lead { who, to } => {
                     if !commanded.started {
-                        commands.entity(entity).insert(Leading { who: ActorId(who), to: Vec3::new(x, y, z), waiting_at: None });
+                        commands.entity(entity).insert(Leading { who: ActorId(who), to: to.into(), waiting_at: None });
                         commanded.started = true;
                     } else if !leading {
                         commanded.next();
@@ -231,9 +231,9 @@ pub fn carry_out(
                 }
                 // Holding does it (the brain, ai::Holding), until something
                 // takes it off them; then the next.
-                Command::Hold { x, y, z } => {
+                Command::Hold { at } => {
                     if !commanded.started {
-                        commands.entity(entity).insert(crate::ai::Holding { at: Vec3::new(x, y, z), warned: Vec::new() });
+                        commands.entity(entity).insert(crate::ai::Holding { at: at.into(), warned: Vec::new() });
                         // Whatever way they were on, they stop where they
                         // stand (no Go, and no move a walk left held), and
                         // their brain drops what it was doing: it takes the
@@ -271,7 +271,7 @@ pub fn carry_out(
                 }
             }
             let (target, who) = match command {
-                Command::MoveTo { x, y, z } => (Some(Vec3::new(x, y, z)), None),
+                Command::MoveTo { to } => (Some(to.into()), None),
                 Command::TalkTo { who } | Command::Attack { who } => (alive_at(who), Some(who)),
                 // The spot beside the closed door between them.
                 // Knocked, they wait for an answer: at the knock spot while

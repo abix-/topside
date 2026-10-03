@@ -233,6 +233,35 @@ impl Moment {
     }
 }
 
+/// The way to a thing, from what the speaker knows: the slots of "the way"
+/// (episodes.md "The lines"). {way} out of the bunker door, the {place} the
+/// thing stands in (its site), and the site they know nearest the way there
+/// as the {landmark}, with the {side} it stands on.
+pub fn the_way(memory: &modforge::memory::Memory, door: (Vec2, Vec2), thing: u64, site: u64) -> Vec<(&'static str, String)> {
+    let (door, out) = door;
+    let ground = |p: Vec3| Vec2::new(p.x, p.z);
+    let Some(thing_at) = memory.known.iter().find(|k| k.key == thing).map(|k| ground(k.position)) else {
+        return Vec::new();
+    };
+    let to = thing_at - door;
+    let mut slots = vec![("way", modforge::talk::way_out(out, to).to_string())];
+    if let Some(place) = memory.known.iter().find(|k| k.key == site) {
+        slots.push(("place", place.kind.clone()));
+    }
+    let landmark = memory
+        .known
+        .iter()
+        .filter(|k| k.key != site && k.key & crate::actor::SITE != 0)
+        .map(|k| (k, crate::episode::off_the_way(door, thing_at, ground(k.position))))
+        .filter(|(_, (off, along))| *off <= crate::episode::ON_THE_WAY && *along > 0.0 && *along < 1.0)
+        .min_by(|a, b| a.1.0.total_cmp(&b.1.0));
+    if let Some((k, _)) = landmark {
+        slots.push(("landmark", k.kind.clone()));
+        slots.push(("side", modforge::talk::side_of(to, ground(k.position) - door).to_string()));
+    }
+    slots
+}
+
 /// A line's words and what it tells of, as this speaker says it now: the
 /// thing its rule tells of (an episode thing by name, else a known thing of
 /// that kind they do not keep quiet), its {slots} filled from their memory
@@ -250,13 +279,13 @@ pub fn words_of(line: &LineDef, index: usize, (speaker, memory): (ActorId, &Mind
     let mut slots: Vec<(&str, String)> = Vec::new();
     if key != 0 {
         if let Some((_, site)) = episode.thing(&format!("{} site", line.tells)) {
-            slots = crate::episode::the_way(memory, crate::episode::bunker_door(bunker), key, site);
+            slots = the_way(memory, crate::structure::bunker_door(bunker), key, site);
         } else if let Some(thing) = memory.known.iter().find(|k| k.key == key) {
             let ground = |p: Vec3| Vec2::new(p.x, p.z);
             let place = memory
                 .known
                 .iter()
-                .filter(|k| k.key & crate::episode::SITE != 0)
+                .filter(|k| k.key & crate::actor::SITE != 0)
                 .map(|k| (k, ground(k.position).distance(ground(thing.position))))
                 .filter(|(_, d)| *d <= PLACE_OF_A_THING)
                 .min_by(|a, b| a.1.total_cmp(&b.1));

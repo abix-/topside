@@ -310,6 +310,27 @@ pub fn spawn_structure(commands: &mut Commands, ids: &mut crate::interact::Thing
     root
 }
 
+/// Where the player's bunker door stands on the ground (the starting
+/// bunker's front door), and which way it faces out.
+pub fn bunker_door(bunker: Vec2) -> (Vec2, Vec2) {
+    // The front door: of the bunker's door blocks on the ground (modforge
+    // `door_blocks`, what its doors are built from), the one with a side
+    // outside every room on the ground, a step through its wall; a door
+    // between two rooms has a room on both sides. It faces that way out.
+    let plan = starting_bunker();
+    let in_a_room = |p: Vec2| {
+        plan.rooms.iter().any(|r| {
+            r.origin.y <= 0.01 && r.origin.y + r.interior.y > 0.01 && (p.x - r.origin.x).abs() < r.interior.x / 2.0 && (p.y - r.origin.z).abs() < r.interior.z / 2.0
+        })
+    };
+    let front = door_blocks(&plan).into_iter().filter(|b| b.floor.abs() < 0.01).find_map(|b| {
+        let through = b.along.perp();
+        [through, -through].into_iter().find(|out| !in_a_room(b.centre + *out)).map(|out| (b.centre, out))
+    });
+    let (door, out) = front.unwrap_or((Vec2::ZERO, Vec2::Y));
+    (bunker + door, out)
+}
+
 /// The bunker's doors are steel; doors in the wild are wood for now
 /// (design.md "Built in 1 m blocks, doors as blocks").
 pub const BUNKER_DOOR: &str = "steel door";

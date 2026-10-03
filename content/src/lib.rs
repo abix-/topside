@@ -20,7 +20,7 @@ use modforge::item::{Armor, CombatStats, FoodStats, ItemDef, ItemKind, ItemRegis
 use modforge::monument::Roll;
 use modforge::reality::{Danger, RealityDef, RealityRegistry};
 use modforge::storyteller::{
-    CastFrom, Company, CueAct, CueDef, Deed, DeedDef, EpisodeDef, EpisodeRegistry, ErrandAct, ErrandDef, LineDef, PartDef, Place, ThingDef,
+    CastFrom, Company, CueDef, Deed, DeedDef, EpisodeDef, EpisodeRegistry, ErrandAct, ErrandDef, LineDef, PartDef, Place, ThingDef,
     Told, When, Who,
 };
 use modforge::monument::{
@@ -719,7 +719,7 @@ pub fn register_episodes(reg: &mut EpisodeRegistry) {
             // How it opens (the-tap.md, operator 2026-10-02): the player
             // reads the note and Dell starts down at once, to their door,
             // and knocks.
-            cues: vec![CueDef { name: "the note read".to_string(), did: "read note".to_string(), part: "Dell".to_string(), does: CueAct::KnockOnThePlayer }],
+            cues: vec![CueDef { name: "the note read".to_string(), did: "read note".to_string(), part: "Dell".to_string(), does: modforge::command::Command::Knock { who: Who::ThePlayer } }],
             // No scavenger at the door while Roxanne leads the player out;
             // the first fight comes later (design.md "What 2D changes",
             // operator 2026-10-02).
