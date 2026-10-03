@@ -36,11 +36,31 @@ pub(crate) fn walk_to(who: Option<u64>, at: (f64, f64, f64)) {
     op_with("command", c);
 }
 
-/// Whether one of Mara's people stands within 8 m of the tap.
-fn maras_at_the_tap() -> bool {
-    let maras = faction_of(part("Mara"));
-    let tap = the_tap();
-    of_faction(&maras).iter().any(|id| apart(spot_of(*id), tap).0 < 8.0)
+/// Have someone (the player when `who` is None) follow `them`, who may be
+/// walking: a walk to where they stood finds them gone.
+pub(crate) fn follow(who: Option<u64>, them: u64) {
+    let mut c = json!({"do": "follow", "who": them});
+    if let Some(id) = who {
+        c["id"] = json!(id);
+    }
+    op_with("command", c);
+}
+
+/// One of Mara's people arriving at the tap (within 8 m) who was not there
+/// at the first check after loading: the ones already there are the mark,
+/// as `someone_new` marks the newest (orchestrator, 2026-10-03: Mara is
+/// asked to the tap from the start, so "anyone within 8 m" had already
+/// happened at the save point before).
+fn maras_arriving_at_the_tap() -> impl Fn() -> bool {
+    let mark: std::cell::RefCell<Option<Vec<u64>>> = std::cell::RefCell::new(None);
+    move || {
+        let maras = faction_of(part("Mara"));
+        let tap = the_tap();
+        let there: Vec<u64> = of_faction(&maras).into_iter().filter(|id| apart(spot_of(*id), tap).0 < 8.0).collect();
+        let mut mark = mark.borrow_mut();
+        let already = mark.get_or_insert_with(|| there.clone());
+        there.iter().any(|id| !already.contains(id))
+    }
 }
 
 /// The newest person in the world (ActorIds are issued in order, so the
@@ -84,7 +104,7 @@ pub(crate) fn the_stranger() -> u64 {
 /// At the tap, just before Mara's people come to it.
 pub(crate) fn tap_maras_people_coming() {
     start_from("tap_maras_people_coming", || {
-        grow("tap_maras_people_coming", 60, at_the_tap, maras_at_the_tap, Until::Before);
+        grow("tap_maras_people_coming", 60, at_the_tap, maras_arriving_at_the_tap(), Until::Before);
     });
 }
 
@@ -95,7 +115,7 @@ pub(crate) fn tap_not_believed() {
             choosing();
             choose(&["Water doesn't just run out there. You're wrong.", "I don't believe it."]);
         };
-        grow("tap_not_believed", 60, disbelieve, maras_at_the_tap, Until::Before);
+        grow("tap_not_believed", 60, disbelieve, maras_arriving_at_the_tap(), Until::Before);
     });
 }
 
@@ -221,7 +241,7 @@ pub(crate) fn tap_beside_maras_child() {
     start_from("tap_beside_maras_child", || {
         let go = || {
             at_the_tap();
-            walk_to(None, spot_of(part("Mara's child")));
+            follow(None, part("Mara's child"));
         };
         grow("tap_beside_maras_child", 15, go, || apart(player_spot(), spot_of(part("Mara's child"))).0 < 2.5, Until::At);
     });
@@ -271,7 +291,7 @@ pub(crate) fn newcomers_roxanne_at_mara() {
     start_from("newcomers_roxanne_at_mara", || {
         let send = || {
             woke();
-            walk_to(Some(roxanne()), spot_of(part("Mara")));
+            follow(Some(roxanne()), part("Mara"));
         };
         grow("newcomers_roxanne_at_mara", 15, send, || apart(spot_of(roxanne()), spot_of(part("Mara"))).0 < 2.5, Until::At);
     });
@@ -300,7 +320,7 @@ pub(crate) fn beside_a_stranger() {
     start_from("beside_a_stranger", || {
         let go = || {
             woke();
-            walk_to(None, spot_of(a_stranger()));
+            follow(None, a_stranger());
         };
         grow("beside_a_stranger", 15, go, || apart(player_spot(), spot_of(a_stranger())).0 < 2.5, Until::At);
     });

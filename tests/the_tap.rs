@@ -138,9 +138,10 @@ fn going_alone_is_takes_no_one() {
 #[test]
 fn going_with_another_of_the_bunker_is_takes_someone_else() {
     let _p = pause();
-    choosing();
-    let other = of_faction("player").into_iter().find(|id| *id != roxanne() && *id != player()).expect("another person in the player's bunker besides Roxanne (todo 11af joining)");
-    choose(&["Where exactly?", "Tell me the way again."]);
+    // A stranger has joined the player's bunker (orchestrator, 2026-10-03:
+    // from joined_with_mara_near), and follows the player to the tap.
+    crate::saves::joined_with_mara_near();
+    let other = of_faction("player").into_iter().find(|id| *id != roxanne() && *id != player()).expect("the stranger who joined the player's bunker");
     op_with("key", json!({"key": "Escape"}));
     op_with("command", json!({"id": other, "do": "follow", "who": player()}));
     walk_to(None, the_tap());
@@ -420,6 +421,11 @@ fn the_storm_takes_the_tap_and_memory_stays() {
 fn the_next_episode_is_cast_by_feeling() {
     let _p = pause();
     let _ = meet_mara();
+    // The player answers Mara at the meeting (the talk path), as in play she
+    // always hears them before the storm (orchestrator, 2026-10-03).
+    assert!(within(30, || choices().iter().any(|c| c == "There's enough for both of us.")), "setup: Mara's meeting answers are not offered: {:?}", choices());
+    choose(&["There's enough for both of us."]);
+    step(SECOND);
     let seed = op("world")["seed"].clone();
     op_with("storm", json!({}));
     assert!(within(120, || op("world")["seed"] != seed), "the storm never came");
