@@ -1544,3 +1544,49 @@ fn click_recipe(
         actions.0.push(tick.0 + 1, Action::Craft { index: row.0 });
     }
 }
+
+/// The episode's ending as a text screen before the storm (the-tap.md
+/// "Which ending": shown as a text screen; todo 11ae): its name over what
+/// it says happened, the whole window.
+#[derive(Component)]
+pub struct EndingScreen;
+
+/// The ending screen's words.
+#[derive(Component)]
+pub struct EndingText;
+
+pub fn setup_ending(mut commands: Commands) {
+    commands
+        .spawn((
+            EndingScreen,
+            Node {
+                width: Val::Percent(100.0),
+                height: Val::Percent(100.0),
+                justify_content: JustifyContent::Center,
+                align_items: AlignItems::Center,
+                ..default()
+            },
+            BackgroundColor(Color::BLACK),
+            GlobalZIndex(i32::MAX - 1),
+            Visibility::Hidden,
+        ))
+        .with_child((EndingText, Text::new("")));
+}
+
+/// Shown while the player's HUD holds an ending, with its name and words.
+pub fn render_ending(
+    players: Query<&crate::interact::Hud, With<crate::player::Player>>,
+    mut screens: Query<&mut Visibility, With<EndingScreen>>,
+    mut texts: Query<&mut Text, With<EndingText>>,
+) {
+    let ending = players.single().ok().and_then(|h| h.0.ending.clone());
+    for mut visibility in &mut screens {
+        visibility.set_if_neq(if ending.is_some() { Visibility::Visible } else { Visibility::Hidden });
+    }
+    if let (Some(ending), Ok(mut text)) = (ending, texts.single_mut()) {
+        let words = format!("{}\n\n{}", ending.name, ending.words);
+        if text.0 != words {
+            text.0 = words;
+        }
+    }
+}

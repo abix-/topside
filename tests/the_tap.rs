@@ -45,6 +45,26 @@ fn store_of(faction: &str) -> (f64, f64, f64) {
     (store["at"][0].as_f64().expect("the world op reports where the bunker's store is"), store["at"][1].as_f64().unwrap_or(0.0), store["floor"].as_f64().unwrap_or(0.0))
 }
 
+/// Put `item` from the player's inventory in their hand the way the player
+/// does: open the inventory (Tab), drag it onto the first hotbar slot with
+/// the mouse, close it, and press 1.
+fn hold_in_hand(item: &str) {
+    op_with("key", json!({"key": "Tab"}));
+    step(SECOND / 4);
+    let hud = op("hud");
+    let from = hud["filled"].as_array().into_iter().flatten().find(|s| s["holder"] == "Inventory" && s["item"] == item && s["at"].is_array()).map(|s| s["at"].clone());
+    let to = hud["slots"].as_array().into_iter().flatten().find(|s| s["holder"] == "Hotbar" && s["index"] == 0).map(|s| s["at"].clone());
+    let (Some(from), Some(to)) = (from, to) else {
+        panic!("setup: no {item} shown in the inventory, or no first hotbar slot shown: {hud}");
+    };
+    op_with("pointer", json!({"drag": {"from": from, "to": to}}));
+    step(SECOND / 4);
+    op_with("key", json!({"key": "Tab"}));
+    step(SECOND / 4);
+    op_with("key", json!({"key": "1"}));
+    step(SECOND / 4);
+}
+
 // Pivot point 1, the other answers.
 
 /// "I don't believe it.": the pivot point is "does not believe it", Roxanne
@@ -344,15 +364,17 @@ fn the_fight_for_the_tap_starts_without_the_player() {
 
 // Pivot point 10, the last choice, and the endings (draft).
 
-/// Breaking the tap (Use on it with a tool carried) between the storm's
-/// warning and the storm is "breaks it", and the ending shown before the
-/// storm is "Break it".
+/// Breaking the tap (Use on it with a tool in hand: the-tap.md, orchestrator
+/// 2026-10-03) between the storm's warning and the storm is "breaks it",
+/// and the ending shown before the storm is "Break it".
 #[test]
 fn breaking_the_tap_ends_in_break_it() {
     let _p = pause();
     at_the_tap();
     let tap = the_tap();
     op_with("give", json!({"id": player(), "item": "pipe", "count": 1}));
+    step(SECOND);
+    hold_in_hand("pipe");
     op_with("storm", json!({}));
     step(SECOND);
     op_with("use", json!({"id": player(), "at": [tap.0, tap.1]}));
@@ -404,7 +426,10 @@ fn the_next_episode_is_cast_by_feeling() {
     let w = op("world");
     let cast = w["cast"].as_array().cloned().unwrap_or_default();
     assert!(!cast.is_empty(), "the next episode ({}) has no one cast", w["episode"]);
-    for p in &cast {
+    // A part the-fever.md marks as new in that episode (Sil, a travelling
+    // doctor) remembers nothing of the player: left out (orchestrator,
+    // 2026-10-03).
+    for p in cast.iter().filter(|p| p["part"] != "Sil") {
         let id = p["id"].as_u64().unwrap_or(0);
         let feels = op_with("npc", json!({"id": id}))["feelings"].as_array().into_iter().flatten().any(|f| f["toward"].as_u64() == Some(player()));
         assert!(feels, "{} ({id}) in the next episode feels nothing toward the player", p["part"]);

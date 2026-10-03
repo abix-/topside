@@ -76,10 +76,12 @@ pub fn cel_shade(
                 handle
             }
         };
+        // The mesh may be despawned this same frame (a load, a despawn
+        // after this system ran): then there is nothing to shade.
         commands
             .entity(entity)
-            .remove::<MeshMaterial3d<StandardMaterial>>()
-            .insert(MeshMaterial3d(handle));
+            .try_remove::<MeshMaterial3d<StandardMaterial>>()
+            .try_insert(MeshMaterial3d(handle));
     }
 }
 

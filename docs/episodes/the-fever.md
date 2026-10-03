@@ -27,7 +27,11 @@ everyone.
 
 ## The people
 
-Cast from what people remember of The Tap:
+Cast from what people remember of The Tap (built so far, orchestrator,
+2026-10-03: the first sick person, the one of the player's bunker who
+feels most toward the player; Dell, whoever played Dell, only if still of
+the player's bunker; Mara, whoever played Mara; Sil and the hidden sick
+person are this episode's own work, later):
 
 - The first sick person: whoever in the player's bunker trusted the
   player most in The Tap.

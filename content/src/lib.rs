@@ -519,8 +519,15 @@ pub fn register_episodes(reg: &mut EpisodeRegistry) {
         lines: Vec::new(),
         cues: Vec::new(),
         door_enemy: true,
+        endings: Vec::new(),
     };
-    let part =|name: &str, from| PartDef { name: name.to_string(), from };
+    let part = |name: &str, from| PartDef { name: name.to_string(), from };
+    let ending = |name: &str, words: &str, needs: &[&str], alive: &[&str]| modforge::storyteller::EndingDef {
+        name: name.to_string(),
+        words: words.to_string(),
+        needs: needs.iter().map(|n| n.to_string()).collect(),
+        alive: alive.iter().map(|p| p.to_string()).collect(),
+    };
     let s = |s: &str| s.to_string();
     let heard = |name: &str| When::Heard(s(name));
     let not = |when: When| When::Not(Box::new(when));
@@ -692,9 +699,29 @@ pub fn register_episodes(reg: &mut EpisodeRegistry) {
             // the first fight comes later (design.md "What 2D changes",
             // operator 2026-10-02).
             door_enemy: false,
+            // docs/episodes/the-tap.md "The endings" and "Which ending"
+            // (draft): the first that matches wins; Walk away needs nothing.
+            endings: vec![
+                ending("Break it", "Mara's well fills again. Your people are thirsty and angry with you. Mara's people remember you did it for them.", &["breaks it"], &[]),
+                ending("Tell everyone the truth", "Nobody wants to hear it. The strangers call you a liar and keep drinking.", &["tells the truth"], &[]),
+                ending("Share it", "A fragile peace with Mara. Dell hates it and may leave for the strangers.", &["shares it"], &["Mara"]),
+                ending("Hold it", "You drive Mara's people off and have water. Mara's bunker remembers.", &["holds it"], &[]),
+                ending("Walk away", "Mara's people take the tap and grow strong. Dell joins them.", &[], &[]),
+            ],
             ..episode("The Tap", &["Mixed world", "Sky Islands"])
         },
-        episode("The Fever", &[]),
+        // docs/episodes/the-fever.md "The people": for now only the parts
+        // drawn from what people remember of The Tap (orchestrator,
+        // 2026-10-03); Sil and the hidden sick person are The Fever's own
+        // work, later.
+        EpisodeDef {
+            parts: vec![
+                part("the first sick person", CastFrom::MostTrustingOfPlayerBunker),
+                part("Dell", CastFrom::PlayedBeforeAtHome("Dell".to_string())),
+                part("Mara", CastFrom::PlayedBefore("Mara".to_string())),
+            ],
+            ..episode("The Fever", &[])
+        },
         episode("The Other You", &["Mirror"]),
         episode("Nobody Dies", &["Loop"]),
         episode("The Question", &["Endless Day", "Rot", "Still Storm", "Maze", "Loop"]),

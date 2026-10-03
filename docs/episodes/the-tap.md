@@ -275,7 +275,9 @@ before the fight ends is "stays out".
 Pivot point 10, the last choice (draft), made between the sky's warning
 of the storm and the storm: "It's for both bunkers." said to Mara is
 "shares it"; the tap broken (Use on it with a tool in hand) is "breaks
-it"; "The tap is draining your well." said to anyone, only once pivot
+it" (orchestrator, 2026-10-03: in hand, not only carried, as Use acts
+with what is held; a tool is any melee weapon, a weapon with no ammo:
+the pipe, the axe); "The tap is draining your well." said to anyone, only once pivot
 point 7 was reached, is "tells the truth"; standing at the tap when the
 storm comes with none of Mara's people or the strangers alive within 20 m
 is "holds it"; none of these is "walks away".

@@ -282,9 +282,10 @@ pub fn talk(
     world: Res<crate::terrain::WorldRes>,
     seed: Res<crate::WorldSeed>,
     speakers: Query<(Entity, &Actor, &ThisTick, &Name), Without<Dead>>,
-    mut people: Query<(&Transform, &mut Memory, &Inventory, &mut Hud, Has<Player>, Option<&Conversation>, Option<&crate::actor::Npc>), Without<Dead>>,
+    mut people: Query<(&Transform, &mut Memory, &mut Inventory, &mut Hud, Has<Player>, Option<&Conversation>, Option<&crate::actor::Npc>), Without<Dead>>,
     mut joins: ResMut<crate::joining::Joins>,
     mut to_edge: ResMut<crate::edge::WordToEdge>,
+    items: Res<crate::content::ItemRegistryRes>,
 ) {
     // In ActorId order (authority.md rule 5): of two speaking to the player
     // in one tick, whom the player ends up talking to is the same after a
@@ -299,7 +300,7 @@ pub fn talk(
             let Some(listener) = map.0.handle_of(ActorId(to)) else {
                 continue;
             };
-            let Ok([(from, mut speaker_memory, inventory, _, speaker_is_player, speaker_talking, speaker_npc), (at, mut listener_memory, _, mut hud, is_player, listener_talking, listener_npc)]) =
+            let Ok([(from, mut speaker_memory, mut inventory, _, speaker_is_player, speaker_talking, speaker_npc), (at, mut listener_memory, mut listener_inventory, mut hud, is_player, listener_talking, listener_npc)]) =
                 people.get_many_mut([speaker, listener])
             else {
                 continue;
@@ -338,6 +339,16 @@ pub fn talk(
             // player's bunker (todo 11af).
             if is_player && words.as_ref().is_some_and(|(name, _)| name == crate::content::AGREES_TO_STAY) {
                 joins.0.push((speaker, crate::content::PLAYER_FACTION.to_string()));
+            }
+            // Giving water by a line (The Tap's "brings Mara water"): one
+            // drink goes from the speaker to the one spoken to.
+            if words.as_ref().is_some_and(|(name, _)| name == crate::content::GIVES_WATER)
+                && let Some(mut one) = inventory.0.slots.iter().flatten().find(|s| items.0.def(&s.item).and_then(|d| d.food).is_some_and(|f| f.thirst > 0.0)).cloned()
+                && inventory.0.take_one(&one.item)
+            {
+                one.count = 1;
+                let max = items.0.def(&one.item).map_or(1, |d| d.max_stack);
+                let _ = listener_inventory.0.add(one, max);
             }
             // A place told to someone of another group: word of it sets out
             // for the edge (todo 11i).

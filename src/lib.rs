@@ -281,6 +281,7 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind, port: u16
                     episode::the_taps_errands,
                     episode::the_first_drink,
                     episode::the_taps_deeds,
+                    episode::the_ending,
                     talk::lines,
                 )
                     .chain(),
@@ -422,8 +423,8 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind, port: u16
         // A stop for a test (a step, a load, a pause) is answered last in
         // the frame, after the HUD has drawn what the player sees.
         app.add_systems(Last, control_plane::answer_at_stop);
-        app.add_systems(Startup, loading::spawn_screen);
-        app.add_systems(Update, loading::show_screen.after(loading::ready_the_world));
+        app.add_systems(Startup, (loading::spawn_screen, hud::setup_ending));
+        app.add_systems(Update, (loading::show_screen.after(loading::ready_the_world), hud::render_ending));
         app.add_systems(
             Update,
             (

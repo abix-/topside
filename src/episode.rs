@@ -32,12 +32,18 @@ pub struct Episode {
     pub things: Vec<(String, Vec3, u64)>,
     /// The tick it started: what was said before it is not its.
     pub started: u64,
+    /// Who played which part in the episode before, for the parts cast from
+    /// memory (modforge `CastFrom::PlayedBefore`).
+    pub cast_before: Vec<(String, ActorId)>,
 }
 
 impl Episode {
-    /// A new episode starts at this tick: nobody cast, nothing reached.
+    /// A new episode starts at this tick: nobody cast, nothing reached, the
+    /// last one's cast kept as who played what before.
     pub fn start(&mut self, name: Option<String>, tick: u64) {
+        let before = std::mem::take(&mut self.cast);
         *self = Self::new(name, tick);
+        self.cast_before = before;
     }
 
     fn new(name: Option<String>, started: u64) -> Self {
@@ -48,6 +54,7 @@ impl Episode {
             reached: Vec::new(),
             things: Vec::new(),
             started,
+            cast_before: Vec::new(),
         }
     }
 
@@ -101,6 +108,7 @@ pub fn cast_episode(
     episodes: Res<EpisodeRegistryRes>,
     seed: Res<crate::WorldSeed>,
     people: Query<(&Actor, &Npc, &Home), Without<Dead>>,
+    (memories, player): (Query<(&Actor, &Memory)>, Query<&Actor, With<crate::player::Player>>),
 ) {
     if episode.cast_done {
         return;
@@ -137,7 +145,15 @@ pub fn cast_episode(
     }
     let bunkers: Vec<CastBunker<ActorId>> = bunkers.into_iter().map(|(_, b)| b).collect();
     let parts = def.parts.clone();
-    episode.cast = cast(&parts, &bunkers, seed.0);
+    // How each person feels toward the player, from their own memory (the
+    // parts cast from memory).
+    let me = player.single().ok().map(|a| a.0);
+    let feels = |id: ActorId| {
+        let memory = memories.iter().find(|(a, _)| a.0 == id).map(|(_, m)| m)?;
+        modforge::relationship::feeling(&memory.0, me?, |line| episodes.felt(line))
+    };
+    let before = episode.cast_before.clone();
+    episode.cast = cast(&parts, &bunkers, &before, feels, seed.0);
     episode.cast_done = true;
     info!("episode {:?} cast: {:?}", episode.name, episode.cast);
 }
@@ -501,6 +517,7 @@ pub fn the_taps_deeds(
     stores: Query<(&crate::interact::Container, Option<&crate::interact::Drawn>)>,
     items: Res<ItemRegistryRes>,
     day: Res<crate::survival::Day>,
+    (storms, taps): (Res<crate::storm::StormRes>, Query<(), With<DrawsFrom>>),
 ) {
     if tick.0 % 60 != 0 || episode.name.as_deref() != Some("The Tap") {
         return;
@@ -546,6 +563,13 @@ pub fn the_taps_deeds(
         };
         episode.reach(pivot, me.0, tick.0);
     }
+    // Pivot point 10: the tap broken between the sky's warning of the storm
+    // and the storm (interact: Use with a melee weapon in hand) is "breaks
+    // it".
+    let storm = crate::storm::phase(&tick, *day, &storms);
+    if taps.is_empty() && matches!(storm, modforge::storm::StormPhase::Warning | modforge::storm::StormPhase::Storm) {
+        episode.reach("breaks it", me.0, tick.0);
+    }
     // Checking a store (Use on it opens it, the player's open box):
     // the player's own bunker's holding more than it needs is Dell's
     // storing noticed (pivot point 5; Dell's line and the answers follow
@@ -571,3 +595,34 @@ pub fn the_taps_deeds(
 
 /// Pivot point 7 reached going there (the-tap.md "Pivot names").
 const FINDS_THE_WELL_DRY: &str = "finds Mara's well dry";
+
+/// When the storm comes, the episode's ending is shown, once, as a text
+/// screen before the world shifts (the-tap.md "Which ending"; modforge
+/// `storyteller::ending`: the first whose pivot points are reached and
+/// whose parts are alive).
+pub fn the_ending(
+    tick: Res<crate::SimTick>,
+    day: Res<crate::survival::Day>,
+    storms: Res<crate::storm::StormRes>,
+    episode: Res<Episode>,
+    episodes: Res<EpisodeRegistryRes>,
+    mut players: Query<&mut crate::interact::Hud, With<crate::player::Player>>,
+    people: Query<(&Actor, Has<Dead>)>,
+) {
+    if crate::storm::phase(&tick, *day, &storms) != modforge::storm::StormPhase::Storm {
+        return;
+    }
+    let (Ok(mut hud), Some(def)) = (players.single_mut(), episode.name.as_deref().and_then(|n| episodes.0.def(n))) else {
+        return;
+    };
+    if hud.0.ending.is_some() {
+        return;
+    }
+    let reached = episode.reached_names();
+    let reached: Vec<&str> = reached.iter().map(String::as_str).collect();
+    let alive = |part: &str| episode.cast_as(part).is_some_and(|id| people.iter().any(|(a, dead)| a.0 == id && !dead));
+    if let Some(end) = modforge::storyteller::ending(def, &reached, alive) {
+        info!("{:?}: the ending is {}", episode.name, end.name);
+        hud.0.ending = Some(modforge::hud::Ending { name: end.name.clone(), words: end.words.clone() });
+    }
+}

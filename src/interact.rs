@@ -486,7 +486,7 @@ pub fn interact_on_use(
     mut people: Query<
         (
             (Entity, &Transform, &ThisTick, &mut Inventory, &mut Hud, &mut OpenContainer, &mut OpenStation),
-            (&mut Survival, &mut Health, Option<&mut Memory>, &Facing, Option<&crate::talk::LookingAt>, Option<&crate::actor::Actor>),
+            (&mut Survival, &mut Health, Option<&mut Memory>, &Facing, Option<&crate::talk::LookingAt>, Option<&crate::actor::Actor>, Option<&crate::actor::Hotbar>),
         ),
         Without<Dead>,
     >,
@@ -499,9 +499,9 @@ pub fn interact_on_use(
 ) {
     // In ActorId order (authority.md rule 5): of two people using one thing
     // in one tick, who gets it is the same after a load.
-    let order = crate::actor::in_actor_order(people.iter().map(|((me, ..), (.., actor))| (actor.map(|a| a.0), me)));
+    let order = crate::actor::in_actor_order(people.iter().map(|((me, ..), (.., actor, _))| (actor.map(|a| a.0), me)));
     for entity in order {
-        let Ok(((me, person, this_tick, mut inventory, mut hud, mut open, mut station), (mut needs, mut health, mut memory, facing, looking, _))) =
+        let Ok(((me, person, this_tick, mut inventory, mut hud, mut open, mut station), (mut needs, mut health, mut memory, facing, looking, _, hotbar))) =
             people.get_mut(entity)
         else {
             continue;
@@ -538,6 +538,19 @@ pub fn interact_on_use(
         // A source item (a well, a bush), decided by modforge's interact.
         if thing.kind == InteractKind::Source {
             if let Some(item) = item {
+                // A source drawn from another (The Tap's tap) used with a
+                // melee weapon in hand is broken, and gone (the-tap.md pivot
+                // point 10; orchestrator 2026-10-03: in hand, any melee
+                // weapon, a weapon with no ammo).
+                let melee_in_hand = hotbar
+                    .and_then(|h| h.0.held_stack())
+                    .and_then(|s| registry.0.def(&s.item))
+                    .and_then(|d| d.combat.as_ref())
+                    .is_some_and(|c| c.ammo.is_none());
+                if draws_from.is_some() && melee_in_hand {
+                    commands.entity(entity).despawn();
+                    continue;
+                }
                 // Water drawn from a store: one of its waters goes, and
                 // with none left the source gives nothing.
                 if let Some(from) = draws_from {

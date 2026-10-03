@@ -785,6 +785,12 @@ pub fn publish_hud(
             }))
         })
         .collect();
+    // Every slot shown, filled or empty, and where it is: somewhere to drop
+    // what is dragged (the `pointer` op's drag).
+    let every_slot: Vec<Json> = slots
+        .iter()
+        .filter_map(|(slot, _, at, shown)| Some(json!({"holder": format!("{:?}", slot.0.holder), "index": slot.0.index, "at": on_screen(at, shown)?})))
+        .collect();
     let deal_at = deal.single().ok().and_then(|(at, shown)| on_screen(at, shown));
     // The item information panel: the selected slot and what it shows.
     let selected = item_panel.single().ok().and_then(|p| p.shown.as_ref()).map(|s| {
@@ -804,12 +810,15 @@ pub fn publish_hud(
             "open": screen.single().is_ok_and(|v| *v != Visibility::Hidden),
             "panels": list,
             "filled": filled,
+            "slots": every_slot,
             "selected": selected,
             "talk": talk,
             // What the player can do with what they look at.
             "prompt": players.single().map_or(String::new(), |h| h.0.prompt.text.clone()),
             // Whether a note is open, being read.
             "reading": players.single().is_ok_and(|h| h.0.reading.is_some()),
+            // The episode's ending, shown before the storm (todo 11ae).
+            "ending": players.single().ok().and_then(|h| h.0.ending.as_ref()).map(|e| json!({"name": e.name, "words": e.words})),
             // The trade being made: with whom, the slots each side puts on
             // the table, and whether the last deal was refused.
             "trading": players.single().ok().and_then(|h| h.0.trading.as_ref()).map(|t| json!({
@@ -1755,13 +1764,15 @@ pub fn start(port: u16) {
     ));
     OP_REGISTRY.register(OpDef::new(
         "pointer",
-        "drive the mouse as the player does, through Bevy picking on the real mouse pointer: `at` moves it to a window point in logical pixels (the `hud` op gives where things are), `click` presses the left button this frame and releases it the next",
+        "drive the mouse as the player does, through Bevy picking on the real mouse pointer: `at` moves it to a window point in logical pixels (the `hud` op gives where things are), `click` presses the left button this frame and releases it the next, `drag` {from, to} presses at one point, moves through the way to the other, and releases there",
         "{\"at\": [640.0, 360.0], \"click\": true}",
         |args| {
-            let at = args.get("at").and_then(Json::as_array).and_then(|a| Some(Vec2::new(a.first()?.as_f64()? as f32, a.get(1)?.as_f64()? as f32)));
+            let point = |v: Option<&Json>| v.and_then(Json::as_array).and_then(|a| Some(Vec2::new(a.first()?.as_f64()? as f32, a.get(1)?.as_f64()? as f32)));
+            let at = point(args.get("at"));
             let click = args.get("click").and_then(Json::as_bool).unwrap_or(false);
-            if at.is_none() && !click {
-                return Err("at: [x, y], click: true, or both".to_string());
+            let drag = args.get("drag").and_then(|d| Some((point(d.get("from"))?, point(d.get("to"))?)));
+            if at.is_none() && !click && drag.is_none() {
+                return Err("at: [x, y], click: true, drag: {from, to}, or at and click".to_string());
             }
             if let Ok(mut queue) = DRIVE.lock() {
                 if let Some(at) = at {
@@ -1770,8 +1781,13 @@ pub fn start(port: u16) {
                 if click {
                     queue.extend([Drive::Press, Drive::Next, Drive::Release, Drive::Next]);
                 }
+                // A drag as a hand makes it: down, a move partway, the rest of
+                // the way, up.
+                if let Some((from, to)) = drag {
+                    queue.extend([Drive::Move(from), Drive::Next, Drive::Press, Drive::Next, Drive::Move(from.lerp(to, 0.5)), Drive::Next, Drive::Move(to), Drive::Next, Drive::Release, Drive::Next]);
+                }
             }
-            Ok(json!({"at": at.map(|a| [a.x, a.y]), "click": click}))
+            Ok(json!({"at": at.map(|a| [a.x, a.y]), "click": click, "drag": drag.map(|(f, t)| [[f.x, f.y], [t.x, t.y]])}))
         },
     ));
     OP_REGISTRY.register(OpDef::new(
