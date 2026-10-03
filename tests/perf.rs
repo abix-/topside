@@ -25,7 +25,13 @@ fn where_the_time_goes_in_play() {
     let status = op("status");
     let run = op_with("tests", json!({}));
     let ticks = status["tick"].as_u64().unwrap_or(0).saturating_sub(before["tick"].as_u64().unwrap_or(0));
-    let running = run.is_object() && run["done"] == false;
+    // Another test running drives the game; this one, run by the queue,
+    // is its own run's running test and reads play.
+    let running = run["tests"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .any(|t| t["state"] == "running" && t["name"] != "perf::where_the_time_goes_in_play");
 
     let mut rows = vec![format!(
         "reading at tick {}: {} ticks in {} ms; speed {:.2}; fps {:.1}; {} people; a test run going: {}",
@@ -37,14 +43,31 @@ fn where_the_time_goes_in_play() {
         status["people"],
         running
     )];
+    let step = perf["step_ms"].as_f64().unwrap_or(0.0);
+    let per_frame = perf["steps_per_frame"].as_f64().unwrap_or(0.0);
+    let fixed_main = perf["frame"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .find(|s| s["span"] == "schedule FixedMain")
+        .and_then(|s| s["ms"].as_f64())
+        .unwrap_or(0.0);
+    let laps: f64 = perf["parts"].as_array().into_iter().flatten().filter(|p| p["in_step"] == true).filter_map(|p| p["ms"].as_f64()).sum();
     rows.push(format!(
-        "whole step {:.3} ms of {:.3}",
-        perf["step_ms"].as_f64().unwrap_or(0.0),
-        perf["budget_ms"].as_f64().unwrap_or(0.0)
+        "whole step {step:.3} ms of {:.3} (worst {:.3}); {per_frame:.2} steps a frame; FixedMain {fixed_main:.3} ms a frame, {:.3} a step; the step's laps add up to {laps:.3}",
+        perf["budget_ms"].as_f64().unwrap_or(0.0),
+        perf["step_worst_ms"].as_f64().unwrap_or(0.0),
+        if per_frame > 0.0 { fixed_main / per_frame } else { 0.0 }
     ));
-    rows.push("parts of a step (ms):".to_string());
+    rows.push("parts of a step (ms, average and worst; * a lap of the step):".to_string());
     for part in perf["parts"].as_array().into_iter().flatten() {
-        rows.push(format!("  {:<48} {:>8.3}", part["part"].as_str().unwrap_or("?"), part["ms"].as_f64().unwrap_or(0.0)));
+        rows.push(format!(
+            "  {} {:<46} {:>8.3} {:>9.3}",
+            if part["in_step"] == true { "*" } else { " " },
+            part["part"].as_str().unwrap_or("?"),
+            part["ms"].as_f64().unwrap_or(0.0),
+            part["worst_ms"].as_f64().unwrap_or(0.0)
+        ));
     }
     rows.push("counts (a step):".to_string());
     for count in perf["counts"].as_array().into_iter().flatten() {
@@ -79,6 +102,11 @@ fn where_the_time_goes_in_play() {
     assert!(!running, "a test run is going: the numbers are not play (run {})", run["run"]);
     assert!(ticks >= 60, "{ticks} ticks in {} ms: paused or stepping, the numbers are not play", ONE_PUBLISH.as_millis());
     assert!(perf["parts"].as_array().is_some_and(|p| !p.is_empty()), "the perf op reports no parts: {perf}");
+    // Todo 9m: the step's laps add up to the whole step, and the whole
+    // step is what Bevy's FixedMain spends per step.
+    assert!((laps - step).abs() <= step * 0.05, "the step's laps add up to {laps:.3} ms, the whole step is {step:.3}");
+    let main_per_step = if per_frame > 0.0 { fixed_main / per_frame } else { 0.0 };
+    assert!((main_per_step - step).abs() <= step * 0.05, "FixedMain is {main_per_step:.3} ms a step ({fixed_main:.3} a frame, {per_frame:.2} steps a frame), the whole step {step:.3}");
 }
 
 /// What a stepped tick costs, as a test pays it: the `opening_woke` save
@@ -106,7 +134,10 @@ fn what_a_stepped_tick_costs() {
     rows.push(format!("  settled median (last 5): 60 ticks in {median:.0} ms, {:.2} ms a tick", median / 60.0));
     let worst = all.iter().copied().fold(0.0, f64::max);
     let perf = op("perf");
-    rows.push(format!("  the perf op's whole step {:.3} ms", perf["step_ms"].as_f64().unwrap_or(0.0)));
+    rows.push(format!("  the perf op's whole step {:.3} ms, its laps (average over about the last 30 steps):", perf["step_ms"].as_f64().unwrap_or(0.0)));
+    for part in perf["parts"].as_array().into_iter().flatten().filter(|p| p["in_step"] == true) {
+        rows.push(format!("    {:<44} {:>8.3}", part["part"].as_str().unwrap_or("?"), part["ms"].as_f64().unwrap_or(0.0)));
+    }
     let text = format!("{}\n\n", rows.join("\n"));
     let _ = std::fs::create_dir_all("../logs");
     let mut old = std::fs::read_to_string("../logs/perf.txt").unwrap_or_default();

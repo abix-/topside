@@ -1256,7 +1256,13 @@ pub fn publish(
     // part costliest first (a part named "steer: ..." is a piece inside
     // steer), and what was counted.
     if tick.0 % 60 == 0 {
-        let parts: Vec<Json> = laps.sorted().into_iter().map(|(n, ms)| json!({"part": n, "ms": ms})).collect();
+        // Each part's average and its worst single step since launch; the
+        // laps of the step ("in_step") add up to the whole step.
+        let parts: Vec<Json> = laps
+            .sorted()
+            .into_iter()
+            .map(|(n, ms)| json!({"part": n, "ms": ms, "worst_ms": laps.worst(n), "in_step": laps.in_step.contains(&n)}))
+            .collect();
         let counts: Vec<Json> = laps.counts.iter().map(|(n, v)| json!({"what": n, "per_step": v})).collect();
         // Every span Bevy ran (each system, each schedule, the drawing's
         // work), ms per frame, the costliest first (profile.rs).
@@ -1264,6 +1270,8 @@ pub fn publish(
         if let Ok(mut slot) = PERF.lock() {
             *slot = json!({
                 "step_ms": laps.step_ms,
+                "step_worst_ms": laps.step_worst_ms,
+                "steps_per_frame": laps.steps_per_frame,
                 "budget_ms": 1000.0 / 60.0,
                 "people": actors.0.live_count(),
                 "parts": parts,

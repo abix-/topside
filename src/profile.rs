@@ -112,18 +112,32 @@ pub fn per_frame() -> Vec<(String, f64)> {
 /// history): about the last 30 samples.
 const SMOOTHING: f64 = 1.0 / 30.0;
 
-/// Every measured part's average cost per fixed step, in ms, what the
-/// parts counted (people walking, ways searched), and the whole step.
+/// Every measured part's average cost per fixed step, in ms, and its worst
+/// single step since launch (an average hides a one-tick stall: 474 ms
+/// reads as about 16 and fades); what the parts counted (people walking,
+/// ways searched); the whole step, from the start of FixedFirst to the end
+/// of FixedLast, average and worst; and how many fixed steps a frame ran.
 #[derive(Resource, Default)]
 pub struct Laps {
     mark: Option<Instant>,
     step_start: Option<Instant>,
-    physics_start: Option<Instant>,
     pub mean_ms: Vec<(&'static str, f64)>,
+    /// Each part's worst single step since launch, in ms.
+    pub worst_ms: Vec<(&'static str, f64)>,
+    /// The parts that are laps of the fixed step, one after another from
+    /// its start: these add up to the whole step. The rest are pieces
+    /// inside a lap ("steer: ...") or work outside the step.
+    pub in_step: Vec<&'static str>,
     /// Average counts per fixed step, by name.
     pub counts: Vec<(&'static str, f64)>,
-    /// The whole fixed step, physics included, in ms.
+    /// The whole fixed step, every Fixed schedule, in ms.
     pub step_ms: f64,
+    /// The whole fixed step's worst since launch, in ms.
+    pub step_worst_ms: f64,
+    /// Fixed steps run this frame, so far.
+    steps_this_frame: u32,
+    /// Fixed steps a frame, averaged over frames.
+    pub steps_per_frame: f64,
 }
 
 fn smooth(list: &mut Vec<(&'static str, f64)>, name: &'static str, value: f64) {
@@ -135,9 +149,18 @@ fn smooth(list: &mut Vec<(&'static str, f64)>, name: &'static str, value: f64) {
 
 impl Laps {
     /// A part's time this step, in ms: a whole system (`lap`) or a part
-    /// inside one, timed where it runs.
+    /// inside one, timed where it runs; its worst kept too.
     pub fn record(&mut self, name: &'static str, ms: f64) {
         smooth(&mut self.mean_ms, name, ms);
+        match self.worst_ms.iter_mut().find(|(n, _)| *n == name) {
+            Some((_, worst)) => *worst = worst.max(ms),
+            None => self.worst_ms.push((name, ms)),
+        }
+    }
+
+    /// One part's worst single step since launch, if measured.
+    pub fn worst(&self, name: &str) -> Option<f64> {
+        self.worst_ms.iter().find(|(n, _)| *n == name).map(|(_, v)| *v)
     }
 
     /// How many of something happened this step (ways searched, people
@@ -168,52 +191,65 @@ pub fn start(mut laps: ResMut<Laps>) {
     laps.mark = Some(Instant::now());
 }
 
-/// The top of the fixed step: the stopwatch and the whole step start.
+/// The top of the fixed step, first in FixedFirst: the stopwatch and the
+/// whole step start, and the step is counted for this frame.
 pub fn start_step(mut laps: ResMut<Laps>) {
     let now = Instant::now();
     laps.mark = Some(now);
     laps.step_start = Some(now);
+    laps.steps_this_frame += 1;
 }
 
-/// The end of the fixed step, after physics: the whole step's time.
+/// The end of the fixed step, last in FixedLast: the whole step's time.
 pub fn finish_step(mut laps: ResMut<Laps>) {
     let ms = since(laps.step_start, Instant::now());
     laps.step_ms += (ms - laps.step_ms) * SMOOTHING;
+    laps.step_worst_ms = laps.step_worst_ms.max(ms);
 }
 
 /// A system that records the time since the last stamp under `name`
-/// and stamps again: put one after each system to time it.
+/// and stamps again: put one after each part of the fixed step to time
+/// it. The laps follow one another from `start_step`, so they add up to
+/// the whole step.
 pub fn lap(name: &'static str) -> impl FnMut(ResMut<Laps>) {
     move |mut laps: ResMut<Laps>| {
         let now = Instant::now();
         let ms = since(laps.mark, now);
         laps.record(name, ms);
+        if !laps.in_step.contains(&name) {
+            laps.in_step.push(name);
+        }
         laps.mark = Some(now);
     }
 }
 
-/// Around Avian's step: FixedPostUpdate to FixedLast.
-pub fn physics_start(mut laps: ResMut<Laps>) {
-    laps.physics_start = Some(Instant::now());
+/// Once a frame (First): how many fixed steps the last frame ran, into
+/// its average.
+fn count_steps(mut laps: ResMut<Laps>) {
+    let steps = std::mem::take(&mut laps.steps_this_frame) as f64;
+    laps.steps_per_frame += (steps - laps.steps_per_frame) * SMOOTHING;
 }
 
-pub fn physics_end(mut laps: ResMut<Laps>) {
-    let ms = since(laps.physics_start, Instant::now());
-    laps.record("physics", ms);
-}
-
-/// Stamps around the physics step, the one piece outside topside's
-/// chain.
+/// The stamps outside topside's FixedUpdate chain: the step starts first
+/// in FixedFirst (its land meshes lapped in navmesh.rs, landmass in
+/// FixedPreUpdate the same), what of FixedUpdate ran after the chain's
+/// last lap is lapped as Avian's step begins, Avian's step is lapped in
+/// FixedLast, and the step ends.
 pub struct ProfilePlugin;
+
+/// The part for whatever of FixedUpdate ran after the chain's last lap
+/// (systems outside the chain, ordered only after some part of it).
+const REST_OF_FIXED_UPDATE: &str = "rest of fixed update";
 
 impl Plugin for ProfilePlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<Laps>();
-        app.add_systems(First, roll_frame);
+        app.add_systems(First, (roll_frame, count_steps));
+        app.add_systems(FixedFirst, start_step);
         app.add_systems(
             FixedPostUpdate,
-            physics_start.before(avian3d::schedule::PhysicsSystems::First),
+            lap(REST_OF_FIXED_UPDATE).before(avian3d::schedule::PhysicsSystems::First),
         );
-        app.add_systems(FixedLast, (physics_end, finish_step).chain());
+        app.add_systems(FixedLast, (lap("physics"), finish_step).chain());
     }
 }

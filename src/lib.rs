@@ -218,7 +218,6 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind, port: u16
         FixedUpdate,
         (
             (
-                profile::start_step,
                 tick_system,
                 // The chunks the world needs now, their sites, and the
                 // sites' people.
