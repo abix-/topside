@@ -312,6 +312,11 @@ home is usually calm but never guaranteed safe.
   topside this is the storyteller's beat; the full mechanic is its own
   section below. (The name emission stays MISERY's and STALKER's; ours is
   the storm.)
+- When the storm comes is never fixed (operator, 2026-10-03): if it came
+  on a schedule the player would know how long an episode has, and the
+  unknown is part of it. Each episode says when its storm comes, and the
+  time is rolled, so it depends on the story and on chance. The Tap's
+  first storm comes in 2 game days.
 
 ## The storm
 
