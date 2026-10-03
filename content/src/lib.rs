@@ -396,6 +396,9 @@ pub fn plain_lines() -> Vec<LineDef> {
             0.1,
         ),
         line("no water", "", vec![heard("asks for water")], &["No idea.", "Find your own.", "If I knew, I'd be drinking."], "", 0.0),
+        // Holding a place, the one warning to anyone they stand hostile to
+        // who comes for it (todo 11z), called to them.
+        line("warns off", "", vec![When::Warning], &["Stay back. This place is held.", "Not one step closer.", "Turn around. This is ours."], "", 0.0),
     ]
 }
 

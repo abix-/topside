@@ -143,6 +143,7 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind) -> App {
     app.init_resource::<content::ItemRegistryRes>();
     app.init_resource::<content::ItemValuesRes>();
     app.init_resource::<trade::PeopleTrades>();
+    app.init_resource::<ai::Warnings>();
     app.init_resource::<content::LayerRegistryRes>();
     app.init_resource::<content::DamageRegistryRes>();
     app.init_resource::<content::ActorRegistryRes>();
@@ -213,7 +214,7 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind) -> App {
                 )
                     .chain(),
                 ai::think,
-                trade::between_people,
+                (trade::between_people, ai::warn_off).chain(),
                 lap("think"),
                 (input::drain_actions, lap("drain_actions"), hud::learn_hints, episode::cues, command::give, command::carry_out, ai::follow, ai::lead).chain(),
                 (nav::record_solids, nav::record_doors),

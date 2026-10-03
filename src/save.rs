@@ -91,6 +91,7 @@ saved! {
         crate::actor::ActorRecord,
         crate::ai::Leading,
         crate::ai::Following,
+        crate::ai::Holding,
         crate::combat::Health,
         crate::combat::Protection,
         crate::combat::Equipment,

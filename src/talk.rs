@@ -79,21 +79,32 @@ pub fn talking_with(with: u64, name: &str) -> modforge::hud::Talking {
     modforge::hud::Talking { with, name: name.to_string(), ..Default::default() }
 }
 
-/// The line a knocker calls through the shut door to `to` with their knock,
-/// if one fits (authority.md "Talking": one called line, heard like the
-/// knock; a line rule with `When::Knocking`, picked as any line is; The
-/// Tap: "You awake in there?"): its name and words, as they say it now.
+/// What a called line is called with: a knock on a shut door, or a holder's
+/// warning to one who comes for the place they hold (todo 11z).
+#[derive(Clone, Copy, PartialEq)]
+pub enum Call {
+    Knocking,
+    Warning,
+}
+
+/// The line `caller` calls to `to` with their knock or warning, if one fits
+/// (authority.md "Talking": one called line, heard like the knock, no
+/// conversation opened; a line rule with `When::Knocking` or
+/// `When::Warning`, picked as any line is; The Tap: "You awake in
+/// there?"): its name and words, as they say it now.
 pub fn called_line(
     (episode, lines, bunker, seed): (&Episode, &Lines, Vec2, u64),
-    (knocker, memory, at, survival): (ActorId, &Memory, Vec3, Option<&Survival>),
+    (caller, memory, at, survival): (ActorId, &Memory, Vec3, Option<&Survival>),
     to: (ActorId, bool),
+    call: Call,
     tick: u64,
 ) -> Option<modforge::memory::Line> {
-    let moment = Moment::of(episode, (knocker, false), to, at, survival);
+    let moment = Moment::of(episode, (caller, false), to, at, survival);
     let mut speaking = moment.speaking(to.0, &memory.0, tick, false);
-    speaking.knocking = true;
+    speaking.knocking = call == Call::Knocking;
+    speaking.warning = call == Call::Warning;
     let line = modforge::talk::pick(&lines.0, &speaking, seed ^ tick)?;
-    let (words, _) = words_of(&lines.0[line], line, (knocker, &memory.0), tick, episode, bunker, seed)?;
+    let (words, _) = words_of(&lines.0[line], line, (caller, &memory.0), tick, episode, bunker, seed)?;
     Some(modforge::memory::Line { name: lines.0[line].name.clone(), words })
 }
 
@@ -173,6 +184,7 @@ impl Moment {
             near: &self.near,
             needs: &self.needs,
             knocking: false,
+            warning: false,
         }
     }
 }

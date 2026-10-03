@@ -244,7 +244,7 @@ pub fn knock(
         let player_behind = people.iter().find(|(e, _, there, _, is_player)| *e != knocker && *is_player && hears(there)).map(|(_, a, ..)| a.0);
         let line = player_behind.and_then(|player| {
             let (_, _, _, memory, _) = people.get(knocker).ok()?;
-            crate::talk::called_line((&called.0, &called.1, called.2.bunker, called.3.0), (id.0, memory, feet, survival), (player, true), tick.0)
+            crate::talk::called_line((&called.0, &called.1, called.2.bunker, called.3.0), (id.0, memory, feet, survival), (player, true), crate::talk::Call::Knocking, tick.0)
         });
         for (hearer, _, there, mut memory, _) in &mut people {
             if hearer == knocker {

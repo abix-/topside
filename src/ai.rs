@@ -73,6 +73,7 @@ pub struct Thinkers<'w, 's> {
                 Option<&'static crate::navmesh::Walker>,
                 Option<&'static crate::actor::Map>,
                 Option<&'static crate::actor::Asked>,
+                Option<&'static mut Holding>,
             ),
         ),
         // The dead for good never think again.
@@ -82,12 +83,78 @@ pub struct Thinkers<'w, 's> {
     ways: crate::navmesh::Ways<'w, 's>,
     /// The trades they decide, made after (trade::between_people).
     trades: ResMut<'w, crate::trade::PeopleTrades>,
+    /// The warnings holders decide, said after (`warn_off`).
+    warnings: ResMut<'w, Warnings>,
     others: Query<
         'w,
         's,
         (Entity, &'static Transform, Option<&'static Npc>, Option<&'static Actor>),
         (Or<(With<Npc>, With<Player>)>, Without<Dead>),
     >,
+}
+
+/// Holding a place (todo 11z; Skyrim's guard package, Mount & Blade's hold
+/// this position): the place, and each one they warned off it and when.
+/// The brain holds it as a guard holds home, warns once anyone they stand
+/// hostile to who comes within `HOLD_REACH`, and fights them if they are
+/// still within it `WARNING_GRACE` after.
+#[derive(Component, Debug, Clone, serde::Serialize, serde::Deserialize, Reflect)]
+#[reflect(opaque, Component, Serialize, Deserialize)]
+pub struct Holding {
+    pub at: Vec3,
+    pub warned: Vec<(ActorId, u64)>,
+}
+
+/// How near the held place one comes for it, in metres (operator,
+/// 2026-10-02).
+pub const HOLD_REACH: f32 = 8.0;
+
+/// How long one warned off may stay within reach before the holder fights
+/// them, in ticks: 3 game seconds (Claude's number, todo 11z; the operator
+/// may change it).
+pub const WARNING_GRACE: u64 = 3 * 60;
+
+/// The warnings holders decided this step (`think`): the holder, and whom
+/// they warn off. Said after (`warn_off`), as trades are made after.
+#[derive(Resource, Default)]
+pub struct Warnings(pub Vec<(Entity, ActorId)>);
+
+/// Each warning decided, said: the one warning line called to them, the
+/// knock's way (talk::called_line, `Call::Warning`), heard where they are,
+/// no conversation opened. The holder remembers saying it, the one warned
+/// hearing it.
+#[allow(clippy::type_complexity)]
+pub fn warn_off(
+    tick: Res<SimTick>,
+    map: Res<crate::actor::ActorMapRes>,
+    episode: Res<crate::episode::Episode>,
+    lines: Res<crate::talk::Lines>,
+    world: Res<crate::terrain::WorldRes>,
+    seed: Res<crate::WorldSeed>,
+    mut warnings: ResMut<Warnings>,
+    mut people: Query<(&Actor, &Transform, &mut Memory, Option<&Survival>, Has<crate::player::Player>)>,
+) {
+    for (holder, to) in std::mem::take(&mut warnings.0) {
+        let Some(warned) = map.0.handle_of(to) else {
+            continue;
+        };
+        let is_player = people.get(warned).is_ok_and(|p| p.4);
+        let Ok([(by, at, mut holder_memory, survival, _), (_, _, mut warned_memory, _, _)]) = people.get_many_mut([holder, warned]) else {
+            continue;
+        };
+        let feet = crate::interact::feet_of(at);
+        let Some(line) = crate::talk::called_line(
+            (&episode, &lines, world.bunker, seed.0),
+            (by.0, &holder_memory, feet, survival),
+            (to, is_player),
+            crate::talk::Call::Warning,
+            tick.0,
+        ) else {
+            continue;
+        };
+        holder_memory.0.did(Did::Talked(to, line.clone()), tick.0);
+        warned_memory.0.did(Did::Heard(by.0, line), tick.0);
+    }
 }
 
 /// Leading someone somewhere (life.md "Going with someone"): who, to
@@ -322,7 +389,7 @@ pub fn think(
             mut memory,
             mut record,
             mut condition,
-            (mut actions, inventory, hotbar, open, mut next_think, dead, store, way, map, asked),
+            (mut actions, inventory, hotbar, open, mut next_think, dead, store, way, map, asked, mut holding),
         )) = thinkers.npcs.get_mut(entity)
         else {
             continue;
@@ -377,8 +444,36 @@ pub fn think(
             })
             .map(|(e, id, at, _)| (*e, *id, *at))
             .collect();
-        let home_at = home.map(|h| h.0);
-        let at_home = home.is_some_and(|h| h.0.distance(here) <= HOME_REACH);
+        // Holding a place (`Holding`): anyone they stand hostile to within
+        // `HOLD_REACH` of it, in view, is warned once (said after,
+        // `warn_off`); one still within it `WARNING_GRACE` after is the one
+        // they fight, by the guard's own fight; nobody else.
+        let hostile = match holding.as_deref_mut() {
+            None => hostile,
+            Some(holding) => {
+                let place = holding.at;
+                let mut coming: Vec<(ActorId, Vec3)> = everyone
+                    .iter()
+                    .filter(|(e, id, at, faction)| *e != entity && at.distance(place) <= HOLD_REACH && stands_hostile(*id, faction.as_deref()) && sight.clear(here, *at))
+                    .map(|(_, id, at, _)| (*id, *at))
+                    .collect();
+                // In ActorId order (authority.md rule 5).
+                coming.sort_by_key(|(id, _)| id.0);
+                for (id, _) in &coming {
+                    if !holding.warned.iter().any(|(w, _)| w == id) {
+                        holding.warned.push((*id, tick.0));
+                        thinkers.warnings.0.push((entity, *id));
+                    }
+                }
+                coming
+                    .into_iter()
+                    .filter(|(id, _)| holding.warned.iter().any(|(w, when)| w == id && tick.0 >= when + WARNING_GRACE))
+                    .min_by(|a, b| a.1.distance(here).total_cmp(&b.1.distance(here)))
+            }
+        };
+        // A guard holds home; one holding a place holds it the same way.
+        let home_at = holding.as_ref().map(|h| h.at).or(home.map(|h| h.0));
+        let at_home = home_at.is_some_and(|h| h.distance(here) <= HOME_REACH);
         condition.0.threat_in_sight = hostile.is_some();
         condition.0.at_home = at_home;
         if let Some((who, at)) = hostile {
@@ -510,7 +605,7 @@ pub fn think(
             health_fraction: health.0.fraction(),
             needs: needs.0,
             home: home_at,
-            behaviour: def.behaviour,
+            behaviour: if holding.is_some() { modforge::actor::Behaviour::Guard } else { def.behaviour },
             at_home,
             asleep: condition.0.asleep,
             hostile,
@@ -527,7 +622,9 @@ pub fn think(
             standable: &standable,
             reachable: &reachable,
             unknown: &unknown,
-            asked: asked.map(|a| a.0),
+            // Holding a place, they are asked to be there: they go back to
+            // it and wait, the one errand path.
+            asked: holding.as_ref().map(|h| h.at).or(asked.map(|a| a.0)),
             trader,
         };
 
