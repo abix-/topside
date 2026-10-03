@@ -157,7 +157,7 @@ pub static ASK: Mutex<Option<Ask>> = Mutex::new(None);
 /// world), or why it failed.
 pub static ANSWER: Mutex<Option<Result<serde_json::Value, String>>> = Mutex::new(None);
 
-fn answer(result: Result<serde_json::Value, String>) {
+pub fn answer(result: Result<serde_json::Value, String>) {
     if let Ok(mut slot) = ANSWER.lock() {
         *slot = Some(result);
     }
@@ -180,6 +180,26 @@ pub struct Header {
     pub world: String,
     pub shifts: u32,
     pub tick: u64,
+    /// The game's content the save was made with (`content_hash`): a save
+    /// of other content is refused as one of another version is, and made
+    /// again by playing (a line's words edited, an item changed).
+    #[serde(default)]
+    pub content: u64,
+}
+
+/// A hash of the game's content as it is (every episode with its lines and
+/// cues, plain talk, every item), the same in every build of the same
+/// content (FNV-1a over their written-out form, all kept in order).
+fn content_hash(world: &World) -> u64 {
+    let episodes = world.get_resource::<crate::content::EpisodeRegistryRes>().map(|e| format!("{:?}", e.0.all())).unwrap_or_default();
+    let items = world.get_resource::<crate::content::ItemRegistryRes>().map(|i| format!("{:?}", i.0.all())).unwrap_or_default();
+    let talk = format!("{:?}", crate::content::plain_lines());
+    let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
+    for byte in episodes.bytes().chain(items.bytes()).chain(talk.bytes()) {
+        hash ^= u64::from(byte);
+        hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
+    }
+    hash
 }
 
 /// How a save's first line begins.
@@ -194,6 +214,7 @@ impl Header {
             world: format!("{:?}", world.resource::<crate::content::WorldKind>()).to_lowercase(),
             shifts: world.resource::<crate::storm::StormRes>().shifts,
             tick: world.resource::<SimTick>().0,
+            content: content_hash(world),
         }
     }
 
@@ -204,6 +225,9 @@ impl Header {
     fn refuses(&self, now: &Header) -> Option<String> {
         if self.version != now.version {
             return Some(format!("the save is version {}, this game reads version {}: make the save again by playing", self.version, now.version));
+        }
+        if self.content != now.content {
+            return Some(format!("the save was made with other content (lines, items or episodes changed since; {:x}, this game {:x}): make the save again by playing", self.content, now.content));
         }
         if crate::content::WorldKind::from_name(&self.world).is_none() {
             return Some(format!("the save's world is {:?}, not one this game makes (small or big)", self.world));
@@ -431,10 +455,9 @@ fn loaded(loaded: On<Loaded>, mut actors: ResMut<crate::actor::ActorMapRes>, mut
             crate::navmesh::mesh_as_saved(world);
         }
         info!("load done in {:.0} ms ({})", start.elapsed().as_secs_f64() * 1000.0, if rolled { "its world rolled and meshed" } else { "the same world" });
-        // What the ops read, written from the loaded game before the load
-        // answers.
-        crate::control_plane::publish_now(world);
-        answer(world.run_system_cached(|moment: Moment| moment.read()).map_err(|e| format!("reading the loaded game: {e}")));
+        // A stop: what the ops read published and the load answered at
+        // this frame's end, once the HUD has drawn the loaded game.
+        crate::control_plane::stopped(crate::control_plane::Stop::Load);
     });
 }
 

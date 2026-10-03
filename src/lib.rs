@@ -344,6 +344,9 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind) -> App {
         app.add_systems(PreUpdate, input::gather_input.after(bevy::input::InputSystems));
         app.add_systems(FixedPreUpdate, input::input_to_actions);
         app.add_systems(Update, control_plane::stand_still.after(control_plane::apply_speed));
+        // A stop for a test (a step, a load, a pause) is answered last in
+        // the frame, after the HUD has drawn what the player sees.
+        app.add_systems(Last, control_plane::answer_at_stop);
         app.add_systems(
             Update,
             (

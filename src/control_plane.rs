@@ -887,19 +887,56 @@ pub fn step_ticks(mut fixed: ResMut<Time<Fixed>>, time: Res<Time<Virtual>>, tick
     }
 }
 
-/// After the fixed steps, once stepping has reached its tick: what the
-/// ops read published (`publish_now`), then the `step` op answered with
-/// the moment there (crate::save::Moment).
-pub fn answer_step(world: &mut World) {
-    let tick = world.resource::<crate::SimTick>().0;
+/// After the fixed steps, once stepping has reached its tick: the game has
+/// stopped for a test, answered at the frame's end (`answer_at_stop`).
+pub fn answer_step(tick: Res<crate::SimTick>) {
     match STEP_TO.lock() {
-        Ok(mut to) if *to == Some(tick) => *to = None,
+        Ok(mut to) if *to == Some(tick.0) => *to = None,
         _ => return,
     }
+    stopped(Stop::Step);
+}
+
+/// What the game has stopped for, for a test: a step done, a load done, a
+/// pause taken hold.
+#[derive(Clone, Copy, PartialEq)]
+pub enum Stop {
+    Step,
+    Load,
+    Pause,
+}
+
+static STOPS: Mutex<Vec<Stop>> = Mutex::new(Vec::new());
+
+/// The game has stopped for a test; answered at the frame's end.
+pub fn stopped(stop: Stop) {
+    if let Ok(mut stops) = STOPS.lock() {
+        stops.push(stop);
+    }
+}
+
+/// Last in every frame, once this frame's systems, the HUD's drawing
+/// included, have run: for each stop this frame, what the ops read
+/// published (`publish_now`), so they answer what the player sees, then
+/// the op that waited answered: a step and a load with the moment there
+/// (crate::save::Moment), a pause with the tick it stands at.
+pub fn answer_at_stop(world: &mut World) {
+    let stops = STOPS.lock().map(|mut s| std::mem::take(&mut *s)).unwrap_or_default();
+    if stops.is_empty() {
+        return;
+    }
     publish_now(world);
-    let moment = world.run_system_cached(|moment: crate::save::Moment| moment.read()).unwrap_or(Json::Null);
-    if let Ok(mut slot) = STEP_ANSWER.lock() {
-        *slot = Some(moment);
+    for stop in stops {
+        match stop {
+            Stop::Step => {
+                let moment = world.run_system_cached(|moment: crate::save::Moment| moment.read()).unwrap_or(Json::Null);
+                if let Ok(mut slot) = STEP_ANSWER.lock() {
+                    *slot = Some(moment);
+                }
+            }
+            Stop::Load => crate::save::answer(world.run_system_cached(|moment: crate::save::Moment| moment.read()).map_err(|e| format!("reading the loaded game: {e}"))),
+            Stop::Pause => PAUSED_AT.store(world.resource::<crate::SimTick>().0, Ordering::Relaxed),
+        }
     }
 }
 
@@ -928,17 +965,17 @@ pub fn publish_now(world: &mut World) {
 }
 
 /// Every frame, after the speed and pause are applied: a pause that has
-/// just taken hold publishes what the ops read before the `pause` op
-/// answers with the tick it stands at.
-pub fn stand_still(world: &mut World) {
-    let paused = world.resource::<Time<Virtual>>().is_paused();
-    if !paused {
+/// just taken hold is a stop, answered at the frame's end with the tick it
+/// stands at (`answer_at_stop`).
+pub fn stand_still(time: Res<Time<Virtual>>, mut asked: Local<bool>) {
+    if !time.is_paused() {
         PAUSED_AT.store(u64::MAX, Ordering::Relaxed);
+        *asked = false;
         return;
     }
-    if PAUSED_AT.load(Ordering::Relaxed) == u64::MAX {
-        publish_now(world);
-        PAUSED_AT.store(world.resource::<crate::SimTick>().0, Ordering::Relaxed);
+    if PAUSED_AT.load(Ordering::Relaxed) == u64::MAX && !*asked {
+        *asked = true;
+        stopped(Stop::Pause);
     }
 }
 
