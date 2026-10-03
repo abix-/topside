@@ -155,7 +155,12 @@ people is killing someone else's.
 - Too much water (pivot point 5, operator, 2026-10-02): the store holds
   too much when it holds water for 10 days of the bunker's drinking. Dell
   stores past that, and the player checking the store (Use on it) while it
-  holds that much is when pivot point 5 comes.
+  holds that much is when pivot point 5 comes. So what a bunker needs is
+  water for 10 days: one who is not afraid of not having enough stocks to
+  10 and stops, the most afraid up to twice that, 20 (todo 11ag); the
+  starting bunker's three days (design.md "The bunker") is what it holds
+  at the start, not what it needs (orchestrator, 2026-10-02, from these
+  two rulings).
 - Mara's well (pivots 7 and 8, operator, 2026-10-02): Mara's bunker's
   store reads dry when it holds less than a quarter of what it held when
   the episode started; going there, pivot point 7 is reached when the
