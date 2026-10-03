@@ -52,7 +52,7 @@ The tap is real. Water without end, the one thing everyone needs.
 - Mara's people find the tap the same day.
 - Dell wants it kept secret and starts storing far more water than the
   bunker can drink.
-- Mara's people camp at the tap, then guard it.
+- Mara's people hold the tap: they stay at it and guard it.
 - Word travels. Strangers come, and the ruin fills with people who all
   want the same thing.
 

@@ -161,6 +161,9 @@ CI runner taking jobs from a queue and reporting each back.
   over: a save has no version, and nothing (a content change, a code
   change) refuses it. A save point is remade only when it no longer leads
   to its test's event.
+- One save per pivot point (operator, 2026-10-03): an episode's tests
+  have one save for each of its pivot points, made just before it, and
+  every test of that pivot loads that one save. No other saves.
 - Save points are checkpoints in a speedrun (operator, 2026-10-02). The
   run is the game from its start to its end; the save points split it
   into segments, as many as needed. Each segment is made to work on its
