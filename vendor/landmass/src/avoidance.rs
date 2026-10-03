@@ -28,6 +28,14 @@ pub(crate) fn apply_avoidance_to_agents<CS: CoordinateSystem>(
     delta_time = 1.0;
   }
 
+  // topside patch (todo 9n): avoidance timed in four parts, each a span of
+  // its own ("landmass: avoidance ..."): the trees, every agent's
+  // neighbours, every agent's mesh edges, every agent's solve. Neighbours
+  // and edges read only what is fixed before them (positions, the trees,
+  // the mesh), and a solve writes only its own agent's move, so doing each
+  // part for every agent before the next gives the same moves as one agent
+  // at a time.
+  let span = tracing::info_span!("landmass: avoidance trees").entered();
   let mut agent_id_to_dodgy_agent = HashMap::new();
   let mut agent_kdtree = KdTree::new(/* dimensions= */ 3);
   let mut agent_max_radius = 0.0f32;
@@ -79,9 +87,13 @@ pub(crate) fn apply_avoidance_to_agents<CS: CoordinateSystem>(
       .expect("Character point is finite");
   }
 
+  drop(span);
+
+  let span = tracing::info_span!("landmass: avoidance neighbours").entered();
   let neighbourhood = agent_max_radius + agent_options.neighbourhood;
   let neighbourhood_squared = neighbourhood * neighbourhood;
-  for (agent_id, agent) in agents.iter_mut() {
+  let mut agent_id_to_neighbours = HashMap::new();
+  for (agent_id, _) in agents.iter() {
     let agent_node = match agent_id_to_agent_node.get(&agent_id) {
       None => continue,
       Some(agent_node) => agent_node,
@@ -128,7 +140,17 @@ pub(crate) fn apply_avoidance_to_agents<CS: CoordinateSystem>(
         },
       ))
       .collect::<Vec<_>>();
+    agent_id_to_neighbours.insert(agent_id, nearby_agents);
+  }
+  drop(span);
 
+  let span = tracing::info_span!("landmass: avoidance obstacles").entered();
+  let mut agent_id_to_obstacles = HashMap::new();
+  for (agent_id, _) in agents.iter() {
+    let agent_node = match agent_id_to_agent_node.get(&agent_id) {
+      None => continue,
+      Some(agent_node) => agent_node,
+    };
     let mut nearby_obstacles = nav_mesh_borders_to_dodgy_obstacles(
       *agent_node,
       nav_data,
@@ -138,6 +160,18 @@ pub(crate) fn apply_avoidance_to_agents<CS: CoordinateSystem>(
       .drain(..)
       .map(std::borrow::Cow::Owned)
       .collect::<Vec<_>>();
+    agent_id_to_obstacles.insert(agent_id, nearby_obstacles);
+  }
+  drop(span);
+
+  let _span = tracing::info_span!("landmass: avoidance solve").entered();
+  for (agent_id, agent) in agents.iter_mut() {
+    let (Some(nearby_agents), Some(nearby_obstacles)) = (
+      agent_id_to_neighbours.get(&agent_id),
+      agent_id_to_obstacles.get(&agent_id),
+    ) else {
+      continue;
+    };
     let preferred_velocity =
       to_dodgy_vec2(CS::to_landmass(&agent.current_desired_move).xy());
     // topside's guard (topside docs/pathing.md): a velocity that is not a
