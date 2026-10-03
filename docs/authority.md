@@ -38,6 +38,11 @@ Rules:
    player, or only while paused. When one case misbehaves, the one path is
    fixed for every case.
 2. Something with no system here: ask the operator, then add it here.
+   Episodes are built on generic systems (operator, 2026-10-03): the
+   systems are generic, and an episode is content (data) driving them;
+   no code exists for one episode's story (a tap, Mara, Dell, water). A
+   need an episode has that no system answers is a gap in a generic
+   system, closed there for every episode.
 3. A change that breaks a system here is undone, not worked around.
 4. Modforge holds every rule that needs no engine, with its test; topside
    senses, acts, and holds content (topside skill: modforge first).

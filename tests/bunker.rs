@@ -63,6 +63,14 @@ fn the_bunker_is_two_rooms_the_surface_room_and_the_players_room_below() {
     assert!(holds(&below, "things", "note"), "no note in the player's room: {below}");
     assert!(holds(&below, "things", "canned food"), "no food in the player's room: {below}");
     assert_eq!(doors(&below, false) + doors(&below, true), 0, "the player's room has a door of its own besides the hatch: {below}");
+    // Roxanne found the tap, so she has been there: her memory holds it
+    // checked, or her brain walks her out to look at it (episode.rs
+    // place_the_tap; the operator's playtest of 2026-10-03).
+    let tap = op("world")["things"].as_array().and_then(|t| t.iter().find(|t| t["name"] == "tap").cloned()).expect("The Tap's tap in the world");
+    let her = crate::opening::roxanne();
+    let knows = op_with("npc", serde_json::json!({"id": her}))["knows"].clone();
+    let of_tap = knows.as_array().and_then(|k| k.iter().find(|k| k["key"] == tap["key"]).cloned()).expect("Roxanne knows the tap");
+    assert!(of_tap["checked_at"].is_u64(), "Roxanne's memory of the tap is not checked, so her brain will go to look at it: {of_tap}");
 }
 
 /// The player wakes in their room, the room below the surface room, 3 m

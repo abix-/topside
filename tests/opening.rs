@@ -532,8 +532,11 @@ fn read_minutes_after_waking_the_note_still_brings_roxanne_to_knock() {
     if !home {
         let rox = op_with("npc", json!({"id": her}));
         let tap = op("world")["things"].as_array().and_then(|t| t.iter().find(|t| t["name"] == "tap").cloned()).unwrap_or_default();
-        eprintln!("Roxanne at {} feet {} doing {} about {}; did {}", rox["at"], rox["feet"], rox["doing"], rox["about"], rox["did"]);
-        eprintln!("the tap {tap}; what she knows {}", rox["knows"]);
+        // Only her memory of the tap: all she knows is too long to read.
+        let of_tap: Vec<Json> = rox["knows"].as_array().into_iter().flatten().filter(|k| k["key"] == tap["key"]).cloned().collect();
+        eprintln!("Roxanne at {} feet {} doing {} about {}", rox["at"], rox["feet"], rox["doing"], rox["about"]);
+        eprintln!("she did {}", rox["did"]);
+        eprintln!("the tap {tap}; her memory of it {of_tap:?}; she knows {} things", rox["knows"].as_array().map_or(0, |k| k.len()));
     }
     assert!(home, "three game minutes after waking, Roxanne is not home in the surface room: she stands at {:?}", spot_of(her));
     read_the_note();
