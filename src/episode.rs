@@ -201,16 +201,20 @@ fn off_the_way(from: Vec2, to: Vec2, at: Vec2) -> (f32, f32) {
     (at.distance(from + way * along), along)
 }
 
-/// The Tap, once cast: the tap comes into the world through
-/// `interact::spawn_item` inside a building of the site nearest the middle
-/// of the way from the player's bunker door to Mara's bunker, its water
-/// drawn from Mara's bunker's store. Dell found it: she knows the site and
-/// every site on the way (docs/episodes/the-tap.md "How it opens").
+/// Once the episode is cast, each thing its def brings into the world
+/// (modforge `ThingDef`, Skyrim's quest aliases) comes in through
+/// `interact::spawn_item`, once: inside a building of the site nearest the
+/// middle between its two places, drawing from its part's store, known by
+/// the part who found it as a place they have been, with every site near
+/// the way there from the first place. It is the episode's thing under its
+/// name, and its site under "<name> site" (the lines' and pivot points'
+/// names for them).
 #[allow(clippy::too_many_arguments)]
-pub fn place_the_tap(
+pub fn place_things(
     mut commands: Commands,
     tick: Res<crate::SimTick>,
     mut episode: ResMut<Episode>,
+    episodes: Res<EpisodeRegistryRes>,
     items: Res<ItemRegistryRes>,
     mut world: ResMut<crate::terrain::WorldRes>,
     registries: (Res<crate::content::BiomeRegistryRes>, Res<crate::content::MonumentRegistryRes>),
@@ -219,70 +223,84 @@ pub fn place_the_tap(
     mut ids: ResMut<crate::interact::ThingIssuer>,
     stores: Query<&crate::interact::Container>,
 ) {
-    if episode.name.as_deref() != Some("The Tap") || !episode.cast_done || !episode.things.is_empty() {
+    if !episode.cast_done {
         return;
     }
-    let (Some(mara), Some(def)) = (episode.cast_as("Mara"), items.0.def("tap")) else {
+    let Some(def) = episode.name.as_deref().and_then(|n| episodes.0.def(n)) else {
         return;
     };
-    let Some((_, home, store)) = people.iter().find(|(a, ..)| a.0 == mara) else {
-        return;
-    };
-    let (door, _) = bunker_door(world.bunker);
-    // Sites stand on the ground, so the way between bunkers is read there.
-    let mara_home = home.0.ground();
-    let (biomes, monuments) = registries;
-    let r = modforge::world2d::Registries {
-        biomes: &biomes.0,
-        monuments: &monuments.monuments,
-        buildings: &monuments.buildings,
-    };
-    // Anywhere between the bunkers: as far out as half the way is long.
-    let margin = Vec2::splat((door.distance(mara_home) / 2.0).max(ON_THE_WAY));
-    let sites: Vec<modforge::places::Place> = world
-        .world
-        .sites_in(r, door.min(mara_home) - margin, door.max(mara_home) + margin)
-        .into_iter()
-        .filter(|p| !p.rolled.members.is_empty())
-        .collect();
-    let middle = (door + mara_home) / 2.0;
-    let Some(site) = sites.iter().min_by(|a, b| a.position.distance(middle).total_cmp(&b.position.distance(middle))) else {
-        warn!("The Tap: no building between the bunkers to put the tap in");
-        episode.things.push(("no tap".to_string(), crate::on_ground(middle, 0.0), 0));
-        return;
-    };
-    let member = &site.rolled.members[0];
-    let at = site.position + Vec2::new(member.offset.x, member.offset.z);
-    // On the building's ground floor.
-    let tap_at = crate::structure::on_floor(at, 0.0);
-    let (tap, id) = spawn_item(&mut commands, &mut ids, def, item::create(def, 1, &[], 0.0, 0), tap_at);
-    commands.entity(tap).insert(DrawsFrom(store.0));
-    // What Mara's store holds as the tap starts drawing from it.
-    let held = stores.get(store.0).map_or(0, |held| crate::interact::water_in(&held.0, &items));
-    commands.entity(store.0).insert(crate::interact::Drawn { held });
-    let key = id.0;
-    let ground = |p: Vec2| crate::on_ground(p, 0.0);
-    if let Some(dell) = episode.cast_as("Dell")
-        && let Some((_, mut memory)) = memories.iter_mut().find(|(a, _)| a.0 == dell)
-    {
-        memory.0.see(key, "tap", tap_at, tick.0);
-        // She found it, so she has been there: never a thing she has yet
-        // to look at (the brain's look picked it and walked her out of the
-        // bunker before the opening, the operator's playtest 2026-10-03).
-        // The episode's own errand still sends her (`the_taps_errands`).
-        memory.0.visited(key, tick.0);
-        // Dell wants it kept secret (docs/episodes/the-tap.md "Pushed all
-        // the way"): she never passes it on.
-        memory.0.keep_quiet(key);
-        for passed in sites.iter().filter(|p| off_the_way(door, at, p.position).0 <= ON_THE_WAY) {
-            memory.0.see(site_key(passed.position), &passed.monument, ground(passed.position), tick.0);
-            // Passed on her way to the tap: been there, as the tap.
-            memory.0.visited(site_key(passed.position), tick.0);
+    let placed = |episode: &Episode, name: &str| episode.things.iter().any(|(n, ..)| n == name || *n == format!("no {name}"));
+    let to_place: Vec<&modforge::storyteller::ThingDef> = def.things.iter().filter(|t| !placed(&episode, &t.name)).collect();
+    for thing in to_place {
+        let Some(item_def) = items.0.def(&thing.item) else {
+            warn!("{:?}: no item {} for its {}", episode.name, thing.item, thing.name);
+            continue;
+        };
+        // A place on the ground: the player's bunker door, or a part's home
+        // (sites stand on the ground, so the way between is read there).
+        let home_of = |part: &str| episode.cast_as(part).and_then(|id| people.iter().find(|(a, ..)| a.0 == id)).map(|(_, home, _)| home.0.ground());
+        let place = |p: &modforge::storyteller::Place| match p {
+            modforge::storyteller::Place::PlayerBunkerDoor => Some(bunker_door(world.bunker).0),
+            modforge::storyteller::Place::HomeOf(part) => home_of(part),
+        };
+        let (Some(from), Some(to)) = (place(&thing.between.0), place(&thing.between.1)) else {
+            continue;
+        };
+        let (biomes, monuments) = &registries;
+        let r = modforge::world2d::Registries {
+            biomes: &biomes.0,
+            monuments: &monuments.monuments,
+            buildings: &monuments.buildings,
+        };
+        // Anywhere between the two: as far out as half the way is long.
+        let margin = Vec2::splat((from.distance(to) / 2.0).max(ON_THE_WAY));
+        let sites: Vec<modforge::places::Place> = world
+            .world
+            .sites_in(r, from.min(to) - margin, from.max(to) + margin)
+            .into_iter()
+            .filter(|p| !p.rolled.members.is_empty())
+            .collect();
+        let middle = (from + to) / 2.0;
+        let Some(site) = sites.iter().min_by(|a, b| a.position.distance(middle).total_cmp(&b.position.distance(middle))) else {
+            warn!("{:?}: no building between its places to put the {} in", episode.name, thing.name);
+            episode.things.push((format!("no {}", thing.name), crate::on_ground(middle, 0.0), 0));
+            continue;
+        };
+        let member = &site.rolled.members[0];
+        let at = site.position + Vec2::new(member.offset.x, member.offset.z);
+        // On the building's ground floor.
+        let thing_at = crate::structure::on_floor(at, 0.0);
+        let (made, id) = spawn_item(&mut commands, &mut ids, item_def, item::create(item_def, 1, &[], 0.0, 0), thing_at);
+        let store = thing.draws_from.as_deref().and_then(|part| episode.cast_as(part)).and_then(|id| people.iter().find(|(a, ..)| a.0 == id)).map(|(.., s)| s.0);
+        if let Some(store) = store {
+            commands.entity(made).insert(DrawsFrom(store));
+            // What the store holds as it starts being drawn from.
+            let held = stores.get(store).map_or(0, |held| crate::interact::water_in(&held.0, &items));
+            commands.entity(store).insert(crate::interact::Drawn { held });
         }
+        let key = id.0;
+        let ground = |p: Vec2| crate::on_ground(p, 0.0);
+        if let Some(finder) = thing.found_by.as_deref().and_then(|part| episode.cast_as(part))
+            && let Some((_, mut memory)) = memories.iter_mut().find(|(a, _)| a.0 == finder)
+        {
+            // Found, so they have been there: never a thing they have yet
+            // to look at (the brain's look walked Dell out to the tap before
+            // the opening, the operator's playtest 2026-10-03).
+            memory.0.see(key, &thing.item, thing_at, tick.0);
+            memory.0.visited(key, tick.0);
+            if thing.kept_quiet {
+                memory.0.keep_quiet(key);
+            }
+            // Every site near the way there, passed: been there too.
+            for passed in sites.iter().filter(|p| off_the_way(from, at, p.position).0 <= ON_THE_WAY) {
+                memory.0.see(site_key(passed.position), &passed.monument, ground(passed.position), tick.0);
+                memory.0.visited(site_key(passed.position), tick.0);
+            }
+        }
+        episode.things.push((thing.name.clone(), thing_at, key));
+        episode.things.push((format!("{} site", thing.name), ground(site.position), site_key(site.position)));
+        info!("{:?}: the {} stands in the {} at {at}", episode.name, thing.name, site.monument);
     }
-    episode.things.push(("tap".to_string(), tap_at, key));
-    episode.things.push(("tap site".to_string(), ground(site.position), site_key(site.position)));
-    info!("the tap stands in the {} at {at}, drawing from Mara's bunker's store", site.monument);
 }
 
 /// Every step: each cue of the episode running whose deed the player has

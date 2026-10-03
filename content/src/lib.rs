@@ -19,7 +19,7 @@ use modforge::survival::Need;
 use modforge::item::{Armor, CombatStats, FoodStats, ItemDef, ItemKind, ItemRegistry, LayerDef, LayerRegistry, Note};
 use modforge::monument::Roll;
 use modforge::reality::{Danger, RealityDef, RealityRegistry};
-use modforge::storyteller::{CastFrom, CueAct, CueDef, EpisodeDef, EpisodeRegistry, LineDef, PartDef, When};
+use modforge::storyteller::{CastFrom, CueAct, CueDef, EpisodeDef, EpisodeRegistry, LineDef, PartDef, Place, ThingDef, When};
 use modforge::monument::{
     Arrangement, BuildingRegistry, BuildingSize, BuildingSlot, BuildingTypeDef,
     MonumentRegistry, MonumentTypeDef, PropDef,
@@ -539,6 +539,7 @@ pub fn register_episodes(reg: &mut EpisodeRegistry) {
         cues: Vec::new(),
         door_enemy: true,
         endings: Vec::new(),
+        things: Vec::new(),
     };
     let part = |name: &str, from| PartDef { name: name.to_string(), from };
     let ending = |name: &str, words: &str, needs: &[&str], alive: &[&str]| modforge::storyteller::EndingDef {
@@ -727,6 +728,20 @@ pub fn register_episodes(reg: &mut EpisodeRegistry) {
                 ending("Hold it", "You drive Mara's people off and have water. Mara's bunker remembers.", &["holds it"], &[]),
                 ending("Walk away", "Mara's people take the tap and grow strong. Dell joins them.", &[], &[]),
             ],
+            // docs/episodes/the-tap.md "How it opens": the tap stands inside
+            // a building of the site nearest the middle of the way from the
+            // player's bunker door to Mara's bunker, its water drawn from
+            // Mara's bunker's store. Dell found it: she has been there and
+            // past every site on the way, and wants it kept secret ("Pushed
+            // all the way").
+            things: vec![ThingDef {
+                name: "tap".to_string(),
+                item: "tap".to_string(),
+                between: (Place::PlayerBunkerDoor, Place::HomeOf("Mara".to_string())),
+                draws_from: Some("Mara".to_string()),
+                found_by: Some("Dell".to_string()),
+                kept_quiet: true,
+            }],
             ..episode("The Tap", &["Mixed world", "Sky Islands"])
         },
         // docs/episodes/the-fever.md "The people": for now only the parts
