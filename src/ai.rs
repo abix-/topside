@@ -329,7 +329,7 @@ pub fn think(
         })
         .collect();
     // How hearing words feels: the episode choice that says them.
-    let heard = |words: &str| episodes.0.felt(words);
+    let heard = |words: &str| episodes.felt(words);
     // How each faction stands toward each person someone thinking now has
     // in sight (life.md "How a person feels about others"): worked out
     // here from its members' feelings, never stored.

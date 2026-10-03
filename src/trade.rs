@@ -42,7 +42,7 @@ pub fn between_people(
     mut people: Query<(Entity, &Actor, &Transform, &mut Inventory, &mut Memory, Option<&Npc>), Without<Dead>>,
 ) {
     use modforge::memory::Did;
-    let heard = |words: &str| episodes.0.felt(words);
+    let heard = |words: &str| episodes.felt(words);
     let food_or_water = |item: &str| {
         items.0.def(item).and_then(|d| d.food.as_ref()).is_some_and(|f| f.hunger > 0.0 || f.thirst > 0.0)
     };
@@ -119,7 +119,7 @@ pub fn trade(
     let Ok((player, me, here, this_tick, mut hud, mut mine)) = players.single_mut() else {
         return;
     };
-    let heard = |words: &str| episodes.0.felt(words);
+    let heard = |words: &str| episodes.felt(words);
     // How someone stands toward the player, by the one rule, and so their
     // prices; None: they will not trade.
     let terms_of = |them: modforge::actor::ActorId, faction: Option<&str>| {

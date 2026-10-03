@@ -185,7 +185,7 @@ pub fn carry_out(
 ) {
     let archipelago = archipelagos.get(nav.archipelago).ok();
     let on_mesh = |at: Vec3| archipelago.and_then(|a| crate::navmesh::on_mesh(a, at));
-    let heard = |words: &str| episodes.0.felt(words);
+    let heard = |words: &str| episodes.felt(words);
     for ((entity, actor, at, mut this_tick, mut commanded), (following, dead, hud, looking, children, leading, holding)) in &mut people {
         let (x, y) = ActionQueue::movement(&this_tick.0);
         let own_move = (x != 0.0 || y != 0.0) && ActionQueue::aim(&this_tick.0).is_none();

@@ -213,6 +213,22 @@ they have none: their own history with you comes first. Prior art:
 RimWorld (pawn opinions, faction goodwill), Mount & Blade (lord and
 kingdom relations).
 
+Gifts, joining and leaving (orchestrator, 2026-10-02, for the operator
+to change; todo 11af):
+
+- The talk path's own words are felt like any line heard: a gift
+  ("offered") +0.2, a threat ("threatened") -0.5 (content `SAID_FELT`,
+  one lookup for every feeling). Three gifts make 0.6.
+- Asked to stay, a stranger says yes when they feel well enough toward
+  the one asking: friendly, 0.5 or more (modforge
+  `relationship::FRIENDLY`). Saying yes, they join that one's group:
+  its faction, and a member's home and store.
+- A person feels a group as the average of their feelings toward its
+  members they remember; someone they never met counts for nothing, not
+  for 0 (a faction's standing, seen from the person's side). Feeling
+  better toward another group with a home than toward their own, they
+  leave for it.
+
 Word spreads (operator, 2026-09-27): people of one faction near each
 other tell each other what someone did to them, and the places they
 know; what they were told they feel at half, and a place they were told

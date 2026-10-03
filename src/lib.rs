@@ -12,6 +12,7 @@ pub mod held;
 pub mod hud;
 pub mod input;
 pub mod interact;
+pub mod joining;
 pub mod loading;
 pub mod minimap;
 pub mod model;
@@ -188,6 +189,7 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind, port: u16
     app.init_resource::<content::ItemValuesRes>();
     app.init_resource::<trade::PeopleTrades>();
     app.init_resource::<ai::Warnings>();
+    app.init_resource::<joining::Joins>();
     app.init_resource::<content::LayerRegistryRes>();
     app.init_resource::<content::DamageRegistryRes>();
     app.init_resource::<content::ActorRegistryRes>();
@@ -287,7 +289,22 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind, port: u16
             )
                 .chain(),
             (
-                (talk::look_at, interact::interact_on_use, interact::knock, talk::talk, trade::trade, talk::conversations, talk::end_conversations, talk::speak_up, talk::word_spreads).chain(),
+                (
+                    talk::look_at,
+                    interact::interact_on_use,
+                    interact::knock,
+                    talk::talk,
+                    trade::trade,
+                    talk::conversations,
+                    talk::end_conversations,
+                    talk::speak_up,
+                    talk::word_spreads,
+                    // Joining (todo 11af): agreed in talk, or leaving for a
+                    // group felt better toward; made after.
+                    joining::leave_for_better,
+                    joining::join,
+                )
+                    .chain(),
                 lap("interact"),
                 (player::movement, sight::look_around, sight::share_maps).chain(),
                 lap("movement"),
