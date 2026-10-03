@@ -145,6 +145,9 @@ pub fn brain_tree() -> StateTree<Brain> {
     s[ASKED].choice = Some(Choice::Asked);
     s[ASKED].transitions.push(when(brain::danger, ROOT));
     s[ASKED].transitions.push(when(brain::worse_need, ROOT));
+    // A critical need they can answer takes them off it (modforge
+    // NEED_CRITICAL); met, they choose what was asked again.
+    s[ASKED].transitions.push(when(brain::critical_need, ROOT));
     s[ASKED].transitions.push(when(brain::not_asked, ROOT));
 
     let mut supply = choice(state("supply the bunker", Some(ROOT), Some(brain::enter_supply), None), Choice::Supply);
