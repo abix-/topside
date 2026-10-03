@@ -159,14 +159,22 @@ pub fn site_key(at: Vec2) -> u64 {
 /// Where the player's bunker door stands on the ground (the starting
 /// bunker's one door, `structure::doors_of`), and which way it faces out.
 pub fn bunker_door(bunker: Vec2) -> (Vec2, Vec2) {
-    // The front door: the bunker's door block on the ground (modforge
-    // `door_blocks`, what its doors are built from; the first on the
-    // ground is the front door, as modforge's own building test has it).
-    let door = modforge::structure::door_blocks(&crate::content::starting_bunker())
-        .into_iter()
-        .find(|b| b.floor.abs() < 0.01)
-        .map_or(Vec2::ZERO, |b| b.centre);
-    (bunker + door, door.normalize_or(Vec2::Y))
+    // The front door: of the bunker's door blocks on the ground (modforge
+    // `door_blocks`, what its doors are built from), the one with a side
+    // outside every room on the ground, a step through its wall; a door
+    // between two rooms has a room on both sides. It faces that way out.
+    let plan = crate::content::starting_bunker();
+    let in_a_room = |p: Vec2| {
+        plan.rooms.iter().any(|r| {
+            r.origin.y <= 0.01 && r.origin.y + r.interior.y > 0.01 && (p.x - r.origin.x).abs() < r.interior.x / 2.0 && (p.y - r.origin.z).abs() < r.interior.z / 2.0
+        })
+    };
+    let front = modforge::structure::door_blocks(&plan).into_iter().filter(|b| b.floor.abs() < 0.01).find_map(|b| {
+        let through = b.along.perp();
+        [through, -through].into_iter().find(|out| !in_a_room(b.centre + *out)).map(|out| (b.centre, out))
+    });
+    let (door, out) = front.unwrap_or((Vec2::ZERO, Vec2::Y));
+    (bunker + door, out)
 }
 
 /// How far `at` stands from the way `from` to `to`, and how far along it

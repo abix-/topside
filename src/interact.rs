@@ -241,8 +241,7 @@ pub fn knock(
         // door, if one fits (authority.md "Talking"); no conversation opens
         // through a shut door, it starts once the two are within talking
         // reach.
-        let player_behind = people.iter().find(|(e, _, there, _, is_player)| *e != knocker && *is_player && hears(there)).map(|(_, a, ..)| a.0);
-        let line = player_behind.and_then(|player| {
+        let player_behind = people.iter().find(|(e, _, there, _, is_player)| *e != knocker && *is_player && hears(there)).map(|(_, a, ..)| a.0);        let line = player_behind.and_then(|player| {
             let (_, _, _, memory, _) = people.get(knocker).ok()?;
             crate::talk::called_line((&called.0, &called.1, called.2.bunker, called.3.0), (id.0, memory, feet, survival), (player, true), crate::talk::Call::Knocking, tick.0)
         });

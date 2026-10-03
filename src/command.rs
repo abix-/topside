@@ -175,6 +175,7 @@ pub fn carry_out(
             Option<&Children>,
             Has<crate::ai::Leading>,
             Has<crate::ai::Holding>,
+            Has<crate::player::Player>,
         ),
     )>,
     everyone: Query<(Entity, &Actor, &Transform, Option<&Npc>, &Memory, Has<Dead>, Has<Player>)>,
@@ -186,9 +187,11 @@ pub fn carry_out(
     let archipelago = archipelagos.get(nav.archipelago).ok();
     let on_mesh = |at: Vec3| archipelago.and_then(|a| crate::navmesh::on_mesh(a, at));
     let heard = |words: &str| episodes.felt(words);
-    for ((entity, actor, at, mut this_tick, mut commanded), (following, dead, hud, looking, children, leading, holding)) in &mut people {
+    for ((entity, actor, at, mut this_tick, mut commanded), (following, dead, hud, looking, children, leading, holding, is_player)) in &mut people {
+        // A move of their own is the player's keys (a move with no aim);
+        // anyone else's moves come from the walk, never their own.
         let (x, y) = ActionQueue::movement(&this_tick.0);
-        let own_move = (x != 0.0 || y != 0.0) && ActionQueue::aim(&this_tick.0).is_none();
+        let own_move = is_player && (x != 0.0 || y != 0.0) && ActionQueue::aim(&this_tick.0).is_none();
         if dead || own_move {
             commands.entity(entity).remove::<Commanded>();
             continue;

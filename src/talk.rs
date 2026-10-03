@@ -442,7 +442,14 @@ pub fn conversations(
     let read_by = talking.read.map_or(now, |(_, at)| at);
     // A line of theirs still being read: nothing comes after it yet (the
     // player read their own choice as they chose it).
-    let reading_theirs = last.as_ref().is_some_and(|(_, theirs, ..)| *theirs) && now < read_by;
+    // So is one heard from them just before it began (called through the
+    // shut door with a knock), while it is still being read.
+    let called_still_read = last.is_none()
+        && memory.0.done.iter().rev().find_map(|(t, d)| match d {
+            modforge::memory::Did::Heard(by, l) if *by == with => Some(*t + ticks_of(modforge::talk::reading_secs(&l.words))),
+            _ => None,
+        }).is_some_and(|until| now < until);
+    let reading_theirs = (last.as_ref().is_some_and(|(_, theirs, ..)| *theirs) && now < read_by) || called_still_read;
     shown.line = last.map(|(_, _, who, words)| (who, words));
     // Ending: nothing more to say, but anyone can still be asked to trade
     // until the box closes.
