@@ -304,11 +304,24 @@ pub(crate) fn holding_raider_coming() {
             op_with("command", json!({"id": holder, "do": "hold", "x": place.0, "y": place.2, "z": place.1}));
             walk_to(Some(the_raider()), place);
         };
-        let near = || {
+        // The raider has come: within 8 m now, or its walk there done. A
+        // walker at about 15 m/s passes through in seconds, between two
+        // checks a game minute apart; its walk ending stays true, so the
+        // minute before it is the save point, and the test plays the
+        // coming from there.
+        let came = || {
             let (_, place) = the_holder();
-            apart(spot_of(the_raider()), place).0 < 8.0
+            let raider = the_raider();
+            // Each game minute, where the raider is and what they do, so a
+            // chain that never comes shows why.
+            let r = op_with("npc", json!({"id": raider}));
+            eprintln!(
+                "holding_raider_coming tick {}: raider {raider} at {} feet {} dead {} doing {} about {} commands {} way {}; the held place {place:?}",
+                r["tick"], r["at"], r["feet"], r["dead"], r["doing"], r["about"], r["commands"], r["way"]
+            );
+            apart(spot_of(raider), place).0 < 8.0 || r["commands"].is_null()
         };
-        grow("holding_raider_coming", 30, send_the_raider, near, Until::Before);
+        grow("holding_raider_coming", 30, send_the_raider, came, Until::Before);
     });
 }
 

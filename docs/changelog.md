@@ -22,6 +22,12 @@ These rules govern `docs/changelog.md`. Follow them exactly.
 - Use plain terms. Do not use vague descriptions, invented language, or design
   essays.
 
+## 2026-10-03
+
+| System | Item | Done when |
+|---|---|---|
+| Pathing | [x] Chunks with no navigation mesh (todo 13a4): rerecast lost a chunk's whole mesh for one contour it could not triangulate ("Invalid contour", rerecast 0.4.0 poly_mesh.rs); vendored as vendor/rerecast with Recast's own handling (rcBuildPolyMesh: keep the triangles made so far, warn, go on), so every chunk has a mesh | After a build no "failed to build" line in topside.err.log: "the world's 1156 chunk meshes landed in 5119 ms", 0 failed (73 on the launch before); a raider stranded in chunk (3, 5) ("AgentNotOnNavMesh" for 18 game minutes) walks; queue holding 2 of 2 |
+
 ## 2026-10-02
 
 | System | Item | Done when |

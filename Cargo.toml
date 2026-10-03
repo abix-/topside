@@ -78,6 +78,9 @@ bevy_landmass = { path = "vendor/bevy_landmass" }
 landmass = { path = "vendor/landmass" }
 bevy_rerecast_core = { path = "vendor/bevy_rerecast_core" }
 landmass_rerecast = { path = "vendor/landmass_rerecast" }
+# Recast's own handling of a contour it cannot triangulate: keep the
+# triangles made so far (todo 13a4; rerecast 0.4.0 lost the whole tile).
+rerecast = { path = "vendor/rerecast" }
 
 # Fast iteration: light optimization for our code, full for deps
 # (Bevy is unusably slow fully unoptimized). Deps carry no debug info:
