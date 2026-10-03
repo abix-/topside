@@ -93,6 +93,10 @@ people is killing someone else's.
    - Talk: you learn their names, their thirst, and that Mara has a
      child.
    - Hide and watch: you learn how many they are and when they drink.
+     Reached when the player stays within 25 m of Mara's people for 10
+     game seconds without any of them seeing the player, and before
+     answering them (orchestrator, 2026-10-03; Claude's numbers, for the
+     operator to change).
    - Shoot first: there is no talking to Mara's bunker again this
      episode.
    - Leave: the tap is theirs for now.
