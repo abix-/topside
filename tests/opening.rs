@@ -773,7 +773,7 @@ fn the_first_drink_takes_one_water_from_maras_store() {
     let w = op("world");
     let mara = w["cast"].as_array().and_then(|c| c.iter().find(|p| p["part"] == "Mara")).and_then(|p| p["id"].as_u64()).expect("Mara's part");
     let bunker = crate::endpoint::people().into_iter().find(|p| p["id"].as_u64() == Some(mara)).map(|p| p["faction"].as_str().unwrap_or_default().to_string()).expect("Mara's bunker");
-    let water = || op("world")["bunkers"][bunker.as_str()]["water"].as_u64().unwrap_or(0);
+    let water = || op("world")["bunkers"][bunker.as_str()]["water"].as_f64().unwrap_or(0.0);
     let before = water();
     assert!(!reached("the first drink"), "the first drink was reached before the player drank: {}", op("world")["reached"]);
     let tap = the_tap();

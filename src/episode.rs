@@ -264,7 +264,7 @@ pub fn place_things(
         if let Some(store) = store {
             commands.entity(made).insert(DrawsFrom(store));
             // What the store holds as it starts being drawn from.
-            let held = stores.get(store).map_or(0, |held| crate::interact::water_in(&held.0, &items));
+            let held = stores.get(store).map_or(0.0, |held| modforge::fluid::litres_in(&held.0));
             commands.entity(store).insert(crate::interact::Drawn { held });
         }
         let key = id.0;
@@ -525,7 +525,7 @@ impl EpisodeWorld<'_, '_> {
                     modforge::storyteller::OpenStore {
                         theirs: owner.is_some() && owner == faction,
                         drawn_from: drawn.is_some(),
-                        dry: drawn.is_some_and(|d| d.dry(crate::interact::water_in(&held.0, &self.items))),
+                        dry: drawn.is_some_and(|d| d.dry(modforge::fluid::litres_in(&held.0))),
                         days: (
                             crate::interact::days_of(&held.0, modforge::survival::Need::Hunger, &self.items, *self.day, living),
                             crate::interact::days_of(&held.0, modforge::survival::Need::Thirst, &self.items, *self.day, living),

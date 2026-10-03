@@ -219,8 +219,9 @@ pub(crate) fn tap_maras_store_nearly_dry() {
     start_from("tap_maras_store_nearly_dry", || {
         let nearly = || {
             let store = maras_store();
-            let (water, held) = (store["water"].as_u64().unwrap_or(0), store["drawn_held"].as_u64().expect("Mara's store is drawn from (the tap placed)"));
-            water * 4 <= held + 20
+            let (water, held) = (store["water"].as_f64().unwrap_or(0.0), store["drawn_held"].as_f64().expect("Mara's store is drawn from (the tap placed)"));
+            // A few mouthfuls above a quarter, in litres.
+            water * 4.0 <= held + 4.0 * 5.0 * 0.25
         };
         grow_doing("tap_maras_store_nearly_dry", 30, at_the_tap, || drink_at_the_tap_a_minute(&nearly), &nearly, Until::At);
     });

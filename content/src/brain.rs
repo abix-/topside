@@ -238,6 +238,8 @@ mod tests {
             bunker_short: Vec::new(),
             carries_for_bunker: false,
             bags_full: false,
+            carried_litres: 0.0,
+            water_room: 0.0,
             memory,
             personality,
             worth: &worth,
@@ -329,9 +331,9 @@ mod tests {
     fn a_short_bunker_sends_its_people_for_food_and_they_haul_it_home() {
         let mut memory = Memory::default();
         memory.see(1, "storage box", Vec3::new(2.0, 0.0, 0.0), 1);
-        memory.checked(1, vec![], 1);
+        memory.checked(1, vec![], 0.0, 1);
         memory.see(7, "storage box", Vec3::new(40.0, 0.0, 0.0), 1);
-        memory.checked(7, vec![("canned food".to_string(), 6)], 1);
+        memory.checked(7, vec![("canned food".to_string(), 6)], 0.0, 1);
         let personality = Personality::default();
         let mut p = perception(&memory, &personality);
         p.store = Some((1, Vec3::new(2.0, 0.0, 0.0)));
@@ -368,13 +370,14 @@ mod tests {
         assert_eq!(record.state, None, "stocked: they choose again at the next think");
     }
 
-    /// Short of water and knowing only a well: nobody is sent to fetch
-    /// from it, since a well cannot be carried home.
+    /// Short of water and knowing only a well, with nothing to carry water
+    /// in: nobody is sent to fetch from it (with room in a container they
+    /// are: modforge brain's short_of_water_they_fill_at_a_source_and_pour_it_home).
     #[test]
     fn a_short_bunker_does_not_fetch_from_a_well() {
         let mut memory = Memory::default();
         memory.see(1, "storage box", Vec3::new(2.0, 0.0, 0.0), 1);
-        memory.checked(1, vec![], 1);
+        memory.checked(1, vec![], 0.0, 1);
         memory.see(9, "well", Vec3::new(30.0, 0.0, 0.0), 1);
         memory.visited(9, 1);
         let personality = Personality::default();
@@ -392,7 +395,7 @@ mod tests {
     fn a_hungry_person_eats_what_it_carries_first() {
         let mut memory = Memory::default();
         memory.see(7, "storage box", Vec3::new(10.0, 0.0, 0.0), 1);
-        memory.checked(7, vec![("canned food".to_string(), 1)], 1);
+        memory.checked(7, vec![("canned food".to_string(), 1)], 0.0, 1);
         let personality = Personality::default();
         let mut p = perception(&memory, &personality);
         p.needs.hunger = 20.0;
@@ -731,7 +734,7 @@ mod tests {
     fn an_empty_box_sends_a_hungry_person_looking_at_the_nearest_unchecked_thing() {
         let mut memory = Memory::default();
         memory.see(7, "storage box", Vec3::new(0.0, 0.0, -2.0), 1);
-        memory.checked(7, vec![], 2);
+        memory.checked(7, vec![], 0.0, 2);
         memory.see(8, "wreck", Vec3::new(40.0, 0.0, 0.0), 1);
         memory.see(9, "wreck", Vec3::new(-20.0, 0.0, 0.0), 1);
         let personality = Personality::default();

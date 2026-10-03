@@ -373,7 +373,7 @@ pub fn think(
         .npcs
         .iter()
         .map(|(entity, .., (_, inventory, ..))| {
-            let count = |need: Need| inventory.0.slots.iter().flatten().filter(|s| answers(&items.0, &s.item, need)).map(|s| s.count).sum::<u32>();
+            let count = |need: Need| inventory.0.slots.iter().flatten().filter(|s| answers(&items.0, s, need)).map(|s| s.count).sum::<u32>();
             (entity, count(Need::Hunger).saturating_sub(1), count(Need::Thirst).saturating_sub(1))
         })
         .collect();
@@ -520,7 +520,7 @@ pub fn think(
         // A box they have open, they see into, as the player sees the
         // open box's panel.
         if let Some((key, container)) = open.0.and_then(|e| containers.get(e).ok().map(|(_, c, _, _, id)| (id.0, c))) {
-            memory.0.checked(key, held_in(&container.0), tick.0);
+            memory.0.checked(key, held_in(&container.0), modforge::fluid::litres_in(&container.0), tick.0);
         }
         memory.0.forget_old(tick.0);
         let carried = carried_slot(inventory, hotbar, &items.0, Need::Hunger);
@@ -531,12 +531,16 @@ pub fn think(
         let store_key = store.and_then(|s| containers.get(s.0).ok()).map(|c| c.4.0);
         let store_at = store_key.and_then(|key| memory.0.known.iter().find(|k| k.key == key).map(|k| (key, k.position)));
         let bags = held_in(&inventory.0);
-        let carries_for_bunker = bags.iter().any(|(kind, _)| {
-            answers(&items.0, kind, Need::Hunger) || answers(&items.0, kind, Need::Thirst)
-        });
+        // Food they carry belongs in the store; their water is poured into
+        // its water (modforge fluid), counted in litres.
+        let carries_for_bunker = inventory.0.slots.iter().flatten().any(|s| answers(&items.0, s, Need::Hunger));
+        let carried_litres = modforge::fluid::litres_in(&inventory.0) + modforge::fluid::litres_in(&hotbar.0.slots);
+        let water_room = modforge::fluid::room_in(&inventory.0, &items.0) + modforge::fluid::room_in(&hotbar.0.slots, &items.0);
         let bunker_short = store_at
             .map(|(key, _)| {
-                let in_store = memory.0.known.iter().find(|k| k.key == key).and_then(|k| k.held.clone()).unwrap_or_default();
+                let known = memory.0.known.iter().find(|k| k.key == key);
+                let in_store = known.and_then(|k| k.held.clone()).unwrap_or_default();
+                let litres = known.map_or(0.0, |k| k.litres) + carried_litres;
                 let per_day = day.per_day();
                 let supplies = in_store.iter().chain(&bags).map(|(k, n)| (k.as_str(), *n));
                 // What they stock to: what is needed, and past it by their
@@ -546,7 +550,7 @@ pub fn think(
                 // in the player's bunker), not a set number (orchestrator,
                 // 2026-10-03).
                 let living = everyone.iter().filter(|(.., faction)| faction.is_some() && *faction == npc.faction).count().max(1) as u32;
-                short_of(supplies, living, (BUNKER_SHORT_DAYS * fear, BUNKER_WATER_DAYS * fear), per_day, &items.0)
+                short_of(supplies, litres, living, (BUNKER_SHORT_DAYS * fear, BUNKER_WATER_DAYS * fear), per_day, &items.0)
             })
             .unwrap_or_default();
         let bags_full = inventory.0.slots.iter().all(|s| s.is_some());
@@ -581,7 +585,7 @@ pub fn think(
         {
             match thing {
                 Some(key) if key & PLACE_KEY != 0 || source_at(key).is_some() => memory.0.visited(key, tick.0),
-                Some(key) => memory.0.checked(key, Vec::new(), tick.0),
+                Some(key) => memory.0.checked(key, Vec::new(), 0.0, tick.0),
                 None => {}
             }
             record.0 = Default::default();
@@ -636,6 +640,8 @@ pub fn think(
             bunker_short: bunker_short.clone(),
             carries_for_bunker,
             bags_full,
+            carried_litres,
+            water_room,
             memory: &memory.0,
             personality: &personality.0,
             worth: &worth,
@@ -744,7 +750,7 @@ pub fn think(
                     continue;
                 }
                 let (_, container, ..) = containers.get(found).expect("checked above");
-                let food = container.0.slots.iter().position(|s| s.as_ref().is_some_and(|s| answers(&items.0, &s.item, need)));
+                let food = container.0.slots.iter().position(|s| s.as_ref().is_some_and(|s| answers(&items.0, s, need)));
                 if let Some(index) = food {
                     act(Action::UseSlot {
                         slot: SlotRef {
@@ -767,18 +773,18 @@ pub fn think(
                     open_box(&mut act, open, found, where_is(found));
                     continue;
                 }
-                let needed = |kind: &str| {
+                let needed = |stack: &modforge::item::ItemStack| {
                     [Need::Hunger, Need::Thirst].into_iter().any(|n| {
                         let own = match n {
                             Need::Hunger => needs.0.hunger,
                             _ => needs.0.thirst,
                         };
-                        (bunker_short.contains(&n) || own < NEED_LINE) && answers(&items.0, kind, n)
+                        (bunker_short.contains(&n) || own < NEED_LINE) && answers(&items.0, stack, n)
                     })
                 };
                 let (_, container, ..) = containers.get(found).expect("checked above");
                 for (index, stack) in container.0.slots.iter().enumerate() {
-                    if stack.as_ref().is_some_and(|s| needed(&s.item)) {
+                    if stack.as_ref().is_some_and(|s| needed(s)) {
                         let slot = SlotRef {
                             holder: Holder::Container,
                             index,
@@ -787,8 +793,8 @@ pub fn think(
                     }
                 }
             }
-            // At their store: open it, then put in every stack of food and
-            // water they carry.
+            // At their store: open it, then put in every stack of food
+            // they carry.
             Some(Do::Stock { key }) => {
                 let Some(found) = the_box(key) else {
                     memory.0.gone(key);
@@ -800,16 +806,50 @@ pub fn think(
                     continue;
                 }
                 for (index, stack) in inventory.0.slots.iter().enumerate() {
-                    if stack
-                        .as_ref()
-                        .is_some_and(|s| answers(&items.0, &s.item, Need::Hunger) || answers(&items.0, &s.item, Need::Thirst))
-                    {
+                    if stack.as_ref().is_some_and(|s| answers(&items.0, s, Need::Hunger)) {
                         let slot = SlotRef {
                             holder: Holder::Inventory,
                             index,
                         };
                         act(Action::Transfer { half: false, slot: Some(slot) });
                     }
+                }
+            }
+            // At their store: open it, then pour every container they carry
+            // into its water (Action::Pour, the player's own).
+            Some(Do::Pour { key }) => {
+                let Some(found) = the_box(key) else {
+                    memory.0.gone(key);
+                    continue;
+                };
+                keep_open = Some(found);
+                if open.0 != Some(found) {
+                    open_box(&mut act, open, found, where_is(found));
+                    continue;
+                }
+                for slot in containers_holding(inventory, hotbar, |s| s.litres > 0.0) {
+                    act(Action::Pour { slot });
+                }
+            }
+            // At a source (a river's water, a well, the tap): aim at it, the
+            // weapon out of hand, then fill every container they carry with
+            // room (Action::Fill, the player's own).
+            Some(Do::Fill { key }) => {
+                let at = if key & WATER_KEY != 0 {
+                    chunks.as_ref().and_then(|c| crate::interact::nearest_water(c, here.ground(), here.ground())).map(|w| Vec3::new(w.x, here.y, w.y))
+                } else {
+                    source_at(key)
+                };
+                let Some(at) = at else {
+                    memory.0.gone(key);
+                    continue;
+                };
+                if let Some(index) = hotbar.0.held.filter(|_| crate::interact::melee_in_hand(&hotbar.0, &items.0)) {
+                    act(Action::Hotbar { index });
+                }
+                act(Action::Aim { x: at.x, y: at.z });
+                for slot in containers_holding(inventory, hotbar, |s| modforge::fluid::room(s, &items.0) > 0.0) {
+                    act(Action::Fill { slot });
                 }
             }
         }
@@ -833,14 +873,7 @@ fn open_box(act: &mut impl FnMut(Action), open: &OpenContainer, found: Entity, a
     act(Action::Use);
 }
 
-/// Whether `item` answers `need` when eaten or drunk.
-fn answers(items: &ItemRegistry, item: &str, need: Need) -> bool {
-    items.def(item).and_then(|d| d.food.as_ref()).is_some_and(|f| match need {
-        Need::Hunger => f.hunger > 0.0,
-        Need::Thirst => f.thirst > 0.0,
-        Need::Rest | Need::Safety => false,
-    })
-}
+use crate::interact::answers;
 
 /// The first slot in a person's bags (hotbar, then inventory) holding
 /// something that answers `need`.
@@ -849,8 +882,25 @@ fn carried_slot(inventory: &Inventory, hotbar: &Hotbar, items: &ItemRegistry, ne
         slots
             .slots
             .iter()
-            .position(|s| s.as_ref().is_some_and(|s| answers(items, &s.item, need)))
+            .position(|s| s.as_ref().is_some_and(|s| answers(items, s, need)))
             .map(|index| SlotRef { holder, index })
     };
     find(&hotbar.0.slots, Holder::Hotbar).or_else(|| find(&inventory.0, Holder::Inventory))
+}
+
+/// Every slot in a person's bags (hotbar, then inventory) holding a
+/// container (modforge fluid) that `fits`.
+fn containers_holding(inventory: &Inventory, hotbar: &Hotbar, fits: impl Fn(&modforge::item::ItemStack) -> bool) -> Vec<SlotRef> {
+    let find = |slots: &modforge::item::Inventory, holder| {
+        slots
+            .slots
+            .iter()
+            .enumerate()
+            .filter(|(_, s)| s.as_ref().is_some_and(|s| s.count == 1 && fits(s)))
+            .map(move |(index, _)| SlotRef { holder, index })
+            .collect::<Vec<_>>()
+    };
+    let mut found = find(&hotbar.0.slots, Holder::Hotbar);
+    found.extend(find(&inventory.0, Holder::Inventory));
+    found
 }

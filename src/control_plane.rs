@@ -91,7 +91,9 @@ pub fn answer_give(items: Res<crate::content::ItemRegistryRes>, mut people: Quer
         if clear {
             inventory.0.drain_all();
         }
-        if let Some(left) = inventory.0.add(modforge::item::create(def, count, &[], 0.0, 0), def.max_stack) {
+        // A container is given full of water (modforge fluid).
+        let made = modforge::item::ItemStack { litres: def.holds_litres.unwrap_or(0.0), ..modforge::item::create(def, count, &[], 0.0, 0) };
+        if let Some(left) = inventory.0.add(made, def.max_stack) {
             warn!("give: no room for {} {item}", left.count);
         }
     }
@@ -1212,7 +1214,7 @@ pub fn publish_world(
         let name = npc.faction.clone().unwrap_or_default();
         let people_there = living.get(&name).copied().unwrap_or(1);
         let entry = bunkers.entry(name).or_insert_with(|| {
-            let (mut food, mut water, mut dry, mut place, mut days_of_water, mut drawn_held) = (0, 0, false, Json::Null, Json::Null, Json::Null);
+            let (mut food, mut water, mut dry, mut place, mut days_of_water, mut drawn_held) = (0, 0.0, false, Json::Null, Json::Null, Json::Null);
             if let Ok((held, at, drawn)) = stores.get(store.0) {
                 // How many days its water lasts the bunker's living people,
                 // as the brain counts it (modforge memory::days_of).
@@ -1222,7 +1224,8 @@ pub fn publish_world(
                         food += stack.count;
                     }
                 }
-                water = crate::interact::water_in(&held.0, &items);
+                // Its water in litres (modforge fluid).
+                water = modforge::fluid::litres_in(&held.0);
                 // Drawn from by another place, it reads dry when low.
                 dry = drawn.is_some_and(|d| d.dry(water));
                 // And what it held when the drawing began, which dry is

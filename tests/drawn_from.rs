@@ -20,8 +20,9 @@ fn bunker(faction: &str) -> Json {
     op("world")["bunkers"][faction].clone()
 }
 
-fn water(faction: &str) -> u64 {
-    bunker(faction)["water"].as_u64().unwrap_or(0)
+/// The litres of water a bunker's store holds (the world op's "water").
+fn water(faction: &str) -> f64 {
+    bunker(faction)["water"].as_f64().unwrap_or(0.0)
 }
 
 /// How many times the player has drunk at the tap (their memory, the
@@ -34,7 +35,7 @@ fn drunk_at_the_tap() -> u64 {
 fn drink_it_dry(maras: &str) {
     let tap = the_tap();
     for _ in 0..2000 {
-        if water(maras) == 0 {
+        if water(maras) <= 0.0 {
             return;
         }
         op_with("use", json!({"id": player(), "at": [tap.0, tap.1]}));
@@ -57,7 +58,7 @@ fn a_dry_store_gives_nothing_at_the_tap() {
     op_with("use", json!({"id": player(), "at": [tap.0, tap.1]}));
     step(2 * SECOND);
     assert_eq!(drunk_at_the_tap(), drunk, "the player drank at the tap with Mara's store dry");
-    assert_eq!(water(&maras), 0, "Mara's store holds water again without being filled");
+    assert_eq!(water(&maras), 0.0, "Mara's store holds water again without being filled");
 }
 
 /// Mara's store reads dry once it holds under a quarter of what it held, and
@@ -70,13 +71,13 @@ fn the_store_reads_dry_under_a_quarter() {
     let maras = maras_bunker();
     let full = water(&maras);
     crate::saves::tap_maras_store_nearly_dry();
-    assert!(full >= 4, "setup: Mara's store held {full} at the start, too little to see a quarter");
+    assert!(full >= 1.0, "setup: Mara's store held {full} L at the start, too little to see a quarter");
     let tap = the_tap();
     for _ in 0..2000 {
         let now = water(&maras);
         let dry = bunker(&maras)["dry"] == true;
-        assert_eq!(dry, now * 4 < full, "Mara's store holding {now} of {full} reads dry: {dry}");
-        if now == 0 {
+        assert_eq!(dry, now * 4.0 < full, "Mara's store holding {now} of {full} L reads dry: {dry}");
+        if now <= 0.0 {
             return;
         }
         op_with("use", json!({"id": player(), "at": [tap.0, tap.1]}));
@@ -97,7 +98,7 @@ fn the_store_says_how_much_it_holds() {
     assert!(apart(player_spot(), at).0 < 1.5, "the save does not have the player beside Mara's store");
     op_with("use", json!({"id": player(), "at": [at.0, at.1], "height": at.2}));
     step(SECOND);
-    let said = format!("{} water", water(&maras));
+    let said = format!("{:.1} L water", water(&maras));
     let prompt = op("hud")["prompt"].clone();
     assert!(prompt.as_str().is_some_and(|p| p.contains(&said)), "Mara's store does not say it holds {said}: the prompt is {prompt}");
 }

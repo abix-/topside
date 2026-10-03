@@ -175,6 +175,10 @@ pub fn information(
 pub enum PanelAction {
     /// Eat, drink, use, or wear it (modforge's `use_slot`), named here.
     Use(&'static str),
+    /// A container filled at the source in reach (Action::Fill).
+    Fill,
+    /// A container poured into the open box's, or from it (Action::Pour).
+    Pour,
     Drop,
 }
 
@@ -182,6 +186,8 @@ impl PanelAction {
     pub fn label(self) -> &'static str {
         match self {
             PanelAction::Use(name) => name,
+            PanelAction::Fill => "Fill",
+            PanelAction::Pour => "Pour",
             PanelAction::Drop => "Drop",
         }
     }
@@ -202,6 +208,10 @@ pub fn panel_actions(def: &modforge::item::ItemDef, slot: SlotRef) -> Vec<PanelA
         }));
     } else if def.armor.is_some() && slot.holder != Holder::Equipment {
         actions.push(PanelAction::Use("Wear"));
+    } else if def.holds_litres.is_some() {
+        // A container (modforge fluid): drunk from, filled at a source,
+        // poured into or out of the open box.
+        actions.extend([PanelAction::Use("Drink"), PanelAction::Fill, PanelAction::Pour]);
     }
     actions.push(PanelAction::Drop);
     actions
@@ -618,6 +628,8 @@ fn click_action(
     };
     let action = match action {
         PanelAction::Use(_) => Action::UseSlot { slot },
+        PanelAction::Fill => Action::Fill { slot },
+        PanelAction::Pour => Action::Pour { slot },
         PanelAction::Drop => Action::Drop { slot: Some(slot) },
     };
     actions.0.push(tick.0 + 1, action);
@@ -1162,6 +1174,40 @@ pub fn hud_keys(
                         && let Some(item) = item
                     {
                         used(&item, heal, &registry, &mut health, memory.as_deref_mut(), tick.0);
+                    }
+                }
+                // A container poured (modforge fluid): from the bags into
+                // the open box's containers (a bottle into the barrel), or
+                // from the open box into the containers carried (a bottle
+                // filled from the barrel).
+                Action::Pour { slot } => {
+                    let Some(mut container) = open.0.and_then(|e| containers.get_mut(e).ok()) else {
+                        continue;
+                    };
+                    let from = match slot.holder {
+                        Holder::Inventory => inventory.0.slots.get_mut(slot.index),
+                        Holder::Hotbar => hotbar.0.slots.slots.get_mut(slot.index),
+                        Holder::Container => container.0.slots.get_mut(slot.index),
+                        Holder::Equipment | Holder::Theirs => continue,
+                    };
+                    let Some(Some(from)) = from else {
+                        continue;
+                    };
+                    let mut litres = std::mem::take(&mut from.litres);
+                    if slot.holder == Holder::Container {
+                        modforge::fluid::pour_into(&mut inventory.0, &mut litres, &registry.0);
+                        modforge::fluid::pour_into(&mut hotbar.0.slots, &mut litres, &registry.0);
+                    } else {
+                        modforge::fluid::pour_into(&mut container.0, &mut litres, &registry.0);
+                    }
+                    // What found no room stays where it was.
+                    let back = match slot.holder {
+                        Holder::Inventory => inventory.0.slots.get_mut(slot.index),
+                        Holder::Hotbar => hotbar.0.slots.slots.get_mut(slot.index),
+                        _ => container.0.slots.get_mut(slot.index),
+                    };
+                    if let Some(Some(back)) = back {
+                        back.litres += litres;
                     }
                 }
                 Action::Craft { index } => {

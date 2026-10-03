@@ -235,6 +235,8 @@ pub fn input_to_actions(
             | Action::Transfer { .. }
             | Action::Drop { .. }
             | Action::UseSlot { .. }
+            | Action::Fill { .. }
+            | Action::Pour { .. }
             | Action::Craft { .. }
             | Action::Map
             | Action::Talk { .. }

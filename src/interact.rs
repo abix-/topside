@@ -362,13 +362,14 @@ pub struct DrawsFrom(#[entities] pub Entity);
 #[derive(Component, Clone, Copy, serde::Serialize, serde::Deserialize, Reflect)]
 #[reflect(opaque, Component, Serialize, Deserialize)]
 pub struct Drawn {
-    pub held: u32,
+    /// The litres it held (modforge fluid).
+    pub held: f32,
 }
 
 impl Drawn {
-    /// Whether it reads dry holding `water` now.
-    pub fn dry(&self, water: u32) -> bool {
-        (water as f32) < self.held as f32 * crate::content::DRY_BELOW
+    /// Whether it reads dry holding `litres` now.
+    pub fn dry(&self, litres: f32) -> bool {
+        litres < self.held * crate::content::DRY_BELOW
     }
 }
 
@@ -388,7 +389,8 @@ pub fn pointed_thing<'a>(feet: Vec3, pointed: Vec2, things: impl Iterator<Item =
 /// drinking is its people's): water for thirst, food for hunger.
 pub fn days_of(held: &item::Inventory, need: modforge::survival::Need, items: &ItemRegistryRes, day: crate::survival::Day, people: u32) -> f32 {
     let supplies = held.slots.iter().flatten().map(|s| (s.item.as_str(), s.count));
-    let (hunger, thirst) = modforge::memory::days_of(supplies, people.max(1), day.per_day(), &items.0);
+    let litres = modforge::fluid::litres_in(held);
+    let (hunger, thirst) = modforge::memory::days_of(supplies, litres, people.max(1), day.per_day(), &items.0);
     match need {
         modforge::survival::Need::Thirst => thirst,
         _ => hunger,
@@ -401,12 +403,6 @@ pub fn days_of(held: &item::Inventory, need: modforge::survival::Need, items: &I
 /// using a source) read.
 pub fn melee_in_hand(hotbar: &modforge::hud::Hotbar, items: &modforge::item::ItemRegistry) -> bool {
     hotbar.held_stack().and_then(|s| items.def(&s.item)).and_then(|d| d.combat.as_ref()).is_some_and(|c| c.ammo.is_none())
-}
-
-/// How much water a store holds: every stack of something drunk (its food
-/// answers thirst).
-pub fn water_in(held: &item::Inventory, items: &ItemRegistryRes) -> u32 {
-    held.slots.iter().flatten().filter(|s| items.0.def(&s.item).and_then(|d| d.food).is_some_and(|f| f.thirst > 0.0)).map(|s| s.count).sum()
 }
 
 /// The box this person has open, if any.
@@ -422,6 +418,30 @@ pub struct OpenStation(pub Option<StationKind>);
 /// The def a river's water is (content: kind `Source`), named by what it
 /// is.
 pub const RIVER: &str = "river";
+
+/// Whether a stack answers `need` eaten or drunk: food that fills it, or,
+/// for thirst, a container holding water (modforge fluid). The one answer
+/// the brain, trading and stocking read.
+pub fn answers(items: &modforge::item::ItemRegistry, stack: &item::ItemStack, need: modforge::survival::Need) -> bool {
+    use modforge::survival::Need;
+    let def = items.def(&stack.item);
+    let food = def.and_then(|d| d.food.as_ref()).is_some_and(|f| match need {
+        Need::Hunger => f.hunger > 0.0,
+        Need::Thirst => f.thirst > 0.0,
+        Need::Rest | Need::Safety => false,
+    });
+    food || (need == Need::Thirst && stack.litres > 0.0 && def.is_some_and(|d| d.holds_litres.is_some()))
+}
+
+/// The stack in a person's bags or belt a slot names, if it is there.
+pub fn slot_stack<'a>(inventory: &'a mut Inventory, hotbar: Option<&'a mut crate::actor::Hotbar>, slot: modforge::hud::SlotRef) -> Option<&'a mut item::ItemStack> {
+    let held = match slot.holder {
+        modforge::hud::Holder::Inventory => &mut inventory.0,
+        modforge::hud::Holder::Hotbar => &mut hotbar?.0.slots,
+        _ => return None,
+    };
+    held.slots.get_mut(slot.index).and_then(Option::as_mut)
+}
 
 /// One mouthful from a source where it stands (a well, a bush, a river's
 /// water): modforge's `SurvivalStats::eat` fills the needs, then the one
@@ -571,7 +591,7 @@ pub fn interact_on_use(
     mut people: Query<
         (
             (Entity, &Transform, &ThisTick, &mut Inventory, &mut Hud, &mut OpenContainer, &mut OpenStation),
-            (&mut Survival, &mut Health, Option<&mut Memory>, &Facing, Option<&crate::talk::LookingAt>, Option<&crate::actor::Actor>, Option<&crate::actor::Hotbar>),
+            (&mut Survival, &mut Health, Option<&mut Memory>, &Facing, Option<&crate::talk::LookingAt>, Option<&crate::actor::Actor>, Option<&mut crate::actor::Hotbar>),
         ),
         Without<Dead>,
     >,
@@ -586,17 +606,27 @@ pub fn interact_on_use(
     // in one tick, who gets it is the same after a load.
     let order = crate::actor::in_actor_order(people.iter().map(|((me, ..), (.., actor, _))| (actor.map(|a| a.0), me)));
     for entity in order {
-        let Ok(((me, person, this_tick, mut inventory, mut hud, mut open, mut station), (mut needs, mut health, mut memory, facing, looking, _, hotbar))) =
+        let Ok(((me, person, this_tick, mut inventory, mut hud, mut open, mut station), (mut needs, mut health, mut memory, facing, looking, _, mut hotbar))) =
             people.get_mut(entity)
         else {
             continue;
         };
-        if !this_tick.0.iter().any(|s| matches!(s.action, Action::Use)) {
+        // Use (E), or Fill: a container in their bags filled at the source
+        // pointed at, the same reach and aim.
+        let fills: Vec<modforge::hud::SlotRef> = this_tick
+            .0
+            .iter()
+            .filter_map(|s| match s.action {
+                Action::Fill { slot } => Some(slot),
+                _ => None,
+            })
+            .collect();
+        if fills.is_empty() && !this_tick.0.iter().any(|s| matches!(s.action, Action::Use)) {
             continue;
         }
         // Looking at a person: E talks to exactly them (episodes.md
         // "Conversations"), a conversation that ends by itself.
-        if let Some((them, id)) = looking.and_then(|l| l.0) {
+        if let Some((them, id)) = looking.and_then(|l| l.0).filter(|_| fills.is_empty()) {
             if hud.0.talking.as_ref().is_none_or(|t| t.with != id) {
                 let name = names.get(them).map_or("", |n| n.as_str());
                 hud.0.talking = Some(crate::talk::talking_with(id, name));
@@ -614,9 +644,18 @@ pub fn interact_on_use(
         let nearest = pointed_thing(feet, pointed, things.iter().map(|(e, _, door, _, t, _)| (e, door, t)));
         let Some(Ok((entity, thing, door, item, transform, draws_from))) = nearest.map(|e| things.get_mut(e)) else {
             // Nothing to use in reach: a river's water pointed at is drunk
-            // (design.md: rivers are drinkable), from the ground's level.
+            // (design.md: rivers are drinkable), from the ground's level,
+            // or a container filled from it.
             if in_reach(feet, on_ground(at, 0.0)) && chunks.as_ref().is_some_and(|c| nearest_water(c, at, pointed).is_some()) {
-                eat_from_source(RIVER, &registry, &mut needs, &mut health, memory.as_deref_mut(), tick.0);
+                if fills.is_empty() {
+                    eat_from_source(RIVER, &registry, &mut needs, &mut health, memory.as_deref_mut(), tick.0);
+                }
+                for &slot in &fills {
+                    if let Some(to) = slot_stack(&mut *inventory, hotbar.as_deref_mut(), slot) {
+                        let mut river = f32::INFINITY;
+                        modforge::fluid::fill(to, &mut river, &registry.0);
+                    }
+                }
             }
             continue;
         };
@@ -630,30 +669,41 @@ pub fn interact_on_use(
                 // weapon with no ammo). A person's brain puts the weapon
                 // out of hand before it uses a source (ai::think).
                 let breaks = registry.0.def(&item.stack.item).is_some_and(|d| d.breaks_when_struck);
-                if breaks && hotbar.is_some_and(|h| melee_in_hand(&h.0, &registry.0)) {
+                if breaks && fills.is_empty() && hotbar.as_ref().is_some_and(|h| melee_in_hand(&h.0, &registry.0)) {
                     commands.entity(entity).despawn();
                     continue;
                 }
-                // Water drawn from a store: one of its waters goes, and
-                // with none left the source gives nothing.
-                if let Some(from) = draws_from {
-                    let Ok(mut store) = stores.get_mut(from.0) else {
-                        continue;
-                    };
-                    let water = store
-                        .0
-                        .slots
-                        .iter()
-                        .flatten()
-                        .find(|s| registry.0.def(&s.item).and_then(|d| d.food).is_some_and(|f| f.thirst > 0.0))
-                        .map(|s| s.item.clone());
-                    let Some(water) = water else {
-                        continue;
-                    };
-                    store.0.take_one(&water);
+                // Water drawn from a store comes out of the store's water
+                // (modforge fluid::take_from); with none left the source
+                // gives nothing.
+                let mut store = draws_from.and_then(|from| stores.get_mut(from.0).ok());
+                let gives_water = registry.0.def(&item.stack.item).and_then(|d| d.food).is_some_and(|f| f.thirst > 0.0);
+                // Each container filled: up to its size, from the store if
+                // drawn from one, else from a source that never runs dry.
+                for &slot in fills.iter().filter(|_| gives_water) {
+                    if let Some(to) = slot_stack(&mut *inventory, hotbar.as_deref_mut(), slot) {
+                        let room = modforge::fluid::room(to, &registry.0);
+                        to.litres += match store.as_mut() {
+                            Some(store) => modforge::fluid::take_from(&mut store.0, room),
+                            None => room,
+                        };
+                    }
                 }
-                eat_from_source(&item.stack.item, &registry, &mut needs, &mut health, memory.as_deref_mut(), tick.0);
+                // Used with E: a mouthful where it stands; from a store, a
+                // mouthful's water out of it (drinking at a source stays as
+                // it was, undecided, operator 2026-10-03).
+                if fills.is_empty() {
+                    if let Some(store) = store.as_mut()
+                        && modforge::fluid::take_from(&mut store.0, modforge::fluid::MOUTHFUL) <= 0.0
+                    {
+                        continue;
+                    }
+                    eat_from_source(&item.stack.item, &registry, &mut needs, &mut health, memory.as_deref_mut(), tick.0);
+                }
             }
+            continue;
+        }
+        if !fills.is_empty() {
             continue;
         }
         let read = use_thing(

@@ -43,9 +43,7 @@ pub fn between_people(
 ) {
     use modforge::memory::Did;
     let heard = |words: &str| episodes.felt(words);
-    let food_or_water = |item: &str| {
-        items.0.def(item).and_then(|d| d.food.as_ref()).is_some_and(|f| f.hunger > 0.0 || f.thirst > 0.0)
-    };
+    use modforge::survival::Need;
     for (buyer, seller_id, need) in std::mem::take(&mut asks.0) {
         let Some(seller) = people.iter().find(|p| p.1.0 == seller_id).map(|p| p.0) else {
             continue;
@@ -66,16 +64,15 @@ pub fn between_people(
         if !crate::talk::within(b.2.translation, s.2.translation, crate::talk::TALK_REACH) {
             continue;
         }
-        // One thing that answers the need, from the seller's bags.
-        let answers = |item: &str| {
-            items.0.def(item).and_then(|d| d.food.as_ref()).is_some_and(|f| match need {
-                modforge::survival::Need::Hunger => f.hunger > 0.0,
-                modforge::survival::Need::Thirst => f.thirst > 0.0,
-                _ => false,
-            })
-        };
-        let Some(slot) = s.3.0.slots.iter().position(|st| st.as_ref().is_some_and(|st| answers(&st.item))) else {
+        // One thing that answers the need, from the seller's bags
+        // (interact::answers: food, or a container holding water).
+        let Some(slot) = s.3.0.slots.iter().position(|st| st.as_ref().is_some_and(|st| crate::interact::answers(&items.0, st, need))) else {
             continue;
+        };
+        // Paid with nothing that answers hunger or thirst.
+        let buyer_bags = b.3.0.clone();
+        let food_or_water = |item: &str| {
+            buyer_bags.slots.iter().flatten().filter(|st| st.item == item).any(|st| [Need::Hunger, Need::Thirst].into_iter().any(|n| crate::interact::answers(&items.0, st, n)))
         };
         let theirs: modforge::trade::Offer = vec![(slot, 1)];
         let Some(wanted) = modforge::trade::offered(&s.3.0, &theirs) else {

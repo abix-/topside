@@ -505,12 +505,13 @@ pub fn look_at(
     let store = thing
         .filter(|e| stores.iter().any(|s| s.0 == *e))
         .and_then(|e| containers.get(e).ok())
-        .map(|held| crate::actor::held_in(&held.0));
+        .map(|held| (crate::actor::held_in(&held.0), modforge::fluid::litres_in(&held.0)));
     hud.0.prompt = match (person, store) {
         (Some((_, _, name)), _) => modforge::hud::talk_prompt(name),
-        (None, Some(held)) if held.is_empty() => Prompt { text: "Store: empty".to_string(), can_interact: true },
-        (None, Some(held)) => Prompt {
-            text: format!("Store: {}", held.iter().map(|(item, n)| format!("{n} {item}")).collect::<Vec<_>>().join(", ")),
+        (None, Some((held, _))) if held.is_empty() => Prompt { text: "Store: empty".to_string(), can_interact: true },
+        // Its water first, in litres (modforge fluid), then each kind.
+        (None, Some((held, litres))) => Prompt {
+            text: format!("Store: {}", std::iter::once(format!("{litres:.1} L water")).chain(held.iter().map(|(item, n)| format!("{n} {item}"))).collect::<Vec<_>>().join(", ")),
             can_interact: true,
         },
         (None, None) => Prompt::default(),

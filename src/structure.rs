@@ -395,9 +395,10 @@ const PLAYER_STORE_SALT: u64 = 1000;
 fn spawn_store(commands: &mut Commands, ids: &mut crate::interact::ThingIssuer, items: &ItemRegistryRes, bunker: Vec2, salt: u64) {
     let box_def = items.0.def("storage box").expect("the storage box is registered");
     let mut contents = item::Inventory::new(box_def.storage.unwrap_or(12));
-    for (name, count) in BUNKER_STORE {
+    for (name, count, litres) in BUNKER_STORE {
         if let Some(def) = items.0.def(name) {
-            let _ = contents.add(create(def, count, &[], 0.0, salt), def.max_stack);
+            let stack = item::ItemStack { litres, ..create(def, count, &[], 0.0, salt) };
+            let _ = contents.add(stack, def.max_stack);
         }
     }
     let [x, z] = BUNKER_STORE_AT;
@@ -491,7 +492,11 @@ pub fn spawn_sites(
                         continue;
                     };
                     match item::create_layered(def, &on, &layers.0, count, &[], 0.0, k as u64) {
-                        Ok(stack) => {
+                        Ok(mut stack) => {
+                            // A container found in a box is found full of
+                            // water (Claude's reading, for the operator to
+                            // change).
+                            stack.litres = def.holds_litres.unwrap_or(0.0);
                             let _ = contents.add(stack, def.max_stack);
                         }
                         Err(e) => warn!("loot: {e}"),

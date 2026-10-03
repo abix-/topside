@@ -33,15 +33,13 @@ use modforge::structure::{
 };
 
 /// What lies on the floor of the player's room (design.md: three days of
-/// food; a can is half a day of hunger and a bottle half a day of
-/// thirst, so six of each), plus the first weapons and a vest: item,
-/// count, salt, where in the bunker's plan (x, z), colour.
-pub const STARTING_ITEMS: [(&str, u32, u64, [f32; 2], Rgb); 9] = [
+/// food; a can is half a day of hunger, so six), plus the first weapons
+/// and a vest: item, count, salt, where in the bunker's plan (x, z),
+/// colour. Water is the bunker's: its barrel and bottles (`BUNKER_STORE`).
+pub const STARTING_ITEMS: [(&str, u32, u64, [f32; 2], Rgb); 7] = [
     // Enough cloth for the bench's first bandage.
     ("cloth", 2, 14, [-1.6, 2.0], [0.75, 0.7, 0.6]),
     ("canned food", 6, 1, [-1.0, 2.0], [0.2, 0.6, 0.2]),
-    ("water bottle", 5, 3, [-1.0, 2.6], [0.3, 0.5, 0.8]),
-    ("water bottle", 1, 4, [-1.6, 2.6], [0.3, 0.5, 0.8]),
     // West of the stairs (x 1.4 to 2.6).
     ("scrap", 3, 2, [-0.4, 2.0], [0.5, 0.5, 0.5]),
     ("pipe shotgun", 1, 9, [0.2, 2.0], [0.3, 0.3, 0.3]),
@@ -114,7 +112,8 @@ pub fn loot_table() -> LootTable {
             e("scrap", (1, 4), 10, 0),
             e("cloth", (1, 3), 8, 0),
             e("canned food", (1, 2), 6, 0),
-            e("water bottle", (1, 2), 6, 0),
+            // One to a slot, found full (structure::spawn_monuments).
+            e("water bottle", (1, 1), 6, 0),
             e("shotgun shell", (2, 5), 4, 1),
             e("bandage", (1, 1), 3, 1),
             weapon("pipe", &[], 2, 1),
@@ -963,9 +962,12 @@ pub const BUNKER_PEOPLE_AT: [[f32; 2]; BUNKER_PEOPLE] =
 pub const PLAYER_BUNKER_PEOPLE: [(&str, [f32; 2], f32); 1] = [("Roxanne", [-2.2, 3.0], 1.0)];
 
 /// A bunker's store (design.md: factions have real stores): one box in
-/// the bunker's plan (x, z) and what is in it. Tuning.
+/// the bunker's plan (x, z) and what is in it, with the water in each
+/// (design.md "Water is a fluid", operator 2026-10-03: a water barrel
+/// holding 10 L and 2 bottles of 5 L; the bottles start empty, Claude's
+/// reading, for the operator to change). Tuning.
 pub const BUNKER_STORE_AT: [f32; 2] = [-2.0, -3.0];
-pub const BUNKER_STORE: [(&str, u32); 2] = [("canned food", 10), ("water bottle", 10)];
+pub const BUNKER_STORE: [(&str, u32, f32); 4] = [("canned food", 10, 0.0), ("water barrel", 1, 10.0), ("5 L water bottle", 1, 0.0), ("5 L water bottle", 1, 0.0)];
 
 /// A bunker is short of food when its store holds less than this many days
 /// of it for everyone living there: the starting bunker's three days
@@ -1198,6 +1200,30 @@ fn source(name: &str, hunger: f32, thirst: f32) -> ItemDef {
         picture: None,
         layer_slots: Vec::new(),
         breaks_when_struck: false,
+        holds_litres: None,
+    }
+}
+
+/// A container of water (design.md "Water is a fluid"): it holds up to
+/// `litres`, is drunk from a mouthful at a time, filled at a source and
+/// poured from (modforge fluid). One to a slot: what each holds is its own.
+fn container(name: &str, description: &str, litres: f32) -> ItemDef {
+    ItemDef {
+        name: name.to_string(),
+        description: description.to_string(),
+        unique: false,
+        kind: ItemKind::Container,
+        max_stack: 1,
+        quality_siblings: 1,
+        combat: None,
+        food: None,
+        storage: None,
+        armor: None,
+        good_for: Default::default(),
+        picture: None,
+        layer_slots: Vec::new(),
+        breaks_when_struck: false,
+        holds_litres: Some(litres),
     }
 }
 
@@ -1218,6 +1244,7 @@ pub fn register_items(reg: &mut ItemRegistry) {
             picture: None,
             layer_slots: Vec::new(),
             breaks_when_struck: false,
+            holds_litres: None,
         },
         ItemDef {
             name: "canned food".to_string(),
@@ -1239,27 +1266,13 @@ pub fn register_items(reg: &mut ItemRegistry) {
             picture: None,
             layer_slots: Vec::new(),
             breaks_when_struck: false,
+            holds_litres: None,
         },
-        ItemDef {
-            name: "water bottle".to_string(),
-            description: "A plastic bottle of clean water. Drink it to quench your thirst.".to_string(),
-            unique: false,
-            kind: ItemKind::Food,
-            max_stack: 5,
-            quality_siblings: 1,
-            combat: None,
-            food: Some(FoodStats {
-                hunger: 0.0,
-                thirst: 50.0,
-                health: 0.0,
-            }),
-            storage: None,
-            armor: None,
-            good_for: Default::default(),
-            picture: None,
-            layer_slots: Vec::new(),
-            breaks_when_struck: false,
-        },
+        // Water bottles come in sizes, each its own def (operator,
+        // 2026-10-03); a bunker's barrel holds 200 L.
+        container("water bottle", "A plastic bottle for water, 1 litre. Drink from it; fill it at a tap, a well or a river.", 1.0),
+        container("5 L water bottle", "A big plastic bottle for water, 5 litres. Drink from it; fill it at a tap, a well or a river.", 5.0),
+        container("water barrel", "A bunker's water barrel, 200 litres. Pour water into it; drink or fill a bottle from it.", 200.0),
         // The sources (design.md: a livable world, rivers drinkable,
         // wells scattered, food sources): eaten or drunk from where they
         // stand, a mouthful a use, never used up. Tuning.
@@ -1287,6 +1300,7 @@ pub fn register_items(reg: &mut ItemRegistry) {
             picture: None,
             layer_slots: Vec::new(),
             breaks_when_struck: false,
+            holds_litres: None,
         },
         ItemDef {
             name: "storage box".to_string(),
@@ -1305,6 +1319,7 @@ pub fn register_items(reg: &mut ItemRegistry) {
             picture: None,
             layer_slots: Vec::new(),
             breaks_when_struck: false,
+            holds_litres: None,
         },
         ItemDef {
             name: "scrap".to_string(),
@@ -1321,6 +1336,7 @@ pub fn register_items(reg: &mut ItemRegistry) {
             picture: None,
             layer_slots: Vec::new(),
             breaks_when_struck: false,
+            holds_litres: None,
         },
         ItemDef {
             name: "cloth".to_string(),
@@ -1337,6 +1353,7 @@ pub fn register_items(reg: &mut ItemRegistry) {
             picture: None,
             layer_slots: Vec::new(),
             breaks_when_struck: false,
+            holds_litres: None,
         },
         ItemDef {
             name: "pipe".to_string(),
@@ -1362,6 +1379,7 @@ pub fn register_items(reg: &mut ItemRegistry) {
             // reach and speed, the head it takes decides the damage.
             layer_slots: vec!["head".to_string()],
             breaks_when_struck: false,
+            holds_litres: None,
         },
         ItemDef {
             name: "wooden handle".to_string(),
@@ -1385,6 +1403,7 @@ pub fn register_items(reg: &mut ItemRegistry) {
             picture: None,
             layer_slots: vec!["head".to_string()],
             breaks_when_struck: false,
+            holds_litres: None,
         },
         ItemDef {
             name: "long pole".to_string(),
@@ -1408,6 +1427,7 @@ pub fn register_items(reg: &mut ItemRegistry) {
             picture: None,
             layer_slots: vec!["head".to_string()],
             breaks_when_struck: false,
+            holds_litres: None,
         },
         // Rust's pipe shotgun: one shell, six pellets, wide spread,
         // instant out to 40 m (the hybrid's instant part).
@@ -1436,6 +1456,7 @@ pub fn register_items(reg: &mut ItemRegistry) {
             // barrel, a grip, a stock, and a sight.
             layer_slots: ["barrel", "grip", "stock", "sight"].map(String::from).to_vec(),
             breaks_when_struck: false,
+            holds_litres: None,
         },
         ItemDef {
             name: "shotgun shell".to_string(),
@@ -1452,6 +1473,7 @@ pub fn register_items(reg: &mut ItemRegistry) {
             picture: None,
             layer_slots: Vec::new(),
             breaks_when_struck: false,
+            holds_litres: None,
         },
         // Worn in the chest slot; guards the chest only.
         ItemDef {
@@ -1469,6 +1491,7 @@ pub fn register_items(reg: &mut ItemRegistry) {
             picture: None,
             layer_slots: Vec::new(),
             breaks_when_struck: false,
+            holds_litres: None,
         },
     ];
     // With every episode's own items (each episode's file).
