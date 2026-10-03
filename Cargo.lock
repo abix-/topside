@@ -1229,8 +1229,6 @@ dependencies = [
 [[package]]
 name = "bevy_landmass"
 version = "0.12.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c3d2715a76e15d02b7da51fe50c88b6caf7753234e8c8cfa5987b3253faed7f6"
 dependencies = [
  "bevy_app",
  "bevy_asset",
@@ -4331,6 +4329,7 @@ dependencies = [
  "kdtree",
  "slotmap",
  "thiserror 2.0.20",
+ "tracing",
 ]
 
 [[package]]

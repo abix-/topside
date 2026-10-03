@@ -6,6 +6,7 @@ use bevy_app::{FixedPreUpdate, Plugin};
 use bevy_asset::{AssetHandleProvider, AssetId, Assets, Handle};
 use bevy_ecs::{
   bundle::Bundle,
+  change_detection::DetectChangesMut,
   component::Component,
   intern::Interned,
   lifecycle::HookContext,
@@ -70,6 +71,15 @@ pub fn convert(world: &mut World, rerecast_id: AssetId<bevy_rerecast::Navmesh>) 
     .resource_mut::<Assets<bevy_landmass::NavMesh3d>>()
     .insert(landmass_id, bevy_landmass::NavMesh { nav_mesh: Arc::new(landmass_mesh) })
     .unwrap();
+  // topside patch (todo 9n): the islands on this mesh are marked changed,
+  // so bevy_landmass's island sync, which looks only at changed islands,
+  // swaps a rebuilt mesh in this same tick.
+  let mut handles = world.query::<&mut bevy_landmass::NavMeshHandle3d>();
+  for mut handle in handles.iter_mut(world) {
+    if handle.0.id() == landmass_id {
+      handle.set_changed();
+    }
+  }
 }
 
 /// topside patch: the island of `rerecast_id` is gone; its landmass mesh is

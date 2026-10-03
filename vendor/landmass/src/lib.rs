@@ -57,6 +57,41 @@ pub struct Archipelago<CS: CoordinateSystem> {
   agents: DenseSlotMap<AgentId, Agent<CS>>,
   characters: DenseSlotMap<CharacterId, Character<CS>>,
   pathing_results: Vec<PathingResult>,
+  /// topside patch (todo 9n): last step's placed points (`place`).
+  placed: Placed,
+}
+
+/// topside patch (todo 9n): each point placed on the mesh last step (an
+/// agent's, an agent's target, a character's), by the point's exact bits,
+/// with the sample distance it was placed with. A placement depends only on
+/// the point, the islands and that distance, so while no island changed
+/// and the distance is the same, last step's answer is this step's: people
+/// standing and every walker's target are placed once, not every step.
+/// Prior art: Detour's crowd keeps each agent's polygon between frames
+/// (dtPathCorridor::movePosition) instead of searching for it again.
+#[derive(Default)]
+struct Placed {
+  distance: Option<CorePointSampleDistance>,
+  points: HashMap<[u32; 3], Option<(Vec3, NodeRef)>>,
+}
+
+/// topside patch (todo 9n): `point` placed on the mesh, from last step's
+/// placements (`kept`) when there, else sampled; into this step's (`placed`).
+fn place<CS: CoordinateSystem>(
+  nav_data: &NavigationData<CS>,
+  distance: &CorePointSampleDistance,
+  kept: &HashMap<[u32; 3], Option<(Vec3, NodeRef)>>,
+  placed: &mut HashMap<[u32; 3], Option<(Vec3, NodeRef)>>,
+  point: Vec3,
+) -> Option<(Vec3, NodeRef)> {
+  let key = point.to_array().map(f32::to_bits);
+  if let Some(&found) = placed.get(&key).or_else(|| kept.get(&key)) {
+    placed.insert(key, found);
+    return found;
+  }
+  let found = nav_data.sample_point(point, distance);
+  placed.insert(key, found);
+  found
 }
 
 /// Options that apply to the entire archipelago.
@@ -100,6 +135,7 @@ impl<CS: CoordinateSystem> Archipelago<CS> {
       agents: DenseSlotMap::with_key(),
       characters: DenseSlotMap::with_key(),
       pathing_results: Vec::new(),
+      placed: Placed::default(),
     }
   }
 
@@ -270,6 +306,9 @@ impl<CS: CoordinateSystem> Archipelago<CS> {
   pub fn update(&mut self, delta_time: f32) {
     self.pathing_results.clear();
 
+    // topside patch (todo 9n): each part below is timed by a span of its
+    // own ("landmass: ..."), which topside's perf op shows.
+    let span = tracing::info_span!("landmass: islands").entered();
     // TODO: make the edge_link_distance configurable.
     let (invalidated_off_mesh_links, invalidated_islands) =
       self.nav_data.update(
@@ -279,7 +318,22 @@ impl<CS: CoordinateSystem> Archipelago<CS> {
           .point_sample_distance
           .animation_link_max_vertical_distance(),
       );
+    drop(span);
 
+    // topside patch (todo 9n): last step's placements stand while no island
+    // changed and the sample distance is the same (`Placed`).
+    let distance = CorePointSampleDistance::new(
+      &self.archipelago_options.point_sample_distance,
+    );
+    if !invalidated_islands.is_empty() || self.placed.distance != Some(distance)
+    {
+      self.placed.points.clear();
+    }
+    self.placed.distance = Some(distance);
+    let kept = std::mem::take(&mut self.placed.points);
+    let mut placed = HashMap::new();
+
+    let span = tracing::info_span!("landmass: place agents").entered();
     let mut agent_id_to_agent_node = HashMap::new();
     let mut agent_id_to_target_node = HashMap::new();
 
@@ -295,11 +349,12 @@ impl<CS: CoordinateSystem> Archipelago<CS> {
         agent.state = AgentState::UsingAnimationLink;
         continue;
       }
-      let agent_node_and_point = match self.nav_data.sample_point(
+      let agent_node_and_point = match place(
+        &self.nav_data,
+        &distance,
+        &kept,
+        &mut placed,
         CS::to_landmass(&agent.position),
-        &CorePointSampleDistance::new(
-          &self.archipelago_options.point_sample_distance,
-        ),
       ) {
         None => continue,
         Some(node_and_point) => node_and_point,
@@ -309,11 +364,12 @@ impl<CS: CoordinateSystem> Archipelago<CS> {
       debug_assert!(inserted);
 
       if let Some(target) = &agent.current_target {
-        let target_node_and_point = match self.nav_data.sample_point(
+        let target_node_and_point = match place(
+          &self.nav_data,
+          &distance,
+          &kept,
+          &mut placed,
           CS::to_landmass(target),
-          &CorePointSampleDistance::new(
-            &self.archipelago_options.point_sample_distance,
-          ),
         ) {
           None => continue,
           Some(node_and_point) => node_and_point,
@@ -326,20 +382,28 @@ impl<CS: CoordinateSystem> Archipelago<CS> {
       }
     }
 
+    drop(span);
+
+    let span = tracing::info_span!("landmass: place characters").entered();
     let mut character_id_to_nav_mesh_point = HashMap::new();
     for (character_id, character) in self.characters.iter() {
-      let character_point = match self.nav_data.sample_point(
+      let character_point = match place(
+        &self.nav_data,
+        &distance,
+        &kept,
+        &mut placed,
         CS::to_landmass(&character.position),
-        &CorePointSampleDistance::new(
-          &self.archipelago_options.point_sample_distance,
-        ),
       ) {
         None => continue,
         Some(point_and_node) => point_and_node.0,
       };
       character_id_to_nav_mesh_point.insert(character_id, character_point);
     }
+    self.placed.points = placed;
 
+    drop(span);
+
+    let span = tracing::info_span!("landmass: ways").entered();
     let mut agent_id_to_follow_path_indices = HashMap::new();
 
     for (agent_id, agent) in self.agents.iter_mut() {
@@ -422,7 +486,9 @@ impl<CS: CoordinateSystem> Archipelago<CS> {
         }
       }
     }
+    drop(span);
 
+    let span = tracing::info_span!("landmass: follow").entered();
     for (agent_id, agent) in self.agents.iter_mut() {
       let path = match &agent.current_path {
         None => {
@@ -521,7 +587,9 @@ impl<CS: CoordinateSystem> Archipelago<CS> {
           CS::from_landmass(&desired_move.extend(0.0));
       }
     }
+    drop(span);
 
+    let _span = tracing::info_span!("landmass: avoidance").entered();
     apply_avoidance_to_agents(
       &mut self.agents,
       &agent_id_to_agent_node,

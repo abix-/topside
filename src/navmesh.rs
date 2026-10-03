@@ -71,6 +71,13 @@ impl Plugin for NavPlugin {
             Landmass3dPlugin::default().in_schedule(Landmass),
             LandmassRerecastPlugin::default().in_schedule(Landmass),
         ));
+        // Landmass's systems run one after another (its sets are a chain),
+        // so its schedule runs on one thread, as Avian's physics and substep
+        // schedules and Bevy's FixedMain do: the many-thread executor cost
+        // about 0.7 ms a step handing out work that has no parallel to it.
+        app.edit_schedule(Landmass, |schedule| {
+            schedule.set_executor(bevy::ecs::schedule::SingleThreadedExecutor::new());
+        });
         // Every tick; and once when the loading screen readies the world.
         app.add_systems(FixedPreUpdate, (run_landmass, crate::profile::lap("landmass")).chain());
         app.add_systems(Startup, setup);

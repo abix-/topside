@@ -140,8 +140,8 @@ fn what_a_stepped_tick_costs() {
     }
     // While stepping, a frame is one step call: what a call pays besides
     // its ticks shows here.
-    rows.push("  the costliest spans a frame (a frame is one step call):".to_string());
-    for span in perf["frame"].as_array().into_iter().flatten().take(25) {
+    rows.push("  every span a frame, the costliest first (a frame is one step call):".to_string());
+    for span in perf["frame"].as_array().into_iter().flatten() {
         rows.push(format!("    {:<90} {:>8.3}", span["span"].as_str().unwrap_or("?").chars().take(90).collect::<String>(), span["ms"].as_f64().unwrap_or(0.0)));
     }
     let text = format!("{}\n\n", rows.join("\n"));
