@@ -278,7 +278,7 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind, port: u16
                     episode::cast_episode,
                     episode::place_things,
                     episode::pivots_said,
-                    episode::the_taps_errands,
+                    episode::errands,
                     episode::the_first_drink,
                     episode::the_taps_deeds,
                     episode::the_ending,

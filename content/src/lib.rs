@@ -19,7 +19,9 @@ use modforge::survival::Need;
 use modforge::item::{Armor, CombatStats, FoodStats, ItemDef, ItemKind, ItemRegistry, LayerDef, LayerRegistry, Note};
 use modforge::monument::Roll;
 use modforge::reality::{Danger, RealityDef, RealityRegistry};
-use modforge::storyteller::{CastFrom, CueAct, CueDef, EpisodeDef, EpisodeRegistry, LineDef, PartDef, Place, ThingDef, When};
+use modforge::storyteller::{
+    CastFrom, CueAct, CueDef, EpisodeDef, EpisodeRegistry, ErrandAct, ErrandDef, LineDef, PartDef, Place, ThingDef, When, Who,
+};
 use modforge::monument::{
     Arrangement, BuildingRegistry, BuildingSize, BuildingSlot, BuildingTypeDef,
     MonumentRegistry, MonumentTypeDef, PropDef,
@@ -540,6 +542,7 @@ pub fn register_episodes(reg: &mut EpisodeRegistry) {
         door_enemy: true,
         endings: Vec::new(),
         things: Vec::new(),
+        errands: Vec::new(),
     };
     let part = |name: &str, from| PartDef { name: name.to_string(), from };
     let ending = |name: &str, words: &str, needs: &[&str], alive: &[&str]| modforge::storyteller::EndingDef {
@@ -742,6 +745,34 @@ pub fn register_episodes(reg: &mut EpisodeRegistry) {
                 found_by: Some("Dell".to_string()),
                 kept_quiet: true,
             }],
+            // docs/episodes/the-tap.md: who The Tap asks to be where, the
+            // first that holds for each part. Mara at the tap from the start
+            // (her bunker's water is going); Dell, believed, leads the player
+            // there ("Show me."); not believed, she goes alone; sent to look
+            // again, she goes, and once there (her look, "Dell looked") comes
+            // home and tells the way again by her rule; before the note is
+            // read and the opening said she stays home (orchestrator,
+            // 2026-10-03: her short store sent her out before the opening).
+            errands: {
+                let s = |v: &[&str]| v.iter().map(|p| p.to_string()).collect::<Vec<String>>();
+                let errand = |part: &str, does: ErrandAct, when: &[&str], unless: &[&str], arrival: Option<&str>| ErrandDef {
+                    part: part.to_string(),
+                    does,
+                    when: s(when),
+                    unless: s(unless),
+                    reached_on_arrival: arrival.map(str::to_string),
+                };
+                let to_tap = |side: f32| ErrandAct::GoTo { thing: "tap".to_string(), side };
+                let pi = std::f32::consts::PI;
+                vec![
+                    errand("Mara", to_tap(0.0), &[], &[], None),
+                    errand("Dell", ErrandAct::Lead { who: Who::ThePlayer, thing: "tap".to_string(), side: pi }, &["believes Dell"], &[], None),
+                    errand("Dell", to_tap(pi), &["does not believe it"], &[], None),
+                    errand("Dell", to_tap(pi), &["sends Dell"], &["Dell looked"], Some("Dell looked")),
+                    errand("Dell", ErrandAct::GoHome, &["sends Dell", "Dell looked"], &["Dell told the way again"], None),
+                    errand("Dell", ErrandAct::StayHome, &[], &["the note read", "the opening"], None),
+                ]
+            },
             ..episode("The Tap", &["Mixed world", "Sky Islands"])
         },
         // docs/episodes/the-fever.md "The people": for now only the parts

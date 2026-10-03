@@ -374,7 +374,7 @@ pub fn the_way(memory: &modforge::memory::Memory, door: (Vec2, Vec2), tap: u64, 
 /// anyone since it started, read from memory (the one record), is reached
 /// under its name ("the opening", "believes Dell", "threatens Mara").
 /// Pivot points reached by what was done are reached where it is seen
-/// (`the_taps_errands`, `the_first_drink`).
+/// (`errands`' arrivals, `the_first_drink`).
 pub fn pivots_said(
     tick: Res<crate::SimTick>,
     mut episode: ResMut<Episode>,
@@ -405,88 +405,100 @@ pub fn pivots_said(
     }
 }
 
-/// Who The Tap asks to be where (docs/episodes/the-tap.md), once a game
-/// second, as `Asked` the brain weighs like any choice: Mara to the tap
-/// from the start (her bunker's water is going); Dell, once the player has
-/// chosen, to the tap ("Show me.", or alone when not believed); sent to
-/// look again, Dell goes to the tap and comes back home, and tells the way
-/// again by her rule ("Dell told the way again", content).
-pub fn the_taps_errands(
+/// How near the place an errand sends someone they have arrived, for the
+/// pivot point reached on arrival, in metres.
+const ARRIVED: f32 = 4.0;
+
+/// How far from a thing an errand's spot beside it is, in metres.
+const BESIDE: f32 = 2.0;
+
+/// Once a game second, every part of the episode running is asked what its
+/// first errand that holds asks (modforge `errand_for`, Skyrim's quest
+/// stages with conditions), as `Asked` the brain weighs like any choice:
+/// to stand beside a thing of the episode (two metres off at the errand's
+/// side, on a spot they can stand on), back home, or to stay home; or to
+/// lead someone beside a thing (ai::lead, the one led following until they
+/// move themselves). Going somewhere or leading wins over a talk; staying
+/// home never takes them out of one. With no errand holding, the episode
+/// lets go only of its own asking. Arrived where an errand sends them, its
+/// pivot point on arrival is reached.
+pub fn errands(
     mut commands: Commands,
     tick: Res<crate::SimTick>,
     mut episode: ResMut<Episode>,
+    episodes: Res<EpisodeRegistryRes>,
     nav: Res<crate::navmesh::Nav>,
     archipelagos: Query<&bevy_landmass::prelude::Archipelago3d>,
     player: Query<(Entity, &Actor), (With<crate::player::Player>, Without<Dead>)>,
-    people: Query<(Entity, &Actor, &Transform, &Home, Has<crate::ai::Leading>, Has<crate::talk::HeldToTalk>), Without<crate::player::Player>>,
+    people: Query<(Entity, &Actor, &Transform, &Home, Has<crate::ai::Leading>, Has<crate::talk::HeldToTalk>), Without<Dead>>,
 ) {
-    if tick.0 % 60 != 0 || episode.name.as_deref() != Some("The Tap") {
+    use modforge::storyteller::{ErrandAct, Who};
+    if tick.0 % 60 != 0 {
         return;
     }
-    let Some((tap, _)) = episode.thing("tap") else {
+    let Some(def) = episode.name.as_deref().and_then(|n| episodes.0.def(n)) else {
         return;
     };
-    // Where each stands by the tap: two metres off, on a spot they can
-    // stand on (the tap's building has walls), Mara on one side and Dell
-    // on the other.
     let archipelago = archipelagos.get(nav.archipelago).ok();
-    let by_tap = |from: f32| archipelago.and_then(|a| crate::navmesh::stand_by(a, tap, 2.0, from)).unwrap_or(tap);
-    let mara_at = by_tap(0.0);
-    let dell_at = by_tap(std::f32::consts::PI);
-    // The episode's errand wins over stopping to talk: it is no longer
-    // the conversation's to let go.
-    let ask = |commands: &mut Commands, entity: Entity, at: Option<Vec3>| match at {
-        Some(at) => {
-            commands.entity(entity).insert(crate::actor::Asked(at)).remove::<crate::talk::HeldToTalk>();
-        }
-        None => {
-            commands.entity(entity).remove::<crate::actor::Asked>();
-        }
+    // The spot beside a thing of the episode at a side of it.
+    let beside = |thing: &str, side: f32| {
+        let (at, _) = episode.thing(thing)?;
+        Some(archipelago.and_then(|a| crate::navmesh::stand_by(a, at, BESIDE, side)).unwrap_or(at))
     };
-    let mara = episode.cast_as("Mara");
-    let dell = episode.cast_as("Dell");
-    let sent = episode.reached("sends Dell");
-    let goes = episode.reached("believes Dell") || episode.reached("does not believe it");
-    let mut looked = episode.reached("Dell looked");
-    let believed = episode.reached("believes Dell");
     let player_id = player.single().ok().map(|(e, a)| (a.0, e));
-    for (entity, actor, at, home, leading, held_to_talk) in &people {
-        if Some(actor.0) == mara {
-            ask(&mut commands, entity, Some(mara_at));
-        } else if Some(actor.0) == dell {
-            let here = crate::interact::feet_of(at);
-            if sent && !looked && here.distance(tap) <= 4.0 {
-                looked = true;
-            }
-            // Believed, she shows the player the way: she leads them to the
-            // tap (ai::lead asks her each game second), and the player
-            // follows her until they move themselves (ai::follow).
-            if believed {
-                if !leading && let Some((who, follower)) = player_id {
-                    commands.entity(entity).insert(crate::ai::Leading { who, to: dell_at, waiting_at: None });
-                    commands.entity(follower).insert(crate::ai::Following(actor.0));
+    let someone = |who: &Who| match who {
+        Who::ThePlayer => player_id,
+        Who::Part(part) => episode.cast_as(part).and_then(|id| people.iter().find(|p| p.1.0 == id)).map(|p| (p.1.0, p.0)),
+    };
+    let reached = episode.reached_names();
+    let reached: Vec<&str> = reached.iter().map(String::as_str).collect();
+    let mut arrived: Vec<(String, ActorId)> = Vec::new();
+    for (part, id) in episode.cast.clone() {
+        let Some((entity, _, at, home, leading, held_to_talk)) = people.iter().find(|p| p.1.0 == id) else {
+            continue;
+        };
+        let errand = modforge::storyteller::errand_for(def, &part, &reached);
+        let (to, wins_over_a_talk) = match errand.map(|e| &e.does) {
+            Some(ErrandAct::GoTo { thing, side }) => (beside(thing, *side), true),
+            Some(ErrandAct::GoHome) => (Some(home.0), true),
+            Some(ErrandAct::StayHome) => (Some(home.0), false),
+            Some(ErrandAct::Lead { who, thing, side }) => {
+                if !leading
+                    && let (Some(to), Some((who, follower))) = (beside(thing, *side), someone(who))
+                {
+                    commands.entity(entity).insert(crate::ai::Leading { who, to, waiting_at: None });
+                    commands.entity(follower).insert(crate::ai::Following(id));
                 }
                 continue;
             }
-            let to = if goes || (sent && !looked) {
-                Some(dell_at)
-            } else if sent && looked && !episode.reached("Dell told the way again") {
-                Some(home.0)
-            } else {
-                None
-            };
-            // Nothing asked of her: the episode lets go only of its own
-            // asking, never of the talk holding her (talk::hold); she left
-            // the opening's talk when it did.
-            if to.is_some() || !held_to_talk {
-                ask(&mut commands, entity, to);
+            None => (None, false),
+        };
+        if let (Some(e), Some(to)) = (errand, to)
+            && let Some(pivot) = &e.reached_on_arrival
+            && crate::interact::feet_of(at).distance(to) <= ARRIVED
+        {
+            arrived.push((pivot.clone(), id));
+        }
+        match to {
+            // Going somewhere wins over a talk: it is no longer the
+            // conversation's to let go.
+            Some(to) if wins_over_a_talk => {
+                commands.entity(entity).insert(crate::actor::Asked(to)).remove::<crate::talk::HeldToTalk>();
             }
+            Some(to) if !held_to_talk => {
+                commands.entity(entity).insert(crate::actor::Asked(to));
+            }
+            Some(_) => {}
+            // Nothing asked: the episode lets go only of its own asking,
+            // never of the talk holding them (talk::hold).
+            None if !held_to_talk => {
+                commands.entity(entity).remove::<crate::actor::Asked>();
+            }
+            None => {}
         }
     }
-    if looked && !episode.reached("Dell looked")
-        && let Some(dell) = dell
-    {
-        episode.reach("Dell looked", dell, tick.0);
+    for (pivot, who) in arrived {
+        episode.reach(&pivot, who, tick.0);
     }
 }
 
