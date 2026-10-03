@@ -1024,6 +1024,9 @@ lines:
   - Not:
       Said: tells the truth
 name: The Tap
+# Its storm comes 2 game days after it starts (operator, 2026-10-03;
+# design.md "The session rhythm").
+storm_in: [2.0, 2.0]
 parts:
 - from: PlayerBunker
   name: Dell

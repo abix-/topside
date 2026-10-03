@@ -25,30 +25,29 @@ use crate::structure::{Shelter, sheltered};
 use crate::terrain::WorldPiece;
 use crate::{Episode, Reality, SimTick, WorldSeed};
 
-/// How many times the world has shifted, and how far the storm's clock
-/// runs ahead of the world's (the `storm` op brings the next storm now by
-/// running it ahead).
+/// How many times the world has shifted, and the second (since the world
+/// began) the next storm hits: rolled from the running episode's
+/// `storm_in` when it starts (design.md "The session rhythm"), none until
+/// then.
 #[derive(Resource, Default, Clone, serde::Serialize, serde::Deserialize, Reflect)]
 #[reflect(opaque, Resource, Serialize, Deserialize)]
 pub struct StormRes {
     pub shifts: u32,
-    pub ahead: f32,
+    #[serde(default)]
+    pub at: Option<f32>,
 }
 
-impl StormRes {
-    /// Seconds on the storm's clock at `tick`.
-    pub fn secs(&self, tick: &SimTick) -> f32 {
-        Day::secs(tick) + self.ahead
-    }
-}
+/// With no episode running (none fits the reality), the storm comes a game
+/// day after the last.
+const NO_EPISODE_STORM_IN: (f32, f32) = (1.0, 1.0);
 
 /// The game draws a window (the ground needs one to be drawn).
 #[derive(Resource)]
 pub struct Windowed;
 
-/// Where the world is in the storm's cycle now, on the storm's clock.
+/// Where the world is in the storm's coming now.
 pub fn phase(tick: &SimTick, day: Day, storms: &StormRes) -> StormPhase {
-    day.storm().phase(storms.secs(tick))
+    storms.at.map_or(StormPhase::Calm, |at| day.storm().phase(Day::secs(tick), at))
 }
 
 /// The `storm` op's request to bring the next storm now, taken by the
@@ -59,10 +58,12 @@ pub static STORM_NOW: AtomicBool = AtomicBool::new(false);
 /// world shifts; none leaves the pick to the registry.
 pub static NEXT_REALITY: Mutex<Option<String>> = Mutex::new(None);
 
-/// Every fixed step: the `storm` op's request runs the storm's clock
-/// ahead to the next warning; during the storm, once a second, everyone
-/// in the open takes the storm's damage; when a storm has passed, the
-/// world shifts.
+/// Every fixed step: with no storm set, the running episode's is rolled
+/// (`storm_in` game days after it started, from the seed and the storm's
+/// number); the `storm` op's request brings it now, the sky warning from
+/// this step; during the storm, once a second, everyone in the open takes
+/// the storm's damage; when it has passed, the world shifts.
+#[allow(clippy::too_many_arguments)]
 pub fn storm(
     mut commands: Commands,
     tick: Res<SimTick>,
@@ -71,11 +72,18 @@ pub fn storm(
     layers: Res<LayerRegistryRes>,
     damage: Res<DamageRegistryRes>,
     mut state: ResMut<StormRes>,
+    (episode, episodes, seed): (Res<Episode>, Res<EpisodeRegistryRes>, Res<WorldSeed>),
     shelters: Query<&Shelter>,
     mut actors: Query<(&Transform, &Protection, &Equipment, &mut Health, Option<&mut Memory>), Without<Dead>>,
 ) {
-    if STORM_NOW.swap(false, Ordering::Relaxed) {
-        state.ahead += day.storm().until_next_warning(state.secs(&tick));
+    let secs = Day::secs(&tick);
+    if state.at.is_none() {
+        let days = episode.name.as_deref().and_then(|n| episodes.0.def(n)).map_or(NO_EPISODE_STORM_IN, |d| d.storm_in);
+        let from = episode.started as f32 / 60.0;
+        state.at = Some(modforge::storm::storm_at(from, days, day.0, seed.0 ^ u64::from(state.shifts)));
+    }
+    if STORM_NOW.swap(false, Ordering::Relaxed) && phase(&tick, *day, &state) == StormPhase::Calm {
+        state.at = Some(day.storm().now(secs));
     }
     if phase(&tick, *day, &state) == StormPhase::Storm
         && tick.0 % 60 == 0
@@ -94,9 +102,10 @@ pub fn storm(
             hit_actor(&hit, own, worn, &items.0, &layers.0, &mut health, memory.as_deref_mut(), None, tick.0);
         }
     }
-    let passed = day.storm().passed(state.secs(&tick));
-    if passed > state.shifts {
-        state.shifts = passed;
+    if state.at.is_some_and(|at| day.storm().passed(secs, at)) {
+        state.shifts += 1;
+        // The next episode's storm is rolled once it has started.
+        state.at = None;
         commands.run_system_cached(shift_world);
     }
 }

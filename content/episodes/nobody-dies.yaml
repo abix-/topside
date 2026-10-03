@@ -9,3 +9,6 @@ lines: []
 name: Nobody Dies
 parts: []
 things: []
+# When its storm comes, in game days after it starts (not yet decided: a
+# day, as every storm came before).
+storm_in: [1.0, 1.0]

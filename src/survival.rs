@@ -40,12 +40,11 @@ impl Day {
         (rates.hunger_per_sec * self.0, rates.thirst_per_sec * self.0)
     }
 
-    /// The storm on this day's clock: once a day, its warning and its
-    /// length the same share of the day as the game's.
+    /// The storm on this day's clock: its warning and its length the same
+    /// share of the day as the game's.
     pub fn storm(self) -> StormDef {
         let scale = self.0 / GAME_DAY_SECS;
         StormDef {
-            every_secs: STORM.every_secs * scale,
             warning_secs: STORM.warning_secs * scale,
             storm_secs: STORM.storm_secs * scale,
         }

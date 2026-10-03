@@ -138,10 +138,10 @@ pub fn loot_table() -> LootTable {
 /// rest one awake.
 pub const GAME_DAY_SECS: f32 = 1200.0;
 
-/// When storms come (design.md "The storm", MISERY's emission): one a
-/// game day, a minute of warning, twenty seconds of storm. Tuning.
+/// How a storm goes (design.md "The storm", MISERY's emission): a minute
+/// of warning, twenty seconds of storm. When it comes is the episode's
+/// (its `storm_in`). Tuning.
 pub const STORM: StormDef = StormDef {
-    every_secs: GAME_DAY_SECS,
     warning_secs: 60.0,
     storm_secs: 20.0,
 };
