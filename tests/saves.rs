@@ -243,7 +243,7 @@ pub(crate) fn tap_beside_maras_child() {
             at_the_tap();
             follow(None, part("Mara's child"));
         };
-        grow("tap_beside_maras_child", 15, go, || apart(player_spot(), spot_of(part("Mara's child"))).0 < 2.5, Until::At);
+        grow("tap_beside_maras_child", 15, go, || apart(player_spot(), spot_of(part("Mara's child"))).0 < 3.0, Until::At);
     });
 }
 
@@ -322,7 +322,8 @@ pub(crate) fn beside_a_stranger() {
             woke();
             follow(None, a_stranger());
         };
-        grow("beside_a_stranger", 15, go, || apart(player_spot(), spot_of(a_stranger())).0 < 2.5, Until::At);
+        // Within talking reach (3 m): a follower stands once 2.5 m off.
+        grow("beside_a_stranger", 15, go, || apart(player_spot(), spot_of(a_stranger())).0 < 3.0, Until::At);
     });
 }
 
