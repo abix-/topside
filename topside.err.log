@@ -1,0 +1,5 @@
+[2m2026-09-25T11:38:27.644388Z[0m [32m INFO[0m [2mbevy_diagnostic::system_information_diagnostics_plugin::internal[0m[2m:[0m SystemInfo { os: "Windows 10 Home N", kernel: "19045", cpu: "Intel(R) Core(TM) i7-9700K CPU @ 3.60GHz", core_count: "8", memory: "31.9 GiB" }
+[2m2026-09-25T11:38:28.076406Z[0m [32m INFO[0m [2mbevy_render::renderer[0m[2m:[0m AdapterInfo { name: "NVIDIA GeForce RTX 2080 Ti", vendor: 4318, device: 7687, device_type: DiscreteGpu, device_pci_bus_id: "0000:01:00.0", driver: "NVIDIA", driver_info: "577.00", backend: Vulkan, subgroup_min_size: 32, subgroup_max_size: 32, transient_saves_memory: false }
+[2m2026-09-25T11:38:29.293972Z[0m [32m INFO[0m [2mbevy_pbr::cluster[0m[2m:[0m GPU clustering is supported on this device.
+[2m2026-09-25T11:38:29.294409Z[0m [32m INFO[0m [2mbevy_render::batching::gpu_preprocessing[0m[2m:[0m GPU preprocessing is fully supported on this device.
+[2m2026-09-25T11:38:29.297174Z[0m [32m INFO[0m [2mbevy_winit::system[0m[2m:[0m Creating new window topside (65v0)

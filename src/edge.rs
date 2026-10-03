@@ -24,6 +24,10 @@ pub struct WordToEdge(pub Vec<(u64, String, Vec3, Vec2)>);
 /// Who comes in from the edge: someone of no group.
 const NEWCOMER: &str = "wanderer";
 
+/// How many angles the edge tries for a point someone can stand on before
+/// the word is let go.
+const EDGE_TRIES: u64 = 8;
+
 /// Every tick: word told this tick sets out for the edge, reaching it as
 /// long after as walking from where it was told to the edge takes (todo
 /// 11i: Claude's reading, for the operator to change); a group due there
@@ -37,12 +41,24 @@ pub fn newcomers(
     mut told: ResMut<WordToEdge>,
     monuments: Option<Res<crate::structure::MonumentsRes>>,
     registry: Res<ActorRegistryRes>,
+    (world, nav, archipelagos): (Res<crate::terrain::WorldRes>, Res<crate::navmesh::Nav>, Query<&bevy_landmass::prelude::Archipelago3d>),
     mut spawn: SpawnActor,
 ) {
     let places: Vec<(f32, f32)> = monuments.as_ref().map_or(Vec::new(), |m| m.0.iter().map(|(at, _)| (at.x, at.y)).collect());
+    let bounds = crate::terrain::world_bounds(&world);
+    let archipelago = archipelagos.get(nav.archipelago).ok();
     for (key, kind, place, from) in std::mem::take(&mut told.0) {
+        // The edge's point, put where someone can stand by the one rule
+        // (navmesh::on_mesh, the nearest point on the mesh); none near it,
+        // another angle, from the same seeded roll (authority.md rule 5).
         let roll = seed.0 ^ tick.0.wrapping_mul(0x9E37_79B9_7F4A_7C15) ^ key;
-        let Some(edge_at) = modforge::edge::edge_point((0.0, 0.0), &places, roll) else {
+        let standing = (0..EDGE_TRIES).find_map(|i| {
+            let (x, y) = modforge::edge::edge_point((0.0, 0.0), &places, bounds, roll.wrapping_add(i.wrapping_mul(0x9E37_79B9)))?;
+            let on = archipelago.and_then(|a| crate::navmesh::on_mesh(a, crate::on_ground(Vec2::new(x, y), 0.0)))?;
+            Some((on.x, on.z))
+        });
+        let Some(edge_at) = standing else {
+            warn!("newcomers: no point at the edge someone can stand on in {EDGE_TRIES} tries; the word of {kind} is let go");
             continue;
         };
         let walk = from.distance(Vec2::new(edge_at.0, edge_at.1)) / crate::player::WALK_SPEED;

@@ -16,8 +16,9 @@ fn since(last: u64) -> Vec<u64> {
 }
 
 /// From just before, 2 to 4 people who were not in the world roll at its
-/// edge (farther from the world's middle than any monument, less 50 m) and
-/// walk toward the place.
+/// edge (within 50 m of the world's border; in a world with no border,
+/// farther from its middle than any monument, less 50 m) and walk toward
+/// the place.
 #[test]
 fn word_of_a_place_brings_a_group_from_the_edge() {
     let _p = pause();
@@ -26,16 +27,35 @@ fn word_of_a_place_brings_a_group_from_the_edge() {
     assert!(within(120, || since(last).len() >= 2), "no newcomers came");
     let group = since(last);
     assert!(group.len() <= 4, "{} newcomers in one group, more than 4", group.len());
-    let rim = op("world")["monuments"].as_array().into_iter().flatten().map(|m| dist((m["at"][0].as_f64().unwrap_or(0.0), m["at"][1].as_f64().unwrap_or(0.0)), (0.0, 0.0))).fold(0.0, f64::max);
+    let w = op("world");
+    let rim = w["monuments"].as_array().into_iter().flatten().map(|m| dist((m["at"][0].as_f64().unwrap_or(0.0), m["at"][1].as_f64().unwrap_or(0.0)), (0.0, 0.0))).fold(0.0, f64::max);
+    // How far inside the world's border a point is: the nearest of its
+    // four sides.
+    let to_border = |at: (f64, f64)| {
+        let b = &w["bounds"];
+        let n = |i: usize, j: usize| b[i][j].as_f64().unwrap_or(f64::NAN);
+        (at.0 - n(0, 0)).min(n(1, 0) - at.0).min(at.1 - n(0, 1)).min(n(1, 1) - at.1)
+    };
     for id in &group {
         let at = spot_of(*id);
-        assert!(dist((at.0, at.1), (0.0, 0.0)) >= rim - 50.0, "newcomer {id} rolled at {at:?}, not at the edge (monuments reach {rim:.0} m out)");
+        let at_the_edge = if w["bounds"].is_null() { dist((at.0, at.1), (0.0, 0.0)) >= rim - 50.0 } else { to_border((at.0, at.1)) <= 50.0 };
+        assert!(at_the_edge, "newcomer {id} rolled at {at:?}, not at the edge (the world's bounds {}, monuments reach {rim:.0} m out)", w["bounds"]);
     }
     let tap = the_tap();
     let start: Vec<f64> = group.iter().map(|id| apart(spot_of(*id), tap).0).collect();
     step(30 * SECOND);
     for (id, d) in group.iter().zip(&start) {
-        assert!(apart(spot_of(*id), tap).0 < d - 5.0, "newcomer {id} is not walking toward the tap");
+        let walking = apart(spot_of(*id), tap).0 < d - 5.0;
+        if !walking {
+            let n = crate::endpoint::op_with("npc", serde_json::json!({"id": id}));
+            eprintln!(
+                "newcomer {id} from {d:.0} m to {:.0} m of the tap {tap:?}: at {} feet {} doing {} about {} way {} needs {} acting {}",
+                apart(spot_of(*id), tap).0, n["at"], n["feet"], n["doing"], n["about"], n["way"], n["needs"], n["this_tick"]
+            );
+            crate::endpoint::why_they_stopped(*id, (tap.0, tap.2 + 0.1, tap.1));
+            eprintln!("their chunk: {}", n["chunk"]);
+        }
+        assert!(walking, "newcomer {id} is not walking toward the tap");
     }
 }
 

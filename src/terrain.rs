@@ -521,6 +521,15 @@ pub fn open_the_ground(
     }
 }
 
+/// A world with an edge's bounds on the ground, its lowest and highest
+/// corner: its chunks run from lo up to hi, hi the first past it
+/// (`make_chunks` makes lo - 1 to hi, the world and the ring past its
+/// edge). None for a world with no edge.
+pub fn world_bounds(world: &WorldRes) -> Option<((f32, f32), (f32, f32))> {
+    let size = CHUNK as f32 * TILE;
+    world.world.ground.chunk_range().map(|(lo, hi)| ((lo as f32 * size, lo as f32 * size), (hi as f32 * size, hi as f32 * size)))
+}
+
 /// The height the ground is drawn at: the ground, y 0.
 pub const GROUND_DRAWN_AT: f32 = 0.0;
 

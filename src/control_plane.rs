@@ -1318,6 +1318,9 @@ pub fn publish_world(
         "chunks": {"made": made, "missing": missing, "not_made_round_people": not_made_round},
         // The seed this world rolled from, and the road tiles in its chunks.
         "seed": rolled.as_ref().map(|w| w.seed),
+        // A world with an edge's bounds on the ground, lowest and highest
+        // corner (terrain::world_bounds); null for one with no edge.
+        "bounds": rolled.as_ref().and_then(|w| crate::terrain::world_bounds(w)).map(|((lx, ly), (hx, hy))| [[lx, ly], [hx, hy]]),
         "roads": chunks.as_ref().map_or(0, |c| c.roads),
         // Every monument standing: its kind, where, and how many buildings.
         "monuments": standing.as_ref().map_or(Vec::new(), |m| m.0.iter().map(|(at, def)| json!({
