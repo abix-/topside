@@ -1175,6 +1175,11 @@ pub const BUNKER_SHORT_DAYS: f32 = 3.0;
 /// afraid of not having enough stocks to it, the most afraid to twice it.
 pub const BUNKER_WATER_DAYS: f32 = 10.0;
 
+/// A store another place draws from reads dry holding less than this share
+/// of what it held when the drawing began (todo 11ad; the-tap.md "Mara's
+/// well": under a quarter).
+pub const DRY_BELOW: f32 = 0.25;
+
 /// The faction of the other bunker at `OTHER_BUNKERS[i]`.
 pub fn bunker_faction(i: usize) -> String {
     format!("bunker {}", i + 1)
@@ -1390,6 +1395,7 @@ fn source(name: &str, hunger: f32, thirst: f32) -> ItemDef {
         good_for: Default::default(),
         picture: None,
         layer_slots: Vec::new(),
+        breaks_when_struck: false,
     }
 }
 
@@ -1409,6 +1415,7 @@ pub fn register_items(reg: &mut ItemRegistry) {
             good_for: Default::default(),
             picture: None,
             layer_slots: Vec::new(),
+            breaks_when_struck: false,
         },
         ItemDef {
             name: "canned food".to_string(),
@@ -1429,6 +1436,7 @@ pub fn register_items(reg: &mut ItemRegistry) {
             good_for: Default::default(),
             picture: None,
             layer_slots: Vec::new(),
+            breaks_when_struck: false,
         },
         ItemDef {
             name: "water bottle".to_string(),
@@ -1448,6 +1456,7 @@ pub fn register_items(reg: &mut ItemRegistry) {
             good_for: Default::default(),
             picture: None,
             layer_slots: Vec::new(),
+            breaks_when_struck: false,
         },
         // The sources (design.md: a livable world, rivers drinkable,
         // wells scattered, food sources): eaten or drunk from where they
@@ -1456,7 +1465,9 @@ pub fn register_items(reg: &mut ItemRegistry) {
         source("water", 0.0, 50.0),
         // The Tap's tap (docs/episodes/the-tap.md): water that never stops,
         // drawn from Mara's bunker's store.
-        source("tap", 0.0, 50.0),
+        // The tap breaks, and is gone, when used with a melee weapon in
+        // hand (the-tap.md pivot point 10).
+        ItemDef { breaks_when_struck: true, ..source("tap", 0.0, 50.0) },
         source("berry bush", 20.0, 0.0),
         // Made at the bench from cloth; heals far faster than food, a
         // reason to craft before going out (todo 10ca). Tuning.
@@ -1478,6 +1489,7 @@ pub fn register_items(reg: &mut ItemRegistry) {
             good_for: Default::default(),
             picture: None,
             layer_slots: Vec::new(),
+            breaks_when_struck: false,
         },
         ItemDef {
             name: "storage box".to_string(),
@@ -1495,6 +1507,7 @@ pub fn register_items(reg: &mut ItemRegistry) {
             good_for: Default::default(),
             picture: None,
             layer_slots: Vec::new(),
+            breaks_when_struck: false,
         },
         ItemDef {
             name: "scrap".to_string(),
@@ -1510,6 +1523,7 @@ pub fn register_items(reg: &mut ItemRegistry) {
             good_for: Default::default(),
             picture: None,
             layer_slots: Vec::new(),
+            breaks_when_struck: false,
         },
         ItemDef {
             name: "cloth".to_string(),
@@ -1525,6 +1539,7 @@ pub fn register_items(reg: &mut ItemRegistry) {
             good_for: Default::default(),
             picture: None,
             layer_slots: Vec::new(),
+            breaks_when_struck: false,
         },
         ItemDef {
             name: "pipe".to_string(),
@@ -1549,6 +1564,7 @@ pub fn register_items(reg: &mut ItemRegistry) {
             // A handle (design.md "What 2D changes"): the handle decides
             // reach and speed, the head it takes decides the damage.
             layer_slots: vec!["head".to_string()],
+            breaks_when_struck: false,
         },
         ItemDef {
             name: "wooden handle".to_string(),
@@ -1571,6 +1587,7 @@ pub fn register_items(reg: &mut ItemRegistry) {
             good_for: Default::default(),
             picture: None,
             layer_slots: vec!["head".to_string()],
+            breaks_when_struck: false,
         },
         ItemDef {
             name: "long pole".to_string(),
@@ -1593,6 +1610,7 @@ pub fn register_items(reg: &mut ItemRegistry) {
             good_for: Default::default(),
             picture: None,
             layer_slots: vec!["head".to_string()],
+            breaks_when_struck: false,
         },
         // Rust's pipe shotgun: one shell, six pellets, wide spread,
         // instant out to 40 m (the hybrid's instant part).
@@ -1620,6 +1638,7 @@ pub fn register_items(reg: &mut ItemRegistry) {
             // A gun (design.md "What 2D changes"): the body takes a
             // barrel, a grip, a stock, and a sight.
             layer_slots: ["barrel", "grip", "stock", "sight"].map(String::from).to_vec(),
+            breaks_when_struck: false,
         },
         ItemDef {
             name: "shotgun shell".to_string(),
@@ -1635,6 +1654,7 @@ pub fn register_items(reg: &mut ItemRegistry) {
             good_for: Default::default(),
             picture: None,
             layer_slots: Vec::new(),
+            breaks_when_struck: false,
         },
         // Worn in the chest slot; guards the chest only.
         ItemDef {
@@ -1651,6 +1671,7 @@ pub fn register_items(reg: &mut ItemRegistry) {
             good_for: Default::default(),
             picture: None,
             layer_slots: Vec::new(),
+            breaks_when_struck: false,
         },
     ];
     for mut item in items {

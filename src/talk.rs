@@ -341,10 +341,15 @@ pub fn talk(
                 tick.0,
             );
             debug!("{:?} to {to}: {said:?}, {answer:?}", id.0);
-            // Agreeing to stay with the player, said: they join the
-            // player's bunker (todo 11af).
-            if is_player && words.as_ref().is_some_and(|(name, _)| name == crate::content::AGREES_TO_STAY) {
-                joins.0.push((speaker, crate::content::PLAYER_FACTION.to_string()));
+            // Each one's group: the player's bunker for the player, else
+            // their faction.
+            let group = |player: bool, npc: Option<&crate::actor::Npc>| if player { Some(crate::content::PLAYER_FACTION.to_string()) } else { npc.and_then(|n| n.faction.clone()) };
+            // Agreeing to stay, said: they join the group of the one who
+            // asked, whoever that is (todo 11af).
+            if words.as_ref().is_some_and(|(name, _)| name == crate::content::AGREES_TO_STAY)
+                && let Some(theirs) = group(is_player, listener_npc)
+            {
+                joins.0.push((speaker, theirs));
             }
             // Giving water by a line (The Tap's "brings Mara water"): one
             // drink goes from the speaker to the one spoken to.
@@ -358,7 +363,6 @@ pub fn talk(
             }
             // A place told to someone of another group: word of it sets out
             // for the edge (todo 11i).
-            let group = |player: bool, npc: Option<&crate::actor::Npc>| if player { Some(crate::content::PLAYER_FACTION.to_string()) } else { npc.and_then(|n| n.faction.clone()) };
             if let modforge::talk::Answer::Learned(key) = answer
                 && group(speaker_is_player, speaker_npc) != group(is_player, listener_npc)
                 && let Some((kind, place)) = speaker_memory.0.known.iter().find(|k| k.key == key).map(|k| (k.kind.clone(), k.position))
@@ -398,8 +402,7 @@ pub fn look_at(
     mut players: Query<(Entity, &Transform, &crate::actor::Facing, &mut LookingAt, &mut Hud), With<Player>>,
     people: Query<(&Actor, &Name), Without<Dead>>,
     things: Query<(Entity, Option<&crate::interact::Door>, &Transform), (With<crate::interact::Interactable>, Without<Player>)>,
-    drawn: Query<&crate::interact::Container, With<crate::interact::Drawn>>,
-    items: Res<crate::content::ItemRegistryRes>,
+    (stores, containers): (Query<&crate::actor::Store>, Query<&crate::interact::Container>),
 ) {
     let (Ok((eye, eyes)), Ok((me, body, facing, mut looking, mut hud))) = (eyes.single(), players.single_mut()) else {
         return;
@@ -417,14 +420,22 @@ pub fn look_at(
     let person = hit.and_then(|h| people.get(h.entity).ok().map(|(actor, name)| (h.entity, actor.0.0, name.as_str())));
     looking.0 = person.map(|(entity, id, _)| (entity, id));
     // The thing E would use (interact::pointed_thing, a step ahead of where
-    // they face): a store another place draws from says how much water it
-    // holds (todo 11ad).
+    // they face): a store (a bunker's, some person's `Store`) says what it
+    // holds, each kind with how many (todo 11ad; any store, not only one
+    // another place draws from).
     let feet = crate::interact::feet_of(body);
     let thing = crate::interact::pointed_thing(feet, feet.ground() + ground, things.iter());
-    let store = thing.and_then(|e| drawn.get(e).ok()).map(|held| crate::interact::water_in(&held.0, &items));
+    let store = thing
+        .filter(|e| stores.iter().any(|s| s.0 == *e))
+        .and_then(|e| containers.get(e).ok())
+        .map(|held| crate::actor::held_in(&held.0));
     hud.0.prompt = match (person, store) {
         (Some((_, _, name)), _) => modforge::hud::talk_prompt(name),
-        (None, Some(water)) => Prompt { text: format!("Store: {water} water"), can_interact: true },
+        (None, Some(held)) if held.is_empty() => Prompt { text: "Store: empty".to_string(), can_interact: true },
+        (None, Some(held)) => Prompt {
+            text: format!("Store: {}", held.iter().map(|(item, n)| format!("{n} {item}")).collect::<Vec<_>>().join(", ")),
+            can_interact: true,
+        },
         (None, None) => Prompt::default(),
     };
 }
