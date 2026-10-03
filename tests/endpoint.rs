@@ -55,6 +55,7 @@ pub fn start_from(name: &str, reach: impl FnOnce()) -> bool {
     let answer = answer.unwrap_or_else(|| panic!("no topside game answering on {}; start it with scripts/build.ps1 run", url()));
     assert!(answer["ok"] == true, "the save {name} did not load: {}", answer["error"]);
     loaded();
+    eprintln!("loaded the save {name}: tick {}, the game at tick {}", answer["result"]["tick"], op("status")["tick"]);
     false
 }
 

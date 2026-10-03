@@ -378,30 +378,108 @@ pub(crate) fn choosing() {
     start_from("tap_1_dell_tells_you", play_to_pivot_1);
 }
 
-/// "Show me." chosen; the player following Roxanne, out of the bunker on
-/// the ground.
-pub(crate) fn out_the_door() {
-    start_from("opening_out_the_door", || {
-        choosing();
-        choose(&["Show me.", "Let's go."]);
-        let out = within(120, || player_spot().2 > -0.5 && op("player")["following"].as_u64() == Some(roxanne()));
-        if !out {
-            // Which link of "Show me." to out the door broke.
-            let her = op_with("npc", json!({"id": roxanne()}));
-            eprintln!("reached: {}", op("world")["reached"]);
-            eprintln!("the player following: {}, at {:?}", op("player")["following"], player_spot());
-            eprintln!("Roxanne at {:?}, leading {}, way {}, doing {}", spot_of(roxanne()), her["leading"], her["way"], her["doing"]);
+/// The way to the tap played from pivot point 1's save to just before pivot
+/// point 2, checked as it goes (orchestrator, 2026-10-03: what playing to a
+/// pivot does is checked in that play):
+/// 1. "Show me." chosen, the player follows Roxanne out of the bunker onto
+///    the ground.
+/// 2. A way runs on the navigation mesh from where they stand to the tap.
+/// 3. Leading, Roxanne waits for the player who falls behind (operator,
+///    2026-10-02, todo 11y: just past 8 m, modforge brain.rs LEAD_WAIT) and
+///    goes on toward the tap once they catch up.
+/// 4. Following her again, the player comes within 8 m of the tap, not yet
+///    within the 4 m that reaches who they took.
+pub(crate) fn play_to_pivot_2() {
+    choosing();
+    let her = roxanne();
+    let tap = the_tap();
+    // 1.
+    choose(&["Show me.", "Let's go."]);
+    let out = within(120, || player_spot().2 > -0.5 && op("player")["following"].as_u64() == Some(her));
+    if !out {
+        // Which link of "Show me." to out the door broke.
+        let rox = op_with("npc", json!({"id": her}));
+        eprintln!("reached: {}", op("world")["reached"]);
+        eprintln!("the player following: {}, at {:?}", op("player")["following"], player_spot());
+        eprintln!("Roxanne at {:?}, leading {}, way {}, doing {}", spot_of(her), rox["leading"], rox["way"], rox["doing"]);
+    }
+    assert!(out, "the player was not following Roxanne on the ground within two game minutes of \"Show me.\"");
+    // 2.
+    let (x, z, feet) = player_spot();
+    op_with("nav_path", json!({"from": [x, feet, z], "to": [tap.0, tap.2, tap.1]}));
+    // The mesh answers on the next frame, paused or not.
+    let mut way = op("nav_path");
+    for _ in 0..30 {
+        if way["from"].is_array() {
+            break;
         }
-        assert!(out, "reaching opening_out_the_door: the player was not following Roxanne on the ground within two game minutes");
-    });
+        std::thread::sleep(std::time::Duration::from_millis(100));
+        way = op("nav_path");
+    }
+    let end = way["path"].as_array().and_then(|p| p.last()).cloned().unwrap_or(Json::Null);
+    let ends_at = (end[0].as_f64().unwrap_or(f64::NAN), end[2].as_f64().unwrap_or(f64::NAN), 0.0);
+    assert!(apart(ends_at, tap).0 < 1.5, "no way on the mesh from the bunker door to the tap {tap:?}: it ends at {ends_at:?}; {way}");
+    // 3. She may be waiting already (she can get ahead on the stairs); let
+    // her walk on first, so the wait measured is the one the player's
+    // stopping causes.
+    let waiting = || !op_with("npc", json!({"id": her}))["leading"]["waiting_at"].is_null();
+    assert!(within(30, || !waiting()), "Roxanne never walked on with the player following");
+    // The player stops: an order of their own ends following (authority.md
+    // "Commands and replays").
+    let (x, z, feet) = player_spot();
+    op_with("command", json!({"do": "move_to", "x": x, "y": feet, "z": z}));
+    // The gap on the tick she starts waiting, in 3D (authority.md
+    // "Presentation": nothing is flattened to the ground).
+    let gap3d = || {
+        let (h, p) = (spot_of(her), player_spot());
+        (apart(h, p).0.powi(2) + (h.2 - p.2).powi(2)).sqrt()
+    };
+    let mut gap = 0.0;
+    let mut waits = false;
+    for _ in 0..30 * SECOND {
+        step(1);
+        if waiting() {
+            waits = true;
+            gap = gap3d();
+            break;
+        }
+    }
+    assert!(waits, "Roxanne never waited for the player left behind");
+    // Past 8 m by at most what she walks while turning to it.
+    assert!(gap > 8.0 && gap <= 13.0, "Roxanne waits {gap:.1} m from the player, not just past 8 m");
+    let waited_at = spot_of(her);
+    op_with("command", json!({"do": "move_to", "x": waited_at.0, "y": waited_at.2, "z": waited_at.1}));
+    assert!(within(30, || apart(spot_of(her), tap).0 < apart(waited_at, tap).0 - 3.0), "caught up, Roxanne did not go on toward the tap: she stands at {:?}", spot_of(her));
+    // 4.
+    crate::saves::follow(None, her);
+    let following = || op("player")["following"].as_u64() == Some(her);
+    assert!(within(3, following), "told to follow Roxanne again, the player is not following her: {}", op("player")["following"]);
+    let near = within(600, || !following() || apart(player_spot(), tap).0 < 8.0);
+    assert!(following(), "the player stopped following Roxanne on the way to the tap: at {:?}, Roxanne at {:?}, commands {}", player_spot(), spot_of(her), op("player")["commands"]);
+    assert!(near, "following Roxanne, the player never came within 8 m of the tap {tap:?}: at {:?}, Roxanne at {:?}", player_spot(), spot_of(her));
+    assert!(!reached("takes Dell"), "who the player took was reached before 4 m of the tap: {}", op("world")["reached"]);
+}
+
+/// Pivot point 2's save: following Roxanne to the tap, just short of it.
+/// Made by `play_to_pivot_2` from pivot point 1's save.
+pub(crate) fn who_you_take() {
+    start_from("tap_2_who_you_take", play_to_pivot_2);
+}
+
+/// The way to the tap plays from pivot point 1 to just before pivot point 2
+/// (`play_to_pivot_2`).
+#[test]
+fn the_way_to_the_tap_plays_to_who_you_take() {
+    let _paused = pause();
+    play_to_pivot_2();
 }
 
 /// The player and Roxanne at the tap.
 pub(crate) fn at_the_tap() {
     start_from("opening_at_the_tap", || {
-        out_the_door();
+        who_you_take();
         let tap = the_tap();
-        let there = within(600, || apart(player_spot(), tap).0 < 4.0 && apart(spot_of(roxanne()), tap).0 < 4.0);
+        let there = within(20, || apart(player_spot(), tap).0 < 4.0 && apart(spot_of(roxanne()), tap).0 < 4.0);
         assert!(there, "reaching opening_at_the_tap: the player and Roxanne were not both at the tap within ten game minutes");
     });
 }
@@ -535,92 +613,36 @@ fn show_me_believes_roxanne_and_she_says_follow_me() {
     assert!(within(8, || talk()["open"] != true), "the conversation never ended after her reply: {}", talk());
 }
 
-/// 11. A way runs on the navigation mesh from the bunker door to the tap.
-#[test]
-fn a_way_runs_from_the_bunker_door_to_the_tap() {
-    let _paused = pause();
-    out_the_door();
-    // The saved game loaded, the loading screen is gone (start_from waits
-    // for it), so the navigation mesh is ready: ask at once.
-    let (x, z, feet) = player_spot();
-    let tap = the_tap();
-    op_with("nav_path", json!({"from": [x, feet, z], "to": [tap.0, tap.2, tap.1]}));
-    // The mesh answers on the next frame, paused or not.
-    let mut way = op("nav_path");
-    for _ in 0..30 {
-        if way["from"].is_array() {
-            break;
-        }
-        std::thread::sleep(std::time::Duration::from_millis(100));
-        way = op("nav_path");
-    }
-    eprintln!("the way from the bunker door ({x:.1}, {z:.1}) to the tap {tap:?}: {way}");
-    // The way's points are its `path`; the last one is where it ends.
-    let end = way["path"].as_array().and_then(|p| p.last()).cloned().unwrap_or(Json::Null);
-    let ends_at = (end[0].as_f64().unwrap_or(f64::NAN), end[2].as_f64().unwrap_or(f64::NAN), 0.0);
-    assert!(apart(ends_at, tap).0 < 1.5, "no way on the mesh from the bunker door to the tap {tap:?}: it ends at {ends_at:?}; {way}");
-}
-
-/// 12. Roxanne leads the player to the tap, and both get there.
+/// 12. Roxanne leads the player to the tap, and both get there: from
+/// pivot point 2's save, within seconds.
 #[test]
 fn roxanne_leads_the_player_to_the_tap() {
     let _paused = pause();
-    out_the_door();
+    who_you_take();
     let her = roxanne();
     let tap = the_tap();
-    let there = within(600, || apart(player_spot(), tap).0 < 4.0 && apart(spot_of(her), tap).0 < 4.0);
-    assert!(there, "not both at the tap {tap:?} within ten game minutes: the player at {:?}, Roxanne at {:?}", player_spot(), spot_of(her));
-}
-
-/// 12b. Leading, Roxanne waits for the player who falls behind (operator,
-/// 2026-10-02, todo 11y: the leader waits when the follower falls more
-/// than 8 m behind), and goes on toward the tap once they catch up.
-#[test]
-fn roxanne_waits_when_the_player_falls_behind_and_goes_on() {
-    let _paused = pause();
-    out_the_door();
-    let her = roxanne();
-    let tap = the_tap();
-    // She may be waiting already when the save loads (she can get ahead on
-    // the stairs before it is made); let her walk on first, so the wait
-    // measured is the one the player's stopping causes.
-    let waiting = || !op_with("npc", json!({"id": her}))["leading"]["waiting_at"].is_null();
-    assert!(within(30, || !waiting()), "setup: Roxanne never walked on with the player following");
-    // The player stops: an order of their own (stand where they are) ends
-    // following (authority.md "Commands and replays").
-    let (x, z, feet) = player_spot();
-    op_with("command", json!({"do": "move_to", "x": x, "y": feet, "z": z}));
-    // The gap on the tick she starts waiting, a tick at a time: once
-    // waiting she may step out of a doorway she stopped in (navmesh's make
-    // way rule), so a later reading is not the gap she waited at. In 3D,
-    // height included, as the game measures it (authority.md
-    // "Presentation": nothing is flattened to the ground).
-    let gap3d = || {
-        let (h, p) = (spot_of(her), player_spot());
-        (apart(h, p).0.powi(2) + (h.2 - p.2).powi(2)).sqrt()
-    };
-    let mut gap = 0.0;
-    let mut waits = false;
-    for _ in 0..30 * SECOND {
-        step(1);
-        if waiting() {
-            waits = true;
-            gap = gap3d();
-            break;
+    // Where she is and what she does each second, printed if they do not
+    // both get there.
+    let track = std::cell::RefCell::new(Vec::new());
+    let there = within(20, || {
+        let rox = op_with("npc", json!({"id": her}));
+        let me = op("player");
+        track.borrow_mut().push(format!(
+            "tick {} at {} doing {} about {} leading {} way {} commands {}; the player at {} following {} commands {} acting {}",
+            rox["tick"], rox["at"], rox["doing"], rox["about"], rox["leading"], rox["way"], rox["commands"], me["at"], me["following"], me["commands"], me["this_tick"]
+        ));
+        apart(player_spot(), tap).0 < 4.0 && apart(spot_of(her), tap).0 < 4.0
+    });
+    if !there {
+        eprintln!("Roxanne, the first seconds from the load:\n{}", track.borrow().iter().take(3).cloned().collect::<Vec<_>>().join("\n"));
+        eprintln!("the player following {}, reached {}", op("player")["following"], op("world")["reached"]);
+        // Whom she fought, if she did.
+        if let Some(by) = op_with("npc", json!({"id": her}))["last_threat"]["who"].as_u64() {
+            let who = op_with("npc", json!({"id": by}));
+            eprintln!("her last threat {by}: {} of {} at {} feet {} doing {} about {}", who["def"], who["faction"], who["at"], who["feet"], who["doing"], who["about"]);
         }
     }
-    eprintln!("left behind: Roxanne leading {}, {gap:.1} m from the player", op_with("npc", json!({"id": her}))["leading"]);
-    assert!(waits, "Roxanne never waited for the player left behind");
-    // She waits once more than 8 m ahead (modforge brain.rs LEAD_WAIT). The
-    // 13 m is this test's reading of "waits when more than 8 m behind": past
-    // 8 m by at most what she walks while turning to it; one who runs on
-    // further is not waiting at 8 m.
-    assert!(gap > 8.0 && gap <= 13.0, "Roxanne waits {gap:.1} m from the player, not just past 8 m");
-    // The player catches up: she goes on toward the tap.
-    let waited_at = spot_of(her);
-    op_with("command", json!({"do": "move_to", "x": waited_at.0, "y": waited_at.2, "z": waited_at.1}));
-    let goes_on = within(30, || apart(spot_of(her), tap).0 < apart(waited_at, tap).0 - 3.0);
-    assert!(goes_on, "caught up, Roxanne did not go on toward the tap: she stands at {:?}", spot_of(her));
+    assert!(there, "not both at the tap {tap:?} within twenty game seconds: the player at {:?}, Roxanne at {:?}", player_spot(), spot_of(her));
 }
 
 /// 13. The player's first drink at the tap takes one water from Mara's

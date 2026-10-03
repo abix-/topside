@@ -16,7 +16,7 @@
 use serde_json::json;
 
 use crate::endpoint::{op, op_with, pause, people, step};
-use crate::opening::{SECOND, apart, at_the_tap, choices, choose, choosing, heard_from, out_the_door, player, player_spot, reached, roxanne, spot_of, the_tap, within};
+use crate::opening::{SECOND, apart, at_the_tap, choices, choose, choosing, heard_from, player, player_spot, reached, roxanne, spot_of, the_tap, who_you_take, within};
 use crate::saves::{days_of_water, faction_of, newest, of_faction, part, walk_to};
 
 fn says(by: u64, ways: &[&str]) -> bool {
@@ -101,12 +101,14 @@ fn sending_roxanne_she_goes_alone() {
 
 // Pivot point 2, who you take.
 
-/// Roxanne leading the player there, the pivot point is "takes Dell".
+/// Roxanne leading the player there, the pivot point is "takes Dell": from
+/// pivot point 2's save, within seconds.
 #[test]
 fn going_with_roxanne_is_takes_dell() {
     let _p = pause();
-    out_the_door();
-    assert!(within(300, || reached("takes Dell")), "the player came to the tap with Roxanne and reached nothing: {}", op("world")["reached"]);
+    who_you_take();
+    assert!(within(20, || reached("takes Dell")), "the player came to the tap with Roxanne and reached nothing: {}", op("world")["reached"]);
+    assert!(!reached("takes no one") && !reached("takes someone else"), "another of who you take was reached too: {}", op("world")["reached"]);
 }
 
 /// Going to the tap with no one following or leading, the pivot point is

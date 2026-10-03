@@ -217,6 +217,29 @@ fn a_save_played_on_and_loaded_and_played_end_the_same() {
     assert!(same_end("the run from the save against the game played on", &live, &loaded), "the game played on and its save played the same ticks ended differently");
 }
 
+/// Following and leading survive a load (the pivot 2 save loaded with the
+/// player no longer following Roxanne): from pivot point 1's save, "Show
+/// me." chosen, the player following Roxanne and she leading them; saved
+/// and loaded, both still hold.
+#[test]
+fn following_and_leading_survive_a_load() {
+    use crate::opening::{SECOND, choose, choosing, roxanne, within};
+    let _p = crate::endpoint::pause();
+    choosing();
+    choose(&["Show me.", "Let's go."]);
+    let her = roxanne();
+    let player = crate::opening::player();
+    let held = || {
+        crate::endpoint::op("player")["following"].as_u64() == Some(her) && op_with("npc", json!({"id": her}))["leading"]["who"].as_u64() == Some(player)
+    };
+    assert!(within(30, held), "setup: the player not following Roxanne, or she not leading them, after \"Show me.\": following {}, leading {}", crate::endpoint::op("player")["following"], op_with("npc", json!({"id": her}))["leading"]);
+    save();
+    load();
+    // The player op is written once a game second.
+    crate::endpoint::step(SECOND);
+    assert!(held(), "after a load: the player following {}, Roxanne leading {}", crate::endpoint::op("player")["following"], op_with("npc", json!({"id": her}))["leading"]);
+}
+
 /// Save, load, load again: both loads hold exactly what was saved, every
 /// person with the ActorId they had, every thing with its id, at the tick
 /// it was saved at.
