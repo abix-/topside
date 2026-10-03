@@ -330,9 +330,9 @@ fn bringing_the_child_water() {
     let _p = pause();
     crate::saves::tap_beside_maras_child();
     let child = part("Mara's child");
-    op_with("give", json!({"id": player(), "item": "water", "count": 1}));
+    op_with("give", json!({"id": player(), "item": "water bottle", "count": 1}));
     step(SECOND);
-    let water = |id: u64| op_with("npc", json!({"id": id}))["carrying"].as_array().into_iter().flatten().filter(|s| s["item"] == "water").map(|s| s["count"].as_u64().unwrap_or(0)).sum::<u64>();
+    let water = |id: u64| op_with("npc", json!({"id": id}))["carrying"].as_array().into_iter().flatten().filter(|s| s["item"] == "water bottle").map(|s| s["count"].as_u64().unwrap_or(0)).sum::<u64>();
     let child_had = water(child);
     assert!(within(30, || choices().iter().any(|c| c == "Here. Take this water.")), "setup: the answer is not offered");
     choose(&["Here. Take this water."]);

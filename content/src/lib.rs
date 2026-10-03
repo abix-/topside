@@ -1264,7 +1264,7 @@ pub fn register_items(reg: &mut ItemRegistry) {
         // wells scattered, food sources): eaten or drunk from where they
         // stand, a mouthful a use, never used up. Tuning.
         source("well", 0.0, 50.0),
-        source("water", 0.0, 50.0),
+        source("river", 0.0, 50.0),
         source("berry bush", 20.0, 0.0),
         // Made at the bench from cloth; heals far faster than food, a
         // reason to craft before going out (todo 10ca). Tuning.

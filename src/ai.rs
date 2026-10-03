@@ -514,7 +514,7 @@ pub fn think(
                 .min_by(|a, b| a.distance(here).total_cmp(&b.distance(here)));
             if let Some(shore) = seen.filter(|p| sight.clear(here, *p)) {
                 let key = water_key(crate::terrain::chunk_of(shore.ground()));
-                memory.0.see(key, crate::interact::WATER, shore, tick.0);
+                memory.0.see(key, crate::interact::RIVER, shore, tick.0);
             }
         }
         // A box they have open, they see into, as the player sees the

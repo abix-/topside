@@ -69,11 +69,11 @@ pub(crate) fn newest() -> u64 {
     people().into_iter().filter_map(|p| p["id"].as_u64()).max().unwrap_or(0)
 }
 
-/// `giver` gives `to` a water `times` times through the talk path's Offer
-/// (the one way the game raises a feeling: a gift).
+/// `giver` gives `to` a water bottle `times` times through the talk path's
+/// Offer (the one way the game raises a feeling: a gift).
 pub(crate) fn gifts(giver: u64, to: u64, times: u32) {
     for _ in 0..times {
-        op_with("give", json!({"id": giver, "item": "water", "count": 1, "clear": true}));
+        op_with("give", json!({"id": giver, "item": "water bottle", "count": 1, "clear": true}));
         step(SECOND);
         op_with("talk", json!({"id": giver, "to": to, "said": {"Offer": {"slot": 0}}}));
         step(SECOND);

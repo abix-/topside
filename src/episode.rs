@@ -710,10 +710,13 @@ pub fn errands(
             let ended = e.name.as_ref().is_some_and(|n| episode.windows.iter().any(|(w, _, end)| w == n && end.is_some()));
             !ended && held(i).is_some_and(|t| now >= starts_at(e.at, t, day))
         };
-        for e in def.errands.iter().filter(|e| started(e) && holds(&e.when, &facts).is_some()) {
+        // A named errand's window opens once it has started with its
+        // condition holding, and closes once its end holds, whatever its
+        // condition does by then (the fight ends when one side is gone).
+        for e in def.errands.iter().filter(|e| started(e)) {
             if let Some(name) = &e.name {
                 match episode.windows.iter().find(|(w, ..)| w == name) {
-                    None => opens.push(name.clone()),
+                    None if holds(&e.when, &facts).is_some() => opens.push(name.clone()),
                     Some((_, _, None)) if e.ends.as_ref().is_some_and(|c| holds(c, &facts).is_some()) => ends.push(name.clone()),
                     _ => {}
                 }

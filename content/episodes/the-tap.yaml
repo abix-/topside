@@ -153,6 +153,115 @@ deeds:
         - 10.0
       store: TheirOwn
       who: ThePlayer
+# Pivot point 3, the first meeting at the tap: besides the three answers
+# (lines), hiding and watching (near Mara's people 25 m for 10 game
+# seconds, seen by none of them; Claude's numbers) and shooting first (a
+# hit on one of them before any word to them). The first reached is the
+# choice.
+- pivot: hides and watches
+  when:
+    All:
+    - For:
+        cond:
+          Near:
+            who: ThePlayer
+            to: {Who: {Group: {BunkerOf: Mara}}}
+            within: 25.0
+        secs: 10.0
+    - Not:
+        Remembered:
+          by: {Group: {BunkerOf: Mara}}
+          did: Saw
+          toward: {Who: ThePlayer}
+          since: EpisodeStart
+          every: false
+    - Not:
+        Any:
+        - Reached: talks with Mara
+        - Reached: threatens Mara
+        - Reached: leaves Mara the tap
+        - Reached: hides and watches
+        - Reached: shoots first
+- pivot: shoots first
+  when:
+    All:
+    - First:
+        by: ThePlayer
+        of: [Hit, Talked]
+        toward: {Who: {Group: {BunkerOf: Mara}}}
+        is: Hit
+        since: EpisodeStart
+    - Not:
+        Any:
+        - Reached: talks with Mara
+        - Reached: threatens Mara
+        - Reached: leaves Mara the tap
+        - Reached: hides and watches
+        - Reached: shoots first
+# Pivot point 5, say nothing: the talk with Dell ended after she explained
+# the store, with neither answer given.
+- pivot: lets Dell store
+  when:
+    All:
+    - Remembered:
+        by: ThePlayer
+        did: TalkEnded
+        toward: {Who: {Part: Dell}}
+        since: {Pivot: Dell explains the store}
+        every: false
+    - Not:
+        Any:
+        - Reached: stops Dell
+        - Reached: takes Dell's side
+        - Reached: lets Dell store
+# The sky's warning of the storm: from it until the storm, the last choice
+# (pivot point 10) can be made.
+- pivot: the sky's warning
+  when:
+    Any:
+    - Phase: Warning
+    - Phase: Storm
+# Pivot point 9, the fight for the tap: what the player did, read from
+# memory once the fight is over. Hitting a stranger in it joins Mara;
+# hitting one of Mara's people joins the strangers; both, fights everyone;
+# no one, stays out.
+- pivot: fights everyone
+  when:
+    All:
+    - Ended: the fight
+    - Remembered: {by: ThePlayer, did: Hit, toward: {Who: {Group: {CameFor: tap}}}, since: {During: the fight}, every: false}
+    - Remembered: {by: ThePlayer, did: Hit, toward: {Who: {Group: {BunkerOf: Mara}}}, since: {During: the fight}, every: false}
+- pivot: joins Mara
+  when:
+    All:
+    - Ended: the fight
+    - Remembered: {by: ThePlayer, did: Hit, toward: {Who: {Group: {CameFor: tap}}}, since: {During: the fight}, every: false}
+    - Not:
+        Remembered: {by: ThePlayer, did: Hit, toward: {Who: {Group: {BunkerOf: Mara}}}, since: {During: the fight}, every: false}
+- pivot: joins the strangers
+  when:
+    All:
+    - Ended: the fight
+    - Remembered: {by: ThePlayer, did: Hit, toward: {Who: {Group: {BunkerOf: Mara}}}, since: {During: the fight}, every: false}
+    - Not:
+        Remembered: {by: ThePlayer, did: Hit, toward: {Who: {Group: {CameFor: tap}}}, since: {During: the fight}, every: false}
+- pivot: stays out
+  when:
+    All:
+    - Ended: the fight
+    - Not:
+        Remembered: {by: ThePlayer, did: Hit, toward: {Who: Anyone}, since: {During: the fight}, every: false}
+# Pivot point 10, hold it: at the tap when the storm comes, none of Mara's
+# people or the strangers alive within 20 m of it.
+- pivot: holds it
+  when:
+    All:
+    - Phase: Storm
+    - Near: {who: ThePlayer, to: {Thing: tap}, within: 4.0}
+    - Not:
+        Alive: {who: {Group: {BunkerOf: Mara}}, near: [{Thing: tap}, 20.0]}
+    - Not:
+        Alive: {who: {Group: {CameFor: tap}}, near: [{Thing: tap}, 20.0]}
 door_enemy: false
 endings:
 - alive: []
@@ -258,6 +367,34 @@ errands:
       - Reached: the opening
   who:
     Part: Dell
+# Pivot point 9, the fight for the tap: the first game morning after Mara's
+# people are at the tap and strangers have come for the water (pivot point
+# 6 reached), each stranger attacks the nearest of Mara's people, whether
+# or not the player is there. It ends when either side is gone from the
+# tap.
+- at: FirstMorningAfter
+  does:
+    Order:
+      do: attack
+      who: {Group: {BunkerOf: Mara}}
+  ends:
+    Any:
+    - Not:
+        Alive: {who: {Group: {CameFor: tap}}, near: [{Thing: tap}, 20.0]}
+    - Not:
+        Alive: {who: {Group: {BunkerOf: Mara}}, near: [{Thing: tap}, 20.0]}
+  name: the fight
+  reached_on_arrival: null
+  when:
+    All:
+    - Alive: {who: {Group: {BunkerOf: Mara}}, near: [{Thing: tap}, 4.0]}
+    - Any:
+      - Reached: trades with the strangers
+      - Reached: sends the strangers away
+      - Reached: points the strangers at Mara
+      - Reached: takes a stranger in
+  who:
+    Group: {CameFor: tap}
 fits:
 - Mixed world
 - Sky Islands
@@ -816,6 +953,76 @@ lines:
   - I'll tell her.
   when:
   - Heard: uses the water
+# Pivot point 7, the reveal, from Mara, once an earlier choice opened it:
+# talking at pivot point 3, or going to her bunker (her well found dry).
+- felt: 0.0
+  name: hears of the well
+  part: Mara
+  tells: ''
+  wait: 0.0
+  ways:
+  - Our well was full a week ago. Now we're hauling from the {source of thirst}. It started when that tap did.
+  when:
+  - To: player
+  - Reached: talks with Mara
+  - Not:
+      Said: hears of the well
+- felt: 0.0
+  name: hears of the well
+  part: Mara
+  tells: ''
+  wait: 0.0
+  ways:
+  - Our well was full a week ago. Now we're hauling from the {source of thirst}. It started when that tap did.
+  when:
+  - To: player
+  - Reached: finds Mara's well dry
+  - Not:
+      Reached: talks with Mara
+  - Not:
+      Said: hears of the well
+# Pivot point 10, the last choice, between the sky's warning and the storm:
+# "It's for both bunkers." said to Mara shares it; "The tap is draining
+# your well." said to anyone, once pivot point 7 was reached, tells the
+# truth.
+- felt: 0.2
+  name: shares it
+  part: player
+  tells: ''
+  wait: 0.0
+  ways:
+  - It's for both bunkers.
+  when:
+  - To: Mara
+  - Reached: the sky's warning
+  - Not:
+      Said: shares it
+- felt: 0.0
+  name: tells the truth
+  part: player
+  tells: ''
+  wait: 0.0
+  ways:
+  - The tap is draining your well.
+  when:
+  - Reached: the sky's warning
+  - Reached: hears of the well
+  - Not:
+      Said: tells the truth
+- felt: 0.0
+  name: tells the truth
+  part: player
+  tells: ''
+  wait: 0.0
+  ways:
+  - The tap is draining your well.
+  when:
+  - Reached: the sky's warning
+  - Reached: finds Mara's well dry
+  - Not:
+      Reached: hears of the well
+  - Not:
+      Said: tells the truth
 name: The Tap
 parts:
 - from: PlayerBunker

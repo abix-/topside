@@ -419,8 +419,9 @@ pub struct OpenContainer(#[entities] pub Option<Entity>);
 #[reflect(opaque, Component, Serialize, Deserialize)]
 pub struct OpenStation(pub Option<StationKind>);
 
-/// The def a river's water is (content: kind `Source`).
-pub const WATER: &str = "water";
+/// The def a river's water is (content: kind `Source`), named by what it
+/// is.
+pub const RIVER: &str = "river";
 
 /// One mouthful from a source where it stands (a well, a bush, a river's
 /// water): modforge's `SurvivalStats::eat` fills the needs, then the one
@@ -615,7 +616,7 @@ pub fn interact_on_use(
             // Nothing to use in reach: a river's water pointed at is drunk
             // (design.md: rivers are drinkable), from the ground's level.
             if in_reach(feet, on_ground(at, 0.0)) && chunks.as_ref().is_some_and(|c| nearest_water(c, at, pointed).is_some()) {
-                eat_from_source(WATER, &registry, &mut needs, &mut health, memory.as_deref_mut(), tick.0);
+                eat_from_source(RIVER, &registry, &mut needs, &mut health, memory.as_deref_mut(), tick.0);
             }
             continue;
         };

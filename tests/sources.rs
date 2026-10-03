@@ -7,7 +7,7 @@ use std::collections::BTreeMap;
 use crate::endpoint::people;
 
 /// What a source is called (content: kind `Source`).
-const SOURCES: [&str; 3] = ["well", "water", "berry bush"];
+const SOURCES: [&str; 3] = ["well", "river", "berry bush"];
 
 #[test]
 fn people_eat_and_drink_from_wells_rivers_and_bushes() {
