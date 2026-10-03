@@ -450,12 +450,13 @@ pub fn populate_bunkers(
     stores: Query<(Entity, &Transform), With<Container>>,
 ) {
     let def = registry.0.def("bunker person").expect("the bunker person is registered");
-    // Each bunker: where, its faction, and its people (a name set in
-    // content, or rolled, and where they stand in it).
-    let mut bunkers: Vec<(Vec2, String, Vec<(Option<&str>, [f32; 2])>)> = vec![(
+    // Each bunker: where, its faction, and its people (a name and fear of
+    // not having enough set in content, or rolled, and where they stand in
+    // it).
+    let mut bunkers: Vec<(Vec2, String, Vec<(Option<(&str, f32)>, [f32; 2])>)> = vec![(
         world.bunker,
         PLAYER_FACTION.to_string(),
-        PLAYER_BUNKER_PEOPLE.iter().map(|(name, at)| (Some(*name), *at)).collect(),
+        PLAYER_BUNKER_PEOPLE.iter().map(|(name, at, fear)| (Some((*name, *fear)), *at)).collect(),
     )];
     for (i, &at) in world.bunkers.iter().enumerate() {
         bunkers.push((at, bunker_faction(i), BUNKER_PEOPLE_AT.iter().map(|at| (None, *at)).collect()));
@@ -479,8 +480,13 @@ pub fn populate_bunkers(
                 if let Some(store) = store {
                     spawn.commands.entity(npc).insert(Store(store));
                 }
-                if let Some(name) = name {
+                if let Some((name, fear)) = name {
                     spawn.commands.entity(npc).insert(Name::new(name));
+                    spawn.commands.entity(npc).queue(move |mut person: EntityWorldMut| {
+                        if let Some(mut personality) = person.get_mut::<Personality>() {
+                            personality.0.axes[modforge::actor::Axis::Fear as usize] = fear;
+                        }
+                    });
                 }
             }
         }

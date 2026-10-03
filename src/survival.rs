@@ -33,6 +33,13 @@ impl Day {
         SurvivalRates::lasting(self.0, self.0 / 2.0, self.0)
     }
 
+    /// One person's hunger and thirst points a day, for counting days of
+    /// food and water (modforge memory::days_of).
+    pub fn per_day(self) -> (f32, f32) {
+        let rates = self.rates();
+        (rates.hunger_per_sec * self.0, rates.thirst_per_sec * self.0)
+    }
+
     /// The storm on this day's clock: once a day, its warning and its
     /// length the same share of the day as the game's.
     pub fn storm(self) -> StormDef {

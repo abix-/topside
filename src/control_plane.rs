@@ -1045,8 +1045,13 @@ pub fn publish_world(
     for ((store, npc, dead, needs), (home, at, condition, memory)) in &people {
         let name = npc.faction.clone().unwrap_or_default();
         let entry = bunkers.entry(name).or_insert_with(|| {
-            let (mut food, mut water, mut dry, mut place) = (0, 0, false, Json::Null);
+            let (mut food, mut water, mut dry, mut place, mut days_of_water) = (0, 0, false, Json::Null, Json::Null);
             if let Ok((held, at, drawn)) = stores.get(store.0) {
+                // How many days its water lasts the bunker, as the brain
+                // counts it (modforge memory::days_of).
+                let supplies = held.0.slots.iter().flatten().map(|s| (s.item.as_str(), s.count));
+                let (_, days) = modforge::memory::days_of(supplies, crate::content::BUNKER_PEOPLE as u32, day.per_day(), &items.0);
+                days_of_water = json!(days);
                 for stack in held.0.slots.iter().flatten() {
                     if items.0.def(&stack.item).and_then(|d| d.food).is_some_and(|f| f.hunger > 0.0) {
                         food += stack.count;
@@ -1057,7 +1062,7 @@ pub fn publish_world(
                 dry = drawn.is_some_and(|d| d.dry(water));
                 place = json!({"at": [at.translation.x, at.translation.z], "floor": at.translation.y});
             }
-            json!({"food": food, "water": water, "dry": dry, "store": place, "alive": 0, "starving": 0, "at_home": 0, "asleep": 0, "stocked": 0})
+            json!({"food": food, "water": water, "days_of_water": days_of_water, "dry": dry, "store": place, "alive": 0, "starving": 0, "at_home": 0, "asleep": 0, "stocked": 0})
         });
         let add = |entry: &mut Json, field: &str, n: u64| {
             entry[field] = json!(entry[field].as_u64().unwrap_or(0) + n);
@@ -1335,6 +1340,7 @@ pub fn publish(
                     "lives": lives(&memory.0),
                     "learned": memory.0.learned.values.len(),
                     "axes": personality.0.axes,
+                    "traits": modforge::actor::Axis::NAMES.iter().zip(personality.0.axes).map(|(n, v)| (n.to_string(), json!(v))).collect::<serde_json::Map<_, _>>(),
                     "actions": this_tick.0.iter().map(|s| format!("{:?}", s.action)).collect::<Vec<_>>(),
                 })
             })

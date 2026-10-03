@@ -23,7 +23,7 @@ use crate::actor::{
 };
 use crate::combat::Health;
 use crate::content::{
-    ActorRegistryRes, BUNKER_PEOPLE, BUNKER_SHORT_DAYS, FactionRegistryRes, ItemRegistryRes,
+    ActorRegistryRes, BUNKER_PEOPLE, BUNKER_SHORT_DAYS, BUNKER_WATER_DAYS, FactionRegistryRes, ItemRegistryRes,
     MonumentRegistryRes, PLAYER_FACTION,
 };
 use crate::input::{Action, Actions};
@@ -523,10 +523,12 @@ pub fn think(
         let bunker_short = store_at
             .map(|(key, _)| {
                 let in_store = memory.0.known.iter().find(|k| k.key == key).and_then(|k| k.held.clone()).unwrap_or_default();
-                let rates = day.rates();
-                let per_day = (rates.hunger_per_sec * day.0, rates.thirst_per_sec * day.0);
+                let per_day = day.per_day();
                 let supplies = in_store.iter().chain(&bags).map(|(k, n)| (k.as_str(), *n));
-                short_of(supplies, BUNKER_PEOPLE as u32, BUNKER_SHORT_DAYS, per_day, &items.0)
+                // What they stock to: what is needed, and past it by their
+                // fear of not having enough, up to twice it (todo 11ag).
+                let fear = 1.0 + personality.0.get(modforge::actor::Axis::Fear).clamp(0.0, 1.0);
+                short_of(supplies, BUNKER_PEOPLE as u32, (BUNKER_SHORT_DAYS * fear, BUNKER_WATER_DAYS * fear), per_day, &items.0)
             })
             .unwrap_or_default();
         let bags_full = inventory.0.slots.iter().all(|s| s.is_some());

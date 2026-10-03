@@ -998,19 +998,26 @@ pub const BUNKER_PEOPLE_AT: [[f32; 2]; BUNKER_PEOPLE] =
     [[-1.5, 0.0], [0.0, 0.0], [1.5, 0.0], [-1.0, 1.5], [1.0, 1.5]];
 
 /// The people of the player's bunker besides the player (operator,
-/// 2026-09-27: "two people. me and Roxanne"), each named and where they
-/// stand in the bunker's plan (x, z).
-pub const PLAYER_BUNKER_PEOPLE: [(&str, [f32; 2]); 1] = [("Roxanne", [1.5, 0.0])];
+/// 2026-09-27: "two people. me and Roxanne"), each named, where they
+/// stand in the bunker's plan (x, z), and their fear of not having enough
+/// (0 to 1): Roxanne, cast as Dell, stores past what is needed (the-tap.md
+/// "Too much water").
+pub const PLAYER_BUNKER_PEOPLE: [(&str, [f32; 2], f32); 1] = [("Roxanne", [1.5, 0.0], 1.0)];
 
 /// A bunker's store (design.md: factions have real stores): one box in
 /// the bunker's plan (x, z) and what is in it. Tuning.
 pub const BUNKER_STORE_AT: [f32; 2] = [-2.0, -3.0];
 pub const BUNKER_STORE: [(&str, u32); 2] = [("canned food", 10), ("water bottle", 10)];
 
-/// A bunker is short when its store holds less than this many days of
-/// food or water for everyone living there: the starting bunker's three
-/// days (design.md "The bunker"). Tuning.
+/// A bunker is short of food when its store holds less than this many days
+/// of it for everyone living there: the starting bunker's three days
+/// (design.md "The bunker"). Tuning.
 pub const BUNKER_SHORT_DAYS: f32 = 3.0;
+
+/// What a bunker needs in water: 10 days of everyone's drinking (operator,
+/// 2026-10-02; the-tap.md "Too much water": past it is too much). One not
+/// afraid of not having enough stocks to it, the most afraid to twice it.
+pub const BUNKER_WATER_DAYS: f32 = 10.0;
 
 /// The faction of the other bunker at `OTHER_BUNKERS[i]`.
 pub fn bunker_faction(i: usize) -> String {
