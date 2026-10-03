@@ -72,7 +72,50 @@ median) and by the perf op's whole step:
 | 9m | 8.18 | 8.087 | the step measured whole (no cost change; run-to-run spread) |
 | bodies placed | 8.19 to 8.65 | 7.17 to 7.35 | physics lap 2.769 to about 1.8 ms; the real clock did not drop (other builds running; a step call's own cost not yet split, todo 9w) |
 
-The step's laps at the last reading, ms a step: physics 1.8, landmass
+9n's second pass (2026-10-03, branch perf-9n, my game on 15704, about
+104 people), tests/perf.rs:
+
+| | real clock a tick (stepped) | whole step (stepped) | landmass lap (stepped) | landmass lap (in play) |
+|---|---:|---:|---:|---:|
+| before | 11.97 ms | 12.689 | 2.145 | (none valid: fps 2.5, catching up) |
+| after | 6.18 | 5.170 | 0.752 | 0.922 (104 people, fps 78.2) |
+
+Run lines: before "settled median (last 5): 60 ticks in 718 ms, 11.97
+ms a tick"; after "settled median (last 5): 60 ticks in 371 ms, 6.18 ms
+a tick"; in play after "reading at tick 5450: 67 ticks in 1100 ms; speed
+1.05; fps 78.2; 104 people".
+
+Caveats: the before was taken under different machine load, so the
+whole step and real clock drops are not all this change; only the
+landmass pieces are clean evidence. Under heavy load (another build
+running) landmass reads 1.261 (that reading refused itself, 3.07 steps a
+frame). What is left in landmass is avoidance, 0.4 to 0.6 ms a step.
+
+What each piece was (spans a frame in play, before and after):
+
+- Landmass's schedule ran on Bevy's many-thread executor though its sets
+  are a chain: about 46% of the schedule was outside any system (schedule
+  Landmass 38.567 against update_archipelagos 20.939, stepped). It runs on
+  one thread now (src/navmesh.rs), as Avian's physics and substep
+  schedules and Bevy's FixedMain do; the schedule is the sum of its
+  systems (1.160 against 1.021 and 0.029).
+- bevy_landmass's island sync read all 1156 islands every step, none
+  moving: vendored (vendor/bevy_landmass island.rs), it looks only at
+  islands added, changed, gone or still waiting, and landmass_rerecast's
+  `convert` marks a landed mesh's islands changed, so a rebuilt chunk
+  swaps in the same tick. 0.269 to 0.029 ms.
+- Placing a point tested every polygon of the island (vendor/landmass
+  nav_mesh.rs `sample_point`): a polygon box hierarchy, made with the
+  mesh, read in polygon order.
+- Every standing person and every walker's target was placed again every
+  step: last step's placement is kept while no island changed and the
+  sample distance is the same (vendor/landmass lib.rs `Placed`; Detour's
+  dtPathCorridor keeps the polygon the same way). Placing characters
+  0.200 to 0.032, placing agents 0.219 to 0.107.
+- Each part of landmass's update has its own span ("landmass: islands",
+  "place agents", "place characters", "ways", "follow", "avoidance").
+
+The step's laps at the last reading of the first pass, ms a step: physics 1.8, landmass
 1.4 to 1.6, movement 0.7 to 1.0, chunks 0.6, walk 0.5 to 0.8, think 0.5,
 interact 0.3 to 0.4, the rest under 0.25 each.
 
