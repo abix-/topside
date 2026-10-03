@@ -68,7 +68,7 @@ fn load_changed(name: &str, change: impl Fn(&mut Json)) -> Json {
     change(&mut header);
     std::fs::write(saves().join(format!("{name}.save")), format!("// topside save {header}\n{rest}")).expect("writing the changed save");
     // The whole answer: a refusal is the op's error, not its result.
-    let answer: Json = ureq::post(crate::endpoint::URL)
+    let answer: Json = ureq::post(crate::endpoint::url())
         .send_json(json!({"op": "load", "args": {"name": name}}))
         .ok()
         .and_then(|r| r.into_body().read_json().ok())

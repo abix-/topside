@@ -2,16 +2,24 @@
 
 use serde_json::{Value as Json, json};
 
-pub const URL: &str = "http://127.0.0.1:15703/topside";
+/// The game's control plane: its port from TOPSIDE_PORT (scripts/build.ps1
+/// `-Port`), 15703 when unset, so two games can run side by side.
+pub fn url() -> &'static str {
+    static URL: std::sync::LazyLock<String> = std::sync::LazyLock::new(|| {
+        let port = std::env::var("TOPSIDE_PORT").ok().and_then(|p| p.parse::<u16>().ok()).unwrap_or(15703);
+        format!("http://127.0.0.1:{port}/topside")
+    });
+    &URL
+}
 
 /// The `result` of op `name` with `args`; a test fails when no game
 /// answers, or with the op's own error when the op answers one.
 pub fn op_with(name: &str, args: Json) -> Json {
-    let answer: Option<Json> = ureq::post(URL)
+    let answer: Option<Json> = ureq::post(url())
         .send_json(json!({"op": name, "args": args}))
         .ok()
         .and_then(|r| r.into_body().read_json().ok());
-    let answer = answer.unwrap_or_else(|| panic!("no topside game answering on {URL}; start it with scripts/build.ps1 run"));
+    let answer = answer.unwrap_or_else(|| panic!("no topside game answering on {}; start it with scripts/build.ps1 run", url()));
     if answer["ok"] == false {
         panic!("the {name} op failed: {}", answer["error"]);
     }
@@ -29,11 +37,11 @@ pub fn op(name: &str) -> Json {
 /// once by playing (`reach`) and saved under that name for the next run.
 /// Answers whether it played (true) or loaded (false).
 pub fn start_from(name: &str, reach: impl FnOnce()) -> bool {
-    let answer: Option<Json> = ureq::post(URL)
+    let answer: Option<Json> = ureq::post(url())
         .send_json(json!({"op": "load", "args": {"name": name}}))
         .ok()
         .and_then(|r| r.into_body().read_json().ok());
-    let answer = answer.unwrap_or_else(|| panic!("no topside game answering on {URL}; start it with scripts/build.ps1 run"));
+    let answer = answer.unwrap_or_else(|| panic!("no topside game answering on {}; start it with scripts/build.ps1 run", url()));
     if answer["ok"] == true {
         loaded();
         return false;

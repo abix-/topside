@@ -4,16 +4,16 @@
 
 use serde_json::{Value as Json, json};
 
-const URL: &str = "http://127.0.0.1:15703/topside";
+use crate::endpoint::url;
 
 fn world() -> Option<Json> {
-    let resp = ureq::post(URL).send_json(json!({"op": "world", "args": {}})).ok()?;
+    let resp = ureq::post(url()).send_json(json!({"op": "world", "args": {}})).ok()?;
     resp.into_body().read_json().ok()
 }
 
 #[test]
 fn every_chunk_of_the_small_world_is_made() {
-    let world = world().unwrap_or_else(|| panic!("no topside game answering on {URL}; start it with scripts/build.ps1 run"));
+    let world = world().unwrap_or_else(|| panic!("no topside game answering on {}; start it with scripts/build.ps1 run", url()));
     let chunks = &world["result"]["chunks"];
     eprintln!("world op, tick {}: chunks {chunks}", world["result"]["tick"]);
     let made = chunks["made"].as_u64().unwrap_or(0);

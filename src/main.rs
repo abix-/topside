@@ -2,6 +2,8 @@
 //! from the clock; `--seed N` rolls that one instead (the game tests use
 //! it so every run is the same world). `--world small` (the default,
 //! design.md "The small world first") or `--world big` picks the world.
+//! `--port N` is the control plane's port (15703 when not given), so two
+//! games can run side by side.
 
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -27,5 +29,6 @@ fn main() {
         None => WorldKind::Small,
         Some(name) => WorldKind::from_name(name).unwrap_or_else(|| panic!("no world '{name}': small or big")),
     };
-    topside::build_app(false, seed, world).run();
+    let port = value("--port").map(|p| p.parse().unwrap_or_else(|_| panic!("--port {p}: a port number"))).unwrap_or(topside::control_plane::DEFAULT_PORT);
+    topside::build_app(false, seed, world, port).run();
 }

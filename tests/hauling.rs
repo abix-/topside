@@ -4,14 +4,14 @@
 
 use serde_json::{Value as Json, json};
 
-const URL: &str = "http://127.0.0.1:15703/topside";
+use crate::endpoint::url;
 
 fn op(name: &str) -> Option<Json> {
     op_with(name, json!({}))
 }
 
 fn op_with(name: &str, args: Json) -> Option<Json> {
-    let resp = ureq::post(URL).send_json(json!({"op": name, "args": args})).ok()?;
+    let resp = ureq::post(url()).send_json(json!({"op": name, "args": args})).ok()?;
     resp.into_body().read_json().ok()
 }
 
@@ -62,7 +62,7 @@ fn person(id: u64) -> String {
 
 #[test]
 fn bunker_people_haul_food_home() {
-    let no_game = || panic!("no topside game answering on {URL}; start it with scripts/build.ps1 run");
+    let no_game = || panic!("no topside game answering on {}; start it with scripts/build.ps1 run", url());
     let people = op("people").unwrap_or_else(no_game);
     let world = op("world").unwrap_or_else(no_game);
     let list = people["result"].as_array().cloned().unwrap_or_default();

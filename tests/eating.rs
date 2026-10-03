@@ -3,16 +3,16 @@
 
 use serde_json::{Value as Json, json};
 
-const URL: &str = "http://127.0.0.1:15703/topside";
+use crate::endpoint::url;
 
 fn people() -> Option<Json> {
-    let resp = ureq::post(URL).send_json(json!({"op": "people", "args": {}})).ok()?;
+    let resp = ureq::post(url()).send_json(json!({"op": "people", "args": {}})).ok()?;
     resp.into_body().read_json().ok()
 }
 
 #[test]
 fn npcs_eat() {
-    let people = people().unwrap_or_else(|| panic!("no topside game answering on {URL}; start it with scripts/build.ps1 run"));
+    let people = people().unwrap_or_else(|| panic!("no topside game answering on {}; start it with scripts/build.ps1 run", url()));
     let list = people["result"].as_array().cloned().unwrap_or_default();
     let ate: Vec<String> = list
         .iter()
@@ -22,7 +22,7 @@ fn npcs_eat() {
         })
         .collect();
     let hungriest = list.iter().filter_map(|p| p["hunger"].as_f64()).fold(f64::MAX, f64::min);
-    let tick = ureq::post(URL)
+    let tick = ureq::post(url())
         .send_json(json!({"op": "status", "args": {}}))
         .ok()
         .and_then(|r| r.into_body().read_json::<Json>().ok())

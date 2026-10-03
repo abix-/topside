@@ -1,7 +1,8 @@
 //! The modforge control plane embedded in the 2D game: the one runtime
 //! inspection surface (the runtime-control-http doctrine).
 //!
-//! POST http://127.0.0.1:15703/topside with {"op": "...", "args": {}}.
+//! POST http://127.0.0.1:<port>/topside with {"op": "...", "args": {}};
+//! the port is `--port`, 15703 when not given (`DEFAULT_PORT`).
 
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, AtomicUsize, Ordering};
@@ -18,7 +19,8 @@ use crate::combat::Health;
 use crate::input::ThisTick;
 use crate::player::Player;
 
-pub const PORT: u16 = 15703;
+/// The control plane's port when `--port` is not given (main.rs).
+pub const DEFAULT_PORT: u16 = 15703;
 
 // The server runs on its own thread and cannot borrow the ECS world,
 // so the simulation publishes a snapshot here each tick.
@@ -1380,7 +1382,9 @@ fn snapshot() -> Json {
     })
 }
 
-pub fn start() {
+/// Every op registered and the server listening on `port` (main.rs
+/// `--port`, `DEFAULT_PORT` when not given).
+pub fn start(port: u16) {
     OP_REGISTRY.register(OpDef::new("status", "current simulation snapshot", "", |_| Ok(snapshot())));
     modforge::test_queue::register_ops();
     OP_REGISTRY.register(OpDef::new(
@@ -1799,7 +1803,7 @@ pub fn start() {
     ));
     modforge::server::spawn(
         modforge::server::Config {
-            port: PORT,
+            port,
             endpoint: "/topside",
             thread_name: "topside-control-plane",
             auth_token: None,

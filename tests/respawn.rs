@@ -5,18 +5,18 @@
 
 use serde_json::{Value as Json, json};
 
-const URL: &str = "http://127.0.0.1:15703/topside";
+use crate::endpoint::url;
 /// Half a game day in ticks (a day is 1200 s at 60 ticks a second).
 const HALF_DAY: u64 = 600 * 60;
 
 fn op(name: &str, args: Json) -> Option<Json> {
-    let resp = ureq::post(URL).send_json(json!({"op": name, "args": args})).ok()?;
+    let resp = ureq::post(url()).send_json(json!({"op": name, "args": args})).ok()?;
     resp.into_body().read_json().ok()
 }
 
 #[test]
 fn the_respawned_do_not_starve_straight_away() {
-    let people = op("people", json!({})).unwrap_or_else(|| panic!("no topside game answering on {URL}; start it with scripts/build.ps1 run"));
+    let people = op("people", json!({})).unwrap_or_else(|| panic!("no topside game answering on {}; start it with scripts/build.ps1 run", url()));
     let ids: Vec<u64> = people["result"].as_array().into_iter().flatten().filter_map(|p| p["id"].as_u64()).collect();
     let (mut respawns, mut starved) = (0, Vec::new());
     for id in ids {

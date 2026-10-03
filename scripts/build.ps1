@@ -30,6 +30,10 @@ follow it, separated by spaces (build.ps1 queue the_tap leading queues
 every test in tests/the_tap.rs and tests/leading.rs).
 .PARAMETER StallMinutes
 Minutes without new output before a cargo run counts as stalled.
+.PARAMETER Port
+The game's control plane port: passed to the game on run (--port), and
+the port test and queue talk to (TOPSIDE_PORT). Two clones run two games
+side by side on two ports.
 .PARAMETER GameArgs
 For run: passed to the game, for example --world labyrinth. For queue:
 the tests to queue after the first.
@@ -50,6 +54,7 @@ param (
     [Parameter(Position = 1)]
     [string]$Name = '',
     [int]$StallMinutes = 5,
+    [int]$Port = 15703,
     [Parameter(ValueFromRemainingArguments = $true)]
     [string[]]$GameArgs = @()
 )
@@ -61,10 +66,16 @@ $logs = Join-Path $repo 'logs'
 $exe = Join-Path $repo 'target\debug\topside.exe'
 New-Item -ItemType Directory -Force $logs | Out-Null
 Set-Location $repo
+# The tests talk to the game on this port (tests/endpoint.rs `url`).
+$env:TOPSIDE_PORT = "$Port"
 
 function Stop-Game {
-    # taskkill errors when no game is running; that is fine.
-    taskkill /F /IM topside.exe 2>&1 | Out-Null
+    # Only the game this repo built and launched: the topside.exe running
+    # from this repo's own target directory. Another clone's game (another
+    # session's, on its own port) runs another exe and is left alone.
+    Get-CimInstance Win32_Process -Filter "Name = 'topside.exe'" |
+        Where-Object { $_.ExecutablePath -eq $exe } |
+        ForEach-Object { taskkill /F /PID $_.ProcessId 2>&1 | Out-Null }
 }
 
 function Invoke-Cargo {
@@ -183,7 +194,7 @@ switch ($Action) {
             # this script's handles: a Start-Process child with redirected
             # output keeps the caller's pipe open, and whoever ran this
             # script waits until the game closes.
-            $command = "cmd /c `"`"$exe`" $($GameArgs -join ' ') > `"$out`" 2> `"$err`"`""
+            $command = "cmd /c `"`"$exe`" --port $Port $($GameArgs -join ' ') > `"$out`" 2> `"$err`"`""
             $launched = Invoke-CimMethod -ClassName Win32_Process -MethodName Create -Arguments @{
                 CommandLine      = $command
                 CurrentDirectory = $repo
@@ -192,7 +203,7 @@ switch ($Action) {
                 Write-Host "[build] launching topside FAILED (Win32_Process.Create returned $($launched.ReturnValue))" -ForegroundColor Red
                 $code = 1
             } else {
-                Write-Host "[build] topside launched in the background $GameArgs (log: $out, $err)" -ForegroundColor Green
+                Write-Host "[build] topside launched in the background on port $Port $GameArgs (log: $out, $err)" -ForegroundColor Green
             }
         }
     }

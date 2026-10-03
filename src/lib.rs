@@ -89,8 +89,9 @@ impl FromWorld for Reality {
 pub use episode::Episode;
 
 /// Build the app. `headless` skips the window and the drawing so
-/// tests can run the simulation bare; `world` is the 2D world to make.
-pub fn build_app(headless: bool, seed: u64, world: content::WorldKind) -> App {
+/// tests can run the simulation bare; `world` is the 2D world to make;
+/// `port` is the control plane's.
+pub fn build_app(headless: bool, seed: u64, world: content::WorldKind, port: u16) -> App {
     let mut app = App::new();
     if headless {
         app.add_plugins(MinimalPlugins);
@@ -291,7 +292,7 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind) -> App {
         app.add_plugins(bevy_framepace::FramepacePlugin);
         app.insert_resource(bevy_framepace::FramepaceSettings { limiter: bevy_framepace::Limiter::from_framerate(60.0) });
         app.add_plugins(bevy::diagnostic::FrameTimeDiagnosticsPlugin::default());
-        control_plane::start();
+        control_plane::start(port);
         // The `pointer` and `key` ops drive the game as the player's hands
         // do: after Bevy reads the real input, before picking reads pointers.
         app.add_systems(Startup, control_plane::spawn_driven_pointer);

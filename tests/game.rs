@@ -9,7 +9,7 @@
 
 use serde_json::{Value as Json, json};
 
-const URL: &str = "http://127.0.0.1:15703/topside";
+use crate::endpoint::url;
 /// Keeping up: the game's clock runs at least this share of real time.
 const KEEPS_UP: f64 = 0.95;
 
@@ -18,7 +18,7 @@ fn op(name: &str) -> Option<Json> {
 }
 
 fn op_with(name: &str, args: Json) -> Option<Json> {
-    let resp = ureq::post(URL).send_json(json!({"op": name, "args": args})).ok()?;
+    let resp = ureq::post(url()).send_json(json!({"op": name, "args": args})).ok()?;
     resp.into_body().read_json().ok()
 }
 
@@ -47,7 +47,7 @@ fn what_each_step_costs_now() {
 #[test]
 fn the_game_keeps_up_with_real_time_and_its_people_live() {
     let (Some(status), Some(world), Some(perf)) = (op("status"), op("world"), op("perf")) else {
-        panic!("no topside game answering on {URL}; start it with scripts/build.ps1 run");
+        panic!("no topside game answering on {}; start it with scripts/build.ps1 run", url());
     };
     let _ = std::fs::create_dir_all("../logs");
     let mut rows = vec![format!(

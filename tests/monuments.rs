@@ -3,18 +3,18 @@
 
 use serde_json::{Value as Json, json};
 
-const URL: &str = "http://127.0.0.1:15703/topside";
+use crate::endpoint::url;
 /// How many monuments the small world has (content `SMALL_SITES`).
 const MONUMENTS: usize = 20;
 
 fn world() -> Option<Json> {
-    let resp = ureq::post(URL).send_json(json!({"op": "world", "args": {}})).ok()?;
+    let resp = ureq::post(url()).send_json(json!({"op": "world", "args": {}})).ok()?;
     resp.into_body().read_json().ok()
 }
 
 #[test]
 fn the_small_world_has_its_twenty_monuments() {
-    let world = world().unwrap_or_else(|| panic!("no topside game answering on {URL}; start it with scripts/build.ps1 run"));
+    let world = world().unwrap_or_else(|| panic!("no topside game answering on {}; start it with scripts/build.ps1 run", url()));
     let standing = world["result"]["monuments"].as_array().cloned().unwrap_or_default();
     let lines: Vec<String> = standing
         .iter()
