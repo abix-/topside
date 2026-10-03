@@ -9,18 +9,30 @@ use serde_json::{Value as Json, json};
 use crate::endpoint::{op, op_with};
 
 /// The way from `from` to `to` ([x, height, z]), asked until the mesh is
-/// built and answers, at most `secs` real seconds.
+/// built and answers, at most `secs` real seconds. Only this ask's own
+/// answer counts: the game keeps the last answer until the next is worked
+/// out, so a slow frame hands back the one asked before (another piece, or
+/// the test before); its echoed `from` and `to` must be this ask's, as the
+/// game holds them (f32).
 fn way(from: [f64; 3], to: [f64; 3], secs: u64) -> Json {
-    let mut answer = Json::Null;
+    let same = |echoed: &Json, asked: [f64; 3]| {
+        echoed.as_array().is_some_and(|e| e.len() == 3 && e.iter().zip(asked).all(|(e, a)| e.as_f64().map(|e| e as f32) == Some(a as f32)))
+    };
+    let mut own = json!({"error": format!("no answer of its own to {from:?} -> {to:?} in {secs} s")});
     for _ in 0..secs * 2 {
         op_with("nav_path", json!({"from": from, "to": to}));
         std::thread::sleep(Duration::from_millis(500));
-        answer = op("nav_path");
-        if answer["path"].is_array() {
+        let answer = op("nav_path");
+        if !(same(&answer["from"], from) && same(&answer["to"], to)) {
+            continue;
+        }
+        let done = answer["path"].is_array();
+        own = answer;
+        if done {
             break;
         }
     }
-    answer
+    own
 }
 
 /// Each piece of the way down on its own, to see which is joined: the
