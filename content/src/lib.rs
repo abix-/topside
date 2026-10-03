@@ -20,7 +20,8 @@ use modforge::item::{Armor, CombatStats, FoodStats, ItemDef, ItemKind, ItemRegis
 use modforge::monument::Roll;
 use modforge::reality::{Danger, RealityDef, RealityRegistry};
 use modforge::storyteller::{
-    CastFrom, CueAct, CueDef, EpisodeDef, EpisodeRegistry, ErrandAct, ErrandDef, LineDef, PartDef, Place, ThingDef, When, Who,
+    CastFrom, Company, CueAct, CueDef, Deed, DeedDef, EpisodeDef, EpisodeRegistry, ErrandAct, ErrandDef, LineDef, PartDef, Place, ThingDef,
+    Told, When, Who,
 };
 use modforge::monument::{
     Arrangement, BuildingRegistry, BuildingSize, BuildingSlot, BuildingTypeDef,
@@ -445,7 +446,7 @@ pub fn plain_lines() -> Vec<LineDef> {
 pub const AGREES_TO_STAY: &str = "agrees to stay";
 
 /// The Tap's pivot point 5 comes: the player checked their bunker's store
-/// while it held more than it needs (episode::the_taps_deeds); Dell's line
+/// while it held more than it needs (its deed, The Tap's `deeds`); Dell's line
 /// follows it (the-tap.md "Dell's storing is noticed").
 pub const STORING_NOTICED: &str = "Dell's storing is noticed";
 
@@ -543,6 +544,7 @@ pub fn register_episodes(reg: &mut EpisodeRegistry) {
         endings: Vec::new(),
         things: Vec::new(),
         errands: Vec::new(),
+        deeds: Vec::new(),
     };
     let part = |name: &str, from| PartDef { name: name.to_string(), from };
     let ending = |name: &str, words: &str, needs: &[&str], alive: &[&str]| modforge::storyteller::EndingDef {
@@ -771,6 +773,33 @@ pub fn register_episodes(reg: &mut EpisodeRegistry) {
                     errand("Dell", to_tap(pi), &["sends Dell"], &["Dell looked"], Some("Dell looked")),
                     errand("Dell", ErrandAct::GoHome, &["sends Dell", "Dell looked"], &["Dell told the way again"], None),
                     errand("Dell", ErrandAct::StayHome, &[], &["the note read", "the opening"], None),
+                ]
+            },
+            // docs/episodes/the-tap.md "How pivot points 2 and 4 are
+            // reached" and "Pivot names": the pivot points reached by what
+            // is done, each read from memory and the world. The first drink;
+            // who the player takes, the first time they come within 4 m of
+            // the tap; what they told their people, the first time they come
+            // home after drinking there; the tap broken between the sky's
+            // warning and the storm; Mara's well found dry; Dell's storing
+            // noticed, their own store holding more water than
+            // BUNKER_WATER_DAYS for its living people.
+            deeds: {
+                let deed = |pivot: &str, deed: Deed, group: Option<&str>| DeedDef { pivot: pivot.to_string(), deed, group: group.map(str::to_string) };
+                let tap = || "tap".to_string();
+                let near = |with: Company| Deed::CameNear { thing: tap(), within: 4.0, with };
+                let home = |told: Told| Deed::HomeAfterAte { thing: tap(), told };
+                vec![
+                    deed("the first drink", Deed::Ate { thing: tap() }, None),
+                    deed("takes Dell", near(Company::Part("Dell".to_string())), Some("took")),
+                    deed("takes someone else", near(Company::BunkerMember), Some("took")),
+                    deed("takes no one", near(Company::NoOne), Some("took")),
+                    deed("tells everyone", home(Told::AllOfTheirBunker), Some("told")),
+                    deed("tells only Dell", home(Told::Part("Dell".to_string())), Some("told")),
+                    deed("tells no one", home(Told::NoOne), Some("told")),
+                    deed("breaks it", Deed::GoneInTheStorm { thing: tap() }, None),
+                    deed("finds Mara's well dry", Deed::OpenedDrawnStoreDry, None),
+                    deed(STORING_NOTICED, Deed::OpenedOwnStoreOver { need: Need::Thirst, days: BUNKER_WATER_DAYS }, None),
                 ]
             },
             ..episode("The Tap", &["Mixed world", "Sky Islands"])

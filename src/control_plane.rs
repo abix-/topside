@@ -1215,7 +1215,7 @@ pub fn publish_world(
             if let Ok((held, at, drawn)) = stores.get(store.0) {
                 // How many days its water lasts the bunker's living people,
                 // as the brain counts it (modforge memory::days_of).
-                days_of_water = json!(crate::interact::days_of_water(&held.0, &items, *day, people_there));
+                days_of_water = json!(crate::interact::days_of(&held.0, modforge::survival::Need::Thirst, &items, *day, people_there));
                 for stack in held.0.slots.iter().flatten() {
                     if items.0.def(&stack.item).and_then(|d| d.food).is_some_and(|f| f.hunger > 0.0) {
                         food += stack.count;

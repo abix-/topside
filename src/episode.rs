@@ -374,7 +374,7 @@ pub fn the_way(memory: &modforge::memory::Memory, door: (Vec2, Vec2), tap: u64, 
 /// anyone since it started, read from memory (the one record), is reached
 /// under its name ("the opening", "believes Dell", "threatens Mara").
 /// Pivot points reached by what was done are reached where it is seen
-/// (`errands`' arrivals, `the_first_drink`).
+/// (`errands`' arrivals, `deeds`).
 pub fn pivots_said(
     tick: Res<crate::SimTick>,
     mut episode: ResMut<Episode>,
@@ -502,141 +502,141 @@ pub fn errands(
     }
 }
 
-/// The Tap's first pivot point after it opens: the first drink at the
-/// tap, read from the memory of whoever drank (memory is the one record).
-pub fn the_first_drink(tick: Res<crate::SimTick>, mut episode: ResMut<Episode>, people: Query<(&Actor, &Memory)>) {
-    const FIRST_DRINK: &str = "the first drink";
-    // Once a game second is soon enough to notice it.
-    if tick.0 % 60 != 0
-        || episode.name.as_deref() != Some("The Tap")
-        || episode.things.is_empty()
-        || episode.reached.iter().any(|(p, ..)| p == FIRST_DRINK)
-    {
-        return;
-    }
-    let first = people
-        .iter()
-        .filter_map(|(actor, memory)| {
-            memory
-                .0
-                .done
-                .iter()
-                .find(|(_, did)| matches!(did, Did::Ate(item) if item == "tap"))
-                .map(|(tick, _)| (actor.0, *tick))
-        })
-        .min_by_key(|(_, tick)| *tick);
-    if let Some((who, tick)) = first {
-        episode.reached.push((FIRST_DRINK.to_string(), who, tick));
-        info!("The Tap: the first drink, by {who:?} at tick {tick}");
-    }
-}
-
-/// How near the tap the player first comes for who they took (the-tap.md
-/// "How pivot points 2 and 4 are reached"), in metres.
-const AT_THE_TAP: f32 = 4.0;
-
 /// How far from the bunker point, and how far below the ground, the player
 /// is home.
 const HOME_WITHIN: f32 = 20.0;
 const BELOW_GROUND: f32 = -0.5;
 
-/// The Tap's pivot points reached by what the player does, not by a line
-/// (the-tap.md "How pivot points 2 and 4 are reached"), once a game second:
-/// pivot point 2, who they took, the first time they come within 4 m of the
-/// tap (Dell leading or following them is "takes Dell", another of their
-/// bunker following is "takes someone else", no one is "takes no one");
-/// pivot point 4, what they told their people, the first time they come
-/// home after drinking at the tap (every person of their bunker told of the
-/// tap is "tells everyone", only Dell "tells only Dell", no one "tells no
-/// one").
+/// Once a game second, every deed pivot point of the episode running
+/// (modforge `DeedDef`, todo 11ai) is read from memory and the world and
+/// reached once it holds: of a group, the first in order that holds is
+/// reached and none of the group after it. Anyone's eating from a thing is
+/// reached by whoever did it first, at their tick; every other deed is the
+/// player's, now.
 #[allow(clippy::type_complexity)]
-pub fn the_taps_deeds(
+pub fn deeds(
     tick: Res<crate::SimTick>,
     mut episode: ResMut<Episode>,
+    episodes: Res<EpisodeRegistryRes>,
     world: Res<crate::terrain::WorldRes>,
     player: Query<(&Actor, &Transform, &Memory, &crate::interact::OpenContainer), With<crate::player::Player>>,
     people: Query<(&Actor, Option<&Npc>, Option<&crate::ai::Following>, Option<&crate::ai::Leading>, Option<&Store>), Without<Dead>>,
+    memories: Query<(&Actor, &Memory)>,
     stores: Query<(&crate::interact::Container, Option<&crate::interact::Drawn>)>,
     items: Res<ItemRegistryRes>,
     day: Res<crate::survival::Day>,
-    (storms, taps): (Res<crate::storm::StormRes>, Query<(), With<DrawsFrom>>),
+    (storms, things): (Res<crate::storm::StormRes>, Res<crate::interact::ThingIds>),
 ) {
-    if tick.0 % 60 != 0 || episode.name.as_deref() != Some("The Tap") {
+    use modforge::storyteller::{Company, Deed, Told};
+    if tick.0 % 60 != 0 {
         return;
     }
-    let (Ok((me, at, memory, open)), Some((tap, tap_key))) = (player.single(), episode.thing("tap")) else {
+    let Some(def) = episode.name.as_deref().and_then(|n| episodes.0.def(n)) else {
+        return;
+    };
+    let Ok((me, at, memory, open)) = player.single() else {
         return;
     };
     let feet = crate::interact::feet_of(at);
-    let dell = episode.cast_as("Dell");
-    let took = ["takes Dell", "takes someone else", "takes no one"];
-    if !took.iter().any(|p| episode.reached(p)) && feet.distance(tap) <= AT_THE_TAP {
-        // Whoever follows them, or is leading them.
-        let with: Vec<ActorId> = people
-            .iter()
-            .filter(|(_, _, following, leading, _)| following.is_some_and(|f| f.0 == me.0) || leading.is_some_and(|l| l.who == me.0))
-            .map(|(a, ..)| a.0)
-            .collect();
-        let of_bunker = |id: ActorId| people.iter().any(|(a, npc, ..)| a.0 == id && npc.and_then(|n| n.faction.as_deref()) == Some(PLAYER_FACTION));
-        let pivot = if with.iter().any(|id| Some(*id) == dell) {
-            took[0]
-        } else if with.iter().any(|id| of_bunker(*id)) {
-            took[1]
-        } else {
-            took[2]
-        };
-        episode.reach(pivot, me.0, tick.0);
-    }
-    let told = ["tells everyone", "tells only Dell", "tells no one"];
-    let drank = memory.0.done.iter().any(|(t, d)| *t >= episode.started && matches!(d, Did::Ate(item) if item == "tap"));
-    let home = feet.y < BELOW_GROUND && feet.ground().distance(world.bunker) <= HOME_WITHIN;
-    if drank && home && !told.iter().any(|p| episode.reached(p)) {
-        // Who of their bunker they told of the tap (the talk path's Tell).
-        let tap_kind = memory.0.known.iter().find(|k| k.key == tap_key).map_or("tap".to_string(), |k| k.kind.clone());
-        let told_of = format!("told of the {tap_kind}");
-        let was_told = |id: ActorId| memory.0.done.iter().any(|(t, d)| *t >= episode.started && matches!(d, Did::Talked(to, line) if *to == id && line.words == told_of));
-        let bunker: Vec<ActorId> = people.iter().filter(|(_, npc, ..)| npc.and_then(|n| n.faction.as_deref()) == Some(PLAYER_FACTION)).map(|(a, ..)| a.0).collect();
-        let pivot = if !bunker.is_empty() && bunker.iter().all(|id| was_told(*id)) {
-            told[0]
-        } else if dell.is_some_and(was_told) {
-            told[1]
-        } else {
-            told[2]
-        };
-        episode.reach(pivot, me.0, tick.0);
-    }
-    // Pivot point 10: the tap broken between the sky's warning of the storm
-    // and the storm (interact: Use with a melee weapon in hand) is "breaks
-    // it".
+    let started = episode.started;
+    let of_bunker = |id: ActorId| people.iter().any(|(a, npc, ..)| a.0 == id && npc.and_then(|n| n.faction.as_deref()) == Some(PLAYER_FACTION));
+    // Whoever follows the player, or leads them.
+    let with: Vec<ActorId> = people
+        .iter()
+        .filter(|(_, _, following, leading, _)| following.is_some_and(|f| f.0 == me.0) || leading.is_some_and(|l| l.who == me.0))
+        .map(|(a, ..)| a.0)
+        .collect();
+    // Someone ate or drank from a thing of the episode since it started:
+    // its item, as memory records eating it.
+    let item_of = |thing: &str| def.things.iter().find(|t| t.name == thing).map_or(thing.to_string(), |t| t.item.clone());
+    let ate = |memory: &modforge::memory::Memory, item: &str| memory.done.iter().find(|(t, d)| *t >= started && matches!(d, Did::Ate(i) if i == item)).map(|(t, _)| *t);
+    // The store the player has open, what it holds, and whether something
+    // draws from it.
+    let checked = open.0.and_then(|e| stores.get(e).ok().map(|(held, drawn)| (e, held, drawn)));
     let storm = crate::storm::phase(&tick, *day, &storms);
-    if taps.is_empty() && matches!(storm, modforge::storm::StormPhase::Warning | modforge::storm::StormPhase::Storm) {
-        episode.reach("breaks it", me.0, tick.0);
-    }
-    // Checking a store (Use on it opens it, the player's open box):
-    // the player's own bunker's holding more than it needs is Dell's
-    // storing noticed (pivot point 5; Dell's line and the answers follow
-    // it); a store another place draws from that reads dry is "finds
-    // Mara's well dry" (pivot point 7).
-    let Some(checked) = open.0 else {
-        return;
+    let holds = |deed: &Deed, episode: &Episode| -> Option<(ActorId, u64)> {
+        let now = Some((me.0, tick.0));
+        match deed {
+            Deed::Ate { thing } => {
+                let item = item_of(thing);
+                memories.iter().filter_map(|(a, m)| ate(&m.0, &item).map(|t| (a.0, t))).min_by_key(|(_, t)| *t)
+            }
+            Deed::CameNear { thing, within, with: company } => {
+                let (there, _) = episode.thing(thing)?;
+                if feet.distance(there) > *within {
+                    return None;
+                }
+                let holds = match company {
+                    Company::Part(part) => episode.cast_as(part).is_some_and(|id| with.contains(&id)),
+                    Company::BunkerMember => with.iter().any(|id| of_bunker(*id)),
+                    Company::NoOne => true,
+                };
+                holds.then_some(now?)
+            }
+            Deed::HomeAfterAte { thing, told } => {
+                let (_, key) = episode.thing(thing)?;
+                let home = feet.y < BELOW_GROUND && feet.ground().distance(world.bunker) <= HOME_WITHIN;
+                ate(&memory.0, &item_of(thing))?;
+                if !home {
+                    return None;
+                }
+                // Whom they told of it (the talk path's Tell), by the kind
+                // they know it as.
+                let kind = memory.0.known.iter().find(|k| k.key == key).map_or(item_of(thing), |k| k.kind.clone());
+                let told_of = format!("told of the {kind}");
+                let was_told = |id: ActorId| memory.0.done.iter().any(|(t, d)| *t >= started && matches!(d, Did::Talked(to, line) if *to == id && line.words == told_of));
+                let holds = match told {
+                    Told::AllOfTheirBunker => {
+                        let bunker: Vec<ActorId> = people.iter().filter(|(a, ..)| of_bunker(a.0)).map(|(a, ..)| a.0).collect();
+                        !bunker.is_empty() && bunker.iter().all(|id| was_told(*id))
+                    }
+                    Told::Part(part) => episode.cast_as(part).is_some_and(was_told),
+                    Told::NoOne => true,
+                };
+                holds.then_some(now?)
+            }
+            Deed::GoneInTheStorm { thing } => {
+                let (_, key) = episode.thing(thing)?;
+                let storming = matches!(storm, modforge::storm::StormPhase::Warning | modforge::storm::StormPhase::Storm);
+                (storming && things.get(key).is_none()).then_some(now?)
+            }
+            Deed::OpenedDrawnStoreDry => {
+                let (_, held, drawn) = checked?;
+                drawn.is_some_and(|d| d.dry(crate::interact::water_in(&held.0, &items))).then_some(now?)
+            }
+            Deed::OpenedOwnStoreOver { need, days } => {
+                let (store, held, _) = checked?;
+                let ours = people.iter().any(|(a, _, _, _, s)| of_bunker(a.0) && s.is_some_and(|s| s.0 == store));
+                // The player's bunker's living people: the player and its own.
+                let living = 1 + people.iter().filter(|(a, ..)| of_bunker(a.0)).count() as u32;
+                (ours && crate::interact::days_of(&held.0, *need, &items, *day, living) > *days).then_some(now?)
+            }
+        }
     };
-    let Ok((held, drawn)) = stores.get(checked) else {
-        return;
-    };
-    let water = crate::interact::water_in(&held.0, &items);
-    if drawn.is_some_and(|d| d.dry(water)) {
-        episode.reach(FINDS_THE_WELL_DRY, me.0, tick.0);
+    let mut reached: Vec<(String, ActorId, u64)> = Vec::new();
+    let mut groups_done: Vec<&str> = Vec::new();
+    for d in &def.deeds {
+        if episode.reached(&d.pivot) || reached.iter().any(|(p, ..)| *p == d.pivot) {
+            continue;
+        }
+        // A group is reached once, by its first deed that holds.
+        if let Some(group) = d.group.as_deref() {
+            let group_reached = def.deeds.iter().any(|o| o.group.as_deref() == Some(group) && (episode.reached(&o.pivot) || reached.iter().any(|(p, ..)| *p == o.pivot)));
+            if group_reached || groups_done.contains(&group) {
+                continue;
+            }
+        }
+        if let Some((who, at)) = holds(&d.deed, &episode) {
+            reached.push((d.pivot.clone(), who, at));
+            if let Some(group) = d.group.as_deref() {
+                groups_done.push(group);
+            }
+        }
     }
-    let ours = people.iter().any(|(_, npc, _, _, store)| npc.and_then(|n| n.faction.as_deref()) == Some(PLAYER_FACTION) && store.is_some_and(|s| s.0 == checked));
-    // The player's bunker's living people: the player and its own.
-    let ours_living = 1 + people.iter().filter(|(_, npc, ..)| npc.and_then(|n| n.faction.as_deref()) == Some(PLAYER_FACTION)).count() as u32;
-    if ours && crate::interact::days_of_water(&held.0, &items, *day, ours_living) > crate::content::BUNKER_WATER_DAYS {
-        episode.reach(crate::content::STORING_NOTICED, me.0, tick.0);
+    for (pivot, who, at) in reached {
+        episode.reach(&pivot, who, at);
     }
 }
-
-/// Pivot point 7 reached going there (the-tap.md "Pivot names").
-const FINDS_THE_WELL_DRY: &str = "finds Mara's well dry";
 
 /// When the storm comes, the episode's ending is shown, once, as a text
 /// screen before the world shifts (the-tap.md "Which ending"; modforge

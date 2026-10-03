@@ -779,6 +779,18 @@ fn the_first_drink_takes_one_water_from_maras_store() {
     let tap = the_tap();
     op_with("use", json!({"id": player(), "at": [tap.0, tap.1]}));
     let drank = within(5, || water() < before);
+    if !drank {
+        // What the Use reached instead: the talk box, what the player did,
+        // and who stands near the tap.
+        eprintln!("the talk box {}; the player at {:?}, acting {}, looking at {}", talk(), player_spot(), op("player")["this_tick"], op("hud")["prompt"]);
+        for p in crate::endpoint::people() {
+            let at = (p["at"][0].as_f64().unwrap_or(1e9), p["at"][1].as_f64().unwrap_or(1e9), p["feet"].as_f64().unwrap_or(0.0));
+            if apart(at, tap).0 < 5.0 {
+                eprintln!("  near the tap: {} ({}) at {at:?}, doing {}", p["name"], p["id"], p["doing"]);
+            }
+        }
+        eprintln!("the tap at {tap:?}; the world's things {}", op("world")["things"]);
+    }
     assert!(drank, "a drink at the tap took no water from Mara's bunker's store ({before})");
     assert!(within(5, || reached("the first drink")), "the first drink at the tap is not reached");
 }
