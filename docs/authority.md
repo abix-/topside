@@ -140,6 +140,17 @@ CI runner taking jobs from a queue and reporting each back.
   (`endpoint::start_from`; the opening's in tests/opening.rs, the rest in
   tests/saves.rs); the saves are committed, and every test after loads
   them.
+- Save points are checkpoints in a speedrun (operator, 2026-10-02). The
+  run is the game from its start to its end; the save points split it
+  into segments, as many as needed. Each segment is made to work on its
+  own: load its checkpoint, play the segment, test, fix, and load it
+  again until it passes. Once it passes, its end is saved as the next
+  checkpoint, and the next segment starts there. A segment is short: its
+  test reaches its event within a few game seconds of loading. A segment
+  that would need a long game span to reach its event is two or more
+  segments with a checkpoint missing between them; add the checkpoint,
+  reached by playing on from the one before, never by setting the world
+  up by hand.
 - Loading (operator, 2026-10-02; every game's loading screen): the game
   shows a loading screen until the world is ready to play, after a launch
   and after loading a saved game, never for a storm (operator,
