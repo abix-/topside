@@ -50,6 +50,12 @@ What is left, in this order: systems first, then the episode, then saves.
    watching, shooting first; pivot 5 saying nothing; pivot 7 Mara's line
    about her well; pivot 9 the whole fight for the tap; pivot 10 sharing
    the tap, telling the truth, holding it.
+3a. Water as a fluid (design.md "Water is a fluid"): containers hold
+   litres; fill at a source, pour between containers, drink from one;
+   every bunker starts with a water barrel and 2 bottles; people fill the
+   bottles at a source and pour them into the barrel; days of water and
+   a store reading dry read litres. This is what lets Dell's storing
+   (pivot 5) happen in a few trips.
 4. Then one save per pivot (authority.md "Running tests"), each made just
    before its pivot, nothing waiting, then the finish check passes.
    Rows 11ad, 11ag and 11z below are written generic; their The Tap

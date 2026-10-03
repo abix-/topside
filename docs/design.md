@@ -1109,6 +1109,21 @@ on this same item system (operator, 2026-08-20: "the food in our starting
 bunker should be items in our bunk aligned with this syte"). The food
 clock reads what is actually in the bunker's stores; no separate counter.
 
+### Water is a fluid (operator, 2026-10-03)
+
+Water is an amount, held in containers, not an item counted in bottles
+(Obenseuer's water; Project Zomboid's fluids). A container (a bottle, a
+bunker's water barrel, any store that holds water) holds up to its size
+in litres. Anyone fills a container at a source (the tap, a river, a
+well), pours from one container into another, and drinks from a
+container. A source drawn from a store (the tap from Mara's) takes what
+it gives from that store's water. How much water a bunker has is the
+litres in its containers, read for every rule that counts it (days of
+water, a store reading dry). Every bunker starts with a water barrel and
+2 bottles; its people fill the bottles at a source, carry them home, and
+pour them into the barrel. The player and everyone else use the one same
+way.
+
 ## Survival pressures
 
 The world is always trying to kill you (operator-locked 2026-08-20:
