@@ -568,12 +568,25 @@ fn roxanne_waits_when_the_player_falls_behind_and_goes_on() {
     // following (authority.md "Commands and replays").
     let (x, z, feet) = player_spot();
     op_with("command", json!({"do": "move_to", "x": x, "y": feet, "z": z}));
-    let waits = within(30, || !op_with("npc", json!({"id": her}))["leading"]["waiting_at"].is_null());
-    // The gap in 3D, height included, as the game measures it (authority.md
-    // "Presentation": nothing is flattened to the ground); the player may
-    // still be on the stairs when she waits at the top.
-    let (h, p) = (spot_of(her), player_spot());
-    let gap = (apart(h, p).0.powi(2) + (h.2 - p.2).powi(2)).sqrt();
+    // The gap on the tick she starts waiting, a tick at a time: once
+    // waiting she may step out of a doorway she stopped in (navmesh's make
+    // way rule), so a later reading is not the gap she waited at. In 3D,
+    // height included, as the game measures it (authority.md
+    // "Presentation": nothing is flattened to the ground).
+    let gap3d = || {
+        let (h, p) = (spot_of(her), player_spot());
+        (apart(h, p).0.powi(2) + (h.2 - p.2).powi(2)).sqrt()
+    };
+    let mut gap = 0.0;
+    let mut waits = false;
+    for _ in 0..30 * SECOND {
+        step(1);
+        if waiting() {
+            waits = true;
+            gap = gap3d();
+            break;
+        }
+    }
     eprintln!("left behind: Roxanne leading {}, {gap:.1} m from the player", op_with("npc", json!({"id": her}))["leading"]);
     assert!(waits, "Roxanne never waited for the player left behind");
     // She waits once more than 8 m ahead (modforge brain.rs LEAD_WAIT). The
