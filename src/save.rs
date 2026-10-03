@@ -92,6 +92,7 @@ saved! {
         crate::ai::Leading,
         crate::ai::Following,
         crate::ai::Holding,
+        crate::edge::CameFor,
         crate::combat::Health,
         crate::combat::Protection,
         crate::combat::Equipment,

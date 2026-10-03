@@ -1,0 +1,9 @@
+# The episodes, in order: before any storm the first that fits starts
+# (modforge EpisodeRegistry::pick), so The Tap is first (operator,
+# 2026-09-27). Each is its own file here, read by the one loader
+# (topside-content register_episodes).
+- the-tap.yaml
+- the-fever.yaml
+- the-other-you.yaml
+- nobody-dies.yaml
+- the-question.yaml

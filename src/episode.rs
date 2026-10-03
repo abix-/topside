@@ -35,6 +35,19 @@ pub struct Episode {
     /// Who played which part in the episode before, for the parts cast from
     /// memory (modforge `CastFrom::PlayedBefore`).
     pub cast_before: Vec<(String, ActorId)>,
+    /// Each errand of the def (by its place in the def's list) and the tick
+    /// its condition first held: when an errand starting the first morning
+    /// after starts.
+    #[serde(default)]
+    pub held_since: Vec<(usize, u64)>,
+    /// Each named errand's window: its name, when it started, when it ended
+    /// (what `Since::During` and `Cond::Ended` read).
+    #[serde(default)]
+    pub windows: Vec<(String, u64, Option<u64>)>,
+    /// Each errand's order already given to a person (an order is given
+    /// once, through the one command path).
+    #[serde(default)]
+    pub ordered: Vec<(usize, ActorId)>,
 }
 
 impl Episode {
@@ -55,6 +68,9 @@ impl Episode {
             things: Vec::new(),
             started,
             cast_before: Vec::new(),
+            held_since: Vec::new(),
+            windows: Vec::new(),
+            ordered: Vec::new(),
         }
     }
 
@@ -271,6 +287,238 @@ pub fn place_things(
     }
 }
 
+/// One person as an episode's conditions read them.
+struct Someone<'a> {
+    id: ActorId,
+    entity: Entity,
+    alive: bool,
+    feet: Vec3,
+    memory: Option<&'a modforge::memory::Memory>,
+    faction: Option<String>,
+    player: bool,
+    came_for: Option<u64>,
+    /// Whom they follow or lead.
+    with: Vec<ActorId>,
+    holding: Option<Vec3>,
+    home: Option<Vec3>,
+    open: Option<modforge::storyteller::OpenStore>,
+}
+
+/// Everything an episode's conditions read, gathered once from the world
+/// (modforge `storyteller::Facts`): the one place the world is read for
+/// them.
+struct EpisodeFacts<'a> {
+    now: u64,
+    player: ActorId,
+    episode: &'a Episode,
+    def: &'a modforge::storyteller::EpisodeDef,
+    people: Vec<Someone<'a>>,
+    storm: modforge::storm::StormPhase,
+    bunker: Vec2,
+    /// The episode's things gone from the world.
+    gone: Vec<String>,
+}
+
+/// How near the place an errand sends someone they have arrived, and how
+/// near a thing someone holding a place holds it, in metres.
+const ARRIVED: f32 = 4.0;
+
+/// How far from the bunker point, and how far below the ground, the player
+/// is home.
+const HOME_WITHIN: f32 = 20.0;
+const BELOW_GROUND: f32 = -0.5;
+
+impl EpisodeFacts<'_> {
+    fn someone(&self, id: ActorId) -> Option<&Someone<'_>> {
+        self.people.iter().find(|p| p.id == id)
+    }
+
+    /// The faction a group is: a part's, or the player's bunker's.
+    fn faction_of(&self, group: &modforge::storyteller::Group) -> Option<String> {
+        use modforge::storyteller::Group;
+        match group {
+            Group::BunkerOf(part) => self.episode.cast_as(part).and_then(|id| self.someone(id)).and_then(|p| p.faction.clone()),
+            Group::ThePlayersBunker => Some(PLAYER_FACTION.to_string()),
+            Group::CameFor(_) => None,
+        }
+    }
+}
+
+impl modforge::storyteller::Facts for EpisodeFacts<'_> {
+    fn now(&self) -> u64 {
+        self.now
+    }
+    fn player(&self) -> ActorId {
+        self.player
+    }
+    fn episode_started(&self) -> u64 {
+        self.episode.started
+    }
+    fn reached_at(&self, pivot: &str) -> Option<u64> {
+        self.episode.reached.iter().find(|(p, ..)| p == pivot).map(|(.., t)| *t)
+    }
+    fn window(&self, errand: &str) -> Option<(u64, Option<u64>)> {
+        self.episode.windows.iter().find(|(e, ..)| e == errand).map(|(_, from, to)| (*from, *to))
+    }
+    fn members(&self, who: &modforge::storyteller::Who) -> Vec<ActorId> {
+        use modforge::storyteller::{Group, Who};
+        match who {
+            Who::ThePlayer => vec![self.player],
+            Who::Part(part) => self.episode.cast_as(part).into_iter().collect(),
+            Who::Anyone => self.people.iter().map(|p| p.id).collect(),
+            Who::Group(Group::CameFor(thing)) => {
+                let key = self.episode.thing(thing).map(|(_, k)| k);
+                self.people.iter().filter(|p| key.is_some() && p.came_for == key).map(|p| p.id).collect()
+            }
+            // A bunker's people: its faction's, and the player in theirs.
+            Who::Group(group) => {
+                let faction = self.faction_of(group);
+                self.people.iter().filter(|p| faction.is_some() && (p.faction == faction || (p.player && faction.as_deref() == Some(PLAYER_FACTION)))).map(|p| p.id).collect()
+            }
+        }
+    }
+    fn alive(&self, id: ActorId) -> bool {
+        self.someone(id).is_some_and(|p| p.alive)
+    }
+    fn memory(&self, id: ActorId) -> Option<&modforge::memory::Memory> {
+        self.someone(id).and_then(|p| p.memory)
+    }
+    fn feet(&self, id: ActorId) -> Option<Vec3> {
+        self.someone(id).map(|p| p.feet)
+    }
+    fn thing_at(&self, thing: &str) -> Option<Vec3> {
+        // In the world: placed by the episode and not gone since.
+        self.episode.thing(thing).map(|(at, _)| at).filter(|_| !self.gone(thing))
+    }
+    fn item_of(&self, thing: &str) -> String {
+        self.def.things.iter().find(|t| t.name == thing).map_or(thing.to_string(), |t| t.item.clone())
+    }
+    fn told_words(&self, by: ActorId, thing: &str) -> String {
+        // By the kind they know it as (the talk path's Tell).
+        let key = self.episode.thing(thing).map(|(_, k)| k);
+        let kind = self.memory(by).and_then(|m| m.known.iter().find(|k| Some(k.key) == key)).map_or(self.item_of(thing), |k| k.kind.clone());
+        format!("told of the {kind}")
+    }
+    fn with(&self, a: ActorId, b: ActorId) -> bool {
+        self.someone(a).is_some_and(|p| p.with.contains(&b))
+    }
+    fn holds_at(&self, id: ActorId, thing: &str) -> bool {
+        let at = self.episode.thing(thing).map(|(at, _)| at);
+        self.someone(id).and_then(|p| p.holding).zip(at).is_some_and(|(held, at)| held.distance(at) <= ARRIVED)
+    }
+    fn at_home(&self, id: ActorId) -> bool {
+        self.someone(id).is_some_and(|p| match p.home {
+            Some(home) => home.distance(p.feet) <= crate::ai::HOME_REACH,
+            // The player: in their bunker, below the ground.
+            None => p.feet.y < BELOW_GROUND && p.feet.ground().distance(self.bunker) <= HOME_WITHIN,
+        })
+    }
+    fn storm(&self) -> modforge::storm::StormPhase {
+        self.storm
+    }
+    fn opened(&self, id: ActorId) -> Option<modforge::storyteller::OpenStore> {
+        self.someone(id).and_then(|p| p.open)
+    }
+}
+
+impl EpisodeFacts<'_> {
+    /// Whether the episode's thing is gone from the world.
+    fn gone(&self, thing: &str) -> bool {
+        self.gone.iter().any(|g| g == thing)
+    }
+}
+
+/// What the episode's systems read the world through, once a game second.
+#[derive(bevy::ecs::system::SystemParam)]
+pub struct EpisodeWorld<'w, 's> {
+    tick: Res<'w, crate::SimTick>,
+    episodes: Res<'w, EpisodeRegistryRes>,
+    world: Res<'w, crate::terrain::WorldRes>,
+    items: Res<'w, ItemRegistryRes>,
+    day: Res<'w, crate::survival::Day>,
+    storms: Res<'w, crate::storm::StormRes>,
+    things: Res<'w, crate::interact::ThingIds>,
+    people: Query<
+        'w,
+        's,
+        (
+            (Entity, &'static Actor, &'static Transform, &'static Memory, Option<&'static Npc>, Has<Dead>, Has<crate::player::Player>),
+            (
+                Option<&'static crate::ai::Following>,
+                Option<&'static crate::ai::Leading>,
+                Option<&'static crate::ai::Holding>,
+                Option<&'static Home>,
+                Option<&'static Store>,
+                Option<&'static crate::interact::OpenContainer>,
+                Option<&'static crate::edge::CameFor>,
+            ),
+        ),
+    >,
+    stores: Query<'w, 's, (&'static crate::interact::Container, Option<&'static crate::interact::Drawn>)>,
+}
+
+impl EpisodeWorld<'_, '_> {
+    /// The facts of the episode running now, if one is.
+    fn facts<'a>(&'a self, episode: &'a Episode) -> Option<EpisodeFacts<'a>> {
+        let def = episode.name.as_deref().and_then(|n| self.episodes.0.def(n))?;
+        let all: Vec<_> = self.people.iter().collect();
+        let player = all.iter().find(|((.., is_player), _)| *is_player).map(|((_, a, ..), _)| a.0)?;
+        // Who leads or follows whom, both ways.
+        let pairs: Vec<(ActorId, ActorId)> = all
+            .iter()
+            .flat_map(|((_, a, ..), (following, leading, ..))| following.map(|f| (a.0, f.0)).into_iter().chain(leading.map(|l| (a.0, l.who))))
+            .collect();
+        let faction_of = |npc: Option<&Npc>, is_player: bool| if is_player { Some(PLAYER_FACTION.to_string()) } else { npc.and_then(|n| n.faction.clone()) };
+        let living_of = |faction: &Option<String>| all.iter().filter(|((_, _, _, _, npc, dead, is_player), _)| !dead && faction_of(*npc, *is_player) == *faction).count() as u32;
+        let store_owner = |store: Entity| all.iter().find(|(_, (.., s, _, _))| s.is_some_and(|s| s.0 == store)).map(|((_, _, _, _, npc, _, is_player), _)| faction_of(*npc, *is_player));
+        let people = all
+            .iter()
+            .map(|((entity, actor, at, memory, npc, dead, is_player), (_, _, holding, home, _, open, came_for))| {
+                let faction = faction_of(*npc, *is_player);
+                let open = open.and_then(|o| o.0).and_then(|e| self.stores.get(e).ok().map(|s| (e, s))).map(|(store, (held, drawn))| {
+                    let owner = store_owner(store).flatten();
+                    let living = living_of(&owner).max(1);
+                    modforge::storyteller::OpenStore {
+                        theirs: owner.is_some() && owner == faction,
+                        drawn_from: drawn.is_some(),
+                        dry: drawn.is_some_and(|d| d.dry(crate::interact::water_in(&held.0, &self.items))),
+                        days: (
+                            crate::interact::days_of(&held.0, modforge::survival::Need::Hunger, &self.items, *self.day, living),
+                            crate::interact::days_of(&held.0, modforge::survival::Need::Thirst, &self.items, *self.day, living),
+                        ),
+                    }
+                });
+                Someone {
+                    id: actor.0,
+                    entity: *entity,
+                    alive: !dead,
+                    feet: crate::interact::feet_of(at),
+                    memory: Some(&memory.0),
+                    faction,
+                    player: *is_player,
+                    came_for: came_for.map(|c| c.0),
+                    with: pairs.iter().filter(|(a, _)| *a == actor.0).map(|(_, b)| *b).chain(pairs.iter().filter(|(_, b)| *b == actor.0).map(|(a, _)| *a)).collect(),
+                    holding: holding.map(|h| h.at),
+                    home: home.map(|h| h.0),
+                    open,
+                }
+            })
+            .collect();
+        // The episode's things no longer in the world (by their ThingId).
+        let gone = episode.things.iter().filter(|(_, _, key)| *key != 0 && self.things.get(*key).is_none()).map(|(n, ..)| n.clone()).collect();
+        Some(EpisodeFacts {
+            now: self.tick.0,
+            player,
+            episode,
+            def,
+            people,
+            storm: crate::storm::phase(&self.tick, *self.day, &self.storms),
+            bunker: self.world.bunker,
+            gone,
+        })
+    }
+}
+
 /// Every step: each cue of the episode running whose deed the player has
 /// done (modforge `cues_due`; The Tap: the note read) has the person cast
 /// in its part do its order, through the one way an order reaches a person
@@ -302,8 +550,9 @@ pub fn cues(
         let whom = |w: modforge::storyteller::Who| match w {
             modforge::storyteller::Who::ThePlayer => Some(player.0.0),
             modforge::storyteller::Who::Part(part) => episode.cast_as(&part).map(|id| id.0),
+            _ => None,
         };
-        let at = |thing: String| episode.thing(&thing).map(|(at, _)| modforge::command::Point::from(at));
+        let at = |r: modforge::storyteller::ThingRef| episode.thing(&r.thing).map(|(at, _)| modforge::command::Point::from(at));
         match cue.does.clone().resolve(whom, at) {
             Some(order) => crate::command::order(&mut people, &mut new, who.0, order),
             None => warn!("cue {}: its order {:?} names someone or something not there; not given", cue.name, cue.does),
@@ -353,236 +602,218 @@ pub fn pivots_said(
     }
 }
 
-/// How near the place an errand sends someone they have arrived, for the
-/// pivot point reached on arrival, in metres.
-const ARRIVED: f32 = 4.0;
-
 /// How far from a thing an errand's spot beside it is, in metres.
 const BESIDE: f32 = 2.0;
 
-/// Once a game second, every part of the episode running is asked what its
-/// first errand that holds asks (modforge `errand_for`, Skyrim's quest
-/// stages with conditions), as `Asked` the brain weighs like any choice:
-/// to stand beside a thing of the episode (two metres off at the errand's
-/// side, on a spot they can stand on), back home, or to stay home; or to
-/// lead someone beside a thing (ai::lead, the one led following until they
-/// move themselves). Going somewhere or leading wins over a talk; staying
-/// home never takes them out of one. With no errand holding, the episode
-/// lets go only of its own asking. Arrived where an errand sends them, its
-/// pivot point on arrival is reached.
+/// Once a game second, the episode's errands (modforge `ErrandDef`, Skyrim's
+/// quest stages giving packages to aliases): each errand whose condition
+/// holds starts, now or the first game morning after (a named one opening
+/// its window and reaching its name as a pivot point, its window closing
+/// when its end holds); each person it names (a part, a group's each
+/// member) does the first started errand naming them whose condition holds,
+/// as `Asked` the brain weighs like any choice: to stand beside a thing of
+/// the episode, back home, or to stay home; to lead someone beside a thing;
+/// or an order through the one command path, given once. Going somewhere,
+/// leading or an order wins over a talk; staying home never takes them out
+/// of one. With no errand holding, the episode lets go only of its own
+/// asking. Arrived where an errand sends them, its pivot point on arrival
+/// is reached.
+#[allow(clippy::too_many_arguments)]
 pub fn errands(
     mut commands: Commands,
-    tick: Res<crate::SimTick>,
     mut episode: ResMut<Episode>,
-    episodes: Res<EpisodeRegistryRes>,
+    world: EpisodeWorld,
     nav: Res<crate::navmesh::Nav>,
     archipelagos: Query<&bevy_landmass::prelude::Archipelago3d>,
-    player: Query<(Entity, &Actor), (With<crate::player::Player>, Without<Dead>)>,
-    people: Query<(Entity, &Actor, &Transform, &Home, Has<crate::ai::Leading>, Has<crate::talk::HeldToTalk>), Without<Dead>>,
+    talking: Query<(&Actor, Has<crate::ai::Leading>, Has<crate::talk::HeldToTalk>)>,
+    mut ordered_people: Query<(Entity, &Actor, Option<&mut crate::command::Commanded>)>,
 ) {
-    use modforge::storyteller::{ErrandAct, Who};
-    if tick.0 % 60 != 0 {
+    use modforge::storyteller::{ErrandAct, Facts, Who, holds, starts_at};
+    let now = world.tick.0;
+    if now % 60 != 0 {
         return;
     }
-    let Some(def) = episode.name.as_deref().and_then(|n| episodes.0.def(n)) else {
-        return;
-    };
+    let day = (world.day.0 * 60.0) as u64;
     let archipelago = archipelagos.get(nav.archipelago).ok();
-    // The spot beside a thing of the episode at a side of it.
-    let beside = |thing: &str, side: f32| {
-        let (at, _) = episode.thing(thing)?;
-        Some(archipelago.and_then(|a| crate::navmesh::stand_by(a, at, BESIDE, side)).unwrap_or(at))
-    };
-    let player_id = player.single().ok().map(|(e, a)| (a.0, e));
-    let someone = |who: &Who| match who {
-        Who::ThePlayer => player_id,
-        Who::Part(part) => episode.cast_as(part).and_then(|id| people.iter().find(|p| p.1.0 == id)).map(|p| (p.1.0, p.0)),
-    };
-    let reached = episode.reached_names();
-    let reached: Vec<&str> = reached.iter().map(String::as_str).collect();
+    // What to do, worked out from the facts; done after, as the facts
+    // borrow the episode.
+    enum Asks {
+        Go(Entity, Vec3, bool),
+        LetGo(Entity),
+        Lead(Entity, ActorId, Vec3, Entity, ActorId),
+        Order(usize, ActorId, modforge::command::Command),
+    }
+    let mut asks: Vec<Asks> = Vec::new();
     let mut arrived: Vec<(String, ActorId)> = Vec::new();
-    for (part, id) in episode.cast.clone() {
-        let Some((entity, _, at, home, leading, held_to_talk)) = people.iter().find(|p| p.1.0 == id) else {
-            continue;
+    let mut held_now: Vec<(usize, u64)> = Vec::new();
+    let mut opens: Vec<String> = Vec::new();
+    let mut ends: Vec<String> = Vec::new();
+    {
+        let Some(facts) = world.facts(&episode) else {
+            return;
         };
-        let errand = modforge::storyteller::errand_for(def, &part, &reached);
-        let (to, wins_over_a_talk) = match errand.map(|e| &e.does) {
-            Some(ErrandAct::GoTo { thing, side }) => (beside(thing, *side), true),
-            Some(ErrandAct::GoHome) => (Some(home.0), true),
-            Some(ErrandAct::StayHome) => (Some(home.0), false),
-            Some(ErrandAct::Lead { who, thing, side }) => {
-                if !leading
-                    && let (Some(to), Some((who, follower))) = (beside(thing, *side), someone(who))
-                {
-                    commands.entity(entity).insert(crate::ai::Leading { who, to, waiting_at: None });
-                    commands.entity(follower).insert(crate::ai::Following(id));
-                }
-                continue;
+        let def = facts.def;
+        // Each errand: when its condition first held, and whether it has
+        // started (and not ended).
+        for (i, e) in def.errands.iter().enumerate() {
+            if !episode.held_since.iter().any(|(j, _)| *j == i) && holds(&e.when, &facts).is_some() {
+                held_now.push((i, now));
             }
-            None => (None, false),
-        };
-        if let (Some(e), Some(to)) = (errand, to)
-            && let Some(pivot) = &e.reached_on_arrival
-            && crate::interact::feet_of(at).distance(to) <= ARRIVED
-        {
-            arrived.push((pivot.clone(), id));
         }
-        match to {
+        let held = |i: usize| episode.held_since.iter().chain(&held_now).find(|(j, _)| *j == i).map(|(_, t)| *t);
+        let started = |e: &modforge::storyteller::ErrandDef| {
+            let i = def.errands.iter().position(|o| std::ptr::eq(o, e)).unwrap_or(0);
+            let ended = e.name.as_ref().is_some_and(|n| episode.windows.iter().any(|(w, _, end)| w == n && end.is_some()));
+            !ended && held(i).is_some_and(|t| now >= starts_at(e.at, t, day))
+        };
+        for e in def.errands.iter().filter(|e| started(e) && holds(&e.when, &facts).is_some()) {
+            if let Some(name) = &e.name {
+                match episode.windows.iter().find(|(w, ..)| w == name) {
+                    None => opens.push(name.clone()),
+                    Some((_, _, None)) if e.ends.as_ref().is_some_and(|c| holds(c, &facts).is_some()) => ends.push(name.clone()),
+                    _ => {}
+                }
+            }
+        }
+        // The spot beside a thing of the episode at a side of it.
+        let beside = |thing: &str, side: f32| {
+            let at = facts.thing_at(thing)?;
+            Some(archipelago.and_then(|a| crate::navmesh::stand_by(a, at, BESIDE, side)).unwrap_or(at))
+        };
+        // Everyone some errand names.
+        let named: Vec<ActorId> = {
+            let mut ids: Vec<ActorId> = def.errands.iter().flat_map(|e| facts.members(&e.who)).collect();
+            ids.sort_by_key(|id| id.0);
+            ids.dedup();
+            ids
+        };
+        for id in named {
+            let Some(person) = facts.people.iter().find(|p| p.id == id && p.alive) else {
+                continue;
+            };
+            let (leading, held_to_talk) = talking.iter().find(|(a, ..)| a.0 == id).map_or((false, false), |(_, l, h)| (l, h));
+            let errand = modforge::storyteller::errand_for(def, |w| facts.members(w).contains(&id), &facts, started);
+            let home = person.home.unwrap_or(person.feet);
+            let (to, wins_over_a_talk) = match errand.map(|e| &e.does) {
+                Some(ErrandAct::GoTo { thing, side }) => (beside(thing, *side), true),
+                Some(ErrandAct::GoHome) => (Some(home), true),
+                Some(ErrandAct::StayHome) => (Some(home), false),
+                Some(ErrandAct::Lead { who, thing, side }) => {
+                    let follower = facts.members(who).into_iter().find_map(|f| facts.people.iter().find(|p| p.id == f && p.alive));
+                    if !leading
+                        && let (Some(to), Some(follower)) = (beside(thing, *side), follower)
+                    {
+                        asks.push(Asks::Lead(person.entity, follower.id, to, follower.entity, id));
+                    }
+                    continue;
+                }
+                Some(ErrandAct::Order(order)) => {
+                    let i = def.errands.iter().position(|o| errand.is_some_and(|e| std::ptr::eq(o, e))).unwrap_or(0);
+                    if episode.ordered.iter().any(|(j, who)| *j == i && *who == id) {
+                        continue;
+                    }
+                    // Whom it names, the nearest living one to them; where,
+                    // the thing where it stands.
+                    let whom = |w: Who| {
+                        facts
+                            .members(&w)
+                            .into_iter()
+                            .filter(|m| *m != id && facts.alive(*m))
+                            .filter_map(|m| facts.feet(m).map(|f| (m, f.distance(person.feet))))
+                            .min_by(|a, b| a.1.total_cmp(&b.1))
+                            .map(|(m, _)| m.0)
+                    };
+                    let at = |r: modforge::storyteller::ThingRef| beside(&r.thing, 0.0).map(modforge::command::Point::from);
+                    match order.clone().resolve(whom, at) {
+                        Some(given) => asks.push(Asks::Order(i, id, given)),
+                        None => warn!("errand {:?}: its order {order:?} names no one or nothing there for {id:?}", errand.and_then(|e| e.name.clone())),
+                    }
+                    continue;
+                }
+                None => (None, false),
+            };
+            if let (Some(e), Some(to)) = (errand, to)
+                && let Some(pivot) = &e.reached_on_arrival
+                && person.feet.distance(to) <= ARRIVED
+            {
+                arrived.push((pivot.clone(), id));
+            }
+            match to {
+                Some(to) => asks.push(Asks::Go(person.entity, to, wins_over_a_talk || !held_to_talk)),
+                // Nothing asked: the episode lets go only of its own
+                // asking, never of the talk holding them (talk::hold).
+                None if !held_to_talk => asks.push(Asks::LetGo(person.entity)),
+                None => {}
+            }
+        }
+    }
+    episode.held_since.extend(held_now);
+    for name in opens {
+        let who = episode.reached.first().map_or(ActorId(0), |(_, w, _)| *w);
+        episode.windows.push((name.clone(), now, None));
+        episode.reach(&name, who, now);
+    }
+    for name in ends {
+        if let Some(w) = episode.windows.iter_mut().find(|(w, ..)| *w == name) {
+            w.2 = Some(now);
+        }
+    }
+    let mut new = std::collections::HashMap::new();
+    for ask in asks {
+        match ask {
             // Going somewhere wins over a talk: it is no longer the
-            // conversation's to let go.
-            Some(to) if wins_over_a_talk => {
+            // conversation's to let go. Staying home asks only one not held.
+            Asks::Go(entity, to, wins) if wins => {
                 commands.entity(entity).insert(crate::actor::Asked(to)).remove::<crate::talk::HeldToTalk>();
             }
-            Some(to) if !held_to_talk => {
-                commands.entity(entity).insert(crate::actor::Asked(to));
-            }
-            Some(_) => {}
-            // Nothing asked: the episode lets go only of its own asking,
-            // never of the talk holding them (talk::hold).
-            None if !held_to_talk => {
+            Asks::Go(..) => {}
+            Asks::LetGo(entity) => {
                 commands.entity(entity).remove::<crate::actor::Asked>();
             }
-            None => {}
+            Asks::Lead(leader, who, to, follower, leader_id) => {
+                commands.entity(leader).insert(crate::ai::Leading { who, to, waiting_at: None });
+                commands.entity(follower).insert(crate::ai::Following(leader_id));
+            }
+            Asks::Order(i, who, given) => {
+                crate::command::order(&mut ordered_people, &mut new, who.0, given);
+                episode.ordered.push((i, who));
+            }
         }
     }
+    for (entity, left) in new {
+        commands.entity(entity).insert(crate::command::Commanded { left, started: false });
+    }
     for (pivot, who) in arrived {
-        episode.reach(&pivot, who, tick.0);
+        episode.reach(&pivot, who, now);
     }
 }
 
-/// How far from the bunker point, and how far below the ground, the player
-/// is home.
-const HOME_WITHIN: f32 = 20.0;
-const BELOW_GROUND: f32 = -0.5;
-
 /// Once a game second, every deed pivot point of the episode running
-/// (modforge `DeedDef`, todo 11ai) is read from memory and the world and
-/// reached once it holds: of a group, the first in order that holds is
-/// reached and none of the group after it. Anyone's eating from a thing is
-/// reached by whoever did it first, at their tick; every other deed is the
-/// player's, now.
-#[allow(clippy::type_complexity)]
-pub fn deeds(
-    tick: Res<crate::SimTick>,
-    mut episode: ResMut<Episode>,
-    episodes: Res<EpisodeRegistryRes>,
-    world: Res<crate::terrain::WorldRes>,
-    player: Query<(&Actor, &Transform, &Memory, &crate::interact::OpenContainer), With<crate::player::Player>>,
-    people: Query<(&Actor, Option<&Npc>, Option<&crate::ai::Following>, Option<&crate::ai::Leading>, Option<&Store>), Without<Dead>>,
-    memories: Query<(&Actor, &Memory)>,
-    stores: Query<(&crate::interact::Container, Option<&crate::interact::Drawn>)>,
-    items: Res<ItemRegistryRes>,
-    day: Res<crate::survival::Day>,
-    (storms, things): (Res<crate::storm::StormRes>, Res<crate::interact::ThingIds>),
-) {
-    use modforge::storyteller::{Company, Deed, Told};
-    if tick.0 % 60 != 0 {
+/// (modforge `DeedDef`, todo 11ai) whose condition holds (modforge `holds`,
+/// the one condition language, over the facts read once) is reached, in the
+/// def's order, each seeing the ones reached before it.
+pub fn deeds(mut episode: ResMut<Episode>, world: EpisodeWorld) {
+    if world.tick.0 % 60 != 0 {
         return;
     }
-    let Some(def) = episode.name.as_deref().and_then(|n| episodes.0.def(n)) else {
-        return;
+    let count = match world.facts(&episode) {
+        Some(facts) => facts.def.deeds.len(),
+        None => return,
     };
-    let Ok((me, at, memory, open)) = player.single() else {
-        return;
-    };
-    let feet = crate::interact::feet_of(at);
-    let started = episode.started;
-    let of_bunker = |id: ActorId| people.iter().any(|(a, npc, ..)| a.0 == id && npc.and_then(|n| n.faction.as_deref()) == Some(PLAYER_FACTION));
-    // Whoever follows the player, or leads them.
-    let with: Vec<ActorId> = people
-        .iter()
-        .filter(|(_, _, following, leading, _)| following.is_some_and(|f| f.0 == me.0) || leading.is_some_and(|l| l.who == me.0))
-        .map(|(a, ..)| a.0)
-        .collect();
-    // Someone ate or drank from a thing of the episode since it started:
-    // its item, as memory records eating it.
-    let item_of = |thing: &str| def.things.iter().find(|t| t.name == thing).map_or(thing.to_string(), |t| t.item.clone());
-    let ate = |memory: &modforge::memory::Memory, item: &str| memory.done.iter().find(|(t, d)| *t >= started && matches!(d, Did::Ate(i) if i == item)).map(|(t, _)| *t);
-    // The store the player has open, what it holds, and whether something
-    // draws from it.
-    let checked = open.0.and_then(|e| stores.get(e).ok().map(|(held, drawn)| (e, held, drawn)));
-    let storm = crate::storm::phase(&tick, *day, &storms);
-    let holds = |deed: &Deed, episode: &Episode| -> Option<(ActorId, u64)> {
-        let now = Some((me.0, tick.0));
-        match deed {
-            Deed::Ate { thing } => {
-                let item = item_of(thing);
-                memories.iter().filter_map(|(a, m)| ate(&m.0, &item).map(|t| (a.0, t))).min_by_key(|(_, t)| *t)
-            }
-            Deed::CameNear { thing, within, with: company } => {
-                let (there, _) = episode.thing(thing)?;
-                if feet.distance(there) > *within {
-                    return None;
-                }
-                let holds = match company {
-                    Company::Part(part) => episode.cast_as(part).is_some_and(|id| with.contains(&id)),
-                    Company::BunkerMember => with.iter().any(|id| of_bunker(*id)),
-                    Company::NoOne => true,
-                };
-                holds.then_some(now?)
-            }
-            Deed::HomeAfterAte { thing, told } => {
-                let (_, key) = episode.thing(thing)?;
-                let home = feet.y < BELOW_GROUND && feet.ground().distance(world.bunker) <= HOME_WITHIN;
-                ate(&memory.0, &item_of(thing))?;
-                if !home {
-                    return None;
-                }
-                // Whom they told of it (the talk path's Tell), by the kind
-                // they know it as.
-                let kind = memory.0.known.iter().find(|k| k.key == key).map_or(item_of(thing), |k| k.kind.clone());
-                let told_of = format!("told of the {kind}");
-                let was_told = |id: ActorId| memory.0.done.iter().any(|(t, d)| *t >= started && matches!(d, Did::Talked(to, line) if *to == id && line.words == told_of));
-                let holds = match told {
-                    Told::AllOfTheirBunker => {
-                        let bunker: Vec<ActorId> = people.iter().filter(|(a, ..)| of_bunker(a.0)).map(|(a, ..)| a.0).collect();
-                        !bunker.is_empty() && bunker.iter().all(|id| was_told(*id))
-                    }
-                    Told::Part(part) => episode.cast_as(part).is_some_and(was_told),
-                    Told::NoOne => true,
-                };
-                holds.then_some(now?)
-            }
-            Deed::GoneInTheStorm { thing } => {
-                let (_, key) = episode.thing(thing)?;
-                let storming = matches!(storm, modforge::storm::StormPhase::Warning | modforge::storm::StormPhase::Storm);
-                (storming && things.get(key).is_none()).then_some(now?)
-            }
-            Deed::OpenedDrawnStoreDry => {
-                let (_, held, drawn) = checked?;
-                drawn.is_some_and(|d| d.dry(crate::interact::water_in(&held.0, &items))).then_some(now?)
-            }
-            Deed::OpenedOwnStoreOver { need, days } => {
-                let (store, held, _) = checked?;
-                let ours = people.iter().any(|(a, _, _, _, s)| of_bunker(a.0) && s.is_some_and(|s| s.0 == store));
-                // The player's bunker's living people: the player and its own.
-                let living = 1 + people.iter().filter(|(a, ..)| of_bunker(a.0)).count() as u32;
-                (ours && crate::interact::days_of(&held.0, *need, &items, *day, living) > *days).then_some(now?)
-            }
-        }
-    };
-    let mut reached: Vec<(String, ActorId, u64)> = Vec::new();
-    let mut groups_done: Vec<&str> = Vec::new();
-    for d in &def.deeds {
-        if episode.reached(&d.pivot) || reached.iter().any(|(p, ..)| *p == d.pivot) {
-            continue;
-        }
-        // A group is reached once, by its first deed that holds.
-        if let Some(group) = d.group.as_deref() {
-            let group_reached = def.deeds.iter().any(|o| o.group.as_deref() == Some(group) && (episode.reached(&o.pivot) || reached.iter().any(|(p, ..)| *p == o.pivot)));
-            if group_reached || groups_done.contains(&group) {
+    for i in 0..count {
+        let found = {
+            let Some(facts) = world.facts(&episode) else {
+                return;
+            };
+            let deed = &facts.def.deeds[i];
+            if episode.reached(&deed.pivot) {
                 continue;
             }
+            modforge::storyteller::holds(&deed.when, &facts).map(|(who, at)| (deed.pivot.clone(), who, at))
+        };
+        if let Some((pivot, who, at)) = found {
+            episode.reach(&pivot, who, at);
         }
-        if let Some((who, at)) = holds(&d.deed, &episode) {
-            reached.push((d.pivot.clone(), who, at));
-            if let Some(group) = d.group.as_deref() {
-                groups_done.push(group);
-            }
-        }
-    }
-    for (pivot, who, at) in reached {
-        episode.reach(&pivot, who, at);
     }
 }
 

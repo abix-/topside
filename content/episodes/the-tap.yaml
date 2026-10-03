@@ -1,0 +1,813 @@
+cues:
+- did: read note
+  does:
+    do: knock
+    who: ThePlayer
+  name: the note read
+  part: Dell
+deeds:
+- pivot: the first drink
+  when:
+    Remembered:
+      by: Anyone
+      did:
+        Ate: tap
+      every: false
+      since: EpisodeStart
+      toward: Nobody
+- pivot: takes Dell
+  when:
+    All:
+    - Near:
+        to:
+          Thing: tap
+        who: ThePlayer
+        within: 4.0
+    - With:
+        of: ThePlayer
+        who:
+          Part: Dell
+    - Not:
+        Any:
+        - Reached: takes Dell
+        - Reached: takes someone else
+        - Reached: takes no one
+- pivot: takes someone else
+  when:
+    All:
+    - Near:
+        to:
+          Thing: tap
+        who: ThePlayer
+        within: 4.0
+    - With:
+        of: ThePlayer
+        who:
+          Group: ThePlayersBunker
+    - Not:
+        Any:
+        - Reached: takes Dell
+        - Reached: takes someone else
+        - Reached: takes no one
+- pivot: takes no one
+  when:
+    All:
+    - Near:
+        to:
+          Thing: tap
+        who: ThePlayer
+        within: 4.0
+    - Not:
+        Any:
+        - Reached: takes Dell
+        - Reached: takes someone else
+        - Reached: takes no one
+- pivot: tells everyone
+  when:
+    All:
+    - AtHome:
+        who: ThePlayer
+    - Remembered:
+        by: ThePlayer
+        did:
+          Ate: tap
+        every: false
+        since: EpisodeStart
+        toward: Nobody
+    - Not:
+        Any:
+        - Reached: tells everyone
+        - Reached: tells only Dell
+        - Reached: tells no one
+    - Remembered:
+        by: ThePlayer
+        did:
+          Told: tap
+        every: true
+        since: EpisodeStart
+        toward:
+          Who:
+            Group: ThePlayersBunker
+- pivot: tells only Dell
+  when:
+    All:
+    - AtHome:
+        who: ThePlayer
+    - Remembered:
+        by: ThePlayer
+        did:
+          Ate: tap
+        every: false
+        since: EpisodeStart
+        toward: Nobody
+    - Not:
+        Any:
+        - Reached: tells everyone
+        - Reached: tells only Dell
+        - Reached: tells no one
+    - Remembered:
+        by: ThePlayer
+        did:
+          Told: tap
+        every: false
+        since: EpisodeStart
+        toward:
+          Who:
+            Part: Dell
+- pivot: tells no one
+  when:
+    All:
+    - AtHome:
+        who: ThePlayer
+    - Remembered:
+        by: ThePlayer
+        did:
+          Ate: tap
+        every: false
+        since: EpisodeStart
+        toward: Nobody
+    - Not:
+        Any:
+        - Reached: tells everyone
+        - Reached: tells only Dell
+        - Reached: tells no one
+- pivot: breaks it
+  when:
+    All:
+    - Gone: tap
+    - Any:
+      - Phase: Warning
+      - Phase: Storm
+- pivot: finds Mara's well dry
+  when:
+    Opened:
+      holds: Dry
+      store: DrawnFrom
+      who: ThePlayer
+- pivot: Dell's storing is noticed
+  when:
+    Opened:
+      holds:
+        DaysOver:
+        - Thirst
+        - 10.0
+      store: TheirOwn
+      who: ThePlayer
+door_enemy: false
+endings:
+- alive: []
+  name: Break it
+  needs:
+  - breaks it
+  words: Mara's well fills again. Your people are thirsty and angry with you. Mara's people remember you did it for them.
+- alive: []
+  name: Tell everyone the truth
+  needs:
+  - tells the truth
+  words: Nobody wants to hear it. The strangers call you a liar and keep drinking.
+- alive:
+  - Mara
+  name: Share it
+  needs:
+  - shares it
+  words: A fragile peace with Mara. Dell hates it and may leave for the strangers.
+- alive: []
+  name: Hold it
+  needs:
+  - holds it
+  words: You drive Mara's people off and have water. Mara's bunker remembers.
+- alive: []
+  name: Walk away
+  needs: []
+  words: Mara's people take the tap and grow strong. Dell joins them.
+errands:
+- at: Now
+  does:
+    GoTo:
+      side: 0.0
+      thing: tap
+  ends: null
+  name: null
+  reached_on_arrival: null
+  when:
+    All: []
+  who:
+    Part: Mara
+- at: Now
+  does:
+    Lead:
+      side: 3.1415927410125732
+      thing: tap
+      who: ThePlayer
+  ends: null
+  name: null
+  reached_on_arrival: null
+  when:
+    Reached: believes Dell
+  who:
+    Part: Dell
+- at: Now
+  does:
+    GoTo:
+      side: 3.1415927410125732
+      thing: tap
+  ends: null
+  name: null
+  reached_on_arrival: null
+  when:
+    Reached: does not believe it
+  who:
+    Part: Dell
+- at: Now
+  does:
+    GoTo:
+      side: 3.1415927410125732
+      thing: tap
+  ends: null
+  name: null
+  reached_on_arrival: Dell looked
+  when:
+    All:
+    - Reached: sends Dell
+    - Not:
+        Reached: Dell looked
+  who:
+    Part: Dell
+- at: Now
+  does: GoHome
+  ends: null
+  name: null
+  reached_on_arrival: null
+  when:
+    All:
+    - Reached: sends Dell
+    - Reached: Dell looked
+    - Not:
+        Reached: Dell told the way again
+  who:
+    Part: Dell
+- at: Now
+  does: StayHome
+  ends: null
+  name: null
+  reached_on_arrival: null
+  when:
+    Not:
+      Any:
+      - Reached: the note read
+      - Reached: the opening
+  who:
+    Part: Dell
+fits:
+- Mixed world
+- Sky Islands
+lines:
+- felt: 0.0
+  name: you awake
+  part: Dell
+  tells: ''
+  wait: 0.0
+  ways:
+  - You awake in there?
+  when:
+  - To: player
+  - Knocking
+  - Not:
+      Said: you awake
+- felt: 0.0
+  name: the opening
+  part: Dell
+  tells: ''
+  wait: 0.0
+  ways:
+  - You're up. Good. The store's down to a few bottles; that won't last the week.
+  - Finally awake. We're nearly out of water.
+  - Don't get comfortable. The water's almost gone.
+  when:
+  - To: player
+  - Not:
+      Said: the opening
+- felt: 0.0
+  name: the way
+  part: Dell
+  tells: tap
+  wait: 0.0
+  ways:
+  - Out the door, then {way}. Keep the {landmark} on your {side}. There's a {place}, and a tap inside it that runs. Clean water, and it doesn't stop.
+  - Go {way} out the door, past the {landmark} on your {side}. The {place} there has a tap. It still runs.
+  - Head {way} from the door. When the {landmark} is on your {side}, look for the {place}. The tap in it doesn't stop.
+  - Out the door, then {way}. There's a {place} out there, and a tap inside it that runs.
+  when:
+  - JustSaid: the opening
+- felt: 0.0
+  name: keep it quiet
+  part: Dell
+  tells: ''
+  wait: 0.0
+  ways:
+  - Don't tell anyone. The day the other bunker hears of it, it's theirs.
+  - Keep it quiet. If the others find out, it's gone.
+  when:
+  - JustSaid: the way
+  - Not:
+      Said: keep it quiet
+- felt: 0.10000000149011612
+  name: believes Dell
+  part: player
+  tells: ''
+  wait: 0.0
+  ways:
+  - Show me.
+  - Let's go.
+  when:
+  - To: Dell
+  - HasHeard: the way
+  - Not:
+      Said: believes Dell
+  - Not:
+      Said: does not believe it
+  - Not:
+      Said: sends Dell
+- felt: -0.10000000149011612
+  name: does not believe it
+  part: player
+  tells: ''
+  wait: 0.0
+  ways:
+  - Water doesn't just run out there. You're wrong.
+  - I don't believe it.
+  when:
+  - To: Dell
+  - HasHeard: the way
+  - Not:
+      Said: believes Dell
+  - Not:
+      Said: does not believe it
+  - Not:
+      Said: sends Dell
+- felt: 0.0
+  name: sends Dell
+  part: player
+  tells: ''
+  wait: 0.0
+  ways:
+  - Go and look again. I'll wait.
+  - Check it again first.
+  when:
+  - To: Dell
+  - HasHeard: the way
+  - Not:
+      Said: believes Dell
+  - Not:
+      Said: does not believe it
+  - Not:
+      Said: sends Dell
+- felt: 0.0
+  name: asks the way
+  part: player
+  tells: ''
+  wait: 0.0
+  ways:
+  - Where exactly?
+  - Tell me the way again.
+  when:
+  - To: Dell
+  - HasHeard: the way
+  - Not:
+      Said: believes Dell
+  - Not:
+      Said: does not believe it
+  - Not:
+      Said: sends Dell
+- felt: 0.0
+  name: Dell leads
+  part: Dell
+  tells: ''
+  wait: 0.0
+  ways:
+  - Follow me. Keep up.
+  - This way. Stay close.
+  when:
+  - Heard: believes Dell
+- felt: 0.0
+  name: Dell goes alone
+  part: Dell
+  tells: ''
+  wait: 0.0
+  ways:
+  - Suit yourself. I'll go on my own.
+  - Then stay thirsty.
+  when:
+  - Heard: does not believe it
+- felt: 0.0
+  name: Dell checks
+  part: Dell
+  tells: ''
+  wait: 0.0
+  ways:
+  - Fine. Don't drink anything while I'm gone.
+  - Back soon.
+  when:
+  - Heard: sends Dell
+- felt: 0.0
+  name: the way
+  part: Dell
+  tells: tap
+  wait: 0.0
+  ways:
+  - Out the door, then {way}. Keep the {landmark} on your {side}. There's a {place}, and a tap inside it that runs. Clean water, and it doesn't stop.
+  - Go {way} out the door, past the {landmark} on your {side}. The {place} there has a tap. It still runs.
+  - Head {way} from the door. When the {landmark} is on your {side}, look for the {place}. The tap in it doesn't stop.
+  - Out the door, then {way}. There's a {place} out there, and a tap inside it that runs.
+  when:
+  - Heard: asks the way
+- felt: 0.0
+  name: Dell told the way again
+  part: Dell
+  tells: tap
+  wait: 0.0
+  ways:
+  - Out the door, then {way}. Keep the {landmark} on your {side}. There's a {place}, and a tap inside it that runs. Clean water, and it doesn't stop.
+  - Go {way} out the door, past the {landmark} on your {side}. The {place} there has a tap. It still runs.
+  - Head {way} from the door. When the {landmark} is on your {side}, look for the {place}. The tap in it doesn't stop.
+  - Out the door, then {way}. There's a {place} out there, and a tap inside it that runs.
+  when:
+  - To: player
+  - Reached: Dell looked
+  - Not:
+      Said: Dell told the way again
+- felt: 0.0
+  name: the meeting
+  part: Mara
+  tells: ''
+  wait: 0.0
+  ways:
+  - This is ours. We found it first.
+  - Walk away. This one's taken.
+  when:
+  - To: player
+  - Near:
+    - tap
+    - 6.0
+  - Not:
+      Said: the meeting
+- felt: 0.20000000298023224
+  name: talks with Mara
+  part: player
+  tells: ''
+  wait: 0.0
+  ways:
+  - There's enough for both of us.
+  when:
+  - To: Mara
+  - HasHeard: the meeting
+  - Not:
+      Said: talks with Mara
+  - Not:
+      Said: threatens Mara
+  - Not:
+      Said: leaves Mara the tap
+- felt: -0.6000000238418579
+  name: threatens Mara
+  part: player
+  tells: ''
+  wait: 0.0
+  ways:
+  - Step away from it.
+  when:
+  - To: Mara
+  - HasHeard: the meeting
+  - Not:
+      Said: talks with Mara
+  - Not:
+      Said: threatens Mara
+  - Not:
+      Said: leaves Mara the tap
+- felt: 0.10000000149011612
+  name: leaves Mara the tap
+  part: player
+  tells: ''
+  wait: 0.0
+  ways:
+  - Keep it.
+  when:
+  - To: Mara
+  - HasHeard: the meeting
+  - Not:
+      Said: talks with Mara
+  - Not:
+      Said: threatens Mara
+  - Not:
+      Said: leaves Mara the tap
+- felt: 0.0
+  name: Mara answers talk
+  part: Mara
+  tells: ''
+  wait: 0.0
+  ways:
+  - Enough for today. Ask again tomorrow.
+  - Maybe. Don't get greedy.
+  when:
+  - Heard: talks with Mara
+- felt: 0.0
+  name: Mara answers a threat
+  part: Mara
+  tells: ''
+  wait: 0.0
+  ways:
+  - Try it.
+  - You'll regret that.
+  when:
+  - Heard: threatens Mara
+- felt: 0.0
+  name: Mara keeps it
+  part: Mara
+  tells: ''
+  wait: 0.0
+  ways:
+  - Smart.
+  - Good. Go.
+  when:
+  - Heard: leaves Mara the tap
+- felt: 0.0
+  name: Dell explains the store
+  part: Dell
+  tells: ''
+  wait: 0.0
+  ways:
+  - We might need it. You don't know. None of us know.
+  - It's not stealing if it's ours.
+  when:
+  - To: player
+  - Reached: Dell's storing is noticed
+  - Not:
+      Said: Dell explains the store
+- felt: -0.20000000298023224
+  name: stops Dell
+  part: player
+  tells: ''
+  wait: 0.0
+  ways:
+  - Stop. We have enough.
+  when:
+  - To: Dell
+  - HasHeard: Dell explains the store
+  - Not:
+      Said: stops Dell
+  - Not:
+      Said: takes Dell's side
+- felt: 0.20000000298023224
+  name: takes Dell's side
+  part: player
+  tells: ''
+  wait: 0.0
+  ways:
+  - Then take more.
+  when:
+  - To: Dell
+  - HasHeard: Dell explains the store
+  - Not:
+      Said: stops Dell
+  - Not:
+      Said: takes Dell's side
+- felt: 0.0
+  name: a stranger asks for water
+  part: stranger
+  tells: ''
+  wait: 0.0
+  ways:
+  - We heard there's water here.
+  - Word is you've got water to spare.
+  when:
+  - To: player
+  - Knows: tap
+  - Not:
+      Said: a stranger asks for water
+- felt: 0.10000000149011612
+  name: trades with the strangers
+  part: player
+  tells: ''
+  wait: 0.0
+  ways:
+  - What have you got?
+  when:
+  - To: stranger
+  - HasHeard: a stranger asks for water
+  - Not:
+      Said: trades with the strangers
+  - Not:
+      Said: sends the strangers away
+  - Not:
+      Said: points the strangers at Mara
+  - Not:
+      Said: takes a stranger in
+- felt: -0.20000000298023224
+  name: sends the strangers away
+  part: player
+  tells: ''
+  wait: 0.0
+  ways:
+  - Not for you. Move on.
+  when:
+  - To: stranger
+  - HasHeard: a stranger asks for water
+  - Not:
+      Said: trades with the strangers
+  - Not:
+      Said: sends the strangers away
+  - Not:
+      Said: points the strangers at Mara
+  - Not:
+      Said: takes a stranger in
+- felt: 0.10000000149011612
+  name: points the strangers at Mara
+  part: player
+  tells: ''
+  wait: 0.0
+  ways:
+  - Try the people at the tap. They've got plenty.
+  when:
+  - To: stranger
+  - HasHeard: a stranger asks for water
+  - Not:
+      Said: trades with the strangers
+  - Not:
+      Said: sends the strangers away
+  - Not:
+      Said: points the strangers at Mara
+  - Not:
+      Said: takes a stranger in
+- felt: 0.30000001192092896
+  name: takes a stranger in
+  part: player
+  tells: ''
+  wait: 0.0
+  ways:
+  - You can stay with us.
+  when:
+  - To: stranger
+  - HasHeard: a stranger asks for water
+  - Not:
+      Said: trades with the strangers
+  - Not:
+      Said: sends the strangers away
+  - Not:
+      Said: points the strangers at Mara
+  - Not:
+      Said: takes a stranger in
+- felt: 0.0
+  name: strangers sent away
+  part: stranger
+  tells: ''
+  wait: 0.0
+  ways:
+  - Your loss.
+  - We'll find it anyway.
+  when:
+  - Heard: sends the strangers away
+- felt: 0.0
+  name: strangers go to Mara
+  part: stranger
+  tells: ''
+  wait: 0.0
+  ways:
+  - We'll go see.
+  - Thanks. We'll take it from them.
+  when:
+  - Heard: points the strangers at Mara
+- felt: 0.0
+  name: agrees to stay
+  part: stranger
+  tells: ''
+  wait: 0.0
+  ways:
+  - Thank you. I won't forget it.
+  when:
+  - Heard: takes a stranger in
+- felt: 0.0
+  name: the child asks for water
+  part: Mara's child
+  tells: ''
+  wait: 0.0
+  ways:
+  - Is there water today?
+  - I'm thirsty.
+  when:
+  - To: player
+- felt: 0.4000000059604645
+  name: brings Mara water
+  part: player
+  tells: ''
+  wait: 0.0
+  ways:
+  - Here. Take this water.
+  when:
+  - To: Mara's child
+  - HasHeard: the child asks for water
+  - Not:
+      Said: brings Mara water
+  - Not:
+      Said: trades water to Mara
+  - Not:
+      Said: does nothing for the child
+  - Not:
+      Said: uses the water
+- felt: 0.0
+  name: trades water to Mara
+  part: player
+  tells: ''
+  wait: 0.0
+  ways:
+  - What will Mara give for it?
+  when:
+  - To: Mara's child
+  - HasHeard: the child asks for water
+  - Not:
+      Said: brings Mara water
+  - Not:
+      Said: trades water to Mara
+  - Not:
+      Said: does nothing for the child
+  - Not:
+      Said: uses the water
+- felt: -0.10000000149011612
+  name: does nothing for the child
+  part: player
+  tells: ''
+  wait: 0.0
+  ways:
+  - Not today.
+  when:
+  - To: Mara's child
+  - HasHeard: the child asks for water
+  - Not:
+      Said: brings Mara water
+  - Not:
+      Said: trades water to Mara
+  - Not:
+      Said: does nothing for the child
+  - Not:
+      Said: uses the water
+- felt: 0.0
+  name: uses the water
+  part: player
+  tells: ''
+  wait: 0.0
+  ways:
+  - Tell Mara it's hers if she stands with us.
+  when:
+  - To: Mara's child
+  - HasHeard: the child asks for water
+  - Not:
+      Said: brings Mara water
+  - Not:
+      Said: trades water to Mara
+  - Not:
+      Said: does nothing for the child
+  - Not:
+      Said: uses the water
+- felt: 0.0
+  name: the child thanks you
+  part: Mara's child
+  tells: ''
+  wait: 0.0
+  ways:
+  - Thank you.
+  when:
+  - Heard: brings Mara water
+- felt: 0.0
+  name: the child sends you to Mara
+  part: Mara's child
+  tells: ''
+  wait: 0.0
+  ways:
+  - Ask Mara.
+  when:
+  - Heard: trades water to Mara
+- felt: 0.0
+  name: the child will tell Mara
+  part: Mara's child
+  tells: ''
+  wait: 0.0
+  ways:
+  - I'll tell her.
+  when:
+  - Heard: uses the water
+name: The Tap
+parts:
+- from: PlayerBunker
+  name: Dell
+- from: NearestOtherBunker
+  name: Mara
+- from:
+    SameBunkerAs: Mara
+  name: Mara's child
+things:
+- between:
+  - PlayerBunkerDoor
+  - HomeOf: Mara
+  draws_from: Mara
+  found_by: Dell
+  item: tap
+  kept_quiet: true
+  name: tap

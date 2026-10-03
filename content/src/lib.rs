@@ -19,10 +19,7 @@ use modforge::survival::Need;
 use modforge::item::{Armor, CombatStats, FoodStats, ItemDef, ItemKind, ItemRegistry, LayerDef, LayerRegistry, Note};
 use modforge::monument::Roll;
 use modforge::reality::{Danger, RealityDef, RealityRegistry};
-use modforge::storyteller::{
-    CastFrom, Company, CueDef, Deed, DeedDef, EpisodeDef, EpisodeRegistry, ErrandAct, ErrandDef, LineDef, PartDef, Place, ThingDef,
-    Told, When, Who,
-};
+use modforge::storyteller::{EpisodeDef, EpisodeRegistry, LineDef, When};
 use modforge::monument::{
     Arrangement, BuildingRegistry, BuildingSize, BuildingSlot, BuildingTypeDef,
     MonumentRegistry, MonumentTypeDef, PropDef,
@@ -445,11 +442,6 @@ pub fn plain_lines() -> Vec<LineDef> {
 /// they join that one's group (todo 11af, `joining::join`).
 pub const AGREES_TO_STAY: &str = "agrees to stay";
 
-/// The Tap's pivot point 5 comes: the player checked their bunker's store
-/// while it held more than it needs (its deed, The Tap's `deeds`); Dell's line
-/// follows it (the-tap.md "Dell's storing is noticed").
-pub const STORING_NOTICED: &str = "Dell's storing is noticed";
-
 /// A stranger who came for the water asks for it (The Tap's pivot point 6).
 pub const STRANGER_ASKS: &str = "a stranger asks for water";
 
@@ -530,300 +522,31 @@ impl EpisodeRegistryRes {
 /// to change).
 pub const SAID_FELT: [(&str, f32); 2] = [("offered", 0.2), ("threatened", -0.5)];
 
-/// The episodes written so far (docs/episodes/), each with the realities
-/// its file says it fits; an empty list fits any. The Tap is first: the
-/// first episode, in the Mixed world (operator, 2026-09-27).
+/// Where the episodes are (docs/episodes/): one YAML file each,
+/// content/episodes/<name>.yaml, and episodes.yaml listing them in order.
+/// The order counts: before any storm the first that fits starts (modforge
+/// `EpisodeRegistry::pick`), so The Tap is first, the first episode in the
+/// Mixed world (operator, 2026-09-27).
+pub const EPISODES_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/episodes");
+
+/// One episode from its file's text, the one loader. Through a JSON value:
+/// serde_yaml reads an enum only from a tag and never one inside another (a
+/// condition's Not), so the file holds plain maps and serde_json reads them.
+pub fn episode_from_yaml(text: &str) -> Result<EpisodeDef, String> {
+    let value: serde_json::Value = serde_yaml::from_str(text).map_err(|e| e.to_string())?;
+    serde_json::from_value(value).map_err(|e| e.to_string())
+}
+
+/// Every episode, read at start from its file in the order episodes.yaml
+/// lists. A file that does not read stops the game at once, naming it.
 pub fn register_episodes(reg: &mut EpisodeRegistry) {
-    let episode = |name: &str, fits: &[&str]| EpisodeDef {
-        name: name.to_string(),
-        fits: fits.iter().map(|r| r.to_string()).collect(),
-        parts: Vec::new(),
-        lines: Vec::new(),
-        cues: Vec::new(),
-        door_enemy: true,
-        endings: Vec::new(),
-        things: Vec::new(),
-        errands: Vec::new(),
-        deeds: Vec::new(),
-    };
-    let part = |name: &str, from| PartDef { name: name.to_string(), from };
-    let ending = |name: &str, words: &str, needs: &[&str], alive: &[&str]| modforge::storyteller::EndingDef {
-        name: name.to_string(),
-        words: words.to_string(),
-        needs: needs.iter().map(|n| n.to_string()).collect(),
-        alive: alive.iter().map(|p| p.to_string()).collect(),
-    };
-    let s = |s: &str| s.to_string();
-    let heard = |name: &str| When::Heard(s(name));
-    let not = |when: When| When::Not(Box::new(when));
-    // The Tap's lines (docs/episodes/the-tap.md "The lines"), as rules
-    // (episodes.md "One way for every conversation"). Dell's way to the
-    // tap is said at two moments: going on from her opening, and asked
-    // again.
-    const THE_WAY: [&str; 4] = [
-        "Out the door, then {way}. Keep the {landmark} on your {side}. There's a {place}, and a tap inside it that runs. Clean water, and it doesn't stop.",
-        "Go {way} out the door, past the {landmark} on your {side}. The {place} there has a tap. It still runs.",
-        "Head {way} from the door. When the {landmark} is on your {side}, look for the {place}. The tap in it doesn't stop.",
-        "Out the door, then {way}. There's a {place} out there, and a tap inside it that runs.",
-    ];
-    let the_way = |name: &str, when: Vec<When>| line(name, "Dell", when, &THE_WAY, "tap", 0.0);
-    // The player's answers to Dell once she has said the way, and to Mara
-    // once she has met them: open, the next time too, until one is given.
-    let answered = |answers: &[&str]| answers.iter().map(|a| not(When::Said(s(a)))).collect::<Vec<_>>();
-    let to_dell = || {
-        let mut when = vec![When::To(s("Dell")), When::HasHeard(s("the way"))];
-        when.extend(answered(&["believes Dell", "does not believe it", "sends Dell"]));
-        when
-    };
-    let to_mara = || {
-        let mut when = vec![When::To(s("Mara")), When::HasHeard(s("the meeting"))];
-        when.extend(answered(&["talks with Mara", "threatens Mara", "leaves Mara the tap"]));
-        when
-    };
-    // To Dell once she has explained the store (pivot point 5).
-    let to_dell_storing = || {
-        let mut when = vec![When::To(s("Dell")), When::HasHeard(s("Dell explains the store"))];
-        when.extend(answered(&["stops Dell", "takes Dell's side"]));
-        when
-    };
-    // To a stranger who asked for the water (pivot point 6).
-    let to_the_stranger = || {
-        let mut when = vec![When::To(s("stranger")), When::HasHeard(s(STRANGER_ASKS))];
-        when.extend(answered(&["trades with the strangers", "sends the strangers away", "points the strangers at Mara", "takes a stranger in"]));
-        when
-    };
-    // To Mara's child once they have asked (pivot point 8).
-    let to_the_child = || {
-        let mut when = vec![When::To(s("Mara's child")), When::HasHeard(s("the child asks for water"))];
-        when.extend(answered(&[GIVES_WATER, "trades water to Mara", "does nothing for the child", "uses the water"]));
-        when
-    };
-    let reply = |name: &str, part: &str, to: &str, ways: &[&str]| line(name, part, vec![heard(to)], ways, "", 0.0);
-    for def in [
-        // docs/episodes/the-tap.md "The people" and "The lines".
-        EpisodeDef {
-            parts: vec![
-                part("Dell", CastFrom::PlayerBunker),
-                part("Mara", CastFrom::NearestOtherBunker),
-                part("Mara's child", CastFrom::SameBunkerAs("Mara".to_string())),
-            ],
-            lines: vec![
-                // Called through the shut door with her knock, once, before
-                // the opening (authority.md "Talking", operator 2026-10-02):
-                // heard like the knock, no conversation yet.
-                line(
-                    "you awake",
-                    "Dell",
-                    vec![When::To(s("player")), When::Knocking, not(When::Said(s("you awake")))],
-                    &["You awake in there?"],
-                    "",
-                    0.0,
-                ),
-                // Pivot point 1, how it opens: Dell speaks up, once.
-                line(
-                    "the opening",
-                    "Dell",
-                    vec![When::To(s("player")), not(When::Said(s("the opening")))],
-                    &[
-                        "You're up. Good. The store's down to a few bottles; that won't last the week.",
-                        "Finally awake. We're nearly out of water.",
-                        "Don't get comfortable. The water's almost gone.",
-                    ],
-                    "",
-                    0.0,
-                ),
-                the_way("the way", vec![When::JustSaid(s("the opening"))]),
-                line(
-                    "keep it quiet",
-                    "Dell",
-                    vec![When::JustSaid(s("the way")), not(When::Said(s("keep it quiet")))],
-                    &["Don't tell anyone. The day the other bunker hears of it, it's theirs.", "Keep it quiet. If the others find out, it's gone."],
-                    "",
-                    0.0,
-                ),
-                // `felt`: how the one spoken to feels about hearing it
-                // (life.md "How a person feels about others"); a threat is
-                // below `relationship::HOSTILE`.
-                line("believes Dell", "player", to_dell(), &["Show me.", "Let's go."], "", 0.1),
-                line("does not believe it", "player", to_dell(), &["Water doesn't just run out there. You're wrong.", "I don't believe it."], "", -0.1),
-                line("sends Dell", "player", to_dell(), &["Go and look again. I'll wait.", "Check it again first."], "", 0.0),
-                line("asks the way", "player", to_dell(), &["Where exactly?", "Tell me the way again."], "", 0.0),
-                reply("Dell leads", "Dell", "believes Dell", &["Follow me. Keep up.", "This way. Stay close."]),
-                reply("Dell goes alone", "Dell", "does not believe it", &["Suit yourself. I'll go on my own.", "Then stay thirsty."]),
-                reply("Dell checks", "Dell", "sends Dell", &["Fine. Don't drink anything while I'm gone.", "Back soon."]),
-                the_way("the way", vec![heard("asks the way")]),
-                // Back from looking again (sent to check), the way again.
-                the_way(
-                    "Dell told the way again",
-                    vec![When::To(s("player")), When::Reached(s("Dell looked")), not(When::Said(s("Dell told the way again")))],
-                ),
-                // Pivot point 3, the first meeting at the tap: Mara speaks
-                // up, once.
-                line(
-                    "the meeting",
-                    "Mara",
-                    vec![When::To(s("player")), When::Near(s("tap"), 6.0), not(When::Said(s("the meeting")))],
-                    &["This is ours. We found it first.", "Walk away. This one's taken."],
-                    "",
-                    0.0,
-                ),
-                line("talks with Mara", "player", to_mara(), &["There's enough for both of us."], "", 0.2),
-                line("threatens Mara", "player", to_mara(), &["Step away from it."], "", -0.6),
-                line("leaves Mara the tap", "player", to_mara(), &["Keep it."], "", 0.1),
-                reply("Mara answers talk", "Mara", "talks with Mara", &["Enough for today. Ask again tomorrow.", "Maybe. Don't get greedy."]),
-                reply("Mara answers a threat", "Mara", "threatens Mara", &["Try it.", "You'll regret that."]),
-                reply("Mara keeps it", "Mara", "leaves Mara the tap", &["Smart.", "Good. Go."]),
-                // Pivot point 5, Dell's storing noticed (the player checks
-                // the store while it holds more than 10 days of water,
-                // `STORING_NOTICED`): Dell explains, once, and the answers.
-                line(
-                    "Dell explains the store",
-                    "Dell",
-                    vec![When::To(s("player")), When::Reached(s(STORING_NOTICED)), not(When::Said(s("Dell explains the store")))],
-                    &["We might need it. You don't know. None of us know.", "It's not stealing if it's ours."],
-                    "",
-                    0.0,
-                ),
-                line("stops Dell", "player", to_dell_storing(), &["Stop. We have enough."], "", -0.2),
-                line("takes Dell's side", "player", to_dell_storing(), &["Then take more."], "", 0.2),
-                // Pivot point 6, the strangers (draft): one who came for the
-                // water speaks first, once, and the four answers.
-                line(
-                    STRANGER_ASKS,
-                    "stranger",
-                    vec![When::To(s("player")), When::Knows(s("tap")), not(When::Said(s(STRANGER_ASKS)))],
-                    &["We heard there's water here.", "Word is you've got water to spare."],
-                    "",
-                    0.0,
-                ),
-                line("trades with the strangers", "player", to_the_stranger(), &["What have you got?"], "", 0.1),
-                line("sends the strangers away", "player", to_the_stranger(), &["Not for you. Move on."], "", -0.2),
-                line("points the strangers at Mara", "player", to_the_stranger(), &["Try the people at the tap. They've got plenty."], "", 0.1),
-                line("takes a stranger in", "player", to_the_stranger(), &["You can stay with us."], "", 0.3),
-                reply("strangers sent away", "stranger", "sends the strangers away", &["Your loss.", "We'll find it anyway."]),
-                reply("strangers go to Mara", "stranger", "points the strangers at Mara", &["We'll go see.", "Thanks. We'll take it from them."]),
-                // Taken in, they say yes and join, as any stranger who agrees
-                // to stay does (`AGREES_TO_STAY`).
-                reply(AGREES_TO_STAY, "stranger", "takes a stranger in", &["Thank you. I won't forget it."]),
-                // Pivot point 8, Mara's child: asks whenever the player is
-                // near, and the four answers (draft).
-                line("the child asks for water", "Mara's child", vec![When::To(s("player"))], &["Is there water today?", "I'm thirsty."], "", 0.0),
-                line(GIVES_WATER, "player", to_the_child(), &["Here. Take this water."], "", 0.4),
-                line("trades water to Mara", "player", to_the_child(), &["What will Mara give for it?"], "", 0.0),
-                line("does nothing for the child", "player", to_the_child(), &["Not today."], "", -0.1),
-                line("uses the water", "player", to_the_child(), &["Tell Mara it's hers if she stands with us."], "", 0.0),
-                reply("the child thanks you", "Mara's child", GIVES_WATER, &["Thank you."]),
-                reply("the child sends you to Mara", "Mara's child", "trades water to Mara", &["Ask Mara."]),
-                reply("the child will tell Mara", "Mara's child", "uses the water", &["I'll tell her."]),
-            ],
-            // How it opens (the-tap.md, operator 2026-10-02): the player
-            // reads the note and Dell starts down at once, to their door,
-            // and knocks.
-            cues: vec![CueDef { name: "the note read".to_string(), did: "read note".to_string(), part: "Dell".to_string(), does: modforge::command::Command::Knock { who: Who::ThePlayer } }],
-            // No scavenger at the door while Roxanne leads the player out;
-            // the first fight comes later (design.md "What 2D changes",
-            // operator 2026-10-02).
-            door_enemy: false,
-            // docs/episodes/the-tap.md "The endings" and "Which ending"
-            // (draft): the first that matches wins; Walk away needs nothing.
-            endings: vec![
-                ending("Break it", "Mara's well fills again. Your people are thirsty and angry with you. Mara's people remember you did it for them.", &["breaks it"], &[]),
-                ending("Tell everyone the truth", "Nobody wants to hear it. The strangers call you a liar and keep drinking.", &["tells the truth"], &[]),
-                ending("Share it", "A fragile peace with Mara. Dell hates it and may leave for the strangers.", &["shares it"], &["Mara"]),
-                ending("Hold it", "You drive Mara's people off and have water. Mara's bunker remembers.", &["holds it"], &[]),
-                ending("Walk away", "Mara's people take the tap and grow strong. Dell joins them.", &[], &[]),
-            ],
-            // docs/episodes/the-tap.md "How it opens": the tap stands inside
-            // a building of the site nearest the middle of the way from the
-            // player's bunker door to Mara's bunker, its water drawn from
-            // Mara's bunker's store. Dell found it: she has been there and
-            // past every site on the way, and wants it kept secret ("Pushed
-            // all the way").
-            things: vec![ThingDef {
-                name: "tap".to_string(),
-                item: "tap".to_string(),
-                between: (Place::PlayerBunkerDoor, Place::HomeOf("Mara".to_string())),
-                draws_from: Some("Mara".to_string()),
-                found_by: Some("Dell".to_string()),
-                kept_quiet: true,
-            }],
-            // docs/episodes/the-tap.md: who The Tap asks to be where, the
-            // first that holds for each part. Mara at the tap from the start
-            // (her bunker's water is going); Dell, believed, leads the player
-            // there ("Show me."); not believed, she goes alone; sent to look
-            // again, she goes, and once there (her look, "Dell looked") comes
-            // home and tells the way again by her rule; before the note is
-            // read and the opening said she stays home (orchestrator,
-            // 2026-10-03: her short store sent her out before the opening).
-            errands: {
-                let s = |v: &[&str]| v.iter().map(|p| p.to_string()).collect::<Vec<String>>();
-                let errand = |part: &str, does: ErrandAct, when: &[&str], unless: &[&str], arrival: Option<&str>| ErrandDef {
-                    part: part.to_string(),
-                    does,
-                    when: s(when),
-                    unless: s(unless),
-                    reached_on_arrival: arrival.map(str::to_string),
-                };
-                let to_tap = |side: f32| ErrandAct::GoTo { thing: "tap".to_string(), side };
-                let pi = std::f32::consts::PI;
-                vec![
-                    errand("Mara", to_tap(0.0), &[], &[], None),
-                    errand("Dell", ErrandAct::Lead { who: Who::ThePlayer, thing: "tap".to_string(), side: pi }, &["believes Dell"], &[], None),
-                    errand("Dell", to_tap(pi), &["does not believe it"], &[], None),
-                    errand("Dell", to_tap(pi), &["sends Dell"], &["Dell looked"], Some("Dell looked")),
-                    errand("Dell", ErrandAct::GoHome, &["sends Dell", "Dell looked"], &["Dell told the way again"], None),
-                    errand("Dell", ErrandAct::StayHome, &[], &["the note read", "the opening"], None),
-                ]
-            },
-            // docs/episodes/the-tap.md "How pivot points 2 and 4 are
-            // reached" and "Pivot names": the pivot points reached by what
-            // is done, each read from memory and the world. The first drink;
-            // who the player takes, the first time they come within 4 m of
-            // the tap; what they told their people, the first time they come
-            // home after drinking there; the tap broken between the sky's
-            // warning and the storm; Mara's well found dry; Dell's storing
-            // noticed, their own store holding more water than
-            // BUNKER_WATER_DAYS for its living people.
-            deeds: {
-                let deed = |pivot: &str, deed: Deed, group: Option<&str>| DeedDef { pivot: pivot.to_string(), deed, group: group.map(str::to_string) };
-                let tap = || "tap".to_string();
-                let near = |with: Company| Deed::CameNear { thing: tap(), within: 4.0, with };
-                let home = |told: Told| Deed::HomeAfterAte { thing: tap(), told };
-                vec![
-                    deed("the first drink", Deed::Ate { thing: tap() }, None),
-                    deed("takes Dell", near(Company::Part("Dell".to_string())), Some("took")),
-                    deed("takes someone else", near(Company::BunkerMember), Some("took")),
-                    deed("takes no one", near(Company::NoOne), Some("took")),
-                    deed("tells everyone", home(Told::AllOfTheirBunker), Some("told")),
-                    deed("tells only Dell", home(Told::Part("Dell".to_string())), Some("told")),
-                    deed("tells no one", home(Told::NoOne), Some("told")),
-                    deed("breaks it", Deed::GoneInTheStorm { thing: tap() }, None),
-                    deed("finds Mara's well dry", Deed::OpenedDrawnStoreDry, None),
-                    deed(STORING_NOTICED, Deed::OpenedOwnStoreOver { need: Need::Thirst, days: BUNKER_WATER_DAYS }, None),
-                ]
-            },
-            ..episode("The Tap", &["Mixed world", "Sky Islands"])
-        },
-        // docs/episodes/the-fever.md "The people": for now only the parts
-        // drawn from what people remember of The Tap (orchestrator,
-        // 2026-10-03); Sil and the hidden sick person are The Fever's own
-        // work, later.
-        EpisodeDef {
-            parts: vec![
-                part("the first sick person", CastFrom::MostTrustingOfPlayerBunker),
-                part("Dell", CastFrom::PlayedBeforeAtHome("Dell".to_string())),
-                part("Mara", CastFrom::PlayedBefore("Mara".to_string())),
-            ],
-            ..episode("The Fever", &[])
-        },
-        episode("The Other You", &["Mirror"]),
-        episode("Nobody Dies", &["Loop"]),
-        episode("The Question", &["Endless Day", "Rot", "Still Storm", "Maze", "Loop"]),
-    ] {
+    let read = |file: &str| std::fs::read_to_string(format!("{EPISODES_DIR}/{file}")).unwrap_or_else(|e| panic!("{EPISODES_DIR}/{file}: {e}"));
+    let order: Vec<String> = serde_yaml::from_str(&read("episodes.yaml")).unwrap_or_else(|e| panic!("{EPISODES_DIR}/episodes.yaml: {e}"));
+    for file in order {
+        let def = episode_from_yaml(&read(&file)).unwrap_or_else(|e| panic!("{EPISODES_DIR}/{file}: {e}"));
         reg.register(def).expect("each episode is registered once");
     }
 }
-
 /// The Labyrinth (design.md): the same size as topside, flat, a maze
 /// of 10 m corridors (operator, 2026-08-21: "i want the corridor to
 /// be 10m") with walls as high as they are wide, the bunker and its
@@ -2203,5 +1926,20 @@ pub fn register_biomes(reg: &mut BiomeRegistry) {
     ];
     for biome in biomes {
         reg.register(biome).expect("biome defs must not collide");
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Every episode file reads through the one loader, in the order
+    /// episodes.yaml lists, The Tap first.
+    #[test]
+    fn the_episodes_read_from_their_files() {
+        let mut reg = EpisodeRegistry::default();
+        register_episodes(&mut reg);
+        let names: Vec<&str> = reg.all().iter().map(|d| d.name.as_str()).collect();
+        assert_eq!(names, ["The Tap", "The Fever", "The Other You", "Nobody Dies", "The Question"]);
     }
 }

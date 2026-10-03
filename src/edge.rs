@@ -24,6 +24,12 @@ pub struct WordToEdge(pub Vec<(u64, String, Vec3, Vec2)>);
 /// Who comes in from the edge: someone of no group.
 const NEWCOMER: &str = "wanderer";
 
+/// What someone the edge sent came for: the key memory knows the place by
+/// (an episode's group "came for" a thing, modforge `Group::CameFor`).
+#[derive(Component, Clone, Copy, serde::Serialize, serde::Deserialize, Reflect)]
+#[reflect(opaque, Component, Serialize, Deserialize)]
+pub struct CameFor(pub u64);
+
 /// How many angles the edge tries for a point someone can stand on before
 /// the word is let go.
 const EDGE_TRIES: u64 = 8;
@@ -81,7 +87,7 @@ pub fn newcomers(
         if let Some(person) = spawn_actor(&mut spawn, def, at, None) {
             // They know the place they heard of, and go to it.
             let (key, kind, now) = (word.key, word.kind.clone(), tick.0);
-            spawn.commands.entity(person).insert(Asked(place)).queue(move |mut e: EntityWorldMut| {
+            spawn.commands.entity(person).insert((Asked(place), CameFor(key))).queue(move |mut e: EntityWorldMut| {
                 if let Some(mut memory) = e.get_mut::<crate::actor::Memory>() {
                     memory.0.see(key, &kind, place, now);
                 }

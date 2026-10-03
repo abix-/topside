@@ -1,0 +1,18 @@
+cues: []
+deeds: []
+door_enemy: true
+endings: []
+errands: []
+fits: []
+lines: []
+name: The Fever
+parts:
+- from: MostTrustingOfPlayerBunker
+  name: the first sick person
+- from:
+    PlayedBeforeAtHome: Dell
+  name: Dell
+- from:
+    PlayedBefore: Mara
+  name: Mara
+things: []
