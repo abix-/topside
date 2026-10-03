@@ -1211,7 +1211,7 @@ pub fn publish_world(
         let name = npc.faction.clone().unwrap_or_default();
         let people_there = living.get(&name).copied().unwrap_or(1);
         let entry = bunkers.entry(name).or_insert_with(|| {
-            let (mut food, mut water, mut dry, mut place, mut days_of_water) = (0, 0, false, Json::Null, Json::Null);
+            let (mut food, mut water, mut dry, mut place, mut days_of_water, mut drawn_held) = (0, 0, false, Json::Null, Json::Null, Json::Null);
             if let Ok((held, at, drawn)) = stores.get(store.0) {
                 // How many days its water lasts the bunker's living people,
                 // as the brain counts it (modforge memory::days_of).
@@ -1224,9 +1224,12 @@ pub fn publish_world(
                 water = crate::interact::water_in(&held.0, &items);
                 // Drawn from by another place, it reads dry when low.
                 dry = drawn.is_some_and(|d| d.dry(water));
+                // And what it held when the drawing began, which dry is
+                // read against (interact::Drawn).
+                drawn_held = json!(drawn.map(|d| d.held));
                 place = json!({"at": [at.translation.x, at.translation.z], "floor": at.translation.y});
             }
-            json!({"food": food, "water": water, "days_of_water": days_of_water, "dry": dry, "store": place, "alive": 0, "starving": 0, "at_home": 0, "asleep": 0, "stocked": 0})
+            json!({"food": food, "water": water, "days_of_water": days_of_water, "dry": dry, "drawn_held": drawn_held, "store": place, "alive": 0, "starving": 0, "at_home": 0, "asleep": 0, "stocked": 0})
         });
         let add = |entry: &mut Json, field: &str, n: u64| {
             entry[field] = json!(entry[field].as_u64().unwrap_or(0) + n);

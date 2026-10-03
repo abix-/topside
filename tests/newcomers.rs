@@ -5,11 +5,9 @@
 //! to Mara, of another bunker (the play-through's save newcomers_word_told,
 //! just before the group rolls). Paused, moved only by `step`.
 
-use serde_json::json;
-
-use crate::endpoint::{op, op_with, pause, people, step};
-use crate::opening::{SECOND, apart, dist, roxanne, spot_of, the_tap, within};
-use crate::saves::{newest, part};
+use crate::endpoint::{op, pause, people, step};
+use crate::opening::{SECOND, apart, dist, spot_of, the_tap, within};
+use crate::saves::newest;
 
 /// The newcomers since `last`: people whose ActorId is past it (ids are
 /// issued in order).
@@ -44,21 +42,19 @@ fn word_of_a_place_brings_a_group_from_the_edge() {
 /// At most one group a game hour, read where the edge keeps it: after a
 /// group rolls, the edge's next group may not come before a game hour from
 /// then (the world op's `edge.next_group_at`, a tick), and word told again
-/// at once brings no group in the next 10 game minutes.
+/// at once brings no group until a game minute before it may: the save
+/// points newcomers_first_group, then newcomers_before_next_group (word
+/// told again, grown to that minute), so no test plays the hour itself.
 #[test]
 fn at_most_one_group_a_game_hour() {
     let _p = pause();
-    crate::saves::newcomers_word_told();
-    let last = newest();
-    let tick = || op("status")["tick"].as_u64().unwrap_or(0);
-    assert!(within(120, || since(last).len() >= 2), "setup: no first group came");
-    let came_at = tick();
+    crate::saves::newcomers_first_group();
+    let came_at = op("status")["tick"].as_u64().unwrap_or(0);
     let next = op("world")["edge"]["next_group_at"].as_u64().expect("the world op reports when the edge's next group may come");
     assert!(next >= came_at + 59 * 60 * SECOND, "the edge may send the next group at tick {next}, before an hour after the first (tick {came_at})");
     let after_first = newest();
-    let mara = part("Mara");
-    let key = op("world")["things"].as_array().and_then(|t| t.iter().find(|t| t["name"] == "tap")).and_then(|t| t["key"].as_u64()).expect("the tap's key");
-    op_with("talk", json!({"id": roxanne(), "to": mara, "said": {"Tell": {"key": key}}}));
-    step(10 * 60 * SECOND);
-    assert!(since(after_first).is_empty(), "a second group came within 10 game minutes of the first");
+    crate::saves::newcomers_before_next_group();
+    let now = op("status")["tick"].as_u64().unwrap_or(0);
+    assert!(now + 60 * SECOND >= next && now < next, "the save point is not a game minute before the next group may come: tick {now}, next {next}");
+    assert!(since(after_first).is_empty(), "a second group came before an hour after the first: {:?}", since(after_first));
 }

@@ -8,7 +8,7 @@
 
 use serde_json::{Value as Json, json};
 
-use crate::endpoint::{Until, grow, op, op_with, people, start_from, step};
+use crate::endpoint::{Until, grow, grow_doing, op, op_with, people, start_from, step};
 use crate::opening::{SECOND, apart, at_the_tap, choose, choosing, player, player_spot, roxanne, spot_of, the_tap, within, woke};
 
 pub(crate) fn part(name: &str) -> u64 {
@@ -193,45 +193,61 @@ pub(crate) fn tap_fight_morning() {
     });
 }
 
-/// Mara's store run dry by drinking at the tap, the player beside it.
-pub(crate) fn tap_at_maras_dry_store() {
-    start_from("tap_at_maras_dry_store", || {
-        // Where Mara's store is, from the world op.
-        let store_at = || {
-            let store = op("world")["bunkers"][faction_of(part("Mara")).as_str()]["store"].clone();
-            (store["at"][0].as_f64().expect("where Mara's store is"), store["at"][1].as_f64().unwrap_or(0.0), store["floor"].as_f64().unwrap_or(0.0))
+/// Mara's bunker's entry in the world op (its store's water, whether it
+/// reads dry, what it held when the tap began drawing, where it stands).
+fn maras_store() -> Json {
+    op("world")["bunkers"][faction_of(part("Mara")).as_str()].clone()
+}
+
+/// The player drinking at the tap for at most a game minute, a drink each
+/// half second, stopping once `enough`: a minute of a grown drinking chain.
+fn drink_at_the_tap_a_minute(enough: &impl Fn() -> bool) {
+    let tap = the_tap();
+    for _ in 0..2 * 60 {
+        if enough() {
+            return;
+        }
+        op_with("use", json!({"id": player(), "at": [tap.0, tap.1]}));
+        step(SECOND / 2);
+    }
+}
+
+/// Mara's store a few drinks above reading dry, the player at the tap:
+/// drunk down from the tap a game minute at a time (grown), until it holds
+/// at most a quarter of what it held plus 5 (water x 4 <= held + 20).
+pub(crate) fn tap_maras_store_nearly_dry() {
+    start_from("tap_maras_store_nearly_dry", || {
+        let nearly = || {
+            let store = maras_store();
+            let (water, held) = (store["water"].as_u64().unwrap_or(0), store["drawn_held"].as_u64().expect("Mara's store is drawn from (the tap placed)"));
+            water * 4 <= held + 20
         };
-        let drink_dry_and_go = || {
-            at_the_tap();
-            let maras = faction_of(part("Mara"));
-            let tap = the_tap();
-            for _ in 0..4000 {
-                if op("world")["bunkers"][maras.as_str()]["dry"] == true {
-                    break;
-                }
-                op_with("use", json!({"id": player(), "at": [tap.0, tap.1]}));
-                step(SECOND / 2);
-            }
-            assert_eq!(op("world")["bunkers"][maras.as_str()]["dry"], true, "Mara's store never read dry");
-            walk_to(None, store_at());
-        };
-        grow("tap_at_maras_dry_store", 15, drink_dry_and_go, || apart(player_spot(), store_at()).0 < 1.5, Until::At);
+        grow_doing("tap_maras_store_nearly_dry", 30, at_the_tap, || drink_at_the_tap_a_minute(&nearly), &nearly, Until::At);
     });
 }
 
-/// Mara's store a few drinks above reading dry, the player at the tap.
-pub(crate) fn tap_maras_store_nearly_dry() {
-    start_from("tap_maras_store_nearly_dry", || {
-        woke();
-        let maras = faction_of(part("Mara"));
-        let full = op("world")["bunkers"][maras.as_str()]["water"].as_u64().unwrap_or(0);
-        at_the_tap();
-        let tap = the_tap();
-        let water = || op("world")["bunkers"][maras.as_str()]["water"].as_u64().unwrap_or(0);
-        while water() * 4 > full + 20 {
-            op_with("use", json!({"id": player(), "at": [tap.0, tap.1]}));
-            step(SECOND / 2);
-        }
+/// Mara's store just read dry, the player at the tap: drunk on from nearly
+/// dry, a game minute at a time (grown).
+pub(crate) fn tap_maras_store_dry() {
+    start_from("tap_maras_store_dry", || {
+        let dry = || maras_store()["dry"] == true;
+        grow_doing("tap_maras_store_dry", 30, tap_maras_store_nearly_dry, || drink_at_the_tap_a_minute(&dry), &dry, Until::At);
+    });
+}
+
+/// Mara's store run dry by drinking at the tap, the player beside it:
+/// walked there from the tap, grown.
+pub(crate) fn tap_at_maras_dry_store() {
+    start_from("tap_at_maras_dry_store", || {
+        let store_at = || {
+            let store = maras_store()["store"].clone();
+            (store["at"][0].as_f64().expect("where Mara's store is"), store["at"][1].as_f64().unwrap_or(0.0), store["floor"].as_f64().unwrap_or(0.0))
+        };
+        let go = || {
+            tap_maras_store_dry();
+            walk_to(None, store_at());
+        };
+        grow("tap_at_maras_dry_store", 15, go, || apart(player_spot(), store_at()).0 < 1.5, Until::At);
     });
 }
 
@@ -330,6 +346,37 @@ pub(crate) fn newcomers_word_told() {
             step(SECOND);
         };
         grow("newcomers_word_told", 70, tell, someone_new(), Until::Before);
+    });
+}
+
+/// The first group of newcomers come: grown from just before they roll to
+/// the minute they are in the world (a group rolls at once).
+pub(crate) fn newcomers_first_group() {
+    start_from("newcomers_first_group", || {
+        grow("newcomers_first_group", 5, newcomers_word_told, someone_new(), Until::At);
+    });
+}
+
+/// After the first group, Roxanne tells Mara of the tap again.
+pub(crate) fn newcomers_told_again() {
+    start_from("newcomers_told_again", || {
+        newcomers_first_group();
+        let key = op("world")["things"].as_array().and_then(|t| t.iter().find(|t| t["name"] == "tap")).and_then(|t| t["key"].as_u64()).expect("the tap's key");
+        op_with("talk", json!({"id": roxanne(), "to": part("Mara"), "said": {"Tell": {"key": key}}}));
+        step(SECOND);
+    });
+}
+
+/// Word told again after the first group, played on to a game minute
+/// before the edge may send its next group (the world op's
+/// `edge.next_group_at`), grown.
+pub(crate) fn newcomers_before_next_group() {
+    start_from("newcomers_before_next_group", || {
+        let almost = || {
+            let (now, next) = (op("status")["tick"].as_u64().unwrap_or(0), op("world")["edge"]["next_group_at"].as_u64().expect("the world op reports when the edge's next group may come"));
+            now + 60 * SECOND >= next
+        };
+        grow("newcomers_before_next_group", 61, newcomers_told_again, almost, Until::At);
     });
 }
 

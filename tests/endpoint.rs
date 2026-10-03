@@ -99,6 +99,22 @@ fn try_load(name: &str) -> bool {
 /// `minutes` game minutes. Called inside `start_from(name, ...)`, which
 /// saves the point itself.
 pub fn grow(name: &str, minutes: u64, from: impl FnOnce(), happened: impl Fn() -> bool, until: Until) {
+    grow_doing(
+        name,
+        minutes,
+        from,
+        || {
+            step(MINUTE);
+        },
+        happened,
+        until,
+    );
+}
+
+/// `grow`, each checkpoint after `play`ing the game on by at most a game
+/// minute (drinking at a tap, say) instead of only stepping it; `play`
+/// may stop early once what is grown for has happened.
+pub fn grow_doing(name: &str, minutes: u64, from: impl FnOnce(), mut play: impl FnMut(), happened: impl Fn() -> bool, until: Until) {
     let minute = |k: u64| format!("{name}_minute_{k}");
     let mut k = match (0..=minutes).rev().find(|k| try_load(&minute(*k))) {
         Some(k) => k,
@@ -121,7 +137,7 @@ pub fn grow(name: &str, minutes: u64, from: impl FnOnce(), happened: impl Fn() -
             return;
         }
         assert!(k < minutes, "{name}: it never happened within {minutes} game minutes");
-        step(MINUTE);
+        play();
         k += 1;
         op_with("save", json!({"name": minute(k)}));
     }
