@@ -150,11 +150,10 @@ CI runner taking jobs from a queue and reporting each back.
   tests/saves.rs); the saves are committed, and every test after loads
   them.
 - Save states are made once and reused over and over (operator,
-  2026-10-03). A content change (a line, an item, an episode) never
-  refuses a save: content comes from the game, not the save. A change to
-  what a save holds ships with a migration that loads the older saves
-  (Factorio's migrations), so a save point is remade only when it no
-  longer leads to its test's event.
+  2026-10-03). There is one game being tested, and every save carries
+  over: a save has no version, and nothing (a content change, a code
+  change) refuses it. A save point is remade only when it no longer leads
+  to its test's event.
 - Save points are checkpoints in a speedrun (operator, 2026-10-02). The
   run is the game from its start to its end; the save points split it
   into segments, as many as needed. Each segment is made to work on its
