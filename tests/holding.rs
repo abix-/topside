@@ -49,11 +49,10 @@ fn a_hostile_who_comes_is_warned_once_then_fought() {
     // saves.rs holding_raider_coming): the holder is the bunker person
     // commanded to hold, the raider the one walking for it.
     crate::saves::holding_raider_coming();
-    let everyone = people();
-    let alive = |def: &str| everyone.iter().filter(|p| p["dead"] != true && p["def"] == def && p["faction"] != "player").filter_map(|p| p["id"].as_u64()).next();
-    let holder = alive("bunker person").expect("a living person of another bunker");
-    let intruder = alive("raider").expect("a living raider");
-    let place = spot_of(holder);
+    // Read as the save point reads them: the one holding, and the lowest
+    // ActorId living raider.
+    let (holder, place) = crate::saves::the_holder();
+    let intruder = crate::saves::the_raider();
     assert!(within(60, || apart(spot_of(intruder), place).0 < 8.0), "the raider never came within 8 m of the held place");
     let warned = || heard_from_to(holder, intruder);
     assert!(within(10, || warned() >= 1), "the holder never warned the intruder");

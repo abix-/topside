@@ -104,6 +104,10 @@ pub fn grow(name: &str, minutes: u64, from: impl FnOnce(), happened: impl Fn() -
         Some(k) => k,
         None => {
             from();
+            // One tick first: an op that changes the game (a command, a
+            // walk) is taken in at the game's next step, so a minute 0
+            // saved at once would hold none of what `from` gave.
+            step(1);
             op_with("save", json!({"name": minute(0)}));
             0
         }

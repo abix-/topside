@@ -6,7 +6,7 @@
 //! game minute at a time (`grow`), each minute its own checkpoint, so no run
 //! plays more than the test limit allows and none starts over.
 
-use serde_json::json;
+use serde_json::{Value as Json, json};
 
 use crate::endpoint::{Until, grow, op, op_with, people, start_from, step};
 use crate::opening::{SECOND, apart, at_the_tap, choose, choosing, player, player_spot, roxanne, spot_of, the_tap, within, woke};
@@ -247,26 +247,50 @@ pub(crate) fn tap_beside_maras_child() {
 }
 
 /// The first living person of another bunker, and the first living raider.
-fn holder_and_raider() -> (u64, u64) {
-    let everyone = people();
-    let alive = |def: &str| everyone.iter().filter(|p| p["dead"] != true && p["def"] == def && p["faction"] != "player").filter_map(|p| p["id"].as_u64()).next();
-    (alive("bunker person").expect("a living person of another bunker"), alive("raider").expect("a living raider"))
+/// The living person of `def` outside the player's bunker with the lowest
+/// ActorId: the same person every run while they live (ids last through
+/// saves and loads).
+fn lowest_living(def: &str) -> Option<u64> {
+    people().iter().filter(|p| p["dead"] != true && p["def"] == def && p["faction"] != "player").filter_map(|p| p["id"].as_u64()).min()
+}
+
+/// The raider the holding chain sends: the lowest ActorId living raider.
+pub(crate) fn the_raider() -> u64 {
+    lowest_living("raider").expect("a living raider")
+}
+
+/// The one person holding a place (the people op's `holding`, their saved
+/// ai::Holding), and the place as a spot (x, z, height).
+pub(crate) fn the_holder() -> (u64, (f64, f64, f64)) {
+    let holding: Vec<(u64, (f64, f64, f64))> = people()
+        .iter()
+        .filter(|p| p["dead"] != true)
+        .filter_map(|p| {
+            let at = p["holding"].as_array()?;
+            let f = |i: usize| at.get(i).and_then(Json::as_f64).unwrap_or(f64::NAN);
+            Some((p["id"].as_u64()?, (f(0), f(2), f(1))))
+        })
+        .collect();
+    assert_eq!(holding.len(), 1, "not exactly one person holding a place: {holding:?}");
+    holding[0]
 }
 
 /// A raider walking for a bunker person's held place, just before they
-/// come within 8 m.
+/// come within 8 m. The holder is the lowest ActorId living person of
+/// another bunker, told to hold where they stand; read again as the one
+/// holding, so a run carrying on from a minute reads the same two.
 pub(crate) fn holding_raider_coming() {
     start_from("holding_raider_coming", || {
         let send_the_raider = || {
             woke();
-            let (holder, raider) = holder_and_raider();
+            let holder = lowest_living("bunker person").expect("a living person of another bunker");
             let place = spot_of(holder);
             op_with("command", json!({"id": holder, "do": "hold", "x": place.0, "y": place.2, "z": place.1}));
-            walk_to(Some(raider), place);
+            walk_to(Some(the_raider()), place);
         };
         let near = || {
-            let (holder, raider) = holder_and_raider();
-            apart(spot_of(raider), spot_of(holder)).0 < 8.0
+            let (_, place) = the_holder();
+            apart(spot_of(the_raider()), place).0 < 8.0
         };
         grow("holding_raider_coming", 30, send_the_raider, near, Until::Before);
     });

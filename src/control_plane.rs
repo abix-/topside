@@ -1351,7 +1351,7 @@ pub fn publish(
     player_walk: (Query<(Option<&crate::navmesh::Walker>, &ThisTick, Option<&crate::command::Commanded>), With<Player>>, crate::navmesh::Ways),
     npcs: Query<(
         (&Actor, &Npc, &Transform, &Health, &Survival, &Personality, &ThisTick, Option<&Name>),
-        (&crate::actor::Memory, &crate::actor::ActorRecord, Has<crate::actor::Dead>, &crate::actor::Hotbar, &crate::actor::Facing, Option<&crate::people::Drawn>, &crate::actor::Map, &crate::combat::Equipment),
+        (&crate::actor::Memory, &crate::actor::ActorRecord, Has<crate::actor::Dead>, &crate::actor::Hotbar, &crate::actor::Facing, Option<&crate::people::Drawn>, &crate::actor::Map, &crate::combat::Equipment, Option<&crate::ai::Holding>),
     )>,
 ) {
     TICK.store(tick.0, Ordering::Relaxed);
@@ -1447,11 +1447,15 @@ pub fn publish(
             });
         }
     }
-    // Every person, once a second.
+    // Every person, once a second, in ActorId order (authority.md rule 5):
+    // the query's own order changes with every load and death, so "the
+    // first" of the list is the same person every time only this way.
     if due(tick.0) {
-        let list: Vec<Json> = npcs
-            .iter()
-            .map(|((actor, npc, at, health, needs, personality, this_tick, name), (memory, record, dead, hotbar, facing, drawn, map, worn))| {
+        let mut in_order: Vec<_> = npcs.iter().collect();
+        in_order.sort_by_key(|((actor, ..), _)| actor.0);
+        let list: Vec<Json> = in_order
+            .into_iter()
+            .map(|((actor, npc, at, health, needs, personality, this_tick, name), (memory, record, dead, hotbar, facing, drawn, map, worn, holding))| {
                 // What is in their hands, its layers, and the damage its
                 // hits land, worked out by the one place a hit reads it.
                 let weapon = hotbar.0.held_stack().map(|stack| {
@@ -1489,6 +1493,9 @@ pub fn publish(
                     "thirst": needs.0.thirst,
                     "rest": needs.0.rest,
                     "doing": doing_name(&tree, &record.0),
+                    // The place they hold (todo 11z, ai::Holding), [x,
+                    // height, z], or null.
+                    "holding": holding.map(|h| [h.at.x, h.at.y, h.at.z]),
                     "weapon": weapon,
                     // Where they face on the ground, in radians (0 along +x).
                     "facing": facing.0,
