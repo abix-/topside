@@ -38,6 +38,15 @@ topside-content = { path = "content" }
 # velocity that is not a number from dodgy, and if dodgy still fails, that
 # step walks the preferred way. It catches the failure only where panics
 # unwind (not the release profile's abort). Report upstream; drop when fixed.
+# Its island box hierarchy (nav_data.rs, todo 9n) and a span round each part
+# of Archipelago::update (lib.rs, "landmass: ...", shown by the perf op).
+# Avoidance's height band (avoidance.rs `in_height_band`, agent.rs and
+# character.rs `height`): it picked neighbours by 3D distance and steered
+# on the ground alone, so someone a floor below blocked a walker above
+# (Roxanne turned back over the player, 2026-10-03); a neighbour whose
+# height differs by half the two heights or more is left out, as Detour's
+# crowd does (recastnavigation DetourCrowd/Source/DetourCrowd.cpp,
+# getNeighbours). Worth offering upstream.
 #
 # bevy_rerecast_core 0.5.0 with its generator made callable from the fixed
 # step (generator/mod.rs, "topside patch"): no once-a-frame gathering and
@@ -56,7 +65,16 @@ topside-content = { path = "content" }
 # load no island had a landmass mesh and nothing could be walked or asked
 # (2026-10-02). Now `convert` runs as each mesh lands and `forget` when its
 # island goes. Drop when landmass_rerecast lets the game convert on demand.
+# `convert` also marks the landed mesh's islands changed (for the next).
+#
+# bevy_landmass 0.12.1 with its island sync looking only at islands that
+# changed, went, or still wait to be placed (island.rs, "topside patch"):
+# it read all 1156 islands every step, none of them moving, about 0.27 ms a
+# step (todo 9n, 2026-10-03). Drop when bevy_landmass syncs islands on
+# change. Its AgentSettings and CharacterSettings carry the height for
+# landmass's height band (topside feeds BODY_HEIGHT, src/navmesh.rs).
 [patch.crates-io]
+bevy_landmass = { path = "vendor/bevy_landmass" }
 landmass = { path = "vendor/landmass" }
 bevy_rerecast_core = { path = "vendor/bevy_rerecast_core" }
 landmass_rerecast = { path = "vendor/landmass_rerecast" }

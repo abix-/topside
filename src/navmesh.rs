@@ -71,6 +71,13 @@ impl Plugin for NavPlugin {
             Landmass3dPlugin::default().in_schedule(Landmass),
             LandmassRerecastPlugin::default().in_schedule(Landmass),
         ));
+        // Landmass's systems run one after another (its sets are a chain),
+        // so its schedule runs on one thread, as Avian's physics and substep
+        // schedules and Bevy's FixedMain do: the many-thread executor cost
+        // about 0.7 ms a step handing out work that has no parallel to it.
+        app.edit_schedule(Landmass, |schedule| {
+            schedule.set_executor(bevy::ecs::schedule::SingleThreadedExecutor::new());
+        });
         // Every tick; and once when the loading screen readies the world.
         app.add_systems(FixedPreUpdate, (run_landmass, crate::profile::lap("landmass")).chain());
         app.add_systems(Startup, setup);
@@ -626,7 +633,7 @@ pub fn walk(
             commands.entity(stand_in).remove::<(bevy_landmass::Character<ThreeD>, CharacterSettings)>().insert((
                 Agent3dBundle {
                     agent: Default::default(),
-                    settings: AgentSettings { radius: AGENT_RADIUS, desired_speed: speed, max_speed: speed * 1.2 },
+                    settings: AgentSettings { radius: AGENT_RADIUS, height: BODY_HEIGHT, desired_speed: speed, max_speed: speed * 1.2 },
                     archipelago_ref: ArchipelagoRef3d::new(nav.archipelago),
                 },
                 AgentTarget3d::Point(to),
@@ -689,11 +696,12 @@ pub fn walk(
 }
 
 /// A person standing, as landmass knows them: a character the walkers
-/// steer round, as wide as a body.
+/// steer round, as wide and as tall as a body (a walker steers round no one
+/// a floor up or down: landmass avoidance, Detour's height band).
 fn character(archipelago: Entity) -> Character3dBundle {
     Character3dBundle {
         character: Default::default(),
-        settings: CharacterSettings { radius: AGENT_RADIUS },
+        settings: CharacterSettings { radius: AGENT_RADIUS, height: BODY_HEIGHT },
         archipelago_ref: ArchipelagoRef3d::new(archipelago),
     }
 }

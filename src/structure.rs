@@ -412,6 +412,10 @@ pub fn spawn_sites(
     layers: Res<crate::content::LayerRegistryRes>,
     mut ids: ResMut<crate::interact::ThingIssuer>,
 ) {
+    // Built only when a site is new, not every step.
+    if new_sites.0.is_empty() {
+        return;
+    }
     let table = loot_table();
     for (site, things) in new_sites.0.drain(..) {
         let monument = site.rolled.clone();

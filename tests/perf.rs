@@ -109,6 +109,68 @@ fn where_the_time_goes_in_play() {
     assert!((main_per_step - step).abs() <= step * 0.05, "FixedMain is {main_per_step:.3} ms a step ({fixed_main:.3} a frame, {per_frame:.2} steps a frame), the whole step {step:.3}");
 }
 
+/// The chunks made, stepping from `opening_woke`: after each of ten steps
+/// of 60 ticks, the moment's `chunks_made` (how many, and a hash of which)
+/// and `next_thing_id` (a chunk's things take their ids in the order chunks
+/// are made), and the chunks lap. A change to how chunks are asked for
+/// must give the same list (docs/performance.md). Added to logs/perf.txt.
+#[test]
+fn the_chunks_made_stepping_from_woke() {
+    let _paused = crate::endpoint::pause();
+    crate::opening::woke();
+    chunks_made_stepping("opening_woke");
+}
+
+/// The same on a game launched with `--world big` (no edge: chunks are made
+/// as people walk into them, one person at a time), from the save
+/// `chunks_big_world`: made from whatever the big world is at the first
+/// time, loaded every time after, so two builds step the same world.
+/// Stepped twice from the same save, the same chunks are made, in the same
+/// order, at every check (authority.md rule 5). Only on the big world: on a
+/// world with an edge (the world op's chunks `missing` is a number) it
+/// cannot play what it tests, so it fails, and nothing is saved as
+/// chunks_big_world.
+#[test]
+fn the_chunks_made_stepping_in_the_big_world() {
+    let missing = op("world")["chunks"]["missing"].clone();
+    assert!(missing.is_null(), "this test needs a game launched with --world big (the running world has an edge: {missing} of its chunks not made)");
+    let _paused = crate::endpoint::pause();
+    crate::endpoint::start_from("chunks_big_world", || {});
+    let first = chunks_made_stepping("chunks_big_world");
+    assert!(!crate::endpoint::start_from("chunks_big_world", || panic!("chunks_big_world was saved but does not load")));
+    let second = chunks_made_stepping("chunks_big_world, again");
+    assert_eq!(first, second, "the same save stepped the same ticks made other chunks the second time");
+}
+
+/// After each of ten steps of 60 ticks, the chunks made and the next
+/// thing's id, and the chunks lap, into logs/perf.txt; none of the chunks
+/// round a living person or the player is left not made at any check.
+/// The checks, for comparing.
+fn chunks_made_stepping(from: &str) -> Vec<String> {
+    let mut rows = vec![format!("chunks made stepping from {from}:")];
+    let mut checks = Vec::new();
+    for _ in 0..10 {
+        let at = crate::endpoint::step(60);
+        let not_made = op("world")["chunks"]["not_made_round_people"].clone();
+        let check = format!("tick {} chunks_made {} next_thing_id {}", at["tick"], at["chunks_made"], at["next_thing_id"]);
+        rows.push(format!("  {check} not made round people {not_made}"));
+        assert_eq!(not_made, json!(0), "at tick {}, chunks round people are not made: {not_made}", at["tick"]);
+        checks.push(check);
+    }
+    let perf = op("perf");
+    let lap = |name: &str| perf["parts"].as_array().into_iter().flatten().find(|p| p["part"] == name).and_then(|p| p["ms"].as_f64()).unwrap_or(f64::NAN);
+    rows.push(format!("  the chunks lap {:.3} ms a step, the whole step {:.3}", lap("chunks"), perf["step_ms"].as_f64().unwrap_or(0.0)));
+    let text = format!("{}\n\n", rows.join("\n"));
+    let _ = std::fs::create_dir_all("../logs");
+    let mut old = std::fs::read_to_string("../logs/perf.txt").unwrap_or_default();
+    if !old.is_empty() && !old.ends_with('\n') {
+        old.push('\n');
+    }
+    let _ = std::fs::write("../logs/perf.txt", format!("{old}{text}"));
+    eprintln!("{text}");
+    checks
+}
+
 /// What a stepped tick costs, as a test pays it: the `opening_woke` save
 /// loaded, the game paused, 60 ticks stepped ten times, each step timed
 /// by the real clock from asking to the answer, and the median of the
@@ -133,16 +195,28 @@ fn what_a_stepped_tick_costs() {
     let median = settled[settled.len() / 2];
     rows.push(format!("  settled median (last 5): 60 ticks in {median:.0} ms, {:.2} ms a tick", median / 60.0));
     let worst = all.iter().copied().fold(0.0, f64::max);
+    // Stepped on, untimed, until the load's own work (its world readied,
+    // its chunks made) has faded from the spans' averages (each frame keeps
+    // 29/30 of the last: 30 more calls are hundreds of frames).
+    for _ in 0..30 {
+        crate::endpoint::step(60);
+    }
     let perf = op("perf");
     rows.push(format!("  the perf op's whole step {:.3} ms, its laps (average over about the last 30 steps):", perf["step_ms"].as_f64().unwrap_or(0.0)));
     for part in perf["parts"].as_array().into_iter().flatten().filter(|p| p["in_step"] == true) {
         rows.push(format!("    {:<44} {:>8.3}", part["part"].as_str().unwrap_or("?"), part["ms"].as_f64().unwrap_or(0.0)));
     }
-    // While stepping, a frame is one step call: what a call pays besides
-    // its ticks shows here.
-    rows.push("  the costliest spans a frame (a frame is one step call):".to_string());
-    for span in perf["frame"].as_array().into_iter().flatten().take(25) {
-        rows.push(format!("    {:<90} {:>8.3}", span["span"].as_str().unwrap_or("?").chars().take(90).collect::<String>(), span["ms"].as_f64().unwrap_or(0.0)));
+    // Every span, also as ms a step: its share of FixedMain's span times
+    // the whole step, so the paused frames between step calls (which run
+    // no step and count as nothing) cancel out. Spans outside the fixed
+    // step (drawing, answering) read as what a call pays besides its ticks.
+    let spans: Vec<(String, f64)> = perf["frame"].as_array().into_iter().flatten().map(|s| (s["span"].as_str().unwrap_or("?").to_string(), s["ms"].as_f64().unwrap_or(0.0))).collect();
+    let fixed_main = spans.iter().find(|(name, _)| name == "schedule FixedMain").map_or(0.0, |(_, ms)| *ms);
+    let step_ms = perf["step_ms"].as_f64().unwrap_or(0.0);
+    rows.push(format!("  every span, the costliest first: ms a frame, and ms a step (its share of FixedMain {fixed_main:.3} times the whole step {step_ms:.3}):"));
+    for (name, ms) in &spans {
+        let a_step = if fixed_main > 0.0 { ms / fixed_main * step_ms } else { 0.0 };
+        rows.push(format!("    {:<90} {:>8.3} {:>8.3}", name.chars().take(90).collect::<String>(), ms, a_step));
     }
     let text = format!("{}\n\n", rows.join("\n"));
     let _ = std::fs::create_dir_all("../logs");

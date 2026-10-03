@@ -1085,13 +1085,16 @@ pub fn publish_world(
             (&crate::actor::Home, &Transform, &crate::actor::ActorCondition, &crate::actor::Memory),
         ),
     >,
-    chunks: Option<Res<crate::terrain::Chunks>>,
+    (chunks, everyone): (
+        Option<Res<crate::terrain::Chunks>>,
+        Query<(&Transform, Has<crate::player::Player>), (Or<(With<Npc>, With<crate::player::Player>)>, Without<crate::actor::Dead>)>,
+    ),
     rolled: Option<Res<crate::terrain::WorldRes>>,
     standing: Option<Res<crate::structure::MonumentsRes>>,
     reality: Res<crate::Reality>,
     episode: Res<crate::Episode>,
     below: Query<(&Transform, &crate::structure::Below)>,
-    (doors, things, everyone): (
+    (doors, things, bunker_people): (
         Query<(&crate::interact::Door, &Transform)>,
         Query<(&crate::interact::Interactable, Option<&crate::interact::WorldItem>, &Transform), Without<crate::interact::Door>>,
         Query<(&Transform, Option<&Name>, Has<Player>), With<Actor>>,
@@ -1124,7 +1127,7 @@ pub fn publish_world(
                     (None, kind) => json!(format!("{kind:?}")),
                 })
                 .collect();
-            let people_here: Vec<Json> = everyone
+            let people_here: Vec<Json> = bunker_people
                 .iter()
                 .filter(|(at, ..)| inside(crate::interact::feet_of(at), 0.0))
                 .map(|(_, name, is_player)| if is_player { json!("the player") } else { json!(name.map(|n| n.as_str().to_string())) })
@@ -1186,6 +1189,9 @@ pub fn publish_world(
     // chunks it is made whole with (the world and the ring past its
     // edge, terrain::make_chunks) are still not made.
     let made = chunks.as_ref().map_or(0, |c| c.made.len());
+    // Chunks round a living person (or the player) not made: none, once a
+    // step's chunks are made (terrain::round, the rule make_chunks keeps).
+    let not_made_round = chunks.as_ref().map(|c| crate::terrain::not_made_round(c, everyone.iter().map(|(t, is_player)| (t.translation.ground(), is_player))));
     let missing = rolled.as_ref().and_then(|w| w.world.ground.chunk_range()).map(|(lo, hi)| {
         (lo - 1..=hi)
             .flat_map(|y| (lo - 1..=hi).map(move |x| (x, y)))
@@ -1306,7 +1312,7 @@ pub fn publish_world(
         "below": below,
         "bunker_doors": bunker_doors,
         "starting_bunker": starting_bunker,
-        "chunks": {"made": made, "missing": missing},
+        "chunks": {"made": made, "missing": missing, "not_made_round_people": not_made_round},
         // The seed this world rolled from, and the road tiles in its chunks.
         "seed": rolled.as_ref().map(|w| w.seed),
         "roads": chunks.as_ref().map_or(0, |c| c.roads),

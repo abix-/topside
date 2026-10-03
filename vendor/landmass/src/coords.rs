@@ -206,6 +206,7 @@ impl FromAgentRadius for f32 {
 /// An evaluated version of the point sample options.
 ///
 /// This mirrors [`PointSampleDistance`].
+#[derive(Clone, Copy, PartialEq)]
 pub(crate) struct CorePointSampleDistance {
   pub(crate) horizontal_distance: f32,
   pub(crate) distance_above: f32,

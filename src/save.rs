@@ -444,6 +444,9 @@ fn loaded(loaded: On<Loaded>, mut actors: ResMut<crate::actor::ActorMapRes>, mut
     actors.0.map_handles(|e| loaded.entity_map.get(&e).copied());
     commands.queue(move |world: &mut World| {
         let (rolled, start) = world.remove_resource::<LoadRolled>().map_or((false, std::time::Instant::now()), |r| (r.0, r.1));
+        // Every person a new entity: the chunks asked round them forgotten,
+        // so the first step asks for everything (terrain::Asked).
+        crate::terrain::forget_asked(world);
         if !rolled {
             // The same world: the chunks made since the save taken back.
             let saved = world.get_resource::<crate::terrain::SavedChunks>().map(|s| s.0.clone()).unwrap_or_default();

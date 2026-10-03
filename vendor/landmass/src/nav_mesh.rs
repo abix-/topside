@@ -396,8 +396,21 @@ impl<CS: CoordinateSystem> NavigationMesh<CS> {
       }
     }
 
+    // topside patch (todo 9n): the polygons' box hierarchy, read by
+    // `sample_point`.
+    let polygon_bbh = {
+      let mut polygon_bounds = polygons
+        .iter()
+        .enumerate()
+        .map(|(polygon_index, polygon)| (polygon.bounds, Some(polygon_index)))
+        .collect::<Vec<_>>();
+      (!polygon_bounds.is_empty())
+        .then(|| BoundingBoxHierarchy::new(&mut polygon_bounds))
+    };
+
     Ok(ValidNavigationMesh {
       mesh_bounds,
+      polygon_bbh,
       polygons,
       vertices,
       boundary_edges,
@@ -488,6 +501,10 @@ pub struct ValidNavigationMesh<CS: CoordinateSystem> {
   pub(crate) vertices: Vec<Vec3>,
   /// The polygons of the mesh.
   pub(crate) polygons: Vec<ValidPolygon>,
+  /// topside patch (todo 9n): every polygon's bounds in one box hierarchy,
+  /// made with the mesh, so placing a point looks only at the polygons near
+  /// it, not every polygon of the mesh. None for a mesh with no polygons.
+  pub(crate) polygon_bbh: Option<BoundingBoxHierarchy<usize>>,
   /// The boundary edges in the navigation mesh. Edges are stored as pairs of
   /// vertices in a counter-clockwise direction. That is, moving along an edge
   /// (e.0, e.1) from e.0 to e.1 will move counter-clockwise along the
@@ -527,6 +544,7 @@ impl<CS: CoordinateSystem> Clone for ValidNavigationMesh<CS> {
       mesh_bounds: self.mesh_bounds,
       vertices: self.vertices.clone(),
       polygons: self.polygons.clone(),
+      polygon_bbh: self.polygon_bbh.clone(),
       boundary_edges: self.boundary_edges.clone(),
       height_mesh: self.height_mesh.clone(),
       marker: self.marker,
@@ -666,10 +684,19 @@ impl<CS: CoordinateSystem> ValidNavigationMesh<CS> {
 
     let mut best_node = None;
 
-    for (polygon_index, polygon) in self.polygons.iter().enumerate() {
-      if !sample_box.intersects_bounds(&polygon.bounds) {
-        continue;
-      }
+    // topside patch (todo 9n): only the polygons whose bounds meet the
+    // sample box, from the mesh's hierarchy, in polygon order so a tie goes
+    // the same way as when every polygon was walked.
+    let mut near = self
+      .polygon_bbh
+      .as_ref()
+      .map(|polygon_bbh| {
+        polygon_bbh.query_box(sample_box).into_iter().copied().collect()
+      })
+      .unwrap_or_else(Vec::new);
+    near.sort_unstable();
+    for polygon_index in near {
+      let polygon = &self.polygons[polygon_index];
 
       // Whether we are using the normal mesh or the height mesh, we want the
       // triangles to be handled the same. So factor out the test and turn it
