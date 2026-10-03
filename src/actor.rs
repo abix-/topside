@@ -317,11 +317,15 @@ pub fn spawn_person(
 }
 
 /// The one waiting outside the bunker door, through `spawn_actor`. None
-/// when the game starts in The Tap: while Roxanne leads the player out to
-/// the tap there is no scavenger at the door; the first fight comes later
-/// (design.md "What 2D changes").
-pub fn spawn_door_enemy(mut spawn: SpawnActor, registry: Res<ActorRegistryRes>, world: Res<WorldRes>, episode: Res<crate::episode::Episode>) {
-    if episode.name.as_deref() == Some("The Tap") {
+/// when the episode the game starts in says so (its `door_enemy`).
+pub fn spawn_door_enemy(
+    mut spawn: SpawnActor,
+    registry: Res<ActorRegistryRes>,
+    world: Res<WorldRes>,
+    episode: Res<crate::episode::Episode>,
+    episodes: Res<crate::content::EpisodeRegistryRes>,
+) {
+    if episode.name.as_deref().and_then(|name| episodes.0.def(name)).is_some_and(|def| !def.door_enemy) {
         return;
     }
     let (name, [x, z]) = DOOR_ENEMY;

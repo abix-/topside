@@ -466,8 +466,9 @@ pub fn register_episodes(reg: &mut EpisodeRegistry) {
         parts: Vec::new(),
         lines: Vec::new(),
         cues: Vec::new(),
+        door_enemy: true,
     };
-    let part = |name: &str, from| PartDef { name: name.to_string(), from };
+    let part =|name: &str, from| PartDef { name: name.to_string(), from };
     let s = |s: &str| s.to_string();
     let heard = |name: &str| When::Heard(s(name));
     let not = |when: When| When::Not(Box::new(when));
@@ -575,6 +576,10 @@ pub fn register_episodes(reg: &mut EpisodeRegistry) {
             // reads the note and Dell starts down at once, to their door,
             // and knocks.
             cues: vec![CueDef { name: "the note read".to_string(), did: "read note".to_string(), part: "Dell".to_string(), does: CueAct::KnockOnThePlayer }],
+            // No scavenger at the door while Roxanne leads the player out;
+            // the first fight comes later (design.md "What 2D changes",
+            // operator 2026-10-02).
+            door_enemy: false,
             ..episode("The Tap", &["Mixed world", "Sky Islands"])
         },
         episode("The Fever", &[]),
