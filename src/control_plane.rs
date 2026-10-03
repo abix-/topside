@@ -1043,14 +1043,23 @@ pub fn publish_world(
             .count()
     });
     let mut bunkers: std::collections::BTreeMap<String, Json> = Default::default();
+    // Each bunker's living people, the player in the player's bunker.
+    let mut living: std::collections::BTreeMap<String, u32> = Default::default();
+    living.insert(crate::content::PLAYER_FACTION.to_string(), 1);
+    for ((_, npc, dead, _), _) in &people {
+        if !dead {
+            *living.entry(npc.faction.clone().unwrap_or_default()).or_default() += 1;
+        }
+    }
     for ((store, npc, dead, needs), (home, at, condition, memory)) in &people {
         let name = npc.faction.clone().unwrap_or_default();
+        let people_there = living.get(&name).copied().unwrap_or(1);
         let entry = bunkers.entry(name).or_insert_with(|| {
             let (mut food, mut water, mut dry, mut place, mut days_of_water) = (0, 0, false, Json::Null, Json::Null);
             if let Ok((held, at, drawn)) = stores.get(store.0) {
-                // How many days its water lasts the bunker, as the brain
-                // counts it (modforge memory::days_of).
-                days_of_water = json!(crate::interact::days_of_water(&held.0, &items, *day));
+                // How many days its water lasts the bunker's living people,
+                // as the brain counts it (modforge memory::days_of).
+                days_of_water = json!(crate::interact::days_of_water(&held.0, &items, *day, people_there));
                 for stack in held.0.slots.iter().flatten() {
                     if items.0.def(&stack.item).and_then(|d| d.food).is_some_and(|f| f.hunger > 0.0) {
                         food += stack.count;

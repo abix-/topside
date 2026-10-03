@@ -23,7 +23,7 @@ use crate::actor::{
 };
 use crate::combat::Health;
 use crate::content::{
-    ActorRegistryRes, BUNKER_PEOPLE, BUNKER_SHORT_DAYS, BUNKER_WATER_DAYS, FactionRegistryRes, ItemRegistryRes,
+    ActorRegistryRes, BUNKER_SHORT_DAYS, BUNKER_WATER_DAYS, FactionRegistryRes, ItemRegistryRes,
     MonumentRegistryRes, PLAYER_FACTION,
 };
 use crate::input::{Action, Actions};
@@ -528,7 +528,11 @@ pub fn think(
                 // What they stock to: what is needed, and past it by their
                 // fear of not having enough, up to twice it (todo 11ag).
                 let fear = 1.0 + personality.0.get(modforge::actor::Axis::Fear).clamp(0.0, 1.0);
-                short_of(supplies, BUNKER_PEOPLE as u32, (BUNKER_SHORT_DAYS * fear, BUNKER_WATER_DAYS * fear), per_day, &items.0)
+                // The bunker's drinking is its living people's (the player
+                // in the player's bunker), not a set number (orchestrator,
+                // 2026-10-03).
+                let living = everyone.iter().filter(|(.., faction)| faction.is_some() && *faction == npc.faction).count().max(1) as u32;
+                short_of(supplies, living, (BUNKER_SHORT_DAYS * fear, BUNKER_WATER_DAYS * fear), per_day, &items.0)
             })
             .unwrap_or_default();
         let bags_full = inventory.0.slots.iter().all(|s| s.is_some());

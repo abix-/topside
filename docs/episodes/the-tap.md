@@ -153,7 +153,9 @@ people is killing someone else's.
   one". While the bunker is the player and Dell alone, telling Dell is
   "tells everyone" (operator, 2026-10-02: "maybe it's just Roxanne").
 - Too much water (pivot point 5, operator, 2026-10-02): the store holds
-  too much when it holds water for 10 days of the bunker's drinking. Dell
+  too much when it holds water for 10 days of the bunker's drinking (its
+  living people's, the player in the player's bunker; orchestrator,
+  2026-10-03). Dell
   stores past that, and the player checking the store (Use on it) while it
   holds that much is when pivot point 5 comes. So what a bunker needs is
   water for 10 days: one who is not afraid of not having enough stocks to

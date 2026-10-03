@@ -554,7 +554,9 @@ pub fn the_taps_deeds(
         episode.reach(FINDS_THE_WELL_DRY, me.0, tick.0);
     }
     let ours = people.iter().any(|(_, npc, _, _, store)| npc.and_then(|n| n.faction.as_deref()) == Some(PLAYER_FACTION) && store.is_some_and(|s| s.0 == checked));
-    if ours && crate::interact::days_of_water(&held.0, &items, *day) > crate::content::BUNKER_WATER_DAYS {
+    // The player's bunker's living people: the player and its own.
+    let ours_living = 1 + people.iter().filter(|(_, npc, ..)| npc.and_then(|n| n.faction.as_deref()) == Some(PLAYER_FACTION)).count() as u32;
+    if ours && crate::interact::days_of_water(&held.0, &items, *day, ours_living) > crate::content::BUNKER_WATER_DAYS {
         episode.reach(crate::content::STORING_NOTICED, me.0, tick.0);
     }
 }

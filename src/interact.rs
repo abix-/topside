@@ -312,11 +312,12 @@ pub fn pointed_thing<'a>(feet: Vec3, pointed: Vec2, things: impl Iterator<Item =
         .map(|(e, _)| e)
 }
 
-/// How many days a store's water lasts a bunker, as the brain counts it
-/// (modforge memory::days_of, `BUNKER_PEOPLE` drinking a day's thirst each).
-pub fn days_of_water(held: &item::Inventory, items: &ItemRegistryRes, day: crate::survival::Day) -> f32 {
+/// How many days a store's water lasts a bunker of `people` living people,
+/// as the brain counts it (modforge memory::days_of, each drinking a day's
+/// thirst; orchestrator 2026-10-03: the bunker's drinking is its people's).
+pub fn days_of_water(held: &item::Inventory, items: &ItemRegistryRes, day: crate::survival::Day, people: u32) -> f32 {
     let supplies = held.slots.iter().flatten().map(|s| (s.item.as_str(), s.count));
-    modforge::memory::days_of(supplies, crate::content::BUNKER_PEOPLE as u32, day.per_day(), &items.0).1
+    modforge::memory::days_of(supplies, people.max(1), day.per_day(), &items.0).1
 }
 
 /// How much water a store holds: every stack of something drunk (its food
