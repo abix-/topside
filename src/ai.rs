@@ -133,6 +133,7 @@ pub fn warn_off(
     seed: Res<crate::WorldSeed>,
     mut warnings: ResMut<Warnings>,
     mut people: Query<(&Actor, &Transform, &mut Memory, Option<&Survival>, Has<crate::player::Player>)>,
+    items: Res<crate::content::ItemRegistryRes>,
 ) {
     for (holder, to) in std::mem::take(&mut warnings.0) {
         let Some(warned) = map.0.handle_of(to) else {
@@ -144,7 +145,7 @@ pub fn warn_off(
         };
         let feet = crate::interact::feet_of(at);
         let Some(line) = crate::talk::called_line(
-            (&episode, &lines, world.bunker, seed.0),
+            (&episode, &lines, world.bunker, seed.0, &items.0),
             (by.0, &holder_memory, feet, survival),
             (to, is_player),
             crate::talk::Call::Warning,
@@ -246,6 +247,11 @@ pub fn follow(
 /// How long someone refused a trade is not asked again by the one they
 /// refused, in ticks: a game minute.
 const TRADE_AGAIN: u64 = 3600;
+
+/// How long someone in view stays one sighting before another is
+/// remembered, in ticks: a game minute (Claude's number, for the operator
+/// to change).
+const SAW_AGAIN: u64 = 3600;
 
 /// Half the width of what a person sees ahead: a 120 degree cone
 /// (life.md "Perception with belief").
@@ -478,6 +484,14 @@ pub fn think(
         condition.0.at_home = at_home;
         if let Some((who, at)) = hostile {
             memory.0.threat(who, at, tick.0);
+        }
+        // Everyone in sight, as the hostile and the not hostile above are
+        // seen, is remembered seen (modforge `Memory::saw`: once a
+        // `SAW_AGAIN`, not once a think).
+        for (e, id, at, _) in &everyone {
+            if *e != entity && at.distance(here) <= def.sight && in_cone(facing, here, *at) && sight.clear(here, *at) {
+                memory.0.saw(*id, tick.0, SAW_AGAIN);
+            }
         }
         // Looking round as they think: every box in the cone with a clear
         // line goes into memory (seen, not yet looked inside).

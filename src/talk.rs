@@ -103,7 +103,7 @@ pub enum Call {
 /// `When::Warning`, picked as any line is): its name and words, as they
 /// say it now.
 pub fn called_line(
-    (episode, lines, bunker, seed): (&Episode, &Lines, Vec2, u64),
+    (episode, lines, bunker, seed, items): (&Episode, &Lines, Vec2, u64, &modforge::item::ItemRegistry),
     (caller, memory, at, survival): (ActorId, &Memory, Vec3, Option<&Survival>),
     to: (ActorId, bool),
     call: Call,
@@ -120,7 +120,8 @@ pub fn called_line(
     let called: Vec<usize> = (0..lines.0.len()).filter(|&i| written_for(&lines.0[i])).collect();
     let candidates: Vec<LineDef> = called.iter().map(|&i| lines.0[i].clone()).collect();
     let line = called[modforge::talk::pick(&candidates, &speaking, seed ^ tick)?];
-    let (words, _) = words_of(&lines.0[line], line, (caller, &memory.0), tick, episode, bunker, seed)?;
+    // A call is made where they stand: what they know is reckoned from there.
+    let (words, _) = words_of(&lines.0[line], line, (caller, &memory.0, at), tick, (episode, items), bunker, seed)?;
     Some(modforge::memory::Line { name: lines.0[line].name.clone(), words })
 }
 
@@ -267,7 +268,26 @@ pub fn the_way(memory: &modforge::memory::Memory, door: (Vec2, Vec2), thing: u64
 /// (the way to an episode thing from the bunker door, the place a known
 /// thing is at), one way picked from the seed, the speaker, the line, and
 /// the conversation, so the panel shows what is then said.
-pub fn words_of(line: &LineDef, index: usize, (speaker, memory): (ActorId, &Mind), since: u64, episode: &Episode, bunker: Vec2, seed: u64) -> Option<(String, u64)> {
+/// Where a speaker reckons what they know from (`words_of`'s
+/// {source of <need>}): their home; the player's is their bunker; one with
+/// no home, where they stand.
+fn home_of(home: Option<&crate::actor::Home>, is_player: bool, feet: Vec3, bunker: Vec2) -> Vec3 {
+    match home {
+        Some(home) => home.0,
+        None if is_player => Vec3::new(bunker.x, 0.0, bunker.y),
+        None => feet,
+    }
+}
+
+pub fn words_of(
+    line: &LineDef,
+    index: usize,
+    (speaker, memory, home): (ActorId, &Mind, Vec3),
+    since: u64,
+    (episode, items): (&Episode, &modforge::item::ItemRegistry),
+    bunker: Vec2,
+    seed: u64,
+) -> Option<(String, u64)> {
     let key = if line.tells.is_empty() {
         0
     } else if let Some((_, key)) = episode.thing(&line.tells) {
@@ -293,6 +313,34 @@ pub fn words_of(line: &LineDef, index: usize, (speaker, memory): (ActorId, &Mind
             }
         }
     }
+    // {source of <need>} ("source of thirst"): the speaker's known source
+    // of that need (eaten or drunk from where it stands: a river's water, a
+    // well) nearest their home, by what it is; never the episode's own
+    // things, which the line is about.
+    for way in &line.ways {
+        for (at, _) in way.match_indices("{source of ") {
+            let Some(name) = way[at + 1..].split('}').next() else {
+                continue;
+            };
+            let need = match name.trim_start_matches("source of ") {
+                "hunger" => modforge::survival::Need::Hunger,
+                "thirst" => modforge::survival::Need::Thirst,
+                _ => continue,
+            };
+            let source = memory
+                .known
+                .iter()
+                .filter(|k| !episode.things.iter().any(|(.., key)| *key == k.key))
+                .filter(|k| items.def(&k.kind).is_some_and(|d| d.kind == modforge::item::ItemKind::Source))
+                .filter(|k| modforge::memory::food_worth(k, need, items) > 0.0)
+                .min_by(|a, b| a.position.distance(home).total_cmp(&b.position.distance(home)));
+            if let Some(source) = source
+                && !slots.iter().any(|(n, _)| *n == name)
+            {
+                slots.push((name, source.kind.clone()));
+            }
+        }
+    }
     // Silence has no ways: it is remembered as said with no words.
     if line.ways.is_empty() {
         return Some(("...".to_string(), key));
@@ -315,7 +363,7 @@ pub fn talk(
     lines: Res<Lines>,
     world: Res<crate::terrain::WorldRes>,
     seed: Res<crate::WorldSeed>,
-    speakers: Query<(Entity, &Actor, &ThisTick, &Name, Has<crate::actor::Asked>), Without<Dead>>,
+    speakers: Query<(Entity, &Actor, &ThisTick, &Name, Has<crate::actor::Asked>, Option<&crate::actor::Home>), Without<Dead>>,
     mut people: Query<(&Transform, &mut Memory, &mut Inventory, &mut Hud, Has<Player>, Option<&Conversation>, Option<&crate::actor::Npc>), Without<Dead>>,
     mut joins: ResMut<crate::joining::Joins>,
     mut to_edge: ResMut<crate::edge::WordToEdge>,
@@ -325,7 +373,7 @@ pub fn talk(
     // in one tick, whom the player ends up talking to is the same after a
     // load.
     let order = crate::actor::in_actor_order(speakers.iter().map(|(entity, actor, ..)| (Some(actor.0), entity)));
-    for (speaker, id, this_tick, name, asked) in order.into_iter().filter_map(|e| speakers.get(e).ok()) {
+    for (speaker, id, this_tick, name, asked, home) in order.into_iter().filter_map(|e| speakers.get(e).ok()) {
         for said in this_tick.0.iter().filter_map(|s| match s.action {
             Action::Talk { to, said } => Some((to, said)),
             _ => None,
@@ -353,7 +401,8 @@ pub fn talk(
                     let Some((index, def)) = lines.by_id(line) else {
                         continue;
                     };
-                    let Some((words, told)) = words_of(def, index, (id.0, &speaker_memory.0), since, &episode, world.bunker, seed.0) else {
+                    let home = home_of(home, speaker_is_player, crate::interact::feet_of(from), world.bunker);
+                    let Some((words, told)) = words_of(def, index, (id.0, &speaker_memory.0, home), since, (&episode, &items.0), world.bunker, seed.0) else {
                         continue;
                     };
                     let key = if key != 0 { key } else { told };
@@ -486,6 +535,7 @@ pub fn conversations(
     mut players: Query<(&Actor, &Transform, &Memory, &Survival, &mut Conversation, &mut Hud, &mut crate::input::Actions), With<Player>>,
     mut people: Query<(Entity, &Actor, &Transform, &Memory, Option<&Survival>, &mut crate::input::Actions, Has<crate::actor::Asked>, Option<&crate::actor::Npc>), Without<Player>>,
     episodes: Res<EpisodeRegistryRes>,
+    items: Res<crate::content::ItemRegistryRes>,
 ) {
     if tick.0 % 15 != 0 {
         return;
@@ -581,7 +631,8 @@ pub fn conversations(
     let mut choices: Vec<modforge::hud::Choice> = rows
         .into_iter()
         .filter_map(|i| {
-            let (words, _) = words_of(&lines.0[i], i, (player.0, &memory.0), talking.started, &episode, world.bunker, seed.0)?;
+            let home = home_of(None, true, here, world.bunker);
+            let (words, _) = words_of(&lines.0[i], i, (player.0, &memory.0, home), talking.started, (&episode, &items.0), world.bunker, seed.0)?;
             Some(modforge::hud::Choice {
                 said: Said::Line { line: lines.0[i].id(), key: 0 },
                 words,
@@ -656,15 +707,18 @@ pub fn end_conversations(
     mut commands: Commands,
     tick: Res<crate::SimTick>,
     map: Res<ActorMapRes>,
-    mut players: Query<(Entity, &mut Hud, &Conversation, Has<Dead>), With<Player>>,
+    mut players: Query<(Entity, &mut Hud, &Conversation, Has<Dead>, &mut crate::actor::Memory), With<Player>>,
     held: Query<(), With<HeldToTalk>>,
 ) {
-    let Ok((player, mut hud, talking, dead)) = players.single_mut() else {
+    let Ok((player, mut hud, talking, dead, mut memory)) = players.single_mut() else {
         return;
     };
     let closed = hud.0.talking.is_none();
     if closed || dead || talking.ends_at.is_some_and(|at| tick.0 >= at) {
         hud.0.talking = None;
+        // Ended, as anything done is remembered (an episode's deed may
+        // read it: a question left with no answer).
+        memory.0.did(modforge::memory::Did::TalkEnded(ActorId(talking.with)), tick.0);
         commands.entity(player).remove::<Conversation>();
         if let Some(them) = map.0.handle_of(ActorId(talking.with))
             && held.contains(them)

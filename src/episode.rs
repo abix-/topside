@@ -48,6 +48,10 @@ pub struct Episode {
     /// once, through the one command path).
     #[serde(default)]
     pub ordered: Vec<(usize, ActorId)>,
+    /// Each condition inside a `Cond::For` that holds now (by its words,
+    /// `held_key`) and the tick it began holding without a break.
+    #[serde(default)]
+    pub held_for: Vec<(String, u64)>,
 }
 
 impl Episode {
@@ -71,6 +75,7 @@ impl Episode {
             held_since: Vec::new(),
             windows: Vec::new(),
             ordered: Vec::new(),
+            held_for: Vec::new(),
         }
     }
 
@@ -420,6 +425,44 @@ impl modforge::storyteller::Facts for EpisodeFacts<'_> {
     fn opened(&self, id: ActorId) -> Option<modforge::storyteller::OpenStore> {
         self.someone(id).and_then(|p| p.open)
     }
+
+    fn held_secs(&self, cond: &modforge::storyteller::Cond) -> f32 {
+        let key = held_key(cond);
+        // 60 ticks a game second.
+        self.episode.held_for.iter().find(|(k, _)| *k == key).map_or(0.0, |(_, t)| self.now.saturating_sub(*t) as f32 / 60.0)
+    }
+}
+
+/// A condition by its words: how `Episode::held_for` knows it.
+fn held_key(cond: &modforge::storyteller::Cond) -> String {
+    serde_json::to_string(cond).unwrap_or_default()
+}
+
+/// Once a game second, before the errands and deeds read them: each
+/// condition inside a `Cond::For` that holds keeps the tick it began
+/// holding; one that does not hold is let go, so a break starts it again.
+pub fn held_conditions(mut episode: ResMut<Episode>, world: EpisodeWorld) {
+    let now = world.tick.0;
+    if now % 60 != 0 {
+        return;
+    }
+    let kept: Vec<(String, u64)> = {
+        let Some(facts) = world.facts(&episode) else {
+            return;
+        };
+        facts
+            .def
+            .held()
+            .into_iter()
+            .filter(|c| modforge::storyteller::holds(c, &facts).is_some())
+            .map(|c| {
+                let key = held_key(c);
+                let since = episode.held_for.iter().find(|(k, _)| *k == key).map_or(now, |(_, t)| *t);
+                (key, since)
+            })
+            .collect()
+    };
+    episode.held_for = kept;
 }
 
 impl EpisodeFacts<'_> {
