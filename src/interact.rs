@@ -388,6 +388,7 @@ pub fn item_body(add: On<Add, WorldItem>, things: Query<&WorldItem>, items: Res<
     body.insert((
         RigidBody::Static,
         Collider::compound(vec![(Vec3::Y * size / 2.0, Rotation::IDENTITY, Collider::cuboid(size, size, size))]),
+        crate::player::makes_no_contacts(),
     ));
     if !deployable {
         body.insert(Sensor);

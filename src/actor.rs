@@ -104,7 +104,7 @@ impl Default for ActorMapRes {
 /// world, spawned or loaded.
 #[derive(Component, Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize, Reflect)]
 #[reflect(opaque, Component, Serialize, Deserialize)]
-#[require(moonshine_save::prelude::Save, RigidBody = RigidBody::Kinematic, Collider = body(), Visibility)]
+#[require(moonshine_save::prelude::Save, RigidBody = RigidBody::Kinematic, Collider = body(), CollisionLayers = crate::player::makes_no_contacts(), Visibility)]
 pub struct Actor(pub ActorId);
 
 /// The one way to walk people when who goes first matters (authority.md

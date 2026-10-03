@@ -80,3 +80,39 @@ fn where_the_time_goes_in_play() {
     assert!(ticks >= 60, "{ticks} ticks in {} ms: paused or stepping, the numbers are not play", ONE_PUBLISH.as_millis());
     assert!(perf["parts"].as_array().is_some_and(|p| !p.is_empty()), "the perf op reports no parts: {perf}");
 }
+
+/// What a stepped tick costs, as a test pays it: the `opening_woke` save
+/// loaded, the game paused, 60 ticks stepped three times, each step timed
+/// by the real clock from asking to the answer. Added to logs/perf.txt.
+#[test]
+fn what_a_stepped_tick_costs() {
+    crate::endpoint::start_from("opening_woke", || panic!("no opening_woke save to load"));
+    let _paused = crate::endpoint::pause();
+    let mut rows = vec!["stepping from opening_woke:".to_string()];
+    let mut all = Vec::new();
+    for _ in 0..6 {
+        let started = std::time::Instant::now();
+        let at = crate::endpoint::step(60);
+        let ms = started.elapsed().as_secs_f64() * 1000.0;
+        all.push(ms);
+        rows.push(format!("  60 ticks to tick {} in {ms:.0} ms: {:.2} ms a tick", at["tick"], ms / 60.0));
+    }
+    // The first steps after a load pay for the load's settling; the
+    // median is the step's own cost.
+    let mut sorted = all.clone();
+    sorted.sort_by(f64::total_cmp);
+    let median = sorted[sorted.len() / 2];
+    rows.push(format!("  median: 60 ticks in {median:.0} ms, {:.2} ms a tick", median / 60.0));
+    let worst = sorted[sorted.len() - 1];
+    let perf = op("perf");
+    rows.push(format!("  the perf op's whole step {:.3} ms", perf["step_ms"].as_f64().unwrap_or(0.0)));
+    let text = format!("{}\n\n", rows.join("\n"));
+    let _ = std::fs::create_dir_all("../logs");
+    let mut old = std::fs::read_to_string("../logs/perf.txt").unwrap_or_default();
+    if !old.is_empty() && !old.ends_with('\n') {
+        old.push('\n');
+    }
+    let _ = std::fs::write("../logs/perf.txt", format!("{old}{text}"));
+    eprintln!("{text}");
+    assert!(worst > 0.0, "no step was timed");
+}

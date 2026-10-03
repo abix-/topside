@@ -33,6 +33,16 @@ pub fn body() -> Collider {
     Collider::capsule(PLAYER_SIZE / 2.0, BODY_HEIGHT - PLAYER_SIZE)
 }
 
+/// What every person's body and every item's carries so Avian makes no
+/// contact pairs for it (todo 9p): a member of every layer, so every
+/// spatial query (move and slide, sight, aim, a hit) still finds it, and
+/// filtering none, so the broad phase pairs it with nothing. Nothing reads
+/// contacts; kinematic and static bodies are never solved (Rapier's
+/// ActiveCollisionTypes leaves these contacts out the same way).
+pub fn makes_no_contacts() -> CollisionLayers {
+    CollisionLayers::new(LayerMask::ALL, LayerMask::NONE)
+}
+
 /// The one player. Carries everything an actor needs to be told what
 /// to do, and a body that walls stop.
 #[derive(Component, Default, Clone, serde::Serialize, serde::Deserialize, Reflect)]
@@ -54,7 +64,8 @@ pub fn body() -> Collider {
     // Worked out each frame from where they look: never saved.
     crate::talk::LookingAt,
     RigidBody = RigidBody::Kinematic,
-    Collider = body()
+    Collider = body(),
+    CollisionLayers = makes_no_contacts()
 )]
 pub struct Player;
 
