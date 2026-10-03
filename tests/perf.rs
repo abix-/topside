@@ -138,6 +138,12 @@ fn what_a_stepped_tick_costs() {
     for part in perf["parts"].as_array().into_iter().flatten().filter(|p| p["in_step"] == true) {
         rows.push(format!("    {:<44} {:>8.3}", part["part"].as_str().unwrap_or("?"), part["ms"].as_f64().unwrap_or(0.0)));
     }
+    // While stepping, a frame is one step call: what a call pays besides
+    // its ticks shows here.
+    rows.push("  the costliest spans a frame (a frame is one step call):".to_string());
+    for span in perf["frame"].as_array().into_iter().flatten().take(25) {
+        rows.push(format!("    {:<90} {:>8.3}", span["span"].as_str().unwrap_or("?").chars().take(90).collect::<String>(), span["ms"].as_f64().unwrap_or(0.0)));
+    }
     let text = format!("{}\n\n", rows.join("\n"));
     let _ = std::fs::create_dir_all("../logs");
     let mut old = std::fs::read_to_string("../logs/perf.txt").unwrap_or_default();

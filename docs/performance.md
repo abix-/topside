@@ -22,28 +22,113 @@ Every entry in this doc is a line item against that budget.
 
 ## How to measure
 
-The running game publishes every diagnostic Bevy records plus
-topside's own frame marks through the control plane:
+Every number comes from the running game through its control plane,
+read by tests/perf.rs (run alone through the queue, so no other test
+drives the game while it reads):
 
-    POST http://127.0.0.1:15703/topside {"op": "diagnostics"}
+    pwsh -NoProfile -File scripts/build.ps1 queue perf::where_the_time_goes_in_play
+    pwsh -NoProfile -File scripts/build.ps1 queue perf::what_a_stepped_tick_costs
 
-`tests/control_plane.rs` (`diagnostics_op_reports_frame_time_and_render_passes`,
-run with `--nocapture`) prints the table sorted by value. The HUD
-shows FPS top left. Sources:
+Each adds a reading to logs/perf.txt. A second game (another clone) runs
+on its own port: `build.ps1 run -Port 15704`, and the tests with
+`-Port 15704` (TOPSIDE_PORT).
 
-- `FrameTimeDiagnosticsPlugin`: `fps`, `frame_time`.
-- `EntityCountDiagnosticsPlugin`: `entity_count`.
-- `RenderDiagnosticsPlugin`: `render/<pass>/elapsed_cpu|elapsed_gpu`
-  and shader invocation counts per render pass.
-- `profile::ProfilePlugin` (topside): marker systems at known points
-  of the frame, as `main/*`:
-  `first_to_transform` (First through Update before transform
-  propagation), `fixed_loop` (the whole fixed loop this frame),
-  `fixed_steps_per_frame`, `fixed_gameplay` (topside's FixedUpdate
-  chain, summed over the steps), `fixed_physics` (FixedPostUpdate
-  through FixedLast, which is Avian's step, summed), `transform_propagate`,
-  `visibility`, `post_to_last`, `extract_and_wait` (Last to the next
-  First: render extraction plus waiting on the GPU).
+- The `perf` op (src/profile.rs, todo 9m done 2026-10-02): the whole
+  fixed step, from the start of FixedFirst to the end of FixedLast
+  (`step_ms`, and `step_worst_ms`, its worst since launch), and its
+  parts, laps one after another so they add up to the step ("land
+  meshes", "landmass", topside's FixedUpdate chain, "rest of fixed
+  update", "physics"), each with its average and its worst single step
+  since launch (`worst_ms`; a running average hides a one-tick stall:
+  474 ms reads as about 16 and fades). Parts with `in_step` false are
+  pieces inside a lap ("steer: ...") or work outside the step ("map
+  drawing"). `steps_per_frame` counts fixed steps a frame. `frame` is
+  every span Bevy ran (each system and schedule, the drawing too), ms a
+  frame; each `Query::par_iter` ("par_for_each") is named by its query
+  and summed over the worker threads that ran it.
+- `what_a_stepped_tick_costs`: loads `opening_woke` (opening.rs
+  `woke`), pauses, steps 60 ticks ten times, times each by the real
+  clock, and reports the median of the last five (the first steps after
+  a load settle) and the step's laps.
+- The `diagnostics` op: Bevy's own (`fps`, `frame_time`), copied once
+  every 60 ticks, so up to a second older than `status`'s fps (todo 9o).
+
+## Measured 2026-10-02: a stepped tick, and what it costs
+
+Why it matters: the tests move a paused game only with the `step` op,
+so how fast a tick steps decides whether a test fits the 2 minutes a
+test may take. The target for the first pass is 4 ms a tick (7200 ticks
+in under 30 s). All numbers from tests/perf.rs on a second game (port
+15704), about 105 people, the small world.
+
+A stepped tick, by the real clock (60 ticks from `opening_woke`, settled
+median) and by the perf op's whole step:
+
+| After | real clock a tick | whole step | what changed |
+|---|---:|---:|---|
+| start | 11.59 ms | (undercounted) | |
+| 9p | about 10.2 | | people and items make no contact pairs: narrow phase 3.376 to 0.007 ms a frame |
+| 9n | 7.45 | | landmass places points through nearby islands: update_archipelagos 10.891 to 1.020 ms a frame |
+| 9m | 8.18 | 8.087 | the step measured whole (no cost change; run-to-run spread) |
+| bodies placed | 8.19 to 8.65 | 7.17 to 7.35 | physics lap 2.769 to about 1.8 ms; the real clock did not drop (other builds running; a step call's own cost not yet split, todo 9w) |
+
+The step's laps at the last reading, ms a step: physics 1.8, landmass
+1.4 to 1.6, movement 0.7 to 1.0, chunks 0.6, walk 0.5 to 0.8, think 0.5,
+interact 0.3 to 0.4, the rest under 0.25 each.
+
+What each finding was, and where it lives:
+
+- The step's total missed most of the step (9m, done): the stopwatch
+  started in FixedUpdate, so FixedFirst and FixedPreUpdate (all of
+  landmass) were in neither the total nor the parts: 7.3 ms reported
+  against about 19 real at startup. Now FixedFirst to FixedLast, laps
+  adding up to it within 5% (7.686 against 7.710), FixedMain per step
+  within 5% (8.018).
+- Avian made contact pairs nobody read (9p, done): every moving
+  kinematic person paired with every static compound and person it
+  overlapped, the narrow phase redoing every pair every step. People and
+  items now carry `player::makes_no_contacts` (a member of every layer,
+  filtering none): spatial queries still find them, the broad phase
+  pairs them with nothing. Rapier's ActiveCollisionTypes leaves these
+  contacts out by default for the same reason. About 8% of a tick.
+- Landmass walked every island for every point it placed (9n, open
+  until landmass is under 1 ms a step): vendor/landmass nav_data.rs
+  `sample_point` looped over all 1156 islands for each agent, its
+  target and each character, every step. It now keeps one island box
+  hierarchy (`island_bbh`), made when islands change, and looks only at
+  the islands near the point, ties in IslandId order (rule 5). Detour
+  finds a point's tiles by tile x and y the same way. Landmass main
+  still walks every island, so the patch is worth offering upstream.
+- Avian propagated every transform tree before each step (done, no
+  todo row): `propagate_before_physics` worked out every moving
+  person's whole drawn body (rig bones, worn pieces, what they hold)
+  every tick. Avian reads only the bodies' own GlobalTransform
+  (transform_to_position), so `bodies_placed` (src/lib.rs) works out
+  only theirs, and Bevy propagates the drawn trees once a frame for
+  drawing. Landmass reads positions through TransformHelper and no
+  fixed system reads GlobalTransform, so play and steps see the same
+  positions (rule 5). Physics lap 2.769 to about 1.8 ms.
+- Chunk meshes were built on 2 of 8 cores (9s, open, bar 5 s): Bevy's
+  default async compute pool is a quarter of the cores, at most 4. Both
+  it and the compute pool now get every core (TaskPoolPlugin in
+  src/lib.rs). The 1156 meshes land in 5368 ms at launch (17061 before)
+  and 5459 after a load that rolled its world (20420 before).
+- "par_for_each" was not one system: Bevy names every `Query::par_iter`
+  span so, and the span timer summed them all and timed overlapping
+  threads wrongly. Named by query now: animation targets 4.5 ms a frame
+  (9v), CPU visibility culling 3.0 (9q's meshes), a plain Entity query
+  1.7 (owner not found), transform propagation 0.4. All per frame, so a
+  step call pays them once, not per tick.
+
+Still open, in todo order: 9w (split what a step call pays besides its
+ticks: waiting for a frame, publishing, the Moment), 9n (landmass to
+under 1 ms a step), 9r (think asks Avian what is near: today each
+thinker walks everyone, N squared), 9q (a chunk's things merged per
+material: 81,190 meshes, 13,693 in view), 9v (rigs animate only in view),
+9t and 9u (chunk mesh builds capped a tick; a load's steps timed), 9o
+(one frame time). Watch: sight::look_around (linear in walkers),
+share_maps (grows with what people have seen), and 9x (three command
+and roxanne tests failing before any of this).
 
 ## Measured 2026-08-20: the ruined city
 
