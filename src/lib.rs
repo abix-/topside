@@ -113,7 +113,24 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind, port: u16
                     ..default()
                 })
                 // Every span Bevy runs timed, for the `perf` op (profile.rs).
-                .set(bevy::log::LogPlugin { custom_layer: profile::layer, ..default() }),
+                .set(bevy::log::LogPlugin { custom_layer: profile::layer, ..default() })
+                // Chunk meshes are built on Bevy's async compute threads
+                // (todo 9s): by default a quarter of the cores, at most 4,
+                // so a load's 1156 meshes queued on 2 of 8. Every core for
+                // them, and the compute pool, which runs the frame's own
+                // systems, keeps every core too: the async threads sit idle
+                // unless meshes are building. Each mesh still lands at its
+                // tick (authority.md rule 5).
+                .set(bevy::app::TaskPoolPlugin {
+                    task_pool_options: {
+                        let cores = bevy::tasks::available_parallelism();
+                        let mut options = bevy::app::TaskPoolOptions::default();
+                        options.async_compute.min_threads = cores;
+                        options.async_compute.max_threads = cores;
+                        options.compute.min_threads = cores;
+                        options
+                    },
+                }),
         );
     }
     // Avian 3D is the one physics system. Bodies are kinematic and walk

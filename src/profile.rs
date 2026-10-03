@@ -22,10 +22,17 @@ static THIS_FRAME: LazyLock<Mutex<HashMap<String, f64>>> = LazyLock::new(Default
 /// Every span's average time per frame, in ms.
 static PER_FRAME: LazyLock<Mutex<HashMap<String, f64>>> = LazyLock::new(Default::default);
 
-/// What a span measures: its kind and, for a system or schedule, its name.
+/// What a span measures: its kind and, for a system or schedule, its name;
+/// for Bevy's `par_for_each` (every `Query::par_iter`), the query it walks,
+/// so each parallel query is its own line, not one sum of all of them.
 struct SpanName(String);
-/// When the span was last entered.
-struct Entered(Instant);
+
+std::thread_local! {
+    /// When each span was entered on this thread, by span id: one span (a
+    /// `par_iter`'s) is entered on several worker threads at once, and each
+    /// entry is timed from its own start.
+    static ENTERED: std::cell::RefCell<HashMap<u64, Instant>> = std::cell::RefCell::new(HashMap::new());
+}
 
 /// The tracing layer that times every span: plugged into Bevy's log
 /// (`LogPlugin::custom_layer`).
@@ -36,13 +43,13 @@ impl<S: Subscriber + for<'a> LookupSpan<'a>> Layer<S> for SpanTimer {
         struct Name<'a>(&'a mut String);
         impl tracing::field::Visit for Name<'_> {
             fn record_str(&mut self, field: &Field, value: &str) {
-                if field.name() == "name" {
+                if matches!(field.name(), "name" | "query" | "data") {
                     self.0.push(' ');
                     self.0.push_str(value);
                 }
             }
             fn record_debug(&mut self, field: &Field, value: &dyn std::fmt::Debug) {
-                if field.name() == "name" {
+                if matches!(field.name(), "name" | "query" | "data") {
                     self.0.push(' ');
                     self.0.push_str(format!("{value:?}").trim_matches('"'));
                 }
@@ -55,21 +62,21 @@ impl<S: Subscriber + for<'a> LookupSpan<'a>> Layer<S> for SpanTimer {
         }
     }
 
-    fn on_enter(&self, id: &span::Id, ctx: Context<'_, S>) {
-        if let Some(span) = ctx.span(id) {
-            span.extensions_mut().replace(Entered(Instant::now()));
-        }
+    fn on_enter(&self, id: &span::Id, _ctx: Context<'_, S>) {
+        ENTERED.with(|e| e.borrow_mut().insert(id.into_u64(), Instant::now()));
     }
 
     fn on_exit(&self, id: &span::Id, ctx: Context<'_, S>) {
+        let Some(entered) = ENTERED.with(|e| e.borrow_mut().remove(&id.into_u64())) else {
+            return;
+        };
         let Some(span) = ctx.span(id) else {
             return;
         };
-        let extensions = span.extensions();
-        if let (Some(name), Some(entered)) = (extensions.get::<SpanName>(), extensions.get::<Entered>())
+        if let Some(name) = span.extensions().get::<SpanName>()
             && let Ok(mut frame) = THIS_FRAME.lock()
         {
-            *frame.entry(name.0.clone()).or_insert(0.0) += entered.0.elapsed().as_secs_f64() * 1000.0;
+            *frame.entry(name.0.clone()).or_insert(0.0) += entered.elapsed().as_secs_f64() * 1000.0;
         }
     }
 }

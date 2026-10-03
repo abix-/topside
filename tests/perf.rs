@@ -87,8 +87,8 @@ fn where_the_time_goes_in_play() {
 /// last five. Added to logs/perf.txt.
 #[test]
 fn what_a_stepped_tick_costs() {
-    crate::endpoint::start_from("opening_woke", || panic!("no opening_woke save to load"));
     let _paused = crate::endpoint::pause();
+    crate::opening::woke();
     let mut rows = vec!["stepping from opening_woke:".to_string()];
     let mut all = Vec::new();
     for _ in 0..10 {
