@@ -149,6 +149,7 @@ pub fn brain_tree() -> StateTree<Brain> {
 
     let mut supply = choice(state("supply the bunker", Some(ROOT), Some(brain::enter_supply), None), Choice::Supply);
     supply.transitions.push(when(brain::danger, ROOT));
+    supply.transitions.push(when(brain::asked_now, ROOT));
     s.push(supply);
     errand(&mut s, "haul home", SUPPLY, brain::enter_haul, "stocking", brain::stock);
     errand(&mut s, "fetch", SUPPLY, brain::enter_fetch, "taking", brain::take);
@@ -159,6 +160,7 @@ pub fn brain_tree() -> StateTree<Brain> {
 
     let mut look = choice(state("look", Some(ROOT), Some(brain::enter_look), None), Choice::Look);
     look.transitions.push(when(brain::danger, ROOT));
+    look.transitions.push(when(brain::asked_now, ROOT));
     s.push(look);
     errand(&mut s, "look at", LOOK, brain::enter_unchecked, "checking", brain::check);
     let mut head_out = state("head out", Some(LOOK), Some(brain::enter_head_out_need), Some(brain::going));
@@ -168,6 +170,7 @@ pub fn brain_tree() -> StateTree<Brain> {
     let mut wander = choice(state("wander", Some(ROOT), Some(brain::enter_wander), Some(brain::wander)), Choice::Wander);
     wander.transitions.push(when(brain::danger, ROOT));
     wander.transitions.push(when(brain::pressing, ROOT));
+    wander.transitions.push(when(brain::asked_now, ROOT));
     s.push(wander);
 
     debug_assert_eq!(s.len(), WANDER + 1, "the ids above name these states");
