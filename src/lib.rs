@@ -7,6 +7,7 @@ pub mod ai;
 pub mod combat;
 pub mod command;
 pub mod control_plane;
+pub mod edge;
 pub mod episode;
 pub mod held;
 pub mod hud;
@@ -164,6 +165,8 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind, port: u16
     app.init_resource::<trade::PeopleTrades>();
     app.init_resource::<ai::Warnings>();
     app.init_resource::<joining::Joins>();
+    app.init_resource::<edge::EdgeRes>();
+    app.init_resource::<edge::WordToEdge>();
     app.init_resource::<content::LayerRegistryRes>();
     app.init_resource::<content::DamageRegistryRes>();
     app.init_resource::<content::ActorRegistryRes>();
@@ -251,6 +254,7 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind, port: u16
                     episode::pivots_said,
                     episode::the_taps_errands,
                     episode::the_first_drink,
+                    episode::the_taps_deeds,
                     talk::lines,
                 )
                     .chain(),
@@ -277,6 +281,9 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind, port: u16
                     // group felt better toward; made after.
                     joining::leave_for_better,
                     joining::join,
+                    // Word of a place reaching the edge brings newcomers
+                    // (todo 11i).
+                    edge::newcomers,
                 )
                     .chain(),
                 lap("interact"),

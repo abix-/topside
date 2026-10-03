@@ -300,6 +300,8 @@ pub fn spawn_bunker(
             .unwrap_or_else(|e| panic!("starting item {name}: {e}"));
         spawn_item(&mut commands, &mut ids, def(name), stack, on_ground(at + Vec2::new(x, z), PLAYER_ROOM_FLOOR));
     }
+    // Its store, as every bunker's (Roxanne's, and anyone who joins).
+    spawn_store(&mut commands, &mut ids, &items, at, PLAYER_STORE_SALT);
     // The crafting bench, where E opens its recipes.
     let [x, z] = BENCH_AT;
     spawn_station(&mut commands, &mut ids, StationKind::CraftingBench, on_ground(at + Vec2::new(x, z), COMMON_ROOM_FLOOR));
@@ -318,27 +320,37 @@ pub fn spawn_bunker(
 /// the same building as the player's through `spawn_structure`, not of
 /// any one world, with its store: a box of food and water.
 pub fn spawn_other_bunkers(mut commands: Commands, world: Res<WorldRes>, items: Res<ItemRegistryRes>, mut ids: ResMut<crate::interact::ThingIssuer>) {
-    let box_def = items.0.def("storage box").expect("the storage box is registered");
     for (i, &at) in world.bunkers.iter().enumerate() {
         spawn_structure(&mut commands, &mut ids, &starting_bunker(), at, false, Some(BUNKER_DOOR));
-        let mut contents = item::Inventory::new(box_def.storage.unwrap_or(12));
-        for (name, count) in BUNKER_STORE {
-            if let Some(def) = items.0.def(name) {
-                let _ = contents.add(create(def, count, &[], 0.0, i as u64), def.max_stack);
-            }
-        }
-        let [x, z] = BUNKER_STORE_AT;
-        let (store, _) = spawn_item(
-            &mut commands,
-            &mut ids,
-            box_def,
-            create(box_def, 1, &[], 0.0, i as u64),
-            // In the entrance, where its people can reach it until they can
-            // go down the stairs (todo 13a2).
-            on_ground(at + Vec2::new(x, z), 0.0),
-        );
-        commands.entity(store).insert(Container(contents));
+        spawn_store(&mut commands, &mut ids, &items, at, i as u64);
     }
+}
+
+/// The salt the player's bunker's store is made with (the other bunkers'
+/// are their places in the world's list).
+const PLAYER_STORE_SALT: u64 = 1000;
+
+/// A bunker's store (design.md "The bunker you start in": the water store):
+/// a box of food and water, every bunker's the same way, the player's too.
+fn spawn_store(commands: &mut Commands, ids: &mut crate::interact::ThingIssuer, items: &ItemRegistryRes, bunker: Vec2, salt: u64) {
+    let box_def = items.0.def("storage box").expect("the storage box is registered");
+    let mut contents = item::Inventory::new(box_def.storage.unwrap_or(12));
+    for (name, count) in BUNKER_STORE {
+        if let Some(def) = items.0.def(name) {
+            let _ = contents.add(create(def, count, &[], 0.0, salt), def.max_stack);
+        }
+    }
+    let [x, z] = BUNKER_STORE_AT;
+    let (store, _) = spawn_item(
+        commands,
+        ids,
+        box_def,
+        create(box_def, 1, &[], 0.0, salt),
+        // In the entrance, where its people can reach it until they can
+        // go down the stairs (todo 13a2).
+        on_ground(bunker + Vec2::new(x, z), 0.0),
+    );
+    commands.entity(store).insert(Container(contents));
 }
 
 /// Every spawned site's monument as modforge rolled it, and where it

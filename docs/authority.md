@@ -151,6 +151,14 @@ CI runner taking jobs from a queue and reporting each back.
   segments with a checkpoint missing between them; add the checkpoint,
   reached by playing on from the one before, never by setting the world
   up by hand.
+- A save point a long span from the one before is grown (orchestrator,
+  2026-10-02): `endpoint::grow` plays on a game minute at a time from the
+  save point before, saving each minute as its own checkpoint
+  (`<name>_minute_<k>`, not committed), so a run stopped at the test limit
+  keeps what it played and the next run carries on from the latest
+  minute. It stops at the event, or loads the minute before it; that is
+  saved as the named save point, which is committed. Cheaper ticks shorten
+  the growing.
 - Loading (operator, 2026-10-02; every game's loading screen): the game
   shows a loading screen until the world is ready to play, after a launch
   and after loading a saved game, never for a storm (operator,

@@ -66,22 +66,61 @@ pub fn loaded() {
     panic!("the game was still loading after 60 seconds, or reports no loading: {}", op("status"));
 }
 
-/// For a save just before an event: play a game minute at a time, saving before each,
-/// until `happened`; then the last save before it is kept as `name`, the
-/// moment just before the event. At most `minutes` game minutes.
-pub fn save_just_before(name: &str, minutes: u64, happened: impl Fn() -> bool) {
-    // The rolling save, overwritten each minute; never committed.
-    let held = "play_through_minute".to_string();
-    for _ in 0..minutes {
-        op_with("save", json!({"name": held}));
-        step(60 * 60);
+/// Where a grown save point stops: just before its event, or at it.
+pub enum Until {
+    Before,
+    At,
+}
+
+/// One game minute of ticks.
+const MINUTE: u64 = 60 * 60;
+
+/// Load save `name` if the game has it; whether it did.
+fn try_load(name: &str) -> bool {
+    let answer: Option<Json> = ureq::post(url())
+        .send_json(json!({"op": "load", "args": {"name": name}}))
+        .ok()
+        .and_then(|r| r.into_body().read_json().ok());
+    let answer = answer.unwrap_or_else(|| panic!("no topside game answering on {}; start it with scripts/build.ps1 run", url()));
+    if answer["ok"] == true {
+        loaded();
+    }
+    answer["ok"] == true
+}
+
+/// A save point a long game span from the one before, grown as a chain of
+/// checkpoints one game minute apart (authority.md "Running tests": a
+/// segment that needs a long span is several, each played on from the one
+/// before). Each minute is saved as `<name>_minute_<k>` as soon as it is
+/// played, so a run stopped by the test limit keeps what it played and the
+/// next run carries on from the latest; `from` (the save point before) is
+/// played only when no minute is saved yet. It stops when `happened`: at
+/// that minute, or (`Until::Before`) the minute before it, loaded. At most
+/// `minutes` game minutes. Called inside `start_from(name, ...)`, which
+/// saves the point itself.
+pub fn grow(name: &str, minutes: u64, from: impl FnOnce(), happened: impl Fn() -> bool, until: Until) {
+    let minute = |k: u64| format!("{name}_minute_{k}");
+    let mut k = match (0..=minutes).rev().find(|k| try_load(&minute(*k))) {
+        Some(k) => k,
+        None => {
+            from();
+            op_with("save", json!({"name": minute(0)}));
+            0
+        }
+    };
+    loop {
         if happened() {
-            op_with("load", json!({"name": held}));
-            op_with("save", json!({"name": name}));
+            if let Until::Before = until {
+                assert!(k > 0, "{name}: it had already happened at the save point before");
+                assert!(try_load(&minute(k - 1)), "{name}: minute {} could not be loaded again", k - 1);
+            }
             return;
         }
+        assert!(k < minutes, "{name}: it never happened within {minutes} game minutes");
+        step(MINUTE);
+        k += 1;
+        op_with("save", json!({"name": minute(k)}));
     }
-    panic!("{name}: the event never happened within {minutes} game minutes");
 }
 
 /// The game paused for a test (the `pause` op), and let run again when the

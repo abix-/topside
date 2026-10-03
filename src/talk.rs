@@ -183,6 +183,16 @@ impl Moment {
         self
     }
 
+    /// The speaker belongs to no group and plays no part: a stranger,
+    /// speaking the lines written for "stranger" (todo 11af, The Tap's
+    /// pivot point 6).
+    fn from_a_stranger(mut self, stranger: bool) -> Self {
+        if stranger && self.part.is_empty() {
+            self.part = "stranger".to_string();
+        }
+        self
+    }
+
     /// How the speaker feels toward the one spoken to (`When::Feels`).
     fn feeling(mut self, feels: f32) -> Self {
         self.feels = feels;
@@ -262,8 +272,9 @@ pub fn talk(
     world: Res<crate::terrain::WorldRes>,
     seed: Res<crate::WorldSeed>,
     speakers: Query<(Entity, &Actor, &ThisTick, &Name), Without<Dead>>,
-    mut people: Query<(&Transform, &mut Memory, &Inventory, &mut Hud, Has<Player>, Option<&Conversation>), Without<Dead>>,
+    mut people: Query<(&Transform, &mut Memory, &Inventory, &mut Hud, Has<Player>, Option<&Conversation>, Option<&crate::actor::Npc>), Without<Dead>>,
     mut joins: ResMut<crate::joining::Joins>,
+    mut to_edge: ResMut<crate::edge::WordToEdge>,
 ) {
     // In ActorId order (authority.md rule 5): of two speaking to the player
     // in one tick, whom the player ends up talking to is the same after a
@@ -278,7 +289,7 @@ pub fn talk(
             let Some(listener) = map.0.handle_of(ActorId(to)) else {
                 continue;
             };
-            let Ok([(from, mut speaker_memory, inventory, _, _, speaker_talking), (at, mut listener_memory, _, mut hud, is_player, listener_talking)]) =
+            let Ok([(from, mut speaker_memory, inventory, _, speaker_is_player, speaker_talking, speaker_npc), (at, mut listener_memory, _, mut hud, is_player, listener_talking, listener_npc)]) =
                 people.get_many_mut([speaker, listener])
             else {
                 continue;
@@ -317,6 +328,15 @@ pub fn talk(
             // player's bunker (todo 11af).
             if is_player && words.as_ref().is_some_and(|(name, _)| name == crate::content::AGREES_TO_STAY) {
                 joins.0.push((speaker, crate::content::PLAYER_FACTION.to_string()));
+            }
+            // A place told to someone of another group: word of it sets out
+            // for the edge (todo 11i).
+            let group = |player: bool, npc: Option<&crate::actor::Npc>| if player { Some(crate::content::PLAYER_FACTION.to_string()) } else { npc.and_then(|n| n.faction.clone()) };
+            if let modforge::talk::Answer::Learned(key) = answer
+                && group(speaker_is_player, speaker_npc) != group(is_player, listener_npc)
+                && let Some((kind, place)) = speaker_memory.0.known.iter().find(|k| k.key == key).map(|k| (k.kind.clone(), k.position))
+            {
+                to_edge.0.push((key, kind, place, from.translation.ground()));
             }
             if is_player {
                 spoken_to(&mut commands, listener, &mut hud, (id.0.0, name.as_str()), tick.0);
@@ -468,7 +488,7 @@ pub fn conversations(
     let player_first = talking.opened && nothing_said && !open.is_empty();
     // Their turn: the line modforge picks for them.
     let feels = modforge::relationship::feeling(&their_memory.0, player.0, |line| episodes.felt(line)).unwrap_or(0.0);
-    let theirs = Moment::of(&episode, (with, false), (player.0, true), their_at, their_survival).feeling(feels);
+    let theirs = Moment::of(&episode, (with, false), (player.0, true), their_at, their_survival).feeling(feels).from_a_stranger(stranger);
     if !player_first
         && let Some(line) = modforge::talk::pick(&lines.0, &theirs.speaking(player.0, &their_memory.0, talking.started, talking.opened), seed.0 ^ tick.0)
     {

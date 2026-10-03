@@ -1004,6 +1004,7 @@ pub fn publish_world(
     episode: Res<crate::Episode>,
     below: Query<(&Transform, &crate::structure::Below)>,
     doors: Query<(&crate::interact::Door, &Transform)>,
+    edge: Res<crate::edge::EdgeRes>,
 ) {
     if !due(tick.0) {
         return;
@@ -1049,9 +1050,7 @@ pub fn publish_world(
             if let Ok((held, at, drawn)) = stores.get(store.0) {
                 // How many days its water lasts the bunker, as the brain
                 // counts it (modforge memory::days_of).
-                let supplies = held.0.slots.iter().flatten().map(|s| (s.item.as_str(), s.count));
-                let (_, days) = modforge::memory::days_of(supplies, crate::content::BUNKER_PEOPLE as u32, day.per_day(), &items.0);
-                days_of_water = json!(days);
+                days_of_water = json!(crate::interact::days_of_water(&held.0, &items, *day));
                 for stack in held.0.slots.iter().flatten() {
                     if items.0.def(&stack.item).and_then(|d| d.food).is_some_and(|f| f.hunger > 0.0) {
                         food += stack.count;
@@ -1143,6 +1142,8 @@ pub fn publish_world(
         "did": did,
         "factions": factions,
         "bunkers": bunkers,
+        // When the edge's next group may come (todo 11i).
+        "edge": {"next_group_at": edge.0.next_group_at},
         "below": below,
         "bunker_doors": bunker_doors,
         "chunks": {"made": made, "missing": missing},

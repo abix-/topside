@@ -403,7 +403,17 @@ pub fn plain_lines() -> Vec<LineDef> {
         // asks a stranger to stay; they say yes feeling well enough toward
         // the player (relationship::FRIENDLY, orchestrator 2026-10-02), and
         // saying it, they join (`AGREES_TO_STAY`).
-        line("asks to stay", "player", vec![When::To("stranger".to_string())], &["You can stay with us."], "", 0.0),
+        // Not the first word, so a stranger who has something to say says it
+        // first; not to one who asked for the water, whom The Tap's own
+        // answers take in (`STRANGER_ASKS`).
+        line(
+            "asks to stay",
+            "player",
+            vec![When::To("stranger".to_string()), When::Not(Box::new(When::First)), When::Not(Box::new(When::HasHeard(STRANGER_ASKS.to_string())))],
+            &["You can stay with us."],
+            "",
+            0.0,
+        ),
         line(AGREES_TO_STAY, "", vec![heard("asks to stay"), When::Feels(modforge::relationship::FRIENDLY)], &["All right. I'll stay with you.", "Yes. I'd like that."], "", 0.0),
         line("will not stay", "", vec![heard("asks to stay")], &["No. I don't know you well enough.", "I'll keep to myself."], "", 0.0),
     ]
@@ -412,6 +422,18 @@ pub fn plain_lines() -> Vec<LineDef> {
 /// The line a person says agreeing to stay with the one who asked: said,
 /// they join that one's group (todo 11af, `joining::join`).
 pub const AGREES_TO_STAY: &str = "agrees to stay";
+
+/// The Tap's pivot point 5 comes: the player checked their bunker's store
+/// while it held more than it needs (episode::the_taps_deeds); Dell's line
+/// follows it (the-tap.md "Dell's storing is noticed").
+pub const STORING_NOTICED: &str = "Dell's storing is noticed";
+
+/// A stranger who came for the water asks for it (The Tap's pivot point 6).
+pub const STRANGER_ASKS: &str = "a stranger asks for water";
+
+/// The player's line giving Mara's child water: said, a water goes from the
+/// player to the child (The Tap's pivot point 8, "brings Mara water").
+pub const GIVES_WATER: &str = "brings Mara water";
 
 /// Thirst at or below which the player can ask anyone for water (modforge
 /// `SurvivalStats`, full at 100). Tuning.
@@ -526,6 +548,24 @@ pub fn register_episodes(reg: &mut EpisodeRegistry) {
         when.extend(answered(&["talks with Mara", "threatens Mara", "leaves Mara the tap"]));
         when
     };
+    // To Dell once she has explained the store (pivot point 5).
+    let to_dell_storing = || {
+        let mut when = vec![When::To(s("Dell")), When::HasHeard(s("Dell explains the store"))];
+        when.extend(answered(&["stops Dell", "takes Dell's side"]));
+        when
+    };
+    // To a stranger who asked for the water (pivot point 6).
+    let to_the_stranger = || {
+        let mut when = vec![When::To(s("stranger")), When::HasHeard(s(STRANGER_ASKS))];
+        when.extend(answered(&["trades with the strangers", "sends the strangers away", "points the strangers at Mara", "takes a stranger in"]));
+        when
+    };
+    // To Mara's child once they have asked (pivot point 8).
+    let to_the_child = || {
+        let mut when = vec![When::To(s("Mara's child")), When::HasHeard(s("the child asks for water"))];
+        when.extend(answered(&[GIVES_WATER, "trades water to Mara", "does nothing for the child", "uses the water"]));
+        when
+    };
     let reply = |name: &str, part: &str, to: &str, ways: &[&str]| line(name, part, vec![heard(to)], ways, "", 0.0);
     for def in [
         // docs/episodes/the-tap.md "The people" and "The lines".
@@ -601,6 +641,48 @@ pub fn register_episodes(reg: &mut EpisodeRegistry) {
                 reply("Mara answers talk", "Mara", "talks with Mara", &["Enough for today. Ask again tomorrow.", "Maybe. Don't get greedy."]),
                 reply("Mara answers a threat", "Mara", "threatens Mara", &["Try it.", "You'll regret that."]),
                 reply("Mara keeps it", "Mara", "leaves Mara the tap", &["Smart.", "Good. Go."]),
+                // Pivot point 5, Dell's storing noticed (the player checks
+                // the store while it holds more than 10 days of water,
+                // `STORING_NOTICED`): Dell explains, once, and the answers.
+                line(
+                    "Dell explains the store",
+                    "Dell",
+                    vec![When::To(s("player")), When::Reached(s(STORING_NOTICED)), not(When::Said(s("Dell explains the store")))],
+                    &["We might need it. You don't know. None of us know.", "It's not stealing if it's ours."],
+                    "",
+                    0.0,
+                ),
+                line("stops Dell", "player", to_dell_storing(), &["Stop. We have enough."], "", -0.2),
+                line("takes Dell's side", "player", to_dell_storing(), &["Then take more."], "", 0.2),
+                // Pivot point 6, the strangers (draft): one who came for the
+                // water speaks first, once, and the four answers.
+                line(
+                    STRANGER_ASKS,
+                    "stranger",
+                    vec![When::To(s("player")), When::Knows(s("tap")), not(When::Said(s(STRANGER_ASKS)))],
+                    &["We heard there's water here.", "Word is you've got water to spare."],
+                    "",
+                    0.0,
+                ),
+                line("trades with the strangers", "player", to_the_stranger(), &["What have you got?"], "", 0.1),
+                line("sends the strangers away", "player", to_the_stranger(), &["Not for you. Move on."], "", -0.2),
+                line("points the strangers at Mara", "player", to_the_stranger(), &["Try the people at the tap. They've got plenty."], "", 0.1),
+                line("takes a stranger in", "player", to_the_stranger(), &["You can stay with us."], "", 0.3),
+                reply("strangers sent away", "stranger", "sends the strangers away", &["Your loss.", "We'll find it anyway."]),
+                reply("strangers go to Mara", "stranger", "points the strangers at Mara", &["We'll go see.", "Thanks. We'll take it from them."]),
+                // Taken in, they say yes and join, as any stranger who agrees
+                // to stay does (`AGREES_TO_STAY`).
+                reply(AGREES_TO_STAY, "stranger", "takes a stranger in", &["Thank you. I won't forget it."]),
+                // Pivot point 8, Mara's child: asks whenever the player is
+                // near, and the four answers (draft).
+                line("the child asks for water", "Mara's child", vec![When::To(s("player"))], &["Is there water today?", "I'm thirsty."], "", 0.0),
+                line(GIVES_WATER, "player", to_the_child(), &["Here. Take this water."], "", 0.4),
+                line("trades water to Mara", "player", to_the_child(), &["What will Mara give for it?"], "", 0.0),
+                line("does nothing for the child", "player", to_the_child(), &["Not today."], "", -0.1),
+                line("uses the water", "player", to_the_child(), &["Tell Mara it's hers if she stands with us."], "", 0.0),
+                reply("the child thanks you", "Mara's child", GIVES_WATER, &["Thank you."]),
+                reply("the child sends you to Mara", "Mara's child", "trades water to Mara", &["Ask Mara."]),
+                reply("the child will tell Mara", "Mara's child", "uses the water", &["I'll tell her."]),
             ],
             // How it opens (the-tap.md, operator 2026-10-02): the player
             // reads the note and Dell starts down at once, to their door,
