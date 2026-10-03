@@ -704,8 +704,15 @@ pub fn think(
             }
             // At a source (a well, a berry bush): use it where it stands,
             // a mouthful a think, until the need is met.
+            // A melee weapon in hand goes out of hand first (its own
+            // hotbar slot again empties the hands, modforge hotbar_key):
+            // used with one, a thing that breaks when struck is broken
+            // (interact::interact_on_use).
             Some(Do::Eat { key, .. }) if source_at(key).is_some() => {
                 let at = source_at(key).expect("checked above");
+                if let Some(index) = hotbar.0.held.filter(|_| crate::interact::melee_in_hand(&hotbar.0, &items.0)) {
+                    act(Action::Hotbar { index });
+                }
                 act(Action::Aim { x: at.x, y: at.z });
                 act(Action::Use);
             }

@@ -357,8 +357,8 @@ pub struct DrawsFrom(#[entities] pub Entity);
 
 /// A store another place draws from (`DrawsFrom`), and the water it held
 /// when that began (the episode's start: The Tap's tap placed). It says how
-/// much it holds when looked at, and reads dry under a quarter of what it
-/// held (todo 11ad; the-tap.md "Mara's well").
+/// much it holds when looked at, and reads dry under content's `DRY_BELOW`
+/// of what it held (todo 11ad).
 #[derive(Component, Clone, Copy, serde::Serialize, serde::Deserialize, Reflect)]
 #[reflect(opaque, Component, Serialize, Deserialize)]
 pub struct Drawn {
@@ -368,7 +368,7 @@ pub struct Drawn {
 impl Drawn {
     /// Whether it reads dry holding `water` now.
     pub fn dry(&self, water: u32) -> bool {
-        water * 4 < self.held
+        (water as f32) < self.held as f32 * crate::content::DRY_BELOW
     }
 }
 
@@ -393,6 +393,14 @@ pub fn days_of(held: &item::Inventory, need: modforge::survival::Need, items: &I
         modforge::survival::Need::Thirst => thirst,
         _ => hunger,
     }
+}
+
+/// Whether a melee weapon is in hand: what is held is a weapon with no
+/// ammo (orchestrator 2026-10-03). The one answer the break rule
+/// (`interact_on_use`) and the brain (ai::think, putting it away before
+/// using a source) read.
+pub fn melee_in_hand(hotbar: &modforge::hud::Hotbar, items: &modforge::item::ItemRegistry) -> bool {
+    hotbar.held_stack().and_then(|s| items.def(&s.item)).and_then(|d| d.combat.as_ref()).is_some_and(|c| c.ammo.is_none())
 }
 
 /// How much water a store holds: every stack of something drunk (its food
@@ -562,7 +570,7 @@ pub fn interact_on_use(
     mut people: Query<
         (
             (Entity, &Transform, &ThisTick, &mut Inventory, &mut Hud, &mut OpenContainer, &mut OpenStation),
-            (&mut Survival, &mut Health, Option<&mut Memory>, &Facing, Option<&crate::talk::LookingAt>, Option<&crate::actor::Actor>, (Option<&crate::actor::Hotbar>, Has<crate::player::Player>)),
+            (&mut Survival, &mut Health, Option<&mut Memory>, &Facing, Option<&crate::talk::LookingAt>, Option<&crate::actor::Actor>, Option<&crate::actor::Hotbar>),
         ),
         Without<Dead>,
     >,
@@ -577,7 +585,7 @@ pub fn interact_on_use(
     // in one tick, who gets it is the same after a load.
     let order = crate::actor::in_actor_order(people.iter().map(|((me, ..), (.., actor, _))| (actor.map(|a| a.0), me)));
     for entity in order {
-        let Ok(((me, person, this_tick, mut inventory, mut hud, mut open, mut station), (mut needs, mut health, mut memory, facing, looking, _, (hotbar, is_player)))) =
+        let Ok(((me, person, this_tick, mut inventory, mut hud, mut open, mut station), (mut needs, mut health, mut memory, facing, looking, _, hotbar))) =
             people.get_mut(entity)
         else {
             continue;
@@ -614,19 +622,14 @@ pub fn interact_on_use(
         // A source item (a well, a bush), decided by modforge's interact.
         if thing.kind == InteractKind::Source {
             if let Some(item) = item {
-                // A source drawn from another (The Tap's tap) used with a
-                // melee weapon in hand is broken, and gone (the-tap.md pivot
-                // point 10; orchestrator 2026-10-03: in hand, any melee
-                // weapon, a weapon with no ammo).
-                let melee_in_hand = hotbar
-                    .and_then(|h| h.0.held_stack())
-                    .and_then(|s| registry.0.def(&s.item))
-                    .and_then(|d| d.combat.as_ref())
-                    .is_some_and(|c| c.ammo.is_none());
-                // The player's own Use (first person: Use acts with what is
-                // held); a person's brain uses the tap to drink, pipe in
-                // hand or not (Mara's people broke it drinking).
-                if is_player && draws_from.is_some() && melee_in_hand {
+                // A thing that breaks when struck (its def's
+                // `breaks_when_struck`), used with a melee weapon in hand,
+                // is broken, and gone: by anyone, the player as any person
+                // (orchestrator 2026-10-03: in hand, any melee weapon, a
+                // weapon with no ammo). A person's brain puts the weapon
+                // out of hand before it uses a source (ai::think).
+                let breaks = registry.0.def(&item.stack.item).is_some_and(|d| d.breaks_when_struck);
+                if breaks && hotbar.is_some_and(|h| melee_in_hand(&h.0, &registry.0)) {
                     commands.entity(entity).despawn();
                     continue;
                 }

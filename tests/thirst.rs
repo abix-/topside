@@ -4,8 +4,8 @@
 //! about, the water they know of, and their way. Fails while a thirsty
 //! person is not seeing to their thirst.
 
-use crate::endpoint::{is_bunker_person, op_with, people};
-use serde_json::json;
+use crate::endpoint::{is_bunker_person, op, op_with, pause, people};
+use serde_json::{Value as Json, json};
 
 /// Below this, a person is thirsty enough that drinking should come first
 /// (the needs run from 100, met, down to 0).
@@ -113,4 +113,28 @@ fn thirsty_topside_people_see_to_their_thirst() {
         }
     }
     assert!(neglected.is_empty(), "thirsty but not seeing to it: {neglected:#?}");
+}
+
+/// A critical need outranks being asked, and once met they go back to it
+/// (modforge brain NEED_CRITICAL; RimWorld's ThinkTree): Mara, asked by The
+/// Tap's errand to wait at the tap, made critically thirsty (the `needs` op,
+/// as tests/drawn_from.rs does) drinks at the tap, then waits where she
+/// was asked again. From the opening's first save, paused.
+#[test]
+fn a_critical_need_outranks_being_asked_then_they_go_back() {
+    let _p = pause();
+    crate::opening::woke();
+    let mara = op("world")["cast"].as_array().and_then(|c| c.iter().find(|p| p["part"] == "Mara")).and_then(|p| p["id"].as_u64()).expect("Mara's part");
+    let her = || people().into_iter().find(|p| p["id"].as_u64() == Some(mara)).unwrap_or(Json::Null);
+    let tap = crate::opening::the_tap();
+    let near_tap = || crate::opening::apart(crate::opening::spot_of(mara), tap).0 < 4.0;
+    assert!(crate::opening::within(120, near_tap), "setup: Mara never came to the tap she is asked to: she stands at {:?}", crate::opening::spot_of(mara));
+    let doing = || op_with("npc", json!({"id": mara}))["doing"].clone();
+    assert!(crate::opening::within(10, || doing() == "waiting"), "setup: Mara at the tap is not waiting where asked: {}", doing());
+    op_with("needs", json!({"id": mara, "thirst": 5}));
+    let drank = || her()["ate_what"]["tap"].as_u64().unwrap_or(0);
+    let drinks = crate::opening::within(60, || drank() >= 1);
+    assert!(drinks, "Mara, asked to wait at the tap with thirst 5, never drank: doing {}, thirst {}", doing(), her()["thirst"]);
+    let back = crate::opening::within(60, || doing() == "waiting" && near_tap());
+    assert!(back, "Mara drank but did not go back to waiting where asked: doing {}, at {:?}, thirst {}", doing(), crate::opening::spot_of(mara), her()["thirst"]);
 }
