@@ -100,8 +100,8 @@ pub enum Call {
 /// The line `caller` calls to `to` with their knock or warning, if one fits
 /// (authority.md "Talking": one called line, heard like the knock, no
 /// conversation opened; a line rule with `When::Knocking` or
-/// `When::Warning`, picked as any line is; The Tap: "You awake in
-/// there?"): its name and words, as they say it now.
+/// `When::Warning`, picked as any line is): its name and words, as they
+/// say it now.
 pub fn called_line(
     (episode, lines, bunker, seed): (&Episode, &Lines, Vec2, u64),
     (caller, memory, at, survival): (ActorId, &Memory, Vec3, Option<&Survival>),
@@ -200,8 +200,7 @@ impl Moment {
     }
 
     /// The speaker belongs to no group and plays no part: a stranger,
-    /// speaking the lines written for "stranger" (todo 11af, The Tap's
-    /// pivot point 6).
+    /// speaking the lines written for "stranger" (todo 11af).
     fn from_a_stranger(mut self, stranger: bool) -> Self {
         if stranger && self.part.is_empty() {
             self.part = "stranger".to_string();
@@ -349,7 +348,7 @@ pub fn talk(
             };
             // A line's words, worked out now, as the panel showed them.
             let since = speaker_talking.or(listener_talking).map_or(tick.0, |c| c.started);
-            let (said, words) = match said {
+            let (said, words, gives) = match said {
                 Said::Line { line, key } => {
                     let Some((index, def)) = lines.by_id(line) else {
                         continue;
@@ -358,9 +357,9 @@ pub fn talk(
                         continue;
                     };
                     let key = if key != 0 { key } else { told };
-                    (Said::Line { line, key }, Some((def.name.clone(), words)))
+                    (Said::Line { line, key }, Some((def.name.clone(), words)), def.gives.clone())
                 }
-                other => (other, None),
+                other => (other, None, String::new()),
             };
             let answer = modforge::talk::talk(
                 said,
@@ -380,10 +379,10 @@ pub fn talk(
             {
                 joins.0.push((speaker, theirs));
             }
-            // Giving water by a line (The Tap's "brings Mara water"): one
-            // drink goes from the speaker to the one spoken to.
-            if words.as_ref().is_some_and(|(name, _)| name == crate::content::GIVES_WATER)
-                && let Some(mut one) = inventory.0.slots.iter().flatten().find(|s| items.0.def(&s.item).and_then(|d| d.food).is_some_and(|f| f.thirst > 0.0)).cloned()
+            // A line that gives (its `gives`): one of that item goes from
+            // the speaker to the one spoken to, if they carry one.
+            if !gives.is_empty()
+                && let Some(mut one) = inventory.0.slots.iter().flatten().find(|s| s.item == gives).cloned()
                 && inventory.0.take_one(&one.item)
             {
                 one.count = 1;

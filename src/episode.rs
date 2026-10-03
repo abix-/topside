@@ -268,8 +268,9 @@ pub fn place_things(
             && let Some((_, mut memory)) = memories.iter_mut().find(|(a, _)| a.0 == finder)
         {
             // Found, so they have been there: never a thing they have yet
-            // to look at (the brain's look walked Dell out to the tap before
-            // the opening, the operator's playtest 2026-10-03).
+            // to look at (the brain's look walked the one who found it out
+            // to it before the episode opened, the operator's playtest
+            // 2026-10-03).
             memory.0.see(key, &thing.item, thing_at, tick.0);
             memory.0.visited(key, tick.0);
             if thing.kept_quiet {
@@ -520,7 +521,7 @@ impl EpisodeWorld<'_, '_> {
 }
 
 /// Every step: each cue of the episode running whose deed the player has
-/// done (modforge `cues_due`; The Tap: the note read) has the person cast
+/// done (modforge `cues_due`: a note read) has the person cast
 /// in its part do its order, through the one way an order reaches a person
 /// (command::order), and is reached, once.
 pub fn cues(
@@ -569,7 +570,7 @@ pub fn cues(
 /// Pivot points reached by what was said (episodes.md "One way for every
 /// conversation"): once a game second, every line of the episode said by
 /// anyone since it started, read from memory (the one record), is reached
-/// under its name ("the opening", "believes Dell", "threatens Mara").
+/// under its name.
 /// Pivot points reached by what was done are reached where it is seen
 /// (`errands`' arrivals, `deeds`).
 pub fn pivots_said(
@@ -818,7 +819,7 @@ pub fn deeds(mut episode: ResMut<Episode>, world: EpisodeWorld) {
 }
 
 /// When the storm comes, the episode's ending is shown, once, as a text
-/// screen before the world shifts (the-tap.md "Which ending"; modforge
+/// screen before the world shifts (docs/episodes/, "Which ending"; modforge
 /// `storyteller::ending`: the first whose pivot points are reached and
 /// whose parts are alive).
 pub fn the_ending(

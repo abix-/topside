@@ -378,6 +378,7 @@ pub fn line(name: &str, part: &str, when: Vec<When>, ways: &[&str], tells: &str,
         tells: tells.to_string(),
         felt,
         wait: 0.0,
+        gives: String::new(),
     }
 }
 
@@ -419,12 +420,13 @@ pub fn plain_lines() -> Vec<LineDef> {
         // Holding a place, the one warning to anyone they stand hostile to
         // who comes for it (todo 11z), called to them.
         line("warns off", "", vec![When::Warning], &["Stay back. This place is held.", "Not one step closer.", "Turn around. This is ours."], "", 0.0),
-        // Joining (todo 11af; the-tap.md pivot point 6, draft): the player
+        // Joining (todo 11af, draft): the player
         // asks a stranger to stay; they say yes feeling well enough toward
         // the player (relationship::FRIENDLY, orchestrator 2026-10-02), and
         // saying it, they join (`AGREES_TO_STAY`).
-        // Not to one who asked for the water, whom The Tap's own answers take
-        // in (`STRANGER_ASKS`; that stranger speaks up first, talk::speak_up).
+        // Not to one who asked for the water, whom the episode's own answers
+        // take in (`STRANGER_ASKS`; that stranger speaks up first,
+        // talk::speak_up).
         line(
             "asks to stay",
             "player",
@@ -442,12 +444,9 @@ pub fn plain_lines() -> Vec<LineDef> {
 /// they join that one's group (todo 11af, `joining::join`).
 pub const AGREES_TO_STAY: &str = "agrees to stay";
 
-/// A stranger who came for the water asks for it (The Tap's pivot point 6).
+/// A stranger who came for the water asks for it (an episode's line by
+/// this name; plain talk's "asks to stay" is not offered once it is heard).
 pub const STRANGER_ASKS: &str = "a stranger asks for water";
-
-/// The player's line giving Mara's child water: said, a water goes from the
-/// player to the child (The Tap's pivot point 8, "brings Mara water").
-pub const GIVES_WATER: &str = "brings Mara water";
 
 /// Thirst at or below which the player can ask anyone for water (modforge
 /// `SurvivalStats`, full at 100). Tuning.
@@ -525,8 +524,8 @@ pub const SAID_FELT: [(&str, f32); 2] = [("offered", 0.2), ("threatened", -0.5)]
 /// Where the episodes are (docs/episodes/): one YAML file each,
 /// content/episodes/<name>.yaml, and episodes.yaml listing them in order.
 /// The order counts: before any storm the first that fits starts (modforge
-/// `EpisodeRegistry::pick`), so The Tap is first, the first episode in the
-/// Mixed world (operator, 2026-09-27).
+/// `EpisodeRegistry::pick`), so the first episode is first (operator,
+/// 2026-09-27).
 pub const EPISODES_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/episodes");
 
 /// One episode from its file's text, the one loader. Through a JSON value:
@@ -537,13 +536,18 @@ pub fn episode_from_yaml(text: &str) -> Result<EpisodeDef, String> {
     serde_json::from_value(value).map_err(|e| e.to_string())
 }
 
-/// Every episode, read at start from its file in the order episodes.yaml
-/// lists. A file that does not read stops the game at once, naming it.
-pub fn register_episodes(reg: &mut EpisodeRegistry) {
+/// Every episode, read from its file in the order episodes.yaml lists. A
+/// file that does not read stops the game at once, naming it.
+pub fn episodes() -> Vec<EpisodeDef> {
     let read = |file: &str| std::fs::read_to_string(format!("{EPISODES_DIR}/{file}")).unwrap_or_else(|e| panic!("{EPISODES_DIR}/{file}: {e}"));
     let order: Vec<String> = serde_yaml::from_str(&read("episodes.yaml")).unwrap_or_else(|e| panic!("{EPISODES_DIR}/episodes.yaml: {e}"));
-    for file in order {
-        let def = episode_from_yaml(&read(&file)).unwrap_or_else(|e| panic!("{EPISODES_DIR}/{file}: {e}"));
+    order.iter().map(|file| episode_from_yaml(&read(file)).unwrap_or_else(|e| panic!("{EPISODES_DIR}/{file}: {e}"))).collect()
+}
+
+/// Every episode, read at start (`episodes`); their own items are
+/// registered with every other item (`register_items`).
+pub fn register_episodes(reg: &mut EpisodeRegistry) {
+    for def in episodes() {
         reg.register(def).expect("each episode is registered once");
     }
 }
@@ -954,8 +958,8 @@ pub const BUNKER_PEOPLE_AT: [[f32; 2]; BUNKER_PEOPLE] =
 /// The people of the player's bunker besides the player (operator,
 /// 2026-09-27: "two people. me and Roxanne"), each named, where they
 /// stand in the bunker's plan (x, z), and their fear of not having enough
-/// (0 to 1): Roxanne, cast as Dell, stores past what is needed (the-tap.md
-/// "Too much water").
+/// (0 to 1): Roxanne stores past what is needed (docs/episodes/, "Too much
+/// water").
 pub const PLAYER_BUNKER_PEOPLE: [(&str, [f32; 2], f32); 1] = [("Roxanne", [-2.2, 3.0], 1.0)];
 
 /// A bunker's store (design.md: factions have real stores): one box in
@@ -969,13 +973,13 @@ pub const BUNKER_STORE: [(&str, u32); 2] = [("canned food", 10), ("water bottle"
 pub const BUNKER_SHORT_DAYS: f32 = 3.0;
 
 /// What a bunker needs in water: 10 days of everyone's drinking (operator,
-/// 2026-10-02; the-tap.md "Too much water": past it is too much). One not
+/// 2026-10-02; docs/episodes/, "Too much water": past it is too much). One not
 /// afraid of not having enough stocks to it, the most afraid to twice it.
 pub const BUNKER_WATER_DAYS: f32 = 10.0;
 
 /// A store another place draws from reads dry holding less than this share
-/// of what it held when the drawing began (todo 11ad; the-tap.md "Mara's
-/// well": under a quarter).
+/// of what it held when the drawing began (todo 11ad, docs/episodes/:
+/// under a quarter).
 pub const DRY_BELOW: f32 = 0.25;
 
 /// The faction of the other bunker at `OTHER_BUNKERS[i]`.
@@ -1261,11 +1265,6 @@ pub fn register_items(reg: &mut ItemRegistry) {
         // stand, a mouthful a use, never used up. Tuning.
         source("well", 0.0, 50.0),
         source("water", 0.0, 50.0),
-        // The Tap's tap (docs/episodes/the-tap.md): water that never stops,
-        // drawn from Mara's bunker's store.
-        // The tap breaks, and is gone, when used with a melee weapon in
-        // hand (the-tap.md pivot point 10).
-        ItemDef { breaks_when_struck: true, ..source("tap", 0.0, 50.0) },
         source("berry bush", 20.0, 0.0),
         // Made at the bench from cloth; heals far faster than food, a
         // reason to craft before going out (todo 10ca). Tuning.
@@ -1472,7 +1471,8 @@ pub fn register_items(reg: &mut ItemRegistry) {
             breaks_when_struck: false,
         },
     ];
-    for mut item in items {
+    // With every episode's own items (each episode's file).
+    for mut item in items.into_iter().chain(episodes().into_iter().flat_map(|e| e.items)) {
         // Every item is drawn with the picture named after it, rendered
         // by scripts/models.py.
         item.picture = Some(item.name.clone());

@@ -22,7 +22,8 @@ queue: run the tests named in Name through the running game's test
 queue (authority.md "Running tests", tests/queue.rs): queued on the game,
 run one at a time, each result reported to the game's `tests` op; fails
 when any test failed. The run is in logs/queue.log.
-build: build only (logs/build.log).
+build: build, then read every episode file through the loader (the
+topside-content test); either failing fails it (logs/build.log).
 .PARAMETER Name
 For test: one test file under tests/, without .rs. Empty runs every
 test. For queue: the first test file or full test name to queue; more
@@ -146,6 +147,16 @@ switch ($Action) {
         Stop-Game
         $log = Join-Path $logs 'build.log'
         $code = Invoke-Cargo 'build' $log
+        # Built, the episode files are read through the loader (the
+        # topside-content test): a data file that does not read fails the
+        # build.
+        if ($code -eq 0) {
+            $code = Invoke-Cargo 'test -p topside-content --lib -- --exact tests::the_episodes_read_from_their_files' $log -Append
+            Select-String -Path $log -Pattern '^test |^test result:' | ForEach-Object {
+                $color = if ($_.Line -match 'FAILED') { 'Red' } else { 'Gray' }
+                Write-Host $_.Line -ForegroundColor $color
+            }
+        }
         Show-Problems $log
     }
     'test' {

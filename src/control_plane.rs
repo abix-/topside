@@ -364,7 +364,8 @@ pub fn answer_use(
     };
     // The point on the ground, the floor it is on, and the height on them
     // the eyes look at: a point's own ground (the eyes on a person's middle
-    // would look over a tap at whoever stands past it), a person's middle.
+    // would look over a low thing at whoever stands past it), a person's
+    // middle.
     let (at, floor, look) = match to {
         UseAt::Point(at, floor) => (at, floor, 0.0),
         UseAt::Person(whom) => match people.iter().find(|(a, ..)| a.0.0 == whom) {
@@ -1921,7 +1922,7 @@ pub fn start(port: u16) {
     OP_REGISTRY.register(OpDef::new(
         "replay",
         "`save`: write every command given this run, with its tick and the world seed, to replays/<name>.json; `play`: give a saved replay's commands again from the game's next step, the same ticks apart; `stop`: stop playing, and every command anyone has left is dropped, and all leading and following ended",
-        "{\"save\": \"talk to dell\"}",
+        "{\"save\": \"the opening\"}",
         |args| {
             let ask = match (args.get("save").and_then(Json::as_str), args.get("play").and_then(Json::as_str)) {
                 (Some(name), _) => crate::command::ReplayAsk::Save(name.to_string()),

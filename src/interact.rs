@@ -349,14 +349,14 @@ pub struct WorldItem {
 #[reflect(opaque, Component, Serialize, Deserialize)]
 pub struct Container(pub item::Inventory);
 
-/// A source whose water comes out of a store (The Tap's tap, drawn from
-/// Mara's bunker's store): each drink takes one water from that box.
+/// A source whose water comes out of a store (an episode's thing drawn
+/// from a part's bunker's store): each drink takes one water from that box.
 #[derive(Component, Clone, serde::Serialize, serde::Deserialize, Reflect)]
 #[reflect(opaque, Component, Serialize, Deserialize)]
 pub struct DrawsFrom(#[entities] pub Entity);
 
 /// A store another place draws from (`DrawsFrom`), and the water it held
-/// when that began (the episode's start: The Tap's tap placed). It says how
+/// when that began (the episode's start: its thing placed). It says how
 /// much it holds when looked at, and reads dry under content's `DRY_BELOW`
 /// of what it held (todo 11ad).
 #[derive(Component, Clone, Copy, serde::Serialize, serde::Deserialize, Reflect)]
@@ -665,7 +665,7 @@ pub fn interact_on_use(
             &mut station,
         );
         // Reading is something done, remembered as anything done is (an
-        // episode's cue may wait on it: The Tap's note).
+        // episode's cue may wait on it).
         if let (Some(read), Some(memory)) = (read, memory.as_deref_mut()) {
             memory.0.did(modforge::memory::Did::Read(read), tick.0);
         }

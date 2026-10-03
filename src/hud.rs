@@ -1545,7 +1545,7 @@ fn click_recipe(
     }
 }
 
-/// The episode's ending as a text screen before the storm (the-tap.md
+/// The episode's ending as a text screen before the storm (docs/episodes/,
 /// "Which ending": shown as a text screen; todo 11ae): its name over what
 /// it says happened, the whole window.
 #[derive(Component)]
