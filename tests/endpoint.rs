@@ -35,7 +35,19 @@ pub fn op(name: &str) -> Json {
 /// tests"): `saves/<name>.save` loaded. A save that does not load fails the
 /// test at once, naming the save and the load's error (operator,
 /// 2026-10-03: no silent remake). Answers false: it loaded.
-pub fn start_from(name: &str, _reach: impl FnOnce()) -> bool {
+///
+/// Made only when asked by name: with TOPSIDE_MAKE_SAVE naming this save
+/// (scripts/build.ps1 queue, the variable set by whoever makes it), `reach`
+/// plays to it from the save before and it is saved, once; answers true.
+pub fn start_from(name: &str, reach: impl FnOnce()) -> bool {
+    if std::env::var("TOPSIDE_MAKE_SAVE").is_ok_and(|v| v == name) {
+        reach();
+        // One tick: what `reach` asked is taken in at the game's next step.
+        step(1);
+        op_with("save", json!({"name": name}));
+        eprintln!("made the save {name}");
+        return true;
+    }
     let answer: Option<Json> = ureq::post(url())
         .send_json(json!({"op": "load", "args": {"name": name}}))
         .ok()

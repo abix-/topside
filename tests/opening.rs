@@ -317,12 +317,25 @@ fn talking() {
     });
 }
 
-/// The opening said and the player's answers shown.
+/// Pivot point 1's save (authority.md "Running tests": one save per pivot,
+/// just before it): Roxanne's opening said and the player's answers shown.
+/// Made on a game just launched by playing it: the note read, her knock
+/// heard, the hatch opened, the talk with her, her lines, the answers.
 pub(crate) fn choosing() {
-    start_from("opening_choosing", || {
-        talking();
+    start_from("tap_1_dell_tells_you", || {
+        step(SECOND);
+        let w = op("world");
+        let fresh = w["episode"] == "The Tap" && w["reached"].as_array().is_some_and(|r| r.is_empty()) && talk()["open"] != true;
+        assert!(fresh, "the pivot 1 save is made on a game just launched: run scripts/build.ps1 run first (now: episode {}, reached {})", w["episode"], w["reached"]);
+        let her = roxanne();
+        read_the_note();
+        let heard = within(60, || heard_her_knock(her));
+        assert!(heard, "making tap_1_dell_tells_you: the player never heard Roxanne knock after reading the note");
+        open_the_door();
+        let open = within(10, || talk()["to"].as_u64() == Some(her));
+        assert!(open, "making tap_1_dell_tells_you: the hatch open, the talk never opened with Roxanne");
         let shown = within(60, || !choices().is_empty());
-        assert!(shown, "reaching opening_choosing: no answers shown within a game minute");
+        assert!(shown, "making tap_1_dell_tells_you: no answers shown within a game minute");
     });
 }
 
