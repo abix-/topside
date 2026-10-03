@@ -464,7 +464,7 @@ pub fn walk(
     door_index: Res<crate::nav::DoorIndex>,
     doors: Query<(&crate::interact::Door, &Transform)>,
     mut people: Query<
-        (Entity, &Transform, &mut crate::input::ThisTick, Option<&crate::actor::Personality>, Option<&Walker>, Has<crate::player::Player>),
+        (Entity, &Transform, &mut crate::input::ThisTick, Option<&crate::actor::Personality>, Option<&Walker>, (Has<crate::player::Player>, Has<crate::talk::HeldToTalk>)),
         Without<crate::actor::Dead>,
     >,
     mut velocities: Query<&mut Velocity3d>,
@@ -502,7 +502,7 @@ pub fn walk(
         .filter_map(|e| stuck.get(e).filter(|(_, steps)| *steps > STUCK_STEPS).map(|(feet, _)| (*e, *feet)))
         .collect();
     for entity in &order {
-        let Ok((entity, at, mut this_tick, personality, walker, is_player)) = people.get_mut(*entity) else {
+        let Ok((entity, at, mut this_tick, personality, walker, (is_player, held_to_talk))) = people.get_mut(*entity) else {
             continue;
         };
         let speed = crate::player::WALK_SPEED * personality.map_or(1.0, |p| p.0.speed_mult());
@@ -551,9 +551,12 @@ pub fn walk(
         // doorway they stand in the way of, to their own side, and out of
         // the way of anyone walking into them, sideways to their own side
         // of that walker's way. The player's keys are their own.
+        // Someone held for a talk stands where they are on purpose: they
+        // do not step out of the way (a knocker answered at the door would
+        // step out of talking reach).
         let go = go.or_else(|| {
             let (x, y) = ActionQueue::movement(&this_tick.0);
-            if is_player || x != 0.0 || y != 0.0 {
+            if is_player || held_to_talk || x != 0.0 || y != 0.0 {
                 return None;
             }
             let feet = crate::interact::feet_of(at);

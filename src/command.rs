@@ -274,9 +274,10 @@ pub fn carry_out(
                 Command::MoveTo { x, y, z } => (Some(Vec3::new(x, y, z)), None),
                 Command::TalkTo { who } | Command::Attack { who } => (alive_at(who), Some(who)),
                 // The spot beside the closed door between them.
-                // Knocked, the spot is where they stand, waiting (the door
-                // may stand open now).
-                Command::Knock { who } if commanded.started => (alive_at(who).map(|_| here), Some(who)),
+                // Knocked, they wait for an answer: at the knock spot while
+                // the door is shut, coming up to them once it stands open
+                // (the step below).
+                Command::Knock { who } if commanded.started => (alive_at(who), Some(who)),
                 Command::Knock { who } => (alive_at(who).and_then(|them| crate::interact::knock_spot(doors.iter(), them, on_mesh)), Some(who)),
                 Command::Follow { .. } | Command::Lead { .. } | Command::Hold { .. } | Command::AttackNearestEnemy => (None, None),
             };
@@ -293,11 +294,25 @@ pub fn carry_out(
             let looking_at_them = who.is_some() && looking.and_then(|l| l.0).map(|(_, id)| id) == who;
             let actions = match modforge::command::step(&command, here, target, ended, looking_at_them, crate::talk::TALK_REACH) {
                 Step::Done => {
+                    // Answered, the knocker stays for the talk that began
+                    // (talk::hold, as the talk holds anyone it is with), not
+                    // off on their own the moment their knock is done.
+                    if matches!(command, Command::Knock { .. }) && ended {
+                        crate::talk::hold(&mut commands, entity, here);
+                    }
                     commanded.next();
                     continue;
                 }
-                // Knocked once, they stand at the knock spot until answered.
-                Step::Act(_) if matches!(command, Command::Knock { .. }) && commanded.started => Vec::new(),
+                // Knocked once, they stand at the knock spot while the door
+                // between stays shut; once it is open (no shut door left to
+                // knock at), they come within talking reach of them.
+                Step::Act(_) if matches!(command, Command::Knock { .. }) && commanded.started => {
+                    let door_open = target.is_some_and(|them| crate::interact::knock_spot(doors.iter(), them, on_mesh).is_none());
+                    match target {
+                        Some(them) if door_open && here.distance(them) > crate::talk::TALK_REACH * 0.8 => modforge::brain::walk_toward(here, them),
+                        _ => Vec::new(),
+                    }
+                }
                 Step::Act(actions) => actions,
             };
             this_tick.0.retain(|s| !matches!(s.action, Action::Go { .. } | Action::Aim { .. }));

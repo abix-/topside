@@ -403,13 +403,12 @@ pub fn plain_lines() -> Vec<LineDef> {
         // asks a stranger to stay; they say yes feeling well enough toward
         // the player (relationship::FRIENDLY, orchestrator 2026-10-02), and
         // saying it, they join (`AGREES_TO_STAY`).
-        // Not the first word, so a stranger who has something to say says it
-        // first; not to one who asked for the water, whom The Tap's own
-        // answers take in (`STRANGER_ASKS`).
+        // Not to one who asked for the water, whom The Tap's own answers take
+        // in (`STRANGER_ASKS`; that stranger speaks up first, talk::speak_up).
         line(
             "asks to stay",
             "player",
-            vec![When::To("stranger".to_string()), When::Not(Box::new(When::First)), When::Not(Box::new(When::HasHeard(STRANGER_ASKS.to_string())))],
+            vec![When::To("stranger".to_string()), When::Not(Box::new(When::HasHeard(STRANGER_ASKS.to_string())))],
             &["You can stay with us."],
             "",
             0.0,

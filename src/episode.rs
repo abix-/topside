@@ -393,7 +393,7 @@ pub fn the_taps_errands(
     nav: Res<crate::navmesh::Nav>,
     archipelagos: Query<&bevy_landmass::prelude::Archipelago3d>,
     player: Query<(Entity, &Actor), (With<crate::player::Player>, Without<Dead>)>,
-    people: Query<(Entity, &Actor, &Transform, &Home, Has<crate::ai::Leading>), Without<crate::player::Player>>,
+    people: Query<(Entity, &Actor, &Transform, &Home, Has<crate::ai::Leading>, Has<crate::talk::HeldToTalk>), Without<crate::player::Player>>,
 ) {
     if tick.0 % 60 != 0 || episode.name.as_deref() != Some("The Tap") {
         return;
@@ -425,7 +425,7 @@ pub fn the_taps_errands(
     let mut looked = episode.reached("Dell looked");
     let believed = episode.reached("believes Dell");
     let player_id = player.single().ok().map(|(e, a)| (a.0, e));
-    for (entity, actor, at, home, leading) in &people {
+    for (entity, actor, at, home, leading, held_to_talk) in &people {
         if Some(actor.0) == mara {
             ask(&mut commands, entity, Some(mara_at));
         } else if Some(actor.0) == dell {
@@ -450,7 +450,12 @@ pub fn the_taps_errands(
             } else {
                 None
             };
-            ask(&mut commands, entity, to);
+            // Nothing asked of her: the episode lets go only of its own
+            // asking, never of the talk holding her (talk::hold); she left
+            // the opening's talk when it did.
+            if to.is_some() || !held_to_talk {
+                ask(&mut commands, entity, to);
+            }
         }
     }
     if looked && !episode.reached("Dell looked")

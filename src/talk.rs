@@ -15,7 +15,7 @@ use modforge::actions::Said;
 use modforge::actor::ActorId;
 use modforge::hud::Prompt;
 use modforge::memory::Memory as Mind;
-use modforge::storyteller::LineDef;
+use modforge::storyteller::{LineDef, When};
 
 use crate::Ground;
 use crate::actor::{Actor, ActorMapRes, Dead, Inventory, Memory, Survival};
@@ -113,7 +113,13 @@ pub fn called_line(
     let mut speaking = moment.speaking(to.0, &memory.0, tick, false);
     speaking.knocking = call == Call::Knocking;
     speaking.warning = call == Call::Warning;
-    let line = modforge::talk::pick(&lines.0, &speaking, seed ^ tick)?;
+    // Only a line written for this call is called (When::Knocking or
+    // When::Warning): any other line waits for the talk (the opening once
+    // "you awake" was said had gone through the door).
+    let written_for = |l: &LineDef| l.when.iter().any(|w| matches!((w, call), (When::Knocking, Call::Knocking) | (When::Warning, Call::Warning)));
+    let called: Vec<usize> = (0..lines.0.len()).filter(|&i| written_for(&lines.0[i])).collect();
+    let candidates: Vec<LineDef> = called.iter().map(|&i| lines.0[i].clone()).collect();
+    let line = called[modforge::talk::pick(&candidates, &speaking, seed ^ tick)?];
     let (words, _) = words_of(&lines.0[line], line, (caller, &memory.0), tick, episode, bunker, seed)?;
     Some(modforge::memory::Line { name: lines.0[line].name.clone(), words })
 }
@@ -281,7 +287,7 @@ pub fn talk(
     lines: Res<Lines>,
     world: Res<crate::terrain::WorldRes>,
     seed: Res<crate::WorldSeed>,
-    speakers: Query<(Entity, &Actor, &ThisTick, &Name), Without<Dead>>,
+    speakers: Query<(Entity, &Actor, &ThisTick, &Name, Has<crate::actor::Asked>), Without<Dead>>,
     mut people: Query<(&Transform, &mut Memory, &mut Inventory, &mut Hud, Has<Player>, Option<&Conversation>, Option<&crate::actor::Npc>), Without<Dead>>,
     mut joins: ResMut<crate::joining::Joins>,
     mut to_edge: ResMut<crate::edge::WordToEdge>,
@@ -291,7 +297,7 @@ pub fn talk(
     // in one tick, whom the player ends up talking to is the same after a
     // load.
     let order = crate::actor::in_actor_order(speakers.iter().map(|(entity, actor, ..)| (Some(actor.0), entity)));
-    for (speaker, id, this_tick, name) in order.into_iter().filter_map(|e| speakers.get(e).ok()) {
+    for (speaker, id, this_tick, name, asked) in order.into_iter().filter_map(|e| speakers.get(e).ok()) {
         for said in this_tick.0.iter().filter_map(|s| match s.action {
             Action::Talk { to, said } => Some((to, said)),
             _ => None,
@@ -361,6 +367,13 @@ pub fn talk(
             }
             if is_player {
                 spoken_to(&mut commands, listener, &mut hud, (id.0.0, name.as_str()), tick.0);
+                // Speaking to the player, they stop to talk now, unless
+                // something already has them going somewhere: the brain,
+                // which may think before the talk next holds them, never
+                // sends them off mid-sentence (Roxanne left the opening).
+                if !asked {
+                    hold(&mut commands, speaker, crate::interact::feet_of(from));
+                }
             }
         }
     }
@@ -591,8 +604,7 @@ pub fn speak_up(
         }
         let moment = Moment::of(&episode, (actor.0, false), (player.0, true), at, survival);
         // Nothing of this conversation said yet: it starts now.
-        if let Some(line) = modforge::talk::pick(&lines.0, &moment.speaking(player.0, &memory.0, tick.0, false), seed.0 ^ tick.0) {
-            actions.0.push(tick.0, Action::Talk { to: player.0.0, said: Said::Line { line: lines.0[line].id(), key: 0 } });
+        if let Some(line) = modforge::talk::pick(&lines.0, &moment.speaking(player.0, &memory.0, tick.0, false), seed.0 ^ tick.0) {            actions.0.push(tick.0, Action::Talk { to: player.0.0, said: Said::Line { line: lines.0[line].id(), key: 0 } });
             return;
         }
     }
