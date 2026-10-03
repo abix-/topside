@@ -140,6 +140,13 @@ CI runner taking jobs from a queue and reporting each back.
   (`endpoint::start_from`; the opening's in tests/opening.rs, the rest in
   tests/saves.rs); the saves are committed, and every test after loads
   them.
+- Loading (operator, 2026-10-02; every game's loading screen): the game
+  shows a loading screen until the world is ready to play, after a launch,
+  a storm's new world, and loading a saved game alike, and nobody acts
+  while it shows. Ready means everything worked out from the world is
+  built, landmass's navigation mesh included. The `status` op reports
+  `loading` while it shows; a test waits until loading is done and asks
+  nothing before it (`endpoint::start_from`).
 - What a save holds is one list, `saved!` in src/save.rs: every component
   and resource that changes what happens next. A new one that changes
   what happens next goes in that list, or a load loses it. What is worked

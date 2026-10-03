@@ -35,6 +35,7 @@ pub fn start_from(name: &str, reach: impl FnOnce()) -> bool {
         .and_then(|r| r.into_body().read_json().ok());
     let answer = answer.unwrap_or_else(|| panic!("no topside game answering on {URL}; start it with scripts/build.ps1 run"));
     if answer["ok"] == true {
+        loaded();
         return false;
     }
     eprintln!("{name}: not loaded ({}); reaching the start by playing and saving it", answer["error"]);
@@ -42,6 +43,19 @@ pub fn start_from(name: &str, reach: impl FnOnce()) -> bool {
     let saved = op_with("save", json!({"name": name}));
     assert!(saved["tick"].is_u64(), "{name}: the start was reached but not saved: {saved}");
     true
+}
+
+/// Wait until the game's loading screen is gone (authority.md "Running
+/// tests": loading): the `status` op's `loading` false. Real time, not game
+/// time, as a player waits at a loading screen; at most 60 real seconds.
+pub fn loaded() {
+    for _ in 0..240 {
+        if op("status")["loading"] == false {
+            return;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(250));
+    }
+    panic!("the game was still loading after 60 seconds, or reports no loading: {}", op("status"));
 }
 
 /// For a save just before an event: play a game minute at a time, saving before each,

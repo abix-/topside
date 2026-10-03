@@ -520,9 +520,8 @@ fn show_me_believes_roxanne_and_she_says_follow_me() {
 fn a_way_runs_from_the_bunker_door_to_the_tap() {
     let _paused = pause();
     out_the_door();
-    // Wait until landmass has the navigation mesh (it takes it in on a
-    // tick), then ask for the way.
-    step(SECOND);
+    // The saved game loaded, the loading screen is gone (start_from waits
+    // for it), so the navigation mesh is ready: ask at once.
     let (x, z, feet) = player_spot();
     let tap = the_tap();
     op_with("nav_path", json!({"from": [x, feet, z], "to": [tap.0, tap.2, tap.1]}));
