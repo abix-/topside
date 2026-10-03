@@ -280,21 +280,10 @@ The long game at home:
 - Building the bunker out: new rooms, better walls, blast doors.
 - Placing stations: crafting benches, chemistry tables, electronics
   workbenches, armory benches, each unlocked by research.
-- Power: generators that burn fuel, wiring, powered lights, powered
-  defenses, powered stations. The grid is a real system: no fuel, no
-  power, no powered anything.
-- Storage: boxes with capacity, organization, maybe sorting automation.
-- Defenses: turrets, reinforced walls, blast doors, all scaling with
-  tech level.
+- Power, storage and defenses: see [factory.md](factory.md).
 - Defending it from raiders (the storyteller's incursions come for YOU).
 
-The bunker is the player's factory (operator-locked 2026-08-20: "we dont
-have a factory but we do have a bunker that i want the player to be able
-to expand and craft and place benches and power and boxes"). Not conveyor
-belts, but the same idea: you start with one bench and end up with a
-powered, multi-room operation with specialized stations and automated
-defenses. Rust's base building is the model for what you can place and
-build; Factorio's depth is the model for how far the tech goes.
+The bunker is the player's factory: see [factory.md](factory.md).
 
 Bunker defense, and this is deliberately unlike MISERY: sometimes the BUNKER
 itself is attacked and has to be defended. We are surviving a post-apocalypse;

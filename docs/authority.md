@@ -4,10 +4,10 @@
 ownership boundary between modforge and topside, the naming contract, and the
 anti-bypass rules for those paths.
 
-**Not authoritative for:** product vision and story (design.md, not yet
-written), how fighting works (combat.md), how people find their way
-(pathing.md), capability progress (status.md, not yet written), or the task
-backlog (todo.md, not yet written).
+**Not authoritative for:** product vision and story (design.md), how
+fighting works (combat.md), how people find their way (pathing.md), the
+bunker as a factory (factory.md), capability progress (status.md, not yet
+written), or the task backlog (todo.md).
 
 Evidence date: 2026-08-19. Nothing is built. Every score below reflects that
 honestly. This doc exists BEFORE the code so the code never gets a chance to
