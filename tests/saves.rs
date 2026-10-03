@@ -1,12 +1,8 @@
-//! The play-through (authority.md "Running tests": save states for
-//! everything, operator 2026-10-02): episode 1 played once, in order, and a
-//! save made just before each event a test checks, so the test loads it and
-//! never waits through a long game span. Each save is made from the one
-//! before it by playing; each maker is its own ignored test, run by
-//! `pwsh -NoProfile -File scripts/build.ps1 saves` (allowed past a test's 2
-//! minutes), again whenever content changes; the saves are committed. A
-//! maker whose event the game does not do yet fails, and the tests that
-//! load its save fail with it, saying so.
+//! Episode 1's save points past the opening (authority.md "Running tests":
+//! save states for everything, operator 2026-10-02): each just before an
+//! event a test checks, reached once organically from the one before and
+//! saved (`start_from`), then loaded by every test that starts there, so no
+//! test waits through a long game span.
 
 use serde_json::json;
 
@@ -273,66 +269,4 @@ pub(crate) fn joined_with_mara_near() {
         walk_to(Some(mara), spot_of(stranger));
         assert!(within(900, || apart(spot_of(mara), spot_of(stranger)).0 < 2.5), "Mara never reached the stranger");
     });
-}
-
-// The opening's saves (tests/opening.rs), made by the play-through too, so
-// every test save comes from the one fixed world. opening_woke needs a game
-// just launched: build.ps1 saves launches one, and every maker's chain
-// starts with it, so the first maker to run makes it before anything plays.
-pub(crate) fn opening_woke() {
-    crate::opening::woke();
-}
-pub(crate) fn opening_talking() {
-    crate::opening::talking();
-}
-pub(crate) fn opening_choosing() {
-    crate::opening::choosing();
-}
-pub(crate) fn opening_out_the_door() {
-    crate::opening::out_the_door();
-}
-pub(crate) fn opening_at_the_tap() {
-    crate::opening::at_the_tap();
-}
-
-// The makers: each its own ignored test, run by build.ps1 saves.
-
-macro_rules! makers {
-    ($($save:ident),* $(,)?) => {
-        $(
-            #[test]
-            #[ignore]
-            fn $save() {
-                let _p = pause();
-                super::$save();
-            }
-        )*
-    };
-}
-
-mod make {
-    use crate::endpoint::pause;
-    makers!(
-        opening_woke,
-        opening_talking,
-        opening_choosing,
-        opening_out_the_door,
-        opening_at_the_tap,
-        tap_maras_people_coming,
-        tap_not_believed,
-        tap_mara_at_the_tap,
-        tap_store_nine_days,
-        tap_store_past_ten_days,
-        tap_strangers_coming,
-        tap_a_stranger_came,
-        tap_fight_morning,
-        tap_maras_store_nearly_dry,
-        tap_at_maras_dry_store,
-        tap_beside_maras_child,
-        holding_raider_coming,
-        stocking_past_need,
-        newcomers_word_told,
-        beside_a_stranger,
-        joined_with_mara_near,
-    );
 }

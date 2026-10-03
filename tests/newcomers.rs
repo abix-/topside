@@ -7,7 +7,7 @@
 
 use serde_json::json;
 
-use crate::endpoint::{from_save, op, op_with, pause, people, step};
+use crate::endpoint::{op, op_with, pause, people, step};
 use crate::opening::{SECOND, apart, dist, roxanne, spot_of, the_tap, within};
 use crate::saves::{newest, part};
 
@@ -23,7 +23,7 @@ fn since(last: u64) -> Vec<u64> {
 #[test]
 fn word_of_a_place_brings_a_group_from_the_edge() {
     let _p = pause();
-    from_save("newcomers_word_told");
+    crate::saves::newcomers_word_told();
     let last = newest();
     assert!(within(120, || since(last).len() >= 2), "no newcomers came");
     let group = since(last);
@@ -48,7 +48,7 @@ fn word_of_a_place_brings_a_group_from_the_edge() {
 #[test]
 fn at_most_one_group_a_game_hour() {
     let _p = pause();
-    from_save("newcomers_word_told");
+    crate::saves::newcomers_word_told();
     let last = newest();
     let tick = || op("status")["tick"].as_u64().unwrap_or(0);
     assert!(within(120, || since(last).len() >= 2), "setup: no first group came");

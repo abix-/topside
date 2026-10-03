@@ -8,7 +8,7 @@
 //! op's traits (0 to 1). From the opening's first save, paused, moved only
 //! by `step`.
 
-use crate::endpoint::{from_save, op, pause, people};
+use crate::endpoint::{op, pause, people};
 use crate::opening::within;
 
 /// Each bunker's people by faction, and the most anyone of them fears not
@@ -38,7 +38,7 @@ fn the_fearful_stock_past_need_and_the_unafraid_stop_at_it() {
     let _p = pause();
     // Just before a bunker with someone very afraid passes 10 days (tests/
     // saves.rs stocking_past_need).
-    from_save("stocking_past_need");
+    crate::saves::stocking_past_need();
     let fears = bunkers_by_fear();
     assert!(!fears.is_empty(), "no bunker people report a fear of not having enough in their traits");
     let fearful = fears.iter().find(|(_, f)| *f >= 0.9).map(|(b, _)| b.clone()).expect("a bunker with someone whose fear of not having enough is 0.9 or more");

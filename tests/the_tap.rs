@@ -7,15 +7,15 @@
 //! operator corrects them.
 //!
 //! Every test starts from a save (authority.md "Running tests": save states
-//! for everything): the opening's (tests/opening.rs) or one the
-//! play-through makes just before the event (tests/saves.rs, build.ps1
-//! saves), keeps the game paused, and moves it only with `step`. What a
-//! test needs past its save is given by the ops the game already has
-//! (command, talk, give, use), never by setting a pivot.
+//! for everything): the opening's (tests/opening.rs) or one just before its
+//! event (tests/saves.rs), reached once organically and saved, then loaded;
+//! it keeps the game paused and moves it only with `step`. What a test
+//! needs past its save is given by the ops the game already has (command,
+//! talk, give, use), never by setting a pivot.
 
 use serde_json::json;
 
-use crate::endpoint::{from_save, op, op_with, pause, people, step};
+use crate::endpoint::{op, op_with, pause, people, step};
 use crate::opening::{SECOND, apart, at_the_tap, choices, choose, choosing, heard_from, out_the_door, player, player_spot, reached, roxanne, spot_of, the_tap, within};
 use crate::saves::{days_of_water, faction_of, newest, of_faction, part, walk_to};
 
@@ -32,7 +32,7 @@ fn home() -> (f64, f64, f64) {
 /// From the save with Mara at the tap, the player walks within talking
 /// reach of her.
 fn meet_mara() -> u64 {
-    from_save("tap_mara_at_the_tap");
+    crate::saves::tap_mara_at_the_tap();
     let mara = part("Mara");
     walk_to(None, spot_of(mara));
     assert!(within(60, || apart(player_spot(), spot_of(mara)).0 < 2.5), "setup: the player never came within talking reach of Mara");
@@ -67,7 +67,7 @@ fn not_believing_roxanne_she_goes_on_her_own() {
 #[test]
 fn not_believing_roxanne_maras_people_find_the_tap_first() {
     let _p = pause();
-    from_save("tap_not_believed");
+    crate::saves::tap_not_believed();
     assert!(reached("does not believe it"), "the save is not after not believing Roxanne");
     let maras = faction_of(part("Mara"));
     let tap = the_tap();
@@ -171,7 +171,7 @@ fn leaving_mara_the_tap() {
 #[test]
 fn maras_people_hold_the_tap() {
     let _p = pause();
-    from_save("tap_maras_people_coming");
+    crate::saves::tap_maras_people_coming();
     let maras = faction_of(part("Mara"));
     let tap = the_tap();
     let near = || of_faction(&maras).into_iter().find(|id| apart(spot_of(*id), tap).0 < 8.0);
@@ -221,7 +221,7 @@ fn coming_home_having_told_roxanne() {
 #[test]
 fn roxanne_stores_past_ten_days_of_water() {
     let _p = pause();
-    from_save("tap_store_nine_days");
+    crate::saves::tap_store_nine_days();
     let start = days_of_water("player").expect("the world op reports the player's bunker's days of water");
     assert!(start <= 10.0, "the save already holds {start:.1} days; it is not just before");
     assert!(within(120, || days_of_water("player").is_some_and(|d| d > 10.0)), "Roxanne never stored past 10 days of water: {:?}", days_of_water("player"));
@@ -232,7 +232,7 @@ fn roxanne_stores_past_ten_days_of_water() {
 #[test]
 fn checking_the_full_store_roxanne_explains() {
     let _p = pause();
-    from_save("tap_store_past_ten_days");
+    crate::saves::tap_store_past_ten_days();
     let at = store_of("player");
     walk_to(Some(roxanne()), at);
     walk_to(None, at);
@@ -250,7 +250,7 @@ fn checking_the_full_store_roxanne_explains() {
 #[test]
 fn word_of_the_tap_brings_strangers() {
     let _p = pause();
-    from_save("tap_strangers_coming");
+    crate::saves::tap_strangers_coming();
     let last = newest();
     let tap = the_tap();
     let came = || people().into_iter().filter_map(|p| p["id"].as_u64()).filter(|id| *id > last).collect::<Vec<u64>>();
@@ -268,7 +268,7 @@ fn word_of_the_tap_brings_strangers() {
 #[test]
 fn a_stranger_who_came_for_the_water_asks_for_it() {
     let _p = pause();
-    from_save("tap_a_stranger_came");
+    crate::saves::tap_a_stranger_came();
     let stranger = newest();
     assert!(within(300, || apart(player_spot(), spot_of(stranger)).0 < 2.5 || { walk_to(None, spot_of(stranger)); false }), "setup: the player never reached the stranger");
     op_with("use", json!({"id": player(), "person": stranger}));
@@ -283,7 +283,7 @@ fn a_stranger_who_came_for_the_water_asks_for_it() {
 #[test]
 fn checking_maras_dry_store_finds_out() {
     let _p = pause();
-    from_save("tap_at_maras_dry_store");
+    crate::saves::tap_at_maras_dry_store();
     let at = store_of(&faction_of(part("Mara")));
     op_with("use", json!({"id": player(), "at": [at.0, at.1], "height": at.2}));
     assert!(within(5, || reached("finds Mara's well dry")), "checking Mara's dry store reached nothing: {}", op("world")["reached"]);
@@ -295,7 +295,7 @@ fn checking_maras_dry_store_finds_out() {
 #[test]
 fn maras_child_asks_for_water() {
     let _p = pause();
-    from_save("tap_beside_maras_child");
+    crate::saves::tap_beside_maras_child();
     let child = part("Mara's child");
     assert!(within(10, || says(child, &["Is there water today?", "I'm thirsty."])), "Mara's child never asked: {:?}", heard_from(child));
     let answers = ["Here. Take this water.", "What will Mara give for it?", "Not today.", "Tell Mara it's hers if she stands with us."];
@@ -307,7 +307,7 @@ fn maras_child_asks_for_water() {
 #[test]
 fn bringing_the_child_water() {
     let _p = pause();
-    from_save("tap_beside_maras_child");
+    crate::saves::tap_beside_maras_child();
     let child = part("Mara's child");
     op_with("give", json!({"id": player(), "item": "water", "count": 1}));
     step(SECOND);
@@ -328,7 +328,7 @@ fn bringing_the_child_water() {
 #[test]
 fn the_fight_for_the_tap_starts_without_the_player() {
     let _p = pause();
-    from_save("tap_fight_morning");
+    crate::saves::tap_fight_morning();
     assert!(player_spot().2 < -0.5, "the save does not have the player at home");
     let maras = faction_of(part("Mara"));
     let hurt = |p: &serde_json::Value| p["health"].as_f64().unwrap_or(100.0) < 100.0 || p["dead"] == true;

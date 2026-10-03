@@ -22,11 +22,6 @@ queue: run the tests named in Name through the running game's test
 queue (authority.md "Running tests", tests/queue.rs): queued on the game,
 run one at a time, each result reported to the game's `tests` op; fails
 when any test failed. The run is in logs/queue.log.
-saves: the play-through (tests/saves.rs, authority.md "Running tests":
-save states for everything): every save the tests load that is missing
-or refused is made by playing, each from the one before, against the
-running game. May take longer than a test's 2 minutes; run it again when
-content changes, then commit saves/. The run is in logs/saves.log.
 build: build only (logs/build.log).
 .PARAMETER Name
 For test: one test file under tests/, without .rs. Empty runs every
@@ -50,7 +45,7 @@ Never build, test, or launch topside any other way.
 [CmdletBinding()]
 param (
     [Parameter(Position = 0)]
-    [ValidateSet('run', 'test', 'queue', 'saves', 'build')]
+    [ValidateSet('run', 'test', 'queue', 'build')]
     [string]$Action = 'run',
     [Parameter(Position = 1)]
     [string]$Name = '',
@@ -64,8 +59,6 @@ $repo = Split-Path -Parent $PSScriptRoot
 $logs = Join-Path $repo 'logs'
 # The build's artifacts are in the repo's own target directory.
 $exe = Join-Path $repo 'target\debug\topside.exe'
-# The one world the test saves are made in (build.ps1 saves).
-$TestSeed = '1'
 New-Item -ItemType Directory -Force $logs | Out-Null
 Set-Location $repo
 
@@ -129,37 +122,6 @@ function Limit-Line {
     return $Line.Substring(0, 300) + ' ...'
 }
 
-function Start-Game {
-    <#
-    .SYNOPSIS
-    Stops the running game, builds, and launches it detached with the
-    given game arguments. Returns 0 once launched, else the failing code.
-    #>
-    param ([string[]]$Arguments = @())
-    Stop-Game
-    $log = Join-Path $logs 'build.log'
-    $built = Invoke-Cargo 'build' $log
-    Show-Problems $log
-    if ($built -ne 0) { return $built }
-    $out = Join-Path $logs 'topside.log'
-    $err = Join-Path $logs 'topside.err.log'
-    # Launched detached through WMI so the game inherits none of this
-    # script's handles: a Start-Process child with redirected output keeps
-    # the caller's pipe open, and whoever ran this script waits until the
-    # game closes.
-    $command = "cmd /c `"`"$exe`" $($Arguments -join ' ') > `"$out`" 2> `"$err`"`""
-    $launched = Invoke-CimMethod -ClassName Win32_Process -MethodName Create -Arguments @{
-        CommandLine      = $command
-        CurrentDirectory = $repo
-    }
-    if ($launched.ReturnValue -ne 0) {
-        Write-Host "[build] launching topside FAILED (Win32_Process.Create returned $($launched.ReturnValue))" -ForegroundColor Red
-        return 1
-    }
-    Write-Host "[build] topside launched in the background $Arguments (log: $out, $err)" -ForegroundColor Green
-    return 0
-}
-
 function Show-Problems {
     param ([Parameter(Mandatory = $true)][string]$Log)
     Select-String -Path $Log -Pattern '^(error|warning)(\[|:)' -Context 0, 6 |
@@ -209,38 +171,30 @@ switch ($Action) {
                 Write-Host $_.Line -ForegroundColor $color
             }
     }
-    'saves' {
-        # One fixed world for every test save (operator, 2026-10-02): the
-        # game relaunched on the test seed, so a remade save lands in the
-        # same world as the rest.
-        $code = Start-Game @('--seed', $TestSeed)
-        if ($code -ne 0) { break }
-        $answering = $false
-        for ($i = 0; $i -lt 120 -and -not $answering; $i++) {
-            Start-Sleep -Milliseconds 500
-            try {
-                $null = Invoke-RestMethod -Method Post -Uri 'http://127.0.0.1:15703/topside' -Body '{"op":"status","args":{}}' -ContentType 'application/json' -TimeoutSec 2
-                $answering = $true
-            } catch { }
-        }
-        if (-not $answering) {
-            Write-Host '[build] the game never answered after its launch' -ForegroundColor Red
-            $code = 1
-            break
-        }
-        $log = Join-Path $logs 'saves.log'
-        # The makers are ignored tests, so no test run starts them; here they
-        # are the only tests run, one at a time, with their output kept.
-        $code = Invoke-Cargo 'nextest run -p topside-tests --no-capture --run-ignored only -E test(/^saves::make::/)' $log
-        Show-Problems $log
-        Select-String -Path $log -Pattern '^\s+(PASS|FAIL|TIMEOUT|TERMINATING)\b|^\s+Summary|panicked|^error: ' |
-            ForEach-Object {
-                $color = if ($_.Line -match 'FAIL|TIMEOUT|TERMINATING|panicked|^error') { 'Red' } else { 'Gray' }
-                Write-Host $_.Line -ForegroundColor $color
-            }
-    }
     'run' {
-        $code = Start-Game $GameArgs
+        Stop-Game
+        $log = Join-Path $logs 'build.log'
+        $code = Invoke-Cargo 'build' $log
+        Show-Problems $log
+        if ($code -eq 0) {
+            $out = Join-Path $logs 'topside.log'
+            $err = Join-Path $logs 'topside.err.log'
+            # Launched detached through WMI so the game inherits none of
+            # this script's handles: a Start-Process child with redirected
+            # output keeps the caller's pipe open, and whoever ran this
+            # script waits until the game closes.
+            $command = "cmd /c `"`"$exe`" $($GameArgs -join ' ') > `"$out`" 2> `"$err`"`""
+            $launched = Invoke-CimMethod -ClassName Win32_Process -MethodName Create -Arguments @{
+                CommandLine      = $command
+                CurrentDirectory = $repo
+            }
+            if ($launched.ReturnValue -ne 0) {
+                Write-Host "[build] launching topside FAILED (Win32_Process.Create returned $($launched.ReturnValue))" -ForegroundColor Red
+                $code = 1
+            } else {
+                Write-Host "[build] topside launched in the background $GameArgs (log: $out, $err)" -ForegroundColor Green
+            }
+        }
     }
 }
 if ($code -eq 0) {

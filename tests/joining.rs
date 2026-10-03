@@ -9,7 +9,7 @@
 
 use serde_json::json;
 
-use crate::endpoint::{from_save, op, op_with, pause};
+use crate::endpoint::{op, op_with, pause};
 use crate::opening::{SECOND, player, roxanne, within};
 use crate::saves::{ask_to_join, faction_of, gifts, part, the_stranger};
 
@@ -23,7 +23,7 @@ fn bunker_count(faction: &str) -> u64 {
 #[test]
 fn asked_by_someone_they_like_a_stranger_joins() {
     let _p = pause();
-    from_save("beside_a_stranger");
+    crate::saves::beside_a_stranger();
     let stranger = the_stranger();
     let count = bunker_count("player");
     let home_of = |id: u64| op_with("npc", json!({"id": id}))["home"].clone();
@@ -39,7 +39,7 @@ fn asked_by_someone_they_like_a_stranger_joins() {
 #[test]
 fn asked_by_someone_they_do_not_know_a_stranger_stays_out() {
     let _p = pause();
-    from_save("beside_a_stranger");
+    crate::saves::beside_a_stranger();
     let stranger = the_stranger();
     ask_to_join(stranger);
     crate::endpoint::step(10 * SECOND);
@@ -51,7 +51,7 @@ fn asked_by_someone_they_do_not_know_a_stranger_stays_out() {
 #[test]
 fn feeling_better_toward_another_group_they_leave_for_it() {
     let _p = pause();
-    from_save("joined_with_mara_near");
+    crate::saves::joined_with_mara_near();
     let mara = part("Mara");
     let stranger = crate::endpoint::people()
         .into_iter()

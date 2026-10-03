@@ -135,11 +135,11 @@ CI runner taking jobs from a queue and reporting each back.
 - Save states for everything (operator, 2026-10-02): "we shouldn't be
   waiting 2 hours for something, just load the save." A test never waits
   through a long game span for its event: it loads a save made just before
-  the event, and tests the thing. The saves are made by playing through
-  the game once, in order, each from the one before (the play-through,
-  tests/saves.rs, `build.ps1 saves`), which may take longer than a test's 2
-  minutes and is run again when content changes; the saves are committed.
-  A test itself stays under 2 minutes.
+  the event, and tests the thing. As we go through the game, each save is
+  reached once organically, from the one before, and saved
+  (`endpoint::start_from`; the opening's in tests/opening.rs, the rest in
+  tests/saves.rs); the saves are committed, and every test after loads
+  them.
 - What a save holds is one list, `saved!` in src/save.rs: every component
   and resource that changes what happens next. A new one that changes
   what happens next goes in that list, or a load loses it. What is worked

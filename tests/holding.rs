@@ -7,7 +7,7 @@
 
 use serde_json::json;
 
-use crate::endpoint::{from_save, op_with, pause, people, step};
+use crate::endpoint::{op_with, pause, people, step};
 use crate::opening::{SECOND, apart, spot_of, within, woke};
 
 /// Two living people far from the player's bunker: the holder, and one who
@@ -48,7 +48,7 @@ fn a_hostile_who_comes_is_warned_once_then_fought() {
     // Just before the raider comes within 8 m of the held place (tests/
     // saves.rs holding_raider_coming): the holder is the bunker person
     // commanded to hold, the raider the one walking for it.
-    from_save("holding_raider_coming");
+    crate::saves::holding_raider_coming();
     let everyone = people();
     let alive = |def: &str| everyone.iter().filter(|p| p["dead"] != true && p["def"] == def && p["faction"] != "player").filter_map(|p| p["id"].as_u64()).next();
     let holder = alive("bunker person").expect("a living person of another bunker");

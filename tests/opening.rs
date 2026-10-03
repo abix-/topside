@@ -248,7 +248,7 @@ fn open_the_door() {
 /// (authority.md "Talking": the conversation starts within TALK_REACH) the
 /// talk opened. Reached by commanding her knock (todo 15b), not by the
 /// note, so it does not wait on tests 3-6.
-pub(crate) fn talking() {
+fn talking() {
     start_from("opening_talking", || {
         woke();
         let her = roxanne();

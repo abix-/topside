@@ -8,7 +8,7 @@
 
 use serde_json::{Value as Json, json};
 
-use crate::endpoint::{from_save, op, op_with, pause, people, step};
+use crate::endpoint::{op, op_with, pause, people, step};
 use crate::opening::{SECOND, apart, player, player_spot, the_tap};
 
 fn maras_bunker() -> String {
@@ -49,7 +49,7 @@ fn drink_it_dry(maras: &str) {
 fn a_dry_store_gives_nothing_at_the_tap() {
     let _p = pause();
     // A few drinks above reading dry (tests/saves.rs).
-    from_save("tap_maras_store_nearly_dry");
+    crate::saves::tap_maras_store_nearly_dry();
     let maras = maras_bunker();
     drink_it_dry(&maras);
     let drunk = drunk_at_the_tap();
@@ -69,7 +69,7 @@ fn the_store_reads_dry_under_a_quarter() {
     crate::opening::woke();
     let maras = maras_bunker();
     let full = water(&maras);
-    from_save("tap_maras_store_nearly_dry");
+    crate::saves::tap_maras_store_nearly_dry();
     assert!(full >= 4, "setup: Mara's store held {full} at the start, too little to see a quarter");
     let tap = the_tap();
     for _ in 0..2000 {
@@ -90,7 +90,7 @@ fn the_store_reads_dry_under_a_quarter() {
 fn the_store_says_how_much_it_holds() {
     let _p = pause();
     // The player beside Mara's store (tests/saves.rs).
-    from_save("tap_at_maras_dry_store");
+    crate::saves::tap_at_maras_dry_store();
     let maras = maras_bunker();
     let store = bunker(&maras)["store"].clone();
     let at = (store["at"][0].as_f64().expect("the world op reports where Mara's store is"), store["at"][1].as_f64().unwrap_or(0.0), store["floor"].as_f64().unwrap_or(0.0));
