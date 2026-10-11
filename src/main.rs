@@ -5,6 +5,10 @@
 //! `--port N` is the control plane's port (15703 when not given), so two
 //! games can run side by side.
 
+// One window, the default for every program: no console window beside it.
+// Debug builds keep the console for their output.
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use topside::content::WorldKind;

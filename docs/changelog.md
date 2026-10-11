@@ -22,6 +22,13 @@ These rules govern `docs/changelog.md`. Follow them exactly.
 - Use plain terms. Do not use vague descriptions, invented language, or design
   essays.
 
+## 2026-10-11
+
+| System | Item | Done when |
+|---|---|---|
+| `build.rs` | [x] topside has its own icon (green, radiation sign, made by onelog's tools/make-icons), linked into its exe | `k3sc cargo-lock build --release -p topside --bin topside` finished; Windows' `ExtractAssociatedIcon` read the radiation sign from `topside.exe` |
+| `src/main.rs` | [x] topside opens one window and no console window (windowed program in release) | Same build; the PE header of `topside.exe` reads subsystem 2 (windowed) |
+
 ## 2026-10-03
 
 | System | Item | Done when |
