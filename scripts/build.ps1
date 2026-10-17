@@ -65,7 +65,7 @@ $ErrorActionPreference = 'Stop'
 $repo = Split-Path -Parent $PSScriptRoot
 $logs = Join-Path $repo 'logs'
 # The build's artifacts are in the repo's own target directory.
-$exe = Join-Path $repo 'target\debug\topside.exe'
+$exe = Join-Path $repo 'target\release\topside.exe'
 New-Item -ItemType Directory -Force $logs | Out-Null
 Set-Location $repo
 # The tests talk to the game on this port (tests/endpoint.rs `url`).
@@ -147,7 +147,7 @@ switch ($Action) {
     'build' {
         Stop-Game
         $log = Join-Path $logs 'build.log'
-        $code = Invoke-Cargo 'build' $log
+        $code = Invoke-Cargo 'build --release' $log
         # Built, the content's own tests (the topside-content crate: every
         # episode file reads through the loader, the generic brain): a data
         # file that does not read or a brain rule broken fails the build.
@@ -197,7 +197,7 @@ switch ($Action) {
     'run' {
         Stop-Game
         $log = Join-Path $logs 'build.log'
-        $code = Invoke-Cargo 'build' $log
+        $code = Invoke-Cargo 'build --release' $log
         Show-Problems $log
         if ($code -eq 0) {
             $out = Join-Path $logs 'topside.log'
