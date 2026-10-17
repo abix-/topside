@@ -27,6 +27,7 @@ These rules govern `docs/changelog.md`. Follow them exactly.
 | System | Item | Done when |
 |---|---|---|
 | scripts/build.ps1 | [x] Build with --release and run target\release\topside.exe | build.ps1 parses (PowerShell parser, no errors); both cargo build calls carry --release and $exe is target\release\topside.exe; not run yet |
+| Cargo.toml | [x] Release profile is the fast build: Cargo's defaults plus opt-level 3 and panic abort, no fat LTO, one codegen unit or strip | k3sc cargo-lock build --release finished (full rebuild after the profile change, 17m 56s); a one-file rebuild not timed yet |
 
 ## 2026-10-11
 

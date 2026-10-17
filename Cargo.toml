@@ -98,9 +98,11 @@ debug = false
 # thousands of people are packed together. Our own code keeps its.
 debug-assertions = false
 
+# Release is the build that runs (scripts/build.ps1): Cargo's own release
+# defaults, every crate optimized on every core with no whole-program LTO
+# at link and the symbols kept for the profiler (rust skill, Build
+# profiles: onelog's one-file rebuild went from 7m 22s to 52 s). A build
+# handed to others turns LTO on for one command, as the skill shows.
 [profile.release]
-lto = "fat"
-codegen-units = 1
 opt-level = 3
 panic = "abort"
-strip = "symbols"
