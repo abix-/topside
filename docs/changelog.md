@@ -22,6 +22,12 @@ These rules govern `docs/changelog.md`. Follow them exactly.
 - Use plain terms. Do not use vague descriptions, invented language, or design
   essays.
 
+## 2026-10-17
+
+| System | Item | Done when |
+|---|---|---|
+| scripts/build.ps1 | [x] Build with --release and run target\release\topside.exe | build.ps1 parses (PowerShell parser, no errors); both cargo build calls carry --release and $exe is target\release\topside.exe; not run yet |
+
 ## 2026-10-11
 
 | System | Item | Done when |
