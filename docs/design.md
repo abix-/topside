@@ -1538,6 +1538,18 @@ playable version. They stay here as documented goals, not promises.
   The research leads to the truth behind the storm and to the episode
   guide (The story).
 
+## Reverse horror (operator, 2026-10-25)
+
+Being talked through: what it would take to make topside a reverse
+horror game. The three questions to answer:
+
+1. How do you make humans feel like prey without making them
+   pointless?
+2. How do you make the player feel like the monster without removing
+   all the tension?
+3. How do you sustain that fantasy for an entire game without the
+   novelty wearing off?
+
 ## Still open
 
 The core-loop questions from the todo are all answered above. Open items
