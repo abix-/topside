@@ -29,6 +29,7 @@ mod perf;
 mod people_drawn;
 mod queue;
 mod reality;
+mod renderer;
 mod relationship;
 mod respawn;
 mod roads;

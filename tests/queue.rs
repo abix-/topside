@@ -37,7 +37,7 @@ fn run_one(me: &std::path::Path, name: &str) -> (bool, String) {
     let file = std::env::temp_dir().join(format!("topside-queue-{}.txt", std::process::id()));
     let out = std::fs::File::create(&file).expect("the output file");
     let err = out.try_clone().expect("the output file, twice");
-    let mut child = Command::new(me).args(["--exact", name, "--nocapture"]).stdout(out).stderr(err).spawn().expect("the test program runs one test");
+    let mut child = Command::new(me).args(["--exact", name, "--include-ignored", "--nocapture"]).stdout(out).stderr(err).spawn().expect("the test program runs one test");
     let started = Instant::now();
     let passed = loop {
         if let Some(status) = child.try_wait().expect("the test's process") {

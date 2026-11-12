@@ -22,6 +22,13 @@ These rules govern `docs/changelog.md`. Follow them exactly.
 - Use plain terms. Do not use vague descriptions, invented language, or design
   essays.
 
+## 2026-11-11
+
+| System | Item | Done when |
+|---|---|---|
+| Rendering | [x] Investigate the low FPS and default Windows to DirectX 12 while keeping WGPU_BACKEND as an explicit override | Release build passed. Vulkan captured 1.55 to 1.77 FPS; after restoring the session, the default DirectX 12 launch captured 59.47 to 60.56 FPS and 16.51 to 16.82 ms per frame. Simulation status, existing in-play performance, renderer capture and screenshot capture: 4 passed, 0 failed. See performance.md for comparison limits. |
+| Diagnostics | [x] Add explicit session-preservation, restoration and renderer timing diagnostics; let the launcher select a renderer through its hidden PowerShell helper | The checkpoint capture and restore tests passed; both renderer reports were written with adapter, elapsed times, ticks, diagnostics, mesh counts and profiler spans. The launcher selected DirectX 12 explicitly and through the game's default; PowerShell syntax check passed. |
+
 ## 2026-10-17
 
 | System | Item | Done when |

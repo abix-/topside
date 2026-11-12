@@ -39,6 +39,8 @@ side by side on two ports.
 .PARAMETER GameArgs
 For run: passed to the game, for example --world labyrinth. For queue:
 the tests to queue after the first.
+.PARAMETER Renderer
+For run: choose default, vulkan or dx12 for a renderer comparison.
 .EXAMPLE
 pwsh -NoProfile -File scripts/build.ps1 test
 .EXAMPLE
@@ -57,6 +59,8 @@ param (
     [string]$Name = '',
     [int]$StallMinutes = 5,
     [int]$Port = 15703,
+    [ValidateSet('default', 'vulkan', 'dx12')]
+    [string]$Renderer = 'default',
     [Parameter(ValueFromRemainingArguments = $true)]
     [string[]]$GameArgs = @()
 )
@@ -206,11 +210,15 @@ switch ($Action) {
             # this script's handles: a Start-Process child with redirected
             # output keeps the caller's pipe open, and whoever ran this
             # script waits until the game closes.
-            # cmd's console is hidden (ShowWindow 0, SW_HIDE; Win32_Process.
-            # Create refuses CREATE_NO_WINDOW in CreateFlags, returning 21),
-            # and the game shares it, so only the topside window opens
-            # (operator, 2026-10-03); the redirect still fills the logs.
-            $command = "cmd /c `"`"$exe`" --port $Port $($GameArgs -join ' ') > `"$out`" 2> `"$err`"`""
+            # The hidden PowerShell helper sets the renderer for this launch
+            # and waits for the game so its redirected output stays connected.
+            # Only the game's own window is visible.
+            $launch = if ($Renderer -eq 'default') { '' } else { "`$env:WGPU_BACKEND = '$Renderer'`n" }
+            $quotedArgs = @('--port', "$Port") + $GameArgs | ForEach-Object { "'" + $_.Replace("'", "''") + "'" }
+            $launch += "Start-Process -FilePath '" + $exe.Replace("'", "''") + "' -ArgumentList @(" + ($quotedArgs -join ',') + ") -NoNewWindow -Wait -RedirectStandardOutput '" + $out.Replace("'", "''") + "' -RedirectStandardError '" + $err.Replace("'", "''") + "'"
+            $launch = "`$ErrorActionPreference = 'Stop'`ntry {`n$launch`n} catch { `$_ | Out-String | Set-Content -LiteralPath '" + (Join-Path $logs 'launch.err.log').Replace("'", "''") + "'; exit 1 }"
+            $encoded = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($launch))
+            $command = "pwsh -NoProfile -EncodedCommand $encoded"
             $startup = New-CimInstance -CimClass (Get-CimClass -ClassName Win32_ProcessStartup) -ClientOnly -Property @{ ShowWindow = [uint16]0 }
             $launched = Invoke-CimMethod -ClassName Win32_Process -MethodName Create -Arguments @{
                 CommandLine               = $command

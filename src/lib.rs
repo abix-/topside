@@ -116,6 +116,19 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind, port: u16
     } else {
         app.add_plugins(
             DefaultPlugins
+                .set(bevy::render::RenderPlugin {
+                    render_creation: {
+                        let mut settings = bevy::render::settings::WgpuSettings::default();
+                        // On this Windows renderer, Vulkan buffer uploads spent
+                        // hundreds of ms in the driver; DX12 stayed near 60 FPS.
+                        // Keep WGPU_BACKEND available for measured comparisons.
+                        if cfg!(target_os = "windows") && std::env::var_os("WGPU_BACKEND").is_none() {
+                            settings.backends = Some(bevy::render::settings::Backends::DX12);
+                        }
+                        settings.into()
+                    },
+                    ..default()
+                })
                 .set(WindowPlugin {
                     primary_window: Some(Window {
                         title: "topside".to_string(),

@@ -53,6 +53,59 @@ on its own port: `build.ps1 run -Port 15704`, and the tests with
 - The `diagnostics` op: Bevy's own (`fps`, `frame_time`), copied once
   every 60 ticks, so up to a second older than `status`'s fps (todo 9o).
 
+## Measured 2026-11-11: Windows renderer comparison
+
+The RTX 2080 Ti, NVIDIA driver 617.14, Windows 10, release build, small
+world seed 1794449100292636300. Vulkan was the automatic choice. The
+existing in-play performance check failed: only 52 ticks advanced in its
+1100 ms sample, with diagnostics at 2.388 FPS and 418.788 ms a frame.
+The render schedule averaged 463 ms a frame; the two opaque bin upload
+systems were about 197 to 199 ms each. A 5-second Windows ETW capture
+through onelog's profiler placed 53.4% of sampled CPU self time inside
+the NVIDIA kernel driver. Upload call stacks went through wgpu staging
+buffer allocation and Vulkan memory allocation into the driver.
+
+Explicit renderer diagnostics preserve a session checkpoint, restore it,
+and capture five normal-play samples, one second apart. They do not
+pause, step, move the player, or change simulation settings while sampling.
+
+| Renderer | Reported FPS range | Reported frame ms range | Ticks per sample |
+|---|---:|---:|---:|
+| Vulkan, before restart | 1.55 to 1.77 | 564.14 to 645.64 | 19 to 30 |
+| DirectX 12, restored session | 58.32 to 66.77 | 15.37 to 17.15 | 59 to 61 |
+| DirectX 12, default launch verified | 59.47 to 60.56 | 16.51 to 16.82 | 60 to 61 |
+
+These are Bevy's smoothed diagnostics, not individual-frame percentiles.
+The Vulkan capture had only 1156 terrain meshes instantiated; the DX12
+capture had 71833 meshes, 8899 visible. This is not an equal render-load
+benchmark, but DX12 handled the more complete scene at far higher FPS.
+The capture does not prove which Vulkan driver or allocator operation is
+the underlying defect. No simulation or asset count was reduced as a fix.
+
+Windows now defaults to DirectX 12. WGPU_BACKEND still overrides the
+choice. The launcher also accepts `-Renderer vulkan` or `-Renderer dx12`
+for explicit comparisons; `default` uses the game's default. Reports are
+`logs/renderer-vulkan.json` and `logs/renderer-dx12.json`, including the
+adapter, each sample's elapsed time, diagnostics, simulation ticks, view
+counts, and the full profiler breakdown. The session checkpoint is
+`saves/renderer_comparison_session.save`; capture refuses to overwrite it.
+
+    pwsh -NoProfile -File scripts/build.ps1 queue renderer::preserve_session
+    pwsh -NoProfile -File scripts/build.ps1 queue renderer::restore_session
+    pwsh -NoProfile -File scripts/build.ps1 queue renderer::frame_times
+
+Run those diagnostics explicitly and one at a time. Preserve once, then
+restore and sample after each renderer launch. The queue runner includes
+ignored tests only when their name or module was explicitly selected.
+
+Verification: release build passed. On the default launch after restoring
+the checkpoint, the simulation status, existing in-play performance check,
+renderer capture and screenshot capture all passed (4 passed, 0 failed).
+The queue took 6.844 seconds. Its individual durations are not structured
+fields in the game's queue; the renderer JSON records actual elapsed
+time and game ticks for each sample. No individual-frame p95 or p99 is
+claimed. A missing tap model was recorded separately as todo 15e.
+
 ## Measured 2026-10-02: a stepped tick, and what it costs
 
 Why it matters: the tests move a paused game only with the `step` op,
