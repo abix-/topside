@@ -14,6 +14,9 @@ use bevy::prelude::*;
 /// launch until the first world is ready.
 pub static LOADING: AtomicBool = AtomicBool::new(true);
 
+/// Whether the world launched with has been made ready once.
+static LAUNCHED: AtomicBool = AtomicBool::new(false);
+
 /// The loading screen: whether it shows, and whether a frame has drawn it
 /// yet (the world is made ready on the frame after, so the screen is up
 /// while that work holds the frame).
@@ -64,6 +67,11 @@ pub fn ready_the_world(world: &mut World) {
     crate::navmesh::mesh_the_world(world);
     crate::navmesh::run_landmass(world);
     world.resource_mut::<Loading>().on = false;
+    // The start of the game, after the launch only: the game's own first
+    // save, a replay of this run plays from it.
+    if !LAUNCHED.swap(true, Ordering::Relaxed) {
+        crate::save::own_save();
+    }
     LOADING.store(false, Ordering::Relaxed);
     info!("the world is ready in {:.0} ms", start.elapsed().as_secs_f64() * 1000.0);
 }

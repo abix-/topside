@@ -75,6 +75,13 @@ pub struct SimTick(pub u64);
 #[derive(Resource)]
 pub struct WorldSeed(pub u64);
 
+/// The seed the game was launched with: which run this is. A storm rolls a
+/// new world seed, but the run stays the same; its replays and the saves it
+/// makes on its own are named by this.
+#[derive(Resource, Default, Clone, serde::Serialize, serde::Deserialize, Reflect)]
+#[reflect(opaque, Resource, Serialize, Deserialize)]
+pub struct RunSeed(pub u64);
+
 /// The reality the world is in now (realities.md), with its rules: the
 /// first registered until a storm hands over another.
 #[derive(Resource, Clone, serde::Serialize, serde::Deserialize, Reflect)]
@@ -190,6 +197,7 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind, port: u16
     }
     app.insert_resource(Time::<Fixed>::from_hz(60.0));
     app.insert_resource(WorldSeed(seed));
+    app.insert_resource(RunSeed(seed));
     app.insert_resource(world);
     app.init_resource::<SimTick>();
     app.init_resource::<content::RealityRegistryRes>();
@@ -277,7 +285,7 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind, port: u16
                 ai::think,
                 (trade::between_people, ai::warn_off).chain(),
                 lap("think"),
-                (input::drain_actions, lap("drain_actions"), hud::learn_hints, episode::cues, command::give, command::carry_out, ai::follow, ai::lead).chain(),
+                (input::drain_actions, lap("drain_actions"), hud::learn_hints, episode::cues, command::give, command::carry_out, ai::follow, ai::lead, save::save_at_steps).chain(),
                 (nav::record_solids, nav::record_doors),
                 // Everyone sent somewhere walks the way on the navigation
                 // mesh (docs/pathing.md).

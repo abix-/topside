@@ -6,6 +6,7 @@
 
 use std::collections::{HashMap, VecDeque};
 use std::sync::Mutex;
+use std::sync::atomic::{AtomicU64, Ordering};
 
 use bevy::prelude::*;
 use modforge::actions::{ActionQueue, Stamped};
@@ -71,7 +72,7 @@ pub fn replay_path(name: &str) -> String {
 pub fn give(
     mut commands: Commands,
     tick: Res<SimTick>,
-    seed: Res<crate::WorldSeed>,
+    seed: Res<crate::RunSeed>,
     mut given: ResMut<GivenThisRun>,
     mut playing: ResMut<Playing>,
     player: Query<&Actor, With<Player>>,
@@ -96,7 +97,7 @@ pub fn give(
                 match replay {
                     Some(replay) => {
                         if replay.seed != seed.0 {
-                            warn!("replay {name} was saved on world {}, this is world {}: it may not do the same", replay.seed, seed.0);
+                            warn!("replay {name} was saved in run {}, this is run {}: it may not do the same", replay.seed, seed.0);
                         }
                         // Each command at its own tick, from this step on: the
                         // ones before were given before the save loaded, which
@@ -148,7 +149,19 @@ pub fn give(
     for (entity, left) in new {
         commands.entity(entity).insert(Commanded { left, started: false });
     }
+    PLAYING_LEFT.store(playing.0.len() as u64, Ordering::Relaxed);
+    PLAYING_NEXT.store(playing.0.front().map_or(u64::MAX, |g| g.tick), Ordering::Relaxed);
+    GIVEN_SO_FAR.store(given.0.len() as u64, Ordering::Relaxed);
+    RUN.store(seed.0, Ordering::Relaxed);
 }
+
+/// What the `replay` op reports, written each step by `give`: the commands
+/// a playing replay has left, the tick of the next (`u64::MAX` for none),
+/// the commands given this run so far, and the run.
+pub static PLAYING_LEFT: AtomicU64 = AtomicU64::new(0);
+pub static PLAYING_NEXT: AtomicU64 = AtomicU64::new(u64::MAX);
+pub static GIVEN_SO_FAR: AtomicU64 = AtomicU64::new(0);
+pub static RUN: AtomicU64 = AtomicU64::new(0);
 
 /// The one way an order reaches a person: onto the end of their commands
 /// left, or, with none, into `new`, the commands to give them this step

@@ -13,6 +13,7 @@
 //! (`loaded`), its ids kept.
 
 use std::sync::Mutex;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use bevy::prelude::*;
 use bevy::world_serialization::WorldFilter;
@@ -123,6 +124,7 @@ saved! {
     ],
     resources: [
         SimTick,
+        crate::RunSeed,
         crate::Reality,
         crate::episode::Episode,
         crate::storm::StormRes,
@@ -233,11 +235,100 @@ fn roll_saved_world(world: &mut World, header: &Header) {
     }
 }
 
+/// The game's own saves along a run (todo "First: playing the game through
+/// replays"): one at the start of the game and one at each step of an
+/// episode, so a replay can be played from any point. Asked by `own_save`,
+/// made at the next frame's start by `answer_save`.
+static OWN_SAVE: AtomicBool = AtomicBool::new(false);
+
+/// While the game makes one of its own saves: `saved` answers no op.
+static OWN_SAVING: AtomicBool = AtomicBool::new(false);
+
+/// Ask for one of the game's own saves at the next frame's start.
+pub fn own_save() {
+    OWN_SAVE.store(true, Ordering::Relaxed);
+}
+
+/// What the commands given up to a moment hash to: names a run's own save,
+/// so a replay finds the saves made on its own line of play.
+pub fn commands_hash(given: &[modforge::command::Given]) -> u32 {
+    // FNV-1a over the commands' JSON, the same text a replay file holds.
+    let text = serde_json::to_string(given).unwrap_or_default();
+    text.bytes().fold(0x811c_9dc5u32, |h, b| (h ^ u32::from(b)).wrapping_mul(0x0100_0193))
+}
+
+/// The name of a run's own save: the run, the tick, and the commands given
+/// up to it.
+pub fn own_save_name(run: u64, tick: u64, hash: u32) -> String {
+    format!("run_{run}_{tick}_{hash:08x}")
+}
+
+/// A run's own save's tick and hash, read back from its name.
+pub fn own_save_of(name: &str, run: u64) -> Option<(u64, u32)> {
+    let rest = name.strip_prefix(&format!("run_{run}_"))?;
+    let (tick, hash) = rest.split_once('_')?;
+    Some((tick.parse().ok()?, u32::from_str_radix(hash, 16).ok()?))
+}
+
+/// Every own save of a run kept in saves/: (tick, hash, name).
+pub fn own_saves(run: u64) -> Vec<(u64, u32, String)> {
+    let mut found: Vec<_> = std::fs::read_dir(SAVES)
+        .into_iter()
+        .flatten()
+        .flatten()
+        .filter_map(|entry| {
+            let name = entry.file_name().to_string_lossy().strip_suffix(".save")?.to_string();
+            let (tick, hash) = own_save_of(&name, run)?;
+            Some((tick, hash, name))
+        })
+        .collect();
+    found.sort();
+    found
+}
+
+/// One of the game's own saves made now, unless one of that name is kept
+/// already (the same run, tick and commands: the same moment).
+fn make_own_save(world: &mut World) {
+    let run = world.resource::<crate::RunSeed>().0;
+    let tick = world.resource::<SimTick>().0;
+    let hash = commands_hash(&world.resource::<crate::command::GivenThisRun>().0);
+    let name = own_save_name(run, tick, hash);
+    if path_of(&name).exists() {
+        return;
+    }
+    OWN_SAVING.store(true, Ordering::Relaxed);
+    match start_save(world, &name) {
+        Ok(()) => info!("the game saved {name} on its own"),
+        Err(e) => warn!("the game's own save {name} not made: {e}"),
+    }
+    // moonshine-save writes through a queued command: written now, while
+    // `saved` still knows the save is the game's own.
+    world.flush();
+    OWN_SAVING.store(false, Ordering::Relaxed);
+}
+
+/// Once a tick: a step of the episode reached is one of the game's own
+/// saves, made at the next frame's start. A load that changes the count
+/// makes none.
+pub fn save_at_steps(episode: Res<crate::episode::Episode>, mut last: Local<Option<(String, usize)>>) {
+    let now = (episode.name.clone().unwrap_or_default(), episode.reached.len());
+    if let Some((name, count)) = last.as_ref()
+        && *name == now.0
+        && now.1 > *count
+    {
+        own_save();
+    }
+    *last = Some(now);
+}
+
 /// Every frame, first, before any other system has queued a command on
 /// the world a load replaces (a command left for an entity the load
 /// despawned stopped the game): a save or a load asked for is done, and
 /// answers from `saved` or `loaded`, or at once with why it cannot be.
 pub fn answer_save(world: &mut World) {
+    if OWN_SAVE.swap(false, Ordering::Relaxed) {
+        make_own_save(world);
+    }
     let Some(ask) = ASK.lock().ok().and_then(|mut ask| ask.take()) else {
         return;
     };
@@ -397,6 +488,9 @@ impl Moment<'_, '_> {
 /// (`Moment`). A failed save answers nothing (moonshine-save logs why) and
 /// the op says the game did not answer.
 fn saved(_: On<Saved>, moment: Moment) {
+    if OWN_SAVING.load(Ordering::Relaxed) {
+        return;
+    }
     answer(Ok(moment.read()));
 }
 

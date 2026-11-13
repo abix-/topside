@@ -121,6 +121,20 @@ engine plays them again).
   given again at the tick it was given; the commands before are already
   in the save, so they are not given again. Loading a later save starts
   partway through the same replay.
+- The game saves on its own along a run (operator, 2026-11-13): at the
+  start of the game, once the world is ready after the launch, and at
+  each step of an episode reached. Each is `saves/run_<run>_<tick>_<hash>`:
+  the run is the seed the game was launched with (a storm keeps the run),
+  the hash is of the commands given up to that tick, so a replay finds the
+  saves on its own line of play. One of the same name is never written
+  over. A replay holds its run.
+- `replay` with `play` and `at` (a tick) plays a replay from any point:
+  the latest own save of its run at or before that tick on its line of
+  play is loaded, the replay played from there, and the game stepped to
+  the tick and left paused, to carry on (`pause` false) or to change
+  (`replay` stop, then new commands). `replay` with nothing reports the
+  run, the commands given so far, what a playing replay has left, and the
+  run's own saves.
 
 ## Running tests (operator, 2026-10-02)
 

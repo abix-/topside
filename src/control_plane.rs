@@ -959,6 +959,121 @@ static STEP_ASK: AtomicU64 = AtomicU64::new(0);
 static STEP_TO: Mutex<Option<u64>> = Mutex::new(None);
 static STEP_ANSWER: Mutex<Option<Json>> = Mutex::new(None);
 
+/// Pause the game (true) or let it run (false), answered once it stands
+/// still (or runs) with the tick it stands at.
+fn pause_now(on: bool) -> Json {
+    PAUSED.store(on, Ordering::Relaxed);
+    // Answered once the game stands still (or runs), however long a load or
+    // a gather holds the frame: no clock here.
+    loop {
+        std::thread::sleep(std::time::Duration::from_millis(10));
+        let at = PAUSED_AT.load(Ordering::Relaxed);
+        if on && at != u64::MAX {
+            return json!({"paused": true, "tick": at});
+        }
+        if !on && at == u64::MAX {
+            return json!({"paused": false});
+        }
+    }
+}
+
+/// While paused, run exactly `ticks` ticks; the moment after them.
+fn step_now(ticks: u64) -> Result<Json, String> {
+    if PAUSED_AT.load(Ordering::Relaxed) == u64::MAX {
+        return Err("the game is running: pause it first".to_string());
+    }
+    if let Ok(mut slot) = STEP_ANSWER.lock() {
+        *slot = None;
+    }
+    STEP_ASK.store(ticks, Ordering::Relaxed);
+    // Answered once the steps are done: no clock here.
+    loop {
+        std::thread::sleep(std::time::Duration::from_millis(10));
+        if let Ok(mut slot) = STEP_ANSWER.lock()
+            && let Some(moment) = slot.take()
+        {
+            return Ok(moment);
+        }
+    }
+}
+
+/// A save or a load asked of the game and answered once done.
+fn save_or_load_now(name: &str, ask: fn(String) -> crate::save::Ask) -> Result<Json, String> {
+    if name.is_empty() || !name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-') {
+        return Err(format!("name {name:?}: letters, digits, _ and - only"));
+    }
+    if let Ok(mut slot) = crate::save::ANSWER.lock() {
+        *slot = None;
+    }
+    if let Ok(mut slot) = crate::save::ASK.lock() {
+        *slot = Some(ask(name.to_string()));
+    }
+    // Answered once the game has done it, however long that takes.
+    loop {
+        std::thread::sleep(std::time::Duration::from_millis(10));
+        if let Ok(mut slot) = crate::save::ANSWER.lock()
+            && let Some(answer) = slot.take()
+        {
+            return answer;
+        }
+    }
+}
+
+/// Play replay `name` from tick `at` (todo "First: playing the game
+/// through replays"): the latest of the run's own saves at or before `at`
+/// made on this replay's line of play (the same commands given up to it)
+/// is loaded, the replay played from there, and the game stepped to `at`
+/// and left paused there, to carry on (`pause` false), or to change
+/// (`replay` stop, then new commands).
+fn play_at(name: &str, at: u64) -> Result<Json, String> {
+    let path = crate::command::replay_path(name);
+    let replay: modforge::command::Replay = std::fs::read_to_string(&path)
+        .map_err(|e| format!("no replay at {path}: {e}"))
+        .and_then(|text| serde_json::from_str(&text).map_err(|e| format!("{path} does not read: {e}")))?;
+    let on_this_line = |tick: u64, hash: u32| {
+        let before: Vec<_> = replay.given.iter().filter(|g| g.tick <= tick).copied().collect();
+        crate::save::commands_hash(&before) == hash
+    };
+    let (from, save) = crate::save::own_saves(replay.seed)
+        .into_iter()
+        .rev()
+        .find(|(tick, hash, _)| *tick <= at && on_this_line(*tick, *hash))
+        .map(|(tick, _, save)| (tick, save))
+        .ok_or_else(|| format!("no save of run {} at or before tick {at} on this replay's line of play", replay.seed))?;
+    pause_now(true);
+    save_or_load_now(&save, crate::save::Ask::Load)?;
+    // Nothing is asked of the game while it is still loading.
+    while crate::loading::LOADING.load(Ordering::Relaxed) {
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
+    if let Ok(mut slot) = crate::command::REPLAY_ASK.lock() {
+        *slot = Some(crate::command::ReplayAsk::Play(name.to_string()));
+    }
+    let mut left = at - from;
+    let mut moment = json!({"tick": from});
+    while left > 0 {
+        let ticks = left.min(36_000);
+        moment = step_now(ticks)?;
+        left -= ticks;
+    }
+    Ok(json!({"loaded": save, "from": from, "paused at": moment["tick"]}))
+}
+
+/// What the `replay` op reports with nothing asked: the run, the commands
+/// given in it so far, a playing replay's commands left and the tick of the
+/// next, and the run's own saves.
+fn replay_report() -> Json {
+    let run = crate::command::RUN.load(Ordering::Relaxed);
+    let next = crate::command::PLAYING_NEXT.load(Ordering::Relaxed);
+    json!({
+        "run": run,
+        "given so far": crate::command::GIVEN_SO_FAR.load(Ordering::Relaxed),
+        "playing, commands left": crate::command::PLAYING_LEFT.load(Ordering::Relaxed),
+        "next command at tick": (next != u64::MAX).then_some(next),
+        "saves of this run": crate::save::own_saves(run).into_iter().map(|(tick, _, name)| json!({"tick": tick, "name": name})).collect::<Vec<_>>(),
+    })
+}
+
 /// Before the fixed steps run, while paused: the steps the `step` op asked
 /// for are handed to the fixed step's own clock, exactly that many steps'
 /// time and nothing left over, so Bevy's fixed loop runs exactly that many
@@ -1665,25 +1780,7 @@ pub fn start(port: u16) {
     // the game has done it.
     let save_or_load = |args: &Json, ask: fn(String) -> crate::save::Ask| -> Result<Json, String> {
         let name = args.get("name").and_then(Json::as_str).ok_or_else(|| "name: the save's name".to_string())?;
-        if name.is_empty() || !name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-') {
-            return Err(format!("name {name:?}: letters, digits, _ and - only"));
-        }
-        if let Ok(mut slot) = crate::save::ANSWER.lock() {
-            *slot = None;
-        }
-        if let Ok(mut slot) = crate::save::ASK.lock() {
-            *slot = Some(ask(name.to_string()));
-        }
-        // Answered once the game has done it, however long that takes: no
-        // clock here; the test runner's own limit stops a test that hangs.
-        loop {
-            std::thread::sleep(std::time::Duration::from_millis(10));
-            if let Ok(mut slot) = crate::save::ANSWER.lock()
-                && let Some(answer) = slot.take()
-            {
-                return answer;
-            }
-        }
+        save_or_load_now(name, ask)
     };
     OP_REGISTRY.register(OpDef::new(
         "save",
@@ -1703,20 +1800,7 @@ pub fn start(port: u16) {
         "{\"on\": true}",
         |args| {
             let on = args.get("on").and_then(Json::as_bool).ok_or_else(|| "on: true or false".to_string())?;
-            PAUSED.store(on, Ordering::Relaxed);
-            // Answered once the game stands still (or runs), however long a
-            // load or a gather holds the frame: no clock here; the test
-            // runner's own limit stops a test that hangs.
-            loop {
-                std::thread::sleep(std::time::Duration::from_millis(10));
-                let at = PAUSED_AT.load(Ordering::Relaxed);
-                if on && at != u64::MAX {
-                    return Ok(json!({"paused": true, "tick": at}));
-                }
-                if !on && at == u64::MAX {
-                    return Ok(json!({"paused": false}));
-                }
-            }
+            Ok(pause_now(on))
         },
     ));
     OP_REGISTRY.register(OpDef::new(
@@ -1725,23 +1809,7 @@ pub fn start(port: u16) {
         "{\"ticks\": 600}",
         |args| {
             let ticks = args.get("ticks").and_then(Json::as_u64).filter(|t| (1..=36_000).contains(t)).ok_or_else(|| "ticks: 1 to 36000".to_string())?;
-            if PAUSED_AT.load(Ordering::Relaxed) == u64::MAX {
-                return Err("the game is running: pause it first".to_string());
-            }
-            if let Ok(mut slot) = STEP_ANSWER.lock() {
-                *slot = None;
-            }
-            STEP_ASK.store(ticks, Ordering::Relaxed);
-            // Answered once the steps are done: no clock here; the test
-            // runner's own limit stops a test that hangs.
-            loop {
-                std::thread::sleep(std::time::Duration::from_millis(10));
-                if let Ok(mut slot) = STEP_ANSWER.lock()
-                    && let Some(moment) = slot.take()
-                {
-                    return Ok(moment);
-                }
-            }
+            step_now(ticks)
         },
     ));
     OP_REGISTRY.register(OpDef::new(
@@ -1924,14 +1992,17 @@ pub fn start(port: u16) {
     ));
     OP_REGISTRY.register(OpDef::new(
         "replay",
-        "`save`: write every command given this run, with its tick and the world seed, to replays/<name>.json; `play`: give a saved replay's commands again, each at the tick it was given, from the game's next step on (load the save to start from first: the commands before its tick are in the save); `stop`: stop playing, and every command anyone has left is dropped, and all leading and following ended",
+        "`save`: write every command given this run, with its tick and the world seed, to replays/<name>.json; `play`: give a saved replay's commands again, each at the tick it was given, from the game's next step on (load the save to start from first: the commands before its tick are in the save); `play` with `at` (a tick): load the latest of the run's own saves (made at the game's start and at each step of an episode) at or before it on this replay's line, play the replay from there, and stop paused at that tick; nothing: the run, the commands given so far, what a playing replay has left, and the run's own saves; `stop`: stop playing, and every command anyone has left is dropped, and all leading and following ended",
         "{\"save\": \"the opening\"}",
         |args| {
+            if let (Some(name), Some(at)) = (args.get("play").and_then(Json::as_str), args.get("at").and_then(Json::as_u64)) {
+                return play_at(name, at);
+            }
             let ask = match (args.get("save").and_then(Json::as_str), args.get("play").and_then(Json::as_str)) {
                 (Some(name), _) => crate::command::ReplayAsk::Save(name.to_string()),
                 (None, Some(name)) => crate::command::ReplayAsk::Play(name.to_string()),
                 (None, None) if args.get("stop").is_some() => crate::command::ReplayAsk::Stop,
-                (None, None) => return Err("save: a name, play: a name, or stop".to_string()),
+                (None, None) => return Ok(replay_report()),
             };
             let path = match &ask {
                 crate::command::ReplayAsk::Save(name) | crate::command::ReplayAsk::Play(name) => Some(crate::command::replay_path(name)),

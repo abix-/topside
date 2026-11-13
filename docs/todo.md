@@ -13,9 +13,14 @@ point in it, then carry on, change it, or whatever is needed. We have full
 visibility of the game while replays run, so we can tune, tweak and
 adjust until it feels right.
 
-Where it stands (read 2026-11-13): replays of commands are saved and
-played (src/command.rs `give`); saves load in place (src/save.rs). Open
-rows in the way: 9k (a save at each step to start from), 31a (left parts), 31e (a
+Where it stands (2026-11-13): replays start from a save, each command at
+its own tick; the game saves on its own at its start and at each step of
+an episode; `replay` play at a tick loads the save before it, plays, and
+stops paused there; `replay` with nothing reports the run, what is
+playing, and the run's own saves (authority.md "Commands and replays").
+The start save was seen made (run_1794610667709070800_0_741638a5, tick
+0); play at a tick and the saves at each step not yet run. Open rows in
+the way: 9k (a save at each step to start from), 31a (left parts), 31e (a
 storm comes again after a load).
 
 ## What we are doing now: episode 1 on generic systems (operator, 2026-10-03)
