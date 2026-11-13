@@ -1924,7 +1924,7 @@ pub fn start(port: u16) {
     ));
     OP_REGISTRY.register(OpDef::new(
         "replay",
-        "`save`: write every command given this run, with its tick and the world seed, to replays/<name>.json; `play`: give a saved replay's commands again from the game's next step, the same ticks apart; `stop`: stop playing, and every command anyone has left is dropped, and all leading and following ended",
+        "`save`: write every command given this run, with its tick and the world seed, to replays/<name>.json; `play`: give a saved replay's commands again, each at the tick it was given, from the game's next step on (load the save to start from first: the commands before its tick are in the save); `stop`: stop playing, and every command anyone has left is dropped, and all leading and following ended",
         "{\"save\": \"the opening\"}",
         |args| {
             let ask = match (args.get("save").and_then(Json::as_str), args.get("play").and_then(Json::as_str)) {

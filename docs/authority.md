@@ -82,7 +82,7 @@ Rules:
 | Sight | the walls' colliders | `BlocksSight` on each thing that hides what is past it | `sight` (`Sight`), for `ai::think`'s cone and `sight::player_sight` | Not audited |
 | Copies | the JSON each op returns | The control plane's statics in `control_plane.rs` | Published by `control_plane.rs` for tests and watching, never read back by the game | Not audited |
 | Tests | a test function | `tests/`, one binary `all`; the queue of tests to run and their results: the game's test queue | Every test reads the running game through the control plane; no headless tests; started one, a list, or a group at a time through the test queue ("Running tests" below) | Built; the test queue not yet |
-| Commands and replays | modforge `command::Command` (move to, follow, talk to, attack, attack the nearest enemy), `command::Replay` (the world seed and each command with the tick it was given) | The commands a person has left: `command::Commanded` on them; every command given this run, in order: `command::GivenThisRun`; a replay playing: `command::Playing`; saved replays in `replays/` | Given only by `command::give`, from the control plane's `command` op or a replay played by the `replay` op; carried out only by `command::carry_out` through modforge `command::step`, which pushes the same actions a person's brain pushes (modforge `brain::walk_toward`, `turn_toward`), walked by `nav::steer`; follow hands over to `Following`, talk to ends in the same Use as E on the one looked at, attack in the same Attack; an enemy is whoever the person stands hostile to by the brain's one rule, modforge `relationship::stands` | tests/command.rs passes on the running game (2026-10-01): move to walked 52 m and stopped there, talk to walked 72 m and the talk box opened with them, a saved replay played gave its first command again. Follow, attack, and attack the nearest enemy not tested yet |
+| Commands and replays | modforge `command::Command` (move to, follow, talk to, attack, attack the nearest enemy), `command::Replay` (the world seed and each command with the tick it was given) | The commands a person has left: `command::Commanded` on them; every command given this run, in order: `command::GivenThisRun`; a replay playing: `command::Playing`; saved replays in `replays/` | Given only by `command::give`, from the control plane's `command` op or a replay played by the `replay` op; carried out only by `command::carry_out` through modforge `command::step`, which pushes the same actions a person's brain pushes (modforge `brain::walk_toward`, `turn_toward`), walked by `nav::steer`; follow hands over to `Following`, talk to ends in the same Use as E on the one looked at, attack in the same Attack; an enemy is whoever the person stands hostile to by the brain's one rule, modforge `relationship::stands` | tests/command.rs passes on the running game (2026-10-01): move to walked 52 m and stopped there, talk to walked 72 m and the talk box opened with them, a replay played after loading its save gave its commands again at their own ticks and none from before the save (2026-11-13). Follow, attack, and attack the nearest enemy not tested yet |
 
 ## Commands and replays (operator, 2026-10-01)
 
@@ -116,8 +116,11 @@ engine plays them again).
   command but follow ends following too, being their own order.
 - Every command given in a run is kept in order with the tick it was
   given. Saved, it is a replay (`replays/<name>.json`, with the world
-  seed); played, each command is given again at the same distance in
-  ticks from the first. On the same world it does the same things again.
+  seed). A replay starts from a save (operator, 2026-11-13): load the
+  save, then play the replay, and each command after the save's tick is
+  given again at the tick it was given; the commands before are already
+  in the save, so they are not given again. Loading a later save starts
+  partway through the same replay.
 
 ## Running tests (operator, 2026-10-02)
 

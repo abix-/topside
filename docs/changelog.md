@@ -22,6 +22,12 @@ These rules govern `docs/changelog.md`. Follow them exactly.
 - Use plain terms. Do not use vague descriptions, invented language, or design
   essays.
 
+## 2026-11-13
+
+| System | Item | Done when |
+|---|---|---|
+| commands | [x] Commands and replays (authority.md "Commands and replays"): move to, follow, talk to, attack, attack the nearest enemy, given to any person through the `command` op, carried out with the brain's own actions; every command given kept with its tick, saved and played as a replay. A replay starts from a save: each command keeps the tick it was given, and played after loading a save it gives only the commands after the save's tick, so the old ones no longer queue again | tests/command.rs passes on the running game: talk to opened the talk box, move to reached the point, and a replay saved at tick 1839 with 2 commands before it, loaded and played, gave its 2 commands again at their own ticks (1840 on) and none from before the save |
+
 ## 2026-11-11
 
 | System | Item | Done when |

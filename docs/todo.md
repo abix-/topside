@@ -15,8 +15,7 @@ adjust until it feels right.
 
 Where it stands (read 2026-11-13): replays of commands are saved and
 played (src/command.rs `give`); saves load in place (src/save.rs). Open
-rows in the way: 9h (playing a replay gives every command of the run
-again), 9k (a save at each step to start from), 31a (left parts), 31e (a
+rows in the way: 9k (a save at each step to start from), 31a (left parts), 31e (a
 storm comes again after a load).
 
 ## What we are doing now: episode 1 on generic systems (operator, 2026-10-03)
@@ -103,7 +102,6 @@ What is left, in this order: systems first, then the episode, then saves.
 | 15c | v1 | intro | [x] (2026-10-01: tests/bunker.rs: all five shown 6 m down, E's gone once pressed) The basic controls, shown once each in the player's room when useful (look and move, E, I, the bench), all ignorable | A test reads the running game: each control's line shown once, and gone once done |
 | 15d | v1 | models | [ ] Walls and floors by what they are made of (operator, 2026-10-01): each building material its own low poly look so a wall reads apart from a floor, concrete for the bunker, wood, stone, and the rest for what the player builds; outlines on every edge are built (src/outline.rs) | The operator sees concrete bunker walls apart from their floor, and a wood and a stone wall each their own |
 | 15e | v1 | models | [ ] Supply the tap's missing model: restoring the session on 2026-11-11 logs Path not found for assets/models/tap.glb | The tap is visible in-game and loading it reports no missing model |
-| 9h | v1 | commands | [ ] (left 2026-10-02: playing a replay gives every command of the run again, so old move_tos queue ahead of the next test's command) Commands and replays (authority.md "Commands and replays"): move to, follow, talk to, attack, attack the nearest enemy, given to any person through the `command` op, carried out with the brain's own actions; every command given kept with its tick, saved and played as a replay | A test gives the player "talk to" a person and the talk box opens with them; "move to" a point and the player stands there; a saved replay played again gives the same commands |
 | 14a | v1 | equipment | [ ] Left from 14a (equipment is one row of 7 plain slots): seen in the running game, someone wearing (nobody wears anything yet; the road sign vest is the one wearable) | tests/equipment.rs reports someone wearing, each item in its own slot of the row |
 | 12b | v1 | content | [ ] The first handles (wooden handle, pipe, long pole) and heads (none, nails, scrap blade, axe head, spear point, sharpened road sign) in content; the pipe becomes the pipe handle with no head, the hatchet the wooden handle with the axe head; every other item one layer; people's weapons and loot come in layers | A test reads the running game: people hold layered weapons, and the damage a hit did matches its weapon's layers |
 | 13c | v1 | people | [ ] Left from 13c: the held item's angle in an NPC's right hand and at the player's fist set so a weapon points the way a hand holds it; a vest put on after spawning seen shown (`people::redress` is built, nobody has worn one yet) | tests/people_drawn.rs reports someone wearing the vest; the operator sees weapons held right |

@@ -98,8 +98,16 @@ pub fn give(
                         if replay.seed != seed.0 {
                             warn!("replay {name} was saved on world {}, this is world {}: it may not do the same", replay.seed, seed.0);
                         }
+                        // Each command at its own tick, from this step on: the
+                        // ones before were given before the save loaded, which
+                        // holds them.
                         playing.0 = replay.from_tick(tick.0).into();
-                        info!("replay {name} playing: {} commands", playing.0.len());
+                        info!(
+                            "replay {name} playing from tick {}: {} commands to give, {} before it in the save",
+                            tick.0,
+                            playing.0.len(),
+                            replay.given.len() - playing.0.len()
+                        );
                     }
                     None => warn!("no replay {name} at {}", replay_path(&name)),
                 }

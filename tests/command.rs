@@ -128,36 +128,69 @@ fn replay(name: &str) -> Option<Json> {
     std::fs::read_to_string(path).ok().and_then(|t| serde_json::from_str(&t).ok())
 }
 
+/// The commands a replay saved now holds, read once it is written.
+fn replay_now(name: &str) -> Vec<Json> {
+    let path = format!("{}/../replays/{name}.json", env!("CARGO_MANIFEST_DIR"));
+    let _ = std::fs::remove_file(&path);
+    op_with("replay", json!({"save": name}));
+    // Saved at the game's next step.
+    crate::endpoint::step(1);
+    assert!(within(3, || replay(name).is_some()), "replays/{name}.json was never written");
+    replay(name).and_then(|r| r["given"].as_array().cloned()).unwrap_or_default()
+}
+
+/// A test's replay, gone.
+fn forget(name: &str) {
+    let _ = std::fs::remove_file(format!("{}/../replays/{name}.json", env!("CARGO_MANIFEST_DIR")));
+}
+
+/// The tick and the command of a given command, to compare two.
+fn tick_and_command(g: &Json) -> (Json, Json, Json) {
+    (g["tick"].clone(), g["who"].clone(), g["command"].clone())
+}
+
+/// A replay starts from a save (todo "First: playing the game through
+/// replays"): played after loading the save, it gives each command after
+/// the save at the tick it was given, and none from before the save again.
 #[test]
-fn a_saved_replay_played_again_gives_the_same_commands() {
+fn a_replay_played_from_a_save_gives_the_commands_after_it_at_their_own_ticks() {
+    const START: &str = "replay_start";
     crate::endpoint::player_alive();
+    let _paused = crate::endpoint::pause();
+    op_with("replay", json!({"stop": true}));
+    crate::endpoint::step(1);
+    // The save the replay starts from, and the commands given before it.
+    let before = replay_now("replay before");
+    let saved = op_with("save", json!({"name": START}));
+    let start = saved["tick"].as_u64().expect("the save answers with its tick");
+    // Two moves to where the player stands (given, and done at once), some
+    // ticks apart.
     let here = player_at();
-    // A move to where the player stands: given, and done at once.
     let feet = op("status")["player_feet"].as_f64().unwrap_or(0.0);
     op_with("command", json!({"do": "move_to", "x": here.0, "y": feet, "z": here.1}));
-    std::thread::sleep(Duration::from_millis(300));
-    for name in ["command test", "command test again"] {
-        let _ = std::fs::remove_file(format!("{}/../replays/{name}.json", env!("CARGO_MANIFEST_DIR")));
-    }
-    op_with("replay", json!({"save": "command test"}));
-    let saved = within(3, || replay("command test").is_some());
-    let first = replay("command test").unwrap_or(Json::Null);
-    let given = first["given"].as_array().cloned().unwrap_or_default();
-    eprintln!("saved: {saved}, {} commands, seed {}", given.len(), first["seed"]);
-    assert!(saved, "replays/command test.json was never written");
-    let last = given.last().cloned().unwrap_or(Json::Null);
-    assert_eq!(last["command"]["do"], "move_to", "the move just given is not the last command saved: {last}");
-    // Played: the replay's first command is given again on the next step.
-    op_with("replay", json!({"play": "command test"}));
-    std::thread::sleep(Duration::from_millis(300));
-    op_with("replay", json!({"save": "command test again"}));
-    let again = within(3, || replay("command test again").is_some_and(|r| r["given"].as_array().is_some_and(|g| g.len() > given.len())));
-    let after = replay("command test again").unwrap_or(Json::Null);
-    let replayed = after["given"][given.len()].clone();
-    // The rest of the replay would give every command of this run again,
-    // to the tests after this one: stopped.
+    crate::endpoint::step(10);
+    op_with("command", json!({"do": "move_to", "x": here.0, "y": feet, "z": here.1}));
+    crate::endpoint::step(1);
+    let played = replay_now("replay test");
+    let after: Vec<_> = played.iter().filter(|g| g["tick"].as_u64().is_some_and(|t| t > start)).map(tick_and_command).collect();
+    eprintln!("saved at tick {start} with {} commands before it; given after it: {after:?}", before.len());
+    assert_eq!(after.len(), 2, "the two moves are not the commands given after the save: {after:?}");
+    // Played from the save: the game is back at the save's tick, and each
+    // command comes again at its own tick.
+    let loaded = op_with("load", json!({"name": START}));
+    crate::endpoint::loaded();
+    eprintln!("loaded {START}: tick {}", loaded["tick"]);
+    op_with("replay", json!({"play": "replay test"}));
+    let last = after[1].0.as_u64().unwrap_or(start);
+    crate::endpoint::step(last - start);
+    let again = replay_now("replay test again");
     op_with("replay", json!({"stop": true}));
-    eprintln!("the first command given again: {replayed}; the replay's first: {}", given[0]);
-    assert!(again, "playing the replay gave no command");
-    assert_eq!((&replayed["who"], &replayed["command"]), (&given[0]["who"], &given[0]["command"]), "the replay gave a different command");
+    for name in ["replay before", "replay test", "replay test again"] {
+        forget(name);
+    }
+    let _ = std::fs::remove_file(format!("{}/../saves/{START}.save", env!("CARGO_MANIFEST_DIR")));
+    let again_after: Vec<_> = again.iter().filter(|g| g["tick"].as_u64().is_some_and(|t| t > start)).map(tick_and_command).collect();
+    eprintln!("given after loading and playing: {again_after:?}");
+    assert_eq!(again.len(), before.len() + 2, "playing gave commands from before the save again, or missed some: {} before, {} now", before.len(), again.len());
+    assert_eq!(again_after, after, "the replay did not give the same commands at the same ticks");
 }
