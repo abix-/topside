@@ -4,6 +4,21 @@ v1: a loop that is FUN for one hour and worth repeating once (leave bunker, expl
 v2: depth systems that make the loop rich (factions, trading, tech tree, biomes, weather, RPG).
 v3: polish and endgame (NPC memory, vehicles, GPU simulation, quality/named uniques/work board/chronicle).
 
+## First: playing the game through replays (operator, 2026-11-13)
+
+A step back before the episode work below. We have full control over
+everything, so we use our replays to play the game. A replay runs from
+the game's start through the steps of an episode. We can start from any
+point in it, then carry on, change it, or whatever is needed. We have full
+visibility of the game while replays run, so we can tune, tweak and
+adjust until it feels right.
+
+Where it stands (read 2026-11-13): replays of commands are saved and
+played (src/command.rs `give`); saves load in place (src/save.rs). Open
+rows in the way: 9h (playing a replay gives every command of the run
+again), 9k (a save at each step to start from), 31a (left parts), 31e (a
+storm comes again after a load).
+
 ## What we are doing now: episode 1 on generic systems (operator, 2026-10-03)
 
 The goal is generic systems that every episode is built on. An episode is
