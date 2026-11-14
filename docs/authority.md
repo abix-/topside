@@ -137,6 +137,21 @@ engine plays them again).
   (`replay` stop, then new commands). `replay` with nothing reports the
   run, the commands given so far, what a playing replay has left, and the
   run's own saves.
+- Acts are kept with the commands (operator, 2026-11-13: Claude plays the
+  game and makes the replay, the full loop). An act is what the `use` and
+  `talk` ops have a person do at once: use what is at a point or a
+  person, or say something (a choice in a conversation is a `talk` of
+  its line). Each act done is kept with its tick (modforge
+  `command::Done`, `command::DoneThisRun`) and saved in the replay beside
+  the commands; played, each is done again at its tick
+  (`control_plane::answer_acts`, the one place acts are done). The hash
+  of an own save covers the acts too. The `key` and `pointer` ops drive
+  the raw keys and mouse and are not kept.
+- The ops are MCP tools (modforge `mcp`): `ops` and `op` at
+  `http://127.0.0.1:<port + 1>/mcp`, 15704 by default, registered in
+  Claude Code as `topside`. Claude plays through them: looks (`hud`,
+  `player`, `npc`, `world`), acts (`command`, `use`, `talk`), pauses and
+  steps, saves the replay and plays it from any tick.
 
 ## Running tests (operator, 2026-10-02)
 

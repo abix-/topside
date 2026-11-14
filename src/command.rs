@@ -11,7 +11,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use bevy::prelude::*;
 use modforge::actions::{ActionQueue, Stamped};
 use modforge::actor::ActorId;
-use modforge::command::{Command, Given, Replay, Step};
+use modforge::command::{Act, Command, Done, Given, Replay, Step};
 
 use crate::actor::{Actor, Dead, Memory, Npc};
 use crate::ai::{Following, Leading};
@@ -47,9 +47,24 @@ pub struct GivenThisRun(#[serde(with = "crate::save::json_text")] pub Vec<Given>
 #[reflect(opaque, Resource, Serialize, Deserialize)]
 pub struct Playing(#[serde(with = "crate::save::json_text")] pub VecDeque<Given>);
 
+/// Every act done this run (the `use` and `talk` ops'), in order: kept in
+/// a saved replay with the commands.
+#[derive(Resource, Default, Clone, serde::Serialize, serde::Deserialize, Reflect)]
+#[reflect(opaque, Resource, Serialize, Deserialize)]
+pub struct DoneThisRun(#[serde(with = "crate::save::json_text")] pub Vec<Done>);
+
+/// A replay being played: the acts still to do, each at its tick.
+#[derive(Resource, Default, Clone, serde::Serialize, serde::Deserialize, Reflect)]
+#[reflect(opaque, Resource, Serialize, Deserialize)]
+pub struct PlayingDone(#[serde(with = "crate::save::json_text")] pub VecDeque<Done>);
+
 /// The `command` op's commands (to whom, None the player), taken by
 /// `give` on the game's next step.
 pub static COMMAND_ASK: Mutex<Vec<(Option<u64>, Command)>> = Mutex::new(Vec::new());
+
+/// The `use` and `talk` ops' acts (by whom), done by
+/// control_plane::answer_acts on the game's next step.
+pub static ACT_ASK: Mutex<Vec<(u64, Act)>> = Mutex::new(Vec::new());
 
 /// The `replay` op's ask: save the commands given this run, or play a saved
 /// replay, by name.
@@ -75,6 +90,8 @@ pub fn give(
     seed: Res<crate::RunSeed>,
     mut given: ResMut<GivenThisRun>,
     mut playing: ResMut<Playing>,
+    done: Res<DoneThisRun>,
+    mut playing_done: ResMut<PlayingDone>,
     player: Query<&Actor, With<Player>>,
     mut people: Query<(Entity, &Actor, Option<&mut Commanded>)>,
     going_with: Query<Entity, Or<(With<Leading>, With<Following>, With<crate::ai::Holding>)>>,
@@ -82,13 +99,13 @@ pub fn give(
     if let Some(ask) = REPLAY_ASK.lock().ok().and_then(|mut ask| ask.take()) {
         match ask {
             ReplayAsk::Save(name) => {
-                let replay = Replay { seed: seed.0, given: given.0.clone() };
+                let replay = Replay { seed: seed.0, given: given.0.clone(), done: done.0.clone() };
                 let saved = std::fs::create_dir_all("replays")
                     .map_err(|e| e.to_string())
                     .and_then(|_| serde_json::to_string_pretty(&replay).map_err(|e| e.to_string()))
                     .and_then(|text| std::fs::write(replay_path(&name), text).map_err(|e| e.to_string()));
                 match saved {
-                    Ok(()) => info!("replay {name} saved: {} commands", replay.given.len()),
+                    Ok(()) => info!("replay {name} saved: {} commands, {} acts", replay.given.len(), replay.done.len()),
                     Err(e) => warn!("replay {name} not saved: {e}"),
                 }
             }
@@ -103,11 +120,14 @@ pub fn give(
                         // ones before were given before the save loaded, which
                         // holds them.
                         playing.0 = replay.from_tick(tick.0).into();
+                        playing_done.0 = replay.done_from(tick.0).into();
                         info!(
-                            "replay {name} playing from tick {}: {} commands to give, {} before it in the save",
+                            "replay {name} playing from tick {}: {} commands to give and {} acts to do, {} and {} before it in the save",
                             tick.0,
                             playing.0.len(),
-                            replay.given.len() - playing.0.len()
+                            playing_done.0.len(),
+                            replay.given.len() - playing.0.len(),
+                            replay.done.len() - playing_done.0.len()
                         );
                     }
                     None => warn!("no replay {name} at {}", replay_path(&name)),
@@ -115,6 +135,7 @@ pub fn give(
             }
             ReplayAsk::Stop => {
                 playing.0.clear();
+                playing_done.0.clear();
                 // Emptied now, not removed at the step's end: a command given
                 // in this same step goes on after the stop, not with it.
                 for (_, _, has) in &mut people {
@@ -150,6 +171,8 @@ pub fn give(
         commands.entity(entity).insert(Commanded { left, started: false });
     }
     PLAYING_LEFT.store(playing.0.len() as u64, Ordering::Relaxed);
+    ACTS_LEFT.store(playing_done.0.len() as u64, Ordering::Relaxed);
+    DONE_SO_FAR.store(done.0.len() as u64, Ordering::Relaxed);
     PLAYING_NEXT.store(playing.0.front().map_or(u64::MAX, |g| g.tick), Ordering::Relaxed);
     GIVEN_SO_FAR.store(given.0.len() as u64, Ordering::Relaxed);
     RUN.store(seed.0, Ordering::Relaxed);
@@ -161,6 +184,9 @@ pub fn give(
 pub static PLAYING_LEFT: AtomicU64 = AtomicU64::new(0);
 pub static PLAYING_NEXT: AtomicU64 = AtomicU64::new(u64::MAX);
 pub static GIVEN_SO_FAR: AtomicU64 = AtomicU64::new(0);
+/// And the acts: a playing replay's left to do, and those done so far.
+pub static ACTS_LEFT: AtomicU64 = AtomicU64::new(0);
+pub static DONE_SO_FAR: AtomicU64 = AtomicU64::new(0);
 pub static RUN: AtomicU64 = AtomicU64::new(0);
 
 /// The one way an order reaches a person: onto the end of their commands

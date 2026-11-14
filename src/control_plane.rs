@@ -2,7 +2,8 @@
 //! inspection surface (the runtime-control-http doctrine).
 //!
 //! POST http://127.0.0.1:<port>/topside with {"op": "...", "args": {}};
-//! the port is `--port`, 15703 when not given (`DEFAULT_PORT`).
+//! the port is `--port`, 15703 when not given (`DEFAULT_PORT`). The same
+//! ops are MCP tools at http://127.0.0.1:<port + 1>/mcp (modforge::mcp).
 
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, AtomicUsize, Ordering};
@@ -98,17 +99,6 @@ pub fn answer_give(items: Res<crate::content::ItemRegistryRes>, mut people: Quer
         }
     }
 }
-/// Where the `use` op's person uses: a point, or wherever a person stands
-/// when the game takes the request (people keep walking).
-#[derive(Clone, Copy)]
-enum UseAt {
-    /// A point on the ground, and the height of the floor it is on.
-    Point(Vec2, f32),
-    Person(u64),
-}
-
-/// The `use` op's request: the ActorId, and where to use.
-static USE_ASK: Mutex<Option<(u64, UseAt)>> = Mutex::new(None);
 /// One step of driving the mouse the way the player does (the `pointer`
 /// op): the pointer moved to a window point, its button pressed or
 /// released; `Next` ends this frame's steps, so a press is seen one frame
@@ -202,8 +192,6 @@ pub fn drive_input(
     }
 }
 
-/// The `talk` op's request: who speaks, to whom, saying what.
-static TALK_ASK: Mutex<Option<(u64, u64, modforge::actions::Said)>> = Mutex::new(None);
 /// The `npc` op's question (an ActorId) and the game's answer.
 static NPC_ASK: Mutex<Option<u64>> = Mutex::new(None);
 static NPC_ANSWER: Mutex<Option<(u64, Json)>> = Mutex::new(None);
@@ -350,64 +338,73 @@ pub fn answer_kill(
     }
 }
 
-/// The `use` op's request, if one is waiting: that person stands a metre
-/// from the point (or from the person, where they stand now) and pushes
-/// Use aimed at it, the same Use the keys and the brain push, so the one
-/// interact path does the rest.
-pub fn answer_use(
+/// Every act due this step: the `use` and `talk` ops' asked, and a playing
+/// replay's at their tick, each kept in this run's acts (a saved replay
+/// holds them) and done.
+///
+/// A use: that person stands a metre from the point (or from the person,
+/// where they stand now) and pushes Use aimed at it, the same Use the keys
+/// and the brain push, so the one interact path does the rest. A talk: the
+/// speaker pushes the `Talk`, the same the keys and the brain push;
+/// `talk::talk` does the rest.
+pub fn answer_acts(
     tick: Res<crate::SimTick>,
     nav: Res<crate::navmesh::Nav>,
+    mut done: ResMut<crate::command::DoneThisRun>,
+    mut playing: ResMut<crate::command::PlayingDone>,
     archipelagos: Query<&bevy_landmass::prelude::Archipelago3d>,
     mut people: Query<(&Actor, &mut Transform, &mut crate::input::Actions, Has<Player>), Without<crate::actor::Dead>>,
     mut eyes: Query<(&mut crate::player::Eyes, &mut Transform), Without<Actor>>,
 ) {
-    let Some((id, to)) = USE_ASK.lock().ok().and_then(|mut ask| ask.take()) else {
-        return;
-    };
-    // The point on the ground, the floor it is on, and the height on them
-    // the eyes look at: a point's own ground (the eyes on a person's middle
-    // would look over a low thing at whoever stands past it), a person's
-    // middle.
-    let (at, floor, look) = match to {
-        UseAt::Point(at, floor) => (at, floor, 0.0),
-        UseAt::Person(whom) => match people.iter().find(|(a, ..)| a.0.0 == whom) {
-            Some((_, there, ..)) => (there.translation.ground(), crate::interact::feet_of(&there).y, crate::player::BODY_CENTRE),
-            None => return,
-        },
-    };
-    // A metre off, on the navigation mesh at its level (never inside a
-    // wall).
-    let target = crate::on_ground(at, floor);
-    let stand = archipelagos
-        .get(nav.archipelago)
-        .ok()
-        .and_then(|a| crate::navmesh::stand_by(a, target, 1.0, 0.0))
-        .unwrap_or(target + Vec3::X);
-    for (actor, mut transform, mut actions, is_player) in &mut people {
-        if actor.0.0 != id {
-            continue;
+    use modforge::command::{Act, Done};
+    let mut due: Vec<(u64, Act)> = crate::command::ACT_ASK.lock().map(|mut ask| ask.drain(..).collect()).unwrap_or_default();
+    while playing.0.front().is_some_and(|d| d.tick <= tick.0) {
+        if let Some(d) = playing.0.pop_front() {
+            due.push((d.who, d.act));
         }
-        transform.translation = stand + Vec3::Y * crate::player::BODY_CENTRE;
-        // The player's eyes on what stands there, a metre off, so what
-        // they look at is what is there.
-        if is_player && let Ok((mut eye, mut view)) = eyes.single_mut() {
-            eye.pitch = (look - crate::EYE_HEIGHT).atan2(1.0);
-            view.rotation = crate::player::eye_rotation(eye.pitch);
-        }
-        actions.0.push(tick.0, crate::input::Action::Aim { x: at.x, y: at.y });
-        actions.0.push(tick.0, crate::input::Action::Use);
     }
-}
-
-/// The `talk` op's request, if one is waiting: the speaker pushes the
-/// `Talk`, the same the keys and the brain push; `talk::talk` does the rest.
-pub fn answer_talk(tick: Res<crate::SimTick>, mut people: Query<(&Actor, &mut crate::input::Actions), Without<crate::actor::Dead>>) {
-    let Some((id, to, said)) = TALK_ASK.lock().ok().and_then(|mut ask| ask.take()) else {
-        return;
-    };
-    for (actor, mut actions) in &mut people {
-        if actor.0.0 == id {
-            actions.0.push(tick.0, crate::input::Action::Talk { to, said });
+    for (id, act) in due {
+        done.0.push(Done { tick: tick.0, who: id, act });
+        // The point on the ground, the floor it is on, and the height on
+        // them the eyes look at: a point's own ground (the eyes on a
+        // person's middle would look over a low thing at whoever stands
+        // past it), a person's middle.
+        let (at, floor, look) = match act {
+            Act::Talk { to, said } => {
+                for (actor, _, mut actions, _) in &mut people {
+                    if actor.0.0 == id {
+                        actions.0.push(tick.0, crate::input::Action::Talk { to, said });
+                    }
+                }
+                continue;
+            }
+            Act::UseAt { at } => (Vec2::new(at.x, at.z), at.y, 0.0),
+            Act::UsePerson { whom } => match people.iter().find(|(a, ..)| a.0.0 == whom) {
+                Some((_, there, ..)) => (there.translation.ground(), crate::interact::feet_of(&there).y, crate::player::BODY_CENTRE),
+                None => continue,
+            },
+        };
+        // A metre off, on the navigation mesh at its level (never inside a
+        // wall).
+        let target = crate::on_ground(at, floor);
+        let stand = archipelagos
+            .get(nav.archipelago)
+            .ok()
+            .and_then(|a| crate::navmesh::stand_by(a, target, 1.0, 0.0))
+            .unwrap_or(target + Vec3::X);
+        for (actor, mut transform, mut actions, is_player) in &mut people {
+            if actor.0.0 != id {
+                continue;
+            }
+            transform.translation = stand + Vec3::Y * crate::player::BODY_CENTRE;
+            // The player's eyes on what stands there, a metre off, so what
+            // they look at is what is there.
+            if is_player && let Ok((mut eye, mut view)) = eyes.single_mut() {
+                eye.pitch = (look - crate::EYE_HEIGHT).atan2(1.0);
+                view.rotation = crate::player::eye_rotation(eye.pitch);
+            }
+            actions.0.push(tick.0, crate::input::Action::Aim { x: at.x, y: at.y });
+            actions.0.push(tick.0, crate::input::Action::Use);
         }
     }
 }
@@ -1031,8 +1028,9 @@ fn play_at(name: &str, at: u64) -> Result<Json, String> {
         .map_err(|e| format!("no replay at {path}: {e}"))
         .and_then(|text| serde_json::from_str(&text).map_err(|e| format!("{path} does not read: {e}")))?;
     let on_this_line = |tick: u64, hash: u32| {
-        let before: Vec<_> = replay.given.iter().filter(|g| g.tick <= tick).copied().collect();
-        crate::save::commands_hash(&before) == hash
+        let given: Vec<_> = replay.given.iter().filter(|g| g.tick <= tick).copied().collect();
+        let done: Vec<_> = replay.done.iter().filter(|d| d.tick <= tick).copied().collect();
+        crate::save::commands_hash(&given, &done) == hash
     };
     let (from, save) = crate::save::own_saves(replay.seed)
         .into_iter()
@@ -1069,6 +1067,8 @@ fn replay_report() -> Json {
         "run": run,
         "given so far": crate::command::GIVEN_SO_FAR.load(Ordering::Relaxed),
         "playing, commands left": crate::command::PLAYING_LEFT.load(Ordering::Relaxed),
+        "acts done so far": crate::command::DONE_SO_FAR.load(Ordering::Relaxed),
+        "playing, acts left": crate::command::ACTS_LEFT.load(Ordering::Relaxed),
         "next command at tick": (next != u64::MAX).then_some(next),
         "saves of this run": crate::save::own_saves(run).into_iter().map(|(tick, _, name)| json!({"tick": tick, "name": name})).collect::<Vec<_>>(),
     })
@@ -1940,13 +1940,13 @@ pub fn start(port: u16) {
                 .and_then(Json::as_array)
                 .and_then(|a| Some(Vec2::new(a.first()?.as_f64()? as f32, a.get(1)?.as_f64()? as f32)));
             let height = args.get("height").and_then(Json::as_f64).unwrap_or(0.0) as f32;
-            let to = match (at, args.get("person").and_then(Json::as_u64)) {
-                (_, Some(person)) => UseAt::Person(person),
-                (Some(at), None) => UseAt::Point(at, height),
+            let act = match (at, args.get("person").and_then(Json::as_u64)) {
+                (_, Some(whom)) => modforge::command::Act::UsePerson { whom },
+                (Some(at), None) => modforge::command::Act::UseAt { at: modforge::command::Point { x: at.x, y: height, z: at.y } },
                 (None, None) => return Err("at: [x, y], or person: an id".to_string()),
             };
-            if let Ok(mut ask) = USE_ASK.lock() {
-                *ask = Some((id, to));
+            if let Ok(mut ask) = crate::command::ACT_ASK.lock() {
+                ask.push((id, act));
             }
             Ok(json!({"use": id, "at": at.map(|a| [a.x, a.y]), "person": args.get("person")}))
         },
@@ -1992,7 +1992,7 @@ pub fn start(port: u16) {
     ));
     OP_REGISTRY.register(OpDef::new(
         "replay",
-        "`save`: write every command given this run, with its tick and the world seed, to replays/<name>.json; `play`: give a saved replay's commands again, each at the tick it was given, from the game's next step on (load the save to start from first: the commands before its tick are in the save); `play` with `at` (a tick): load the latest of the run's own saves (made at the game's start and at each step of an episode) at or before it on this replay's line, play the replay from there, and stop paused at that tick; nothing: the run, the commands given so far, what a playing replay has left, and the run's own saves; `stop`: stop playing, and every command anyone has left is dropped, and all leading and following ended",
+        "`save`: write every command given this run and every act done (the `use` and `talk` ops'), each with its tick, and the world seed, to replays/<name>.json; `play`: give a saved replay's commands and do its acts again, each at the tick it was given or done, from the game's next step on (load the save to start from first: the commands before its tick are in the save); `play` with `at` (a tick): load the latest of the run's own saves (made at the game's start and at each step of an episode) at or before it on this replay's line, play the replay from there, and stop paused at that tick; nothing: the run, the commands given so far, what a playing replay has left, and the run's own saves; `stop`: stop playing, and every command anyone has left is dropped, and all leading and following ended",
         "{\"save\": \"the opening\"}",
         |args| {
             if let (Some(name), Some(at)) = (args.get("play").and_then(Json::as_str), args.get("at").and_then(Json::as_u64)) {
@@ -2070,8 +2070,8 @@ pub fn start(port: u16) {
             let to = args.get("to").and_then(Json::as_u64).ok_or_else(|| "to: a number".to_string())?;
             let said: modforge::actions::Said =
                 serde_json::from_value(args.get("said").cloned().unwrap_or(Json::Null)).map_err(|e| format!("said: {e}"))?;
-            if let Ok(mut ask) = TALK_ASK.lock() {
-                *ask = Some((id, to, said));
+            if let Ok(mut ask) = crate::command::ACT_ASK.lock() {
+                ask.push((id, modforge::command::Act::Talk { to, said }));
             }
             Ok(json!({"talk": id, "to": to, "said": format!("{said:?}")}))
         },
@@ -2111,4 +2111,7 @@ pub fn start(port: u16) {
         },
         |line| eprintln!("[topside control plane] {line}"),
     );
+    // The same ops as MCP tools, on the next port, so an agent plays the
+    // game through them (modforge::mcp).
+    modforge::mcp::serve(port + 1, "topside", "topside-mcp", |line| eprintln!("[topside mcp] {line}"));
 }

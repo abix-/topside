@@ -133,6 +133,8 @@ saved! {
         crate::survival::Day,
         crate::command::GivenThisRun,
         crate::command::Playing,
+        crate::command::DoneThisRun,
+        crate::command::PlayingDone,
         crate::terrain::ThingsMade,
         crate::navmesh::MeshesLanding,
         crate::interact::ThingIssuer,
@@ -249,11 +251,17 @@ pub fn own_save() {
     OWN_SAVE.store(true, Ordering::Relaxed);
 }
 
-/// What the commands given up to a moment hash to: names a run's own save,
-/// so a replay finds the saves made on its own line of play.
-pub fn commands_hash(given: &[modforge::command::Given]) -> u32 {
-    // FNV-1a over the commands' JSON, the same text a replay file holds.
-    let text = serde_json::to_string(given).unwrap_or_default();
+/// What the commands given and the acts done up to a moment hash to: names
+/// a run's own save, so a replay finds the saves made on its own line of
+/// play.
+pub fn commands_hash(given: &[modforge::command::Given], done: &[modforge::command::Done]) -> u32 {
+    // FNV-1a over the commands' JSON, the same text a replay file holds,
+    // then the acts', when there are any (so a line with none hashes as it
+    // did before acts were kept).
+    let mut text = serde_json::to_string(given).unwrap_or_default();
+    if !done.is_empty() {
+        text.push_str(&serde_json::to_string(done).unwrap_or_default());
+    }
     text.bytes().fold(0x811c_9dc5u32, |h, b| (h ^ u32::from(b)).wrapping_mul(0x0100_0193))
 }
 
@@ -291,7 +299,7 @@ pub fn own_saves(run: u64) -> Vec<(u64, u32, String)> {
 fn make_own_save(world: &mut World) {
     let run = world.resource::<crate::RunSeed>().0;
     let tick = world.resource::<SimTick>().0;
-    let hash = commands_hash(&world.resource::<crate::command::GivenThisRun>().0);
+    let hash = commands_hash(&world.resource::<crate::command::GivenThisRun>().0, &world.resource::<crate::command::DoneThisRun>().0);
     let name = own_save_name(run, tick, hash);
     if path_of(&name).exists() {
         return;

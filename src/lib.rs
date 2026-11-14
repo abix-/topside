@@ -238,6 +238,8 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind, port: u16
     app.init_resource::<storm::StormRes>();
     app.init_resource::<command::GivenThisRun>();
     app.init_resource::<command::Playing>();
+    app.init_resource::<command::DoneThisRun>();
+    app.init_resource::<command::PlayingDone>();
     app.add_systems(
         Startup,
         (
@@ -350,7 +352,7 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind, port: u16
                 control_plane::publish,
                 control_plane::publish_world,
                 control_plane::publish_ways,
-                (control_plane::answer_kill, control_plane::answer_give, control_plane::answer_needs, control_plane::answer_use, control_plane::answer_talk).chain(),
+                (control_plane::answer_kill, control_plane::answer_give, control_plane::answer_needs, control_plane::answer_acts).chain(),
                 lap("publish"),
             )
                 .chain(),
