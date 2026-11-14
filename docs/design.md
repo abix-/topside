@@ -1553,4 +1553,4 @@ horror game. The three questions to answer:
 ## Still open
 
 The core-loop questions from the todo are all answered above. Open items
-live in docs/todo.md.
+live in the topside project page's todo in onelog.

@@ -7,7 +7,9 @@ anti-bypass rules for those paths.
 **Not authoritative for:** product vision and story (design.md), how
 fighting works (combat.md), how people find their way (pathing.md), the
 bunker as a factory (factory.md), capability progress (status.md, not yet
-written), or the task backlog (todo.md).
+written), or the task backlog (the topside project page's todo in onelog,
+moved from docs/todo.md on 2026-11-13; each row keeps its old label, 31a,
+at the front of its text).
 
 Evidence date: 2026-08-19. Nothing is built. Every score below reflects that
 honestly. This doc exists BEFORE the code so the code never gets a chance to
