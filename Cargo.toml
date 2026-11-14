@@ -36,8 +36,8 @@ topside-content = { path = "content" }
 # dodgy's solving failed on a NaN and stopped the game (backtrace through
 # landmass avoidance.rs, 2026-10-02; docs/pathing.md). The guard keeps a
 # velocity that is not a number from dodgy, and if dodgy still fails, that
-# step walks the preferred way. It catches the failure only where panics
-# unwind (not the release profile's abort). Report upstream; drop when fixed.
+# step walks the preferred way. It catches the failure because panics
+# unwind (the release profile below). Report upstream; drop when fixed.
 # Its island box hierarchy (nav_data.rs, todo 9n) and a span round each part
 # of Archipelago::update (lib.rs, "landmass: ...", shown by the perf op).
 # Avoidance's height band (avoidance.rs `in_height_band`, agent.rs and
@@ -105,4 +105,7 @@ debug-assertions = false
 # handed to others turns LTO on for one command, as the skill shows.
 [profile.release]
 opt-level = 3
-panic = "abort"
+# Panics unwind, so the landmass guard above catches dodgy's NaN failure
+# and that step walks the preferred way; under abort it stopped the game
+# (tick 145231, 2026-11-14, dodgy_2d solve_linear_program clamp of NaN).
+panic = "unwind"

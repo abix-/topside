@@ -87,8 +87,9 @@ flat tile grid cannot see.
   in a patched copy of landmass 0.9.2 (vendor/landmass, Cargo.toml's
   `[patch.crates-io]`): a velocity that is not a number never reaches
   dodgy, and if dodgy still fails that step walks the preferred way. The
-  guard catches the failure only where panics unwind, not under the
-  release profile's abort. To report upstream.
+  guard catches the failure because panics unwind: the release profile
+  aborted on a panic until 2026-11-14, when the failure stopped the game
+  at tick 145231. To report upstream.
 - Checked first (2026-10-01, GitHub and crates.io): bevy_rerecast 0.5
   (Bevy 0.19), avian_rerecast 0.6 (Avian 0.7), bevy_landmass 0.12.1
   (Bevy 0.19), landmass_rerecast 0.3. Set aside: vleue_navigator (floors
