@@ -131,6 +131,7 @@ pub fn loot_table() -> LootTable {
             weapon("pipe", &["sharpened road sign"], 1, 2),
             weapon("long pole", &["spear point"], 1, 2),
             e("road sign vest", (1, 1), 1, 3),
+            e("helmet", (1, 1), 1, 2),
             weapon("pipe shotgun", &["pipe barrel", "wooden grip", "wooden stock"], 1, 3),
             weapon("pipe shotgun", &["short pipe barrel", "taped grip"], 1, 3),
             weapon("pipe shotgun", &["pipe barrel", "taped grip", "wooden stock", "nail sight"], 1, 4),
@@ -1744,6 +1745,25 @@ const CLEAN: &[Rgb] = &[[0.8, 0.82, 0.85], [0.6, 0.7, 0.75], [0.3, 0.5, 0.6]];
 /// out at two until multi-flight stairwells land.
 pub fn register_buildings(reg: &mut BuildingRegistry) {
     use BuildingSize::*;
+        // A helmet (todo Fight 8): worn armor that guards only the head.
+        // Its amount is Claude's, for the operator to change.
+        ItemDef {
+            name: "helmet".to_string(),
+            description: "A dented helmet. Wear it to guard your head.".to_string(),
+            unique: false,
+            kind: ItemKind::Tool,
+            max_stack: 1,
+            quality_siblings: 3,
+            combat: None,
+            food: None,
+            storage: None,
+            armor: Some(Armor { amount: 40.0, area: modforge::combat::BodyArea::Head }),
+            good_for: Default::default(),
+            picture: None,
+            layer_slots: Vec::new(),
+            breaks_when_struck: false,
+            holds_litres: None,
+        },
     struct Spec {
         name: &'static str,
         size: BuildingSize,
