@@ -902,12 +902,18 @@ pub fn encounter_table() -> modforge::randy::EncounterTable {
     modforge::randy::EncounterTable {
         every_metres: 100.0,
         chance_in_100: 33,
-        encounters: vec![modforge::randy::Encounter { name: STRANGER_CROSSES, weight: 1 }],
+        encounters: vec![
+            modforge::randy::Encounter { name: STRANGER_CROSSES, weight: 1 },
+            modforge::randy::Encounter { name: BAND_PASSES, weight: 1 },
+        ],
     }
 }
 
 /// A stranger crosses the player's path and leaves.
 pub const STRANGER_CROSSES: &str = "a stranger crosses";
+
+/// A band passes in the distance (todo 10h2).
+pub const BAND_PASSES: &str = "a band passes";
 
 /// The small world's sites (operator, 2026-09-26: "20 monuments of
 /// varying sizes"): every kind but the ruined city, from large to minor,

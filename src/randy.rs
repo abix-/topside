@@ -17,19 +17,46 @@ pub struct RandyRes {
     pub last: Option<Vec2>,
 }
 
-/// Who crosses the player's path: someone of no group.
-const STRANGER: &str = "wanderer";
-
 /// More than this in one tick is not walking (a load, being put somewhere),
 /// and counts for nothing (Claude's, for the operator to change).
 const MOST_IN_A_TICK: f32 = 1.0;
 
-/// Where the stranger starts: this far ahead of the player, and this far to
-/// one side; and how far past the path, on the other side, they go
-/// (Claude's numbers, for the operator to change).
-const AHEAD: f32 = 25.0;
-const SIDE: f32 = 40.0;
-const PAST: f32 = 80.0;
+/// People who cross the way the player walks: who, how many, where they
+/// start (this far ahead of the player and this far to one side), how far
+/// past the path on the other side they go, and how far apart they walk.
+struct Crossing {
+    encounter: &'static str,
+    who: &'static str,
+    count: usize,
+    ahead: f32,
+    side: f32,
+    past: f32,
+    apart: f32,
+}
+
+/// Every encounter that is people crossing (Claude's numbers, for the
+/// operator to change): a stranger of no group, close; a band of raiders
+/// far off, in the distance (todo 10h2).
+const CROSSINGS: [Crossing; 2] = [
+    Crossing {
+        encounter: crate::content::STRANGER_CROSSES,
+        who: "wanderer",
+        count: 1,
+        ahead: 25.0,
+        side: 40.0,
+        past: 80.0,
+        apart: 0.0,
+    },
+    Crossing {
+        encounter: crate::content::BAND_PASSES,
+        who: "raider",
+        count: 4,
+        ahead: 70.0,
+        side: 90.0,
+        past: 180.0,
+        apart: 3.0,
+    },
+];
 
 /// Every tick after the player wakes: the ground walked out in the open
 /// (under no roof) goes to Randy Random; an encounter it hits happens.
@@ -61,24 +88,28 @@ pub fn encounters(
     };
     let rolls = walking.rolls;
     info!("randy: roll {rolls} hit {}", hit.name);
-    if hit.name != crate::content::STRANGER_CROSSES {
+    let Some(crossing) = CROSSINGS.iter().find(|c| c.encounter == hit.name) else {
         return;
-    }
+    };
     // Across the way the player walks: from one side, ahead of them, to
-    // well past the other side; which side from the same roll.
+    // well past the other side; which side from the same roll. A group
+    // walks in a line along the player's way, `apart` between each.
     let ahead = step.normalize_or_zero();
     let side = ahead.perp() * if modforge::roll::salted_index(seed.0 ^ rolls, 0x5349_4445, 2) == 0 { 1.0 } else { -1.0 };
     let archipelago = archipelagos.get(nav.archipelago).ok();
     let stand = |at: Vec2| archipelago.and_then(|a| crate::navmesh::on_mesh(a, crate::on_ground(at, 0.0)));
-    let (Some(from), Some(to)) = (stand(now + ahead * AHEAD + side * SIDE), stand(now + ahead * AHEAD - side * PAST)) else {
-        warn!("randy: nowhere to stand across the player's path at {now}; the stranger does not come");
+    let Some(def) = registry.0.def(crossing.who) else {
         return;
     };
-    let Some(def) = registry.0.def(STRANGER) else {
-        return;
-    };
-    if let Some(stranger) = spawn_actor(&mut spawn, def, from, None) {
-        spawn.commands.entity(stranger).insert(Asked(to));
-        info!("randy: a stranger crosses the player's path, from {from} to {to}; the player at {now}");
+    for k in 0..crossing.count {
+        let along = now + ahead * (crossing.ahead + k as f32 * crossing.apart);
+        let (Some(from), Some(to)) = (stand(along + side * crossing.side), stand(along - side * crossing.past)) else {
+            warn!("randy: nowhere to stand across the player's path at {now}; {} does not come", hit.name);
+            continue;
+        };
+        if let Some(one) = spawn_actor(&mut spawn, def, from, None) {
+            spawn.commands.entity(one).insert(Asked(to));
+            info!("randy: {}: {} from {from} to {to}; the player at {now}", hit.name, crossing.who);
+        }
     }
 }
