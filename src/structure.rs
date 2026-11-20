@@ -555,8 +555,9 @@ pub fn spawn_sites(
                 let mut contents = item::Inventory::new(box_def.storage.unwrap_or(12));
                 // A weapon or something worn rolls its quality tier as it
                 // is found (design.md "Loot randomization"); the rest are
-                // base (Claude's reading, for the operator to change).
-                let odds = modforge::quality::odds(&crate::content::QUALITY);
+                // base (Claude's reading, for the operator to change). The
+                // spot's danger caps the tier.
+                let odds = modforge::quality::odds(&crate::content::QUALITY, spot.danger);
                 for (i, (name, on, count)) in roll_loot(&table, spot.danger, &mut roll).into_iter().enumerate() {
                     let Some(def) = items.0.def(&name) else {
                         continue;
