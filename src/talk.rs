@@ -345,7 +345,10 @@ pub fn words_of(
     if line.ways.is_empty() {
         return Some(("...".to_string(), key));
     }
-    let slots: Vec<(&str, &str)> = slots.iter().map(|(n, v)| (*n, v.as_str())).collect();
+    // {Mara}: the name the person cast as that part goes by, never the
+    // part's.
+    let mut slots: Vec<(&str, &str)> = slots.iter().map(|(n, v)| (*n, v.as_str())).collect();
+    slots.extend(episode.cast_names.iter().map(|(part, name)| (part.as_str(), name.as_str())));
     let words = modforge::storyteller::say(&line.ways, &slots, seed ^ speaker.0 ^ since, index as u64)?;
     Some((words, key))
 }

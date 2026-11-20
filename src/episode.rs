@@ -52,6 +52,30 @@ pub struct Episode {
     /// `held_key`) and the tick it began holding without a break.
     #[serde(default)]
     pub held_for: Vec<(String, u64)>,
+    /// Each part and the name its person goes by, worked out each step from
+    /// the cast (`name_the_cast`), never saved: a line or an ending's
+    /// `{Mara}` is said as that name, never the part's (todo: fill a part's
+    /// name, 2026-11-19).
+    #[serde(skip)]
+    pub cast_names: Vec<(String, String)>,
+}
+
+/// Each step: the name each cast part's person goes by, into the episode,
+/// when it changed.
+pub fn name_the_cast(mut episode: ResMut<Episode>, people: Query<(&Actor, &Name)>) {
+    let names: Vec<(String, String)> = episode
+        .cast
+        .iter()
+        .filter_map(|(part, id)| people.iter().find(|(a, _)| a.0 == *id).map(|(_, n)| (part.clone(), n.as_str().to_string())))
+        .collect();
+    if episode.cast_names != names {
+        episode.cast_names = names;
+    }
+}
+
+/// These words with each `{part}` said as the name its person goes by.
+pub fn with_names(words: &str, episode: &Episode) -> String {
+    episode.cast_names.iter().fold(words.to_string(), |w, (part, name)| w.replace(&format!("{{{part}}}"), name))
 }
 
 impl Episode {
@@ -76,6 +100,7 @@ impl Episode {
             windows: Vec::new(),
             ordered: Vec::new(),
             held_for: Vec::new(),
+            cast_names: Vec::new(),
         }
     }
 
@@ -891,6 +916,6 @@ pub fn the_ending(
     let alive = |part: &str| episode.cast_as(part).is_some_and(|id| people.iter().any(|(a, dead)| a.0 == id && !dead));
     if let Some(end) = modforge::storyteller::ending(def, &reached, alive) {
         info!("{:?}: the ending is {}", episode.name, end.name);
-        hud.0.ending = Some(modforge::hud::Ending { name: end.name.clone(), words: end.words.clone() });
+        hud.0.ending = Some(modforge::hud::Ending { name: end.name.clone(), words: with_names(&end.words, &episode) });
     }
 }

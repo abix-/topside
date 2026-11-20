@@ -317,6 +317,7 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind, port: u16
                 (
                     storm::storm,
                     episode::cast_episode,
+                    episode::name_the_cast,
                     episode::place_things,
                     episode::pivots_said,
                     episode::held_conditions,

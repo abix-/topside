@@ -268,7 +268,7 @@ endings:
   name: Break it
   needs:
   - breaks it
-  words: Mara's well fills again. Your people are thirsty and angry with you. Mara's people remember you did it for them.
+  words: '{Mara}''s well fills again. Your people are thirsty and angry with you. {Mara}''s people remember you did it for them.'
 - alive: []
   name: Tell everyone the truth
   needs:
@@ -279,16 +279,16 @@ endings:
   name: Share it
   needs:
   - shares it
-  words: A fragile peace with Mara. Dell hates it and may leave for the strangers.
+  words: A fragile peace with {Mara}. {Dell} hates it and may leave for the strangers.
 - alive: []
   name: Hold it
   needs:
   - holds it
-  words: You drive Mara's people off and have water. Mara's bunker remembers.
+  words: You drive {Mara}'s people off and have water. {Mara}'s bunker remembers.
 - alive: []
   name: Walk away
   needs: []
-  words: Mara's people take the tap and grow strong. Dell joins them.
+  words: '{Mara}''s people take the tap and grow strong. {Dell} joins them.'
 errands:
 - at: Now
   does:
@@ -878,7 +878,7 @@ lines:
   tells: ''
   wait: 0.0
   ways:
-  - What will Mara give for it?
+  - What will {Mara} give for it?
   when:
   - To: Mara's child
   - HasHeard: the child asks for water
@@ -914,7 +914,7 @@ lines:
   tells: ''
   wait: 0.0
   ways:
-  - Tell Mara it's hers if she stands with us.
+  - Tell {Mara} it's hers if she stands with us.
   when:
   - To: Mara's child
   - HasHeard: the child asks for water
@@ -941,7 +941,7 @@ lines:
   tells: ''
   wait: 0.0
   ways:
-  - Ask Mara.
+  - Ask {Mara}.
   when:
   - Heard: trades water to Mara
 - felt: 0.0
