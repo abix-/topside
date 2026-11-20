@@ -103,21 +103,22 @@ fn run_history(world: &mut World) {
     let mut player = world.query_filtered::<&crate::actor::Survival, With<crate::player::Player>>();
     let slept = player.iter(world).next().cloned();
     world.insert_resource(History);
+    // Every tick, or days of thirst kill them before they wake.
+    let mut player = world.query_filtered::<&mut crate::actor::Survival, With<crate::player::Player>>();
     let _ = world.try_schedule_scope(bevy::app::FixedMain, |world, schedule| {
         for _ in 0..ticks {
             world.resource_mut::<Time<Fixed>>().advance_by(step);
             *world.resource_mut::<Time>() = world.resource::<Time<Fixed>>().as_generic();
             schedule.run(world);
+            if let Some(slept) = &slept {
+                for mut survival in player.iter_mut(world) {
+                    *survival = slept.clone();
+                }
+            }
         }
     });
     *world.resource_mut::<Time>() = world.resource::<Time<Virtual>>().as_generic();
     world.remove_resource::<History>();
-    if let Some(slept) = slept {
-        let mut player = world.query_filtered::<&mut crate::actor::Survival, With<crate::player::Player>>();
-        for mut survival in player.iter_mut(world) {
-            *survival = slept.clone();
-        }
-    }
     let now = world.resource::<crate::SimTick>().0;
     let mut episode = world.resource_mut::<crate::episode::Episode>();
     let name = episode.name.clone();
