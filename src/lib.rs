@@ -28,6 +28,7 @@ pub mod prisoner;
 pub mod profile;
 pub mod radio;
 pub mod raid;
+pub mod turret;
 pub mod randy;
 pub mod save;
 pub mod secrets;
@@ -372,7 +373,8 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind, port: u16
                     // Building (todo 9f): the plan, hammer and cupboard,
                     // before the Use reaches anything else; the pieces
                     // made after.
-                    (building::build, building::upkeep, building::make).chain(),
+                    // A turret set down from the hand (todo 11k).
+                    (building::build, building::upkeep, building::make, turret::place, turret::load).chain(),
                     interact::interact_on_use,
                     hud::close_read_notes,
                     hud::show_act_result,
@@ -399,7 +401,7 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind, port: u16
                 )
                     .chain(),
                 lap("interact"),
-                (player::movement, sight::look_around, sight::share_maps).chain(),
+                (turret::stay, player::movement, sight::look_around, sight::share_maps).chain(),
                 lap("movement"),
                 nav::doorways,
                 lap("doorways"),

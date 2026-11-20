@@ -100,6 +100,7 @@ saved! {
         crate::prisoner::LastDowned,
         crate::prisoner::Prisoner,
         crate::building::Planning,
+        crate::turret::Turret,
         crate::combat::Health,
         crate::combat::Protection,
         crate::combat::Equipment,

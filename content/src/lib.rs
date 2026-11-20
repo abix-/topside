@@ -147,6 +147,7 @@ pub fn loot_table() -> LootTable {
             e(BUILDING_PLAN, (1, 1), 3, 0),
             e(HAMMER, (1, 1), 3, 0),
             e(TOOL_CUPBOARD, (1, 1), 1, 1),
+            e(TURRET, (1, 1), 1, 3),
             weapon("pipe shotgun", &["pipe barrel", "wooden grip", "wooden stock"], 1, 3),
             weapon("pipe shotgun", &["short pipe barrel", "taped grip"], 1, 3),
             weapon("pipe shotgun", &["pipe barrel", "taped grip", "wooden stock", "nail sight"], 1, 4),
@@ -198,6 +199,10 @@ pub const HAMMER: &str = "hammer";
 pub const TOOL_CUPBOARD: &str = "tool cupboard";
 pub const WOOD: &str = "wood";
 pub const STONE: &str = "stone";
+/// The turret (todo 11k): the item set down and the actor it becomes.
+pub const TURRET: &str = "turret";
+/// What a turret fires.
+pub const TURRET_AMMO: &str = "shotgun shell";
 
 /// What building at a grade costs (Rust's: twig and wood are wood, stone
 /// is stone, metal and armored are metal, here scrap; Claude's mapping).
@@ -1226,6 +1231,10 @@ pub fn register_actors(reg: &mut ActorRegistry) {
         // "Hostiles attack: wild animals"), hunting with its teeth. Its
         // health and reach are Claude's, for the operator to change.
         ActorDef { reach: 1.4, ..person("wolf", Some(TOPSIDE_HOSTILES), Behaviour::Hunter, 50.0, "teeth", &[]) },
+        // A turret (todo 11k): an actor that never moves, guarding where
+        // it is set with a pipe shotgun; its faction the placer's. Health
+        // and sight Claude's.
+        ActorDef { sight: 20.0, reach: 12.0, ..person(TURRET, None, Behaviour::Guard, 150.0, "pipe shotgun", &["pipe barrel", "wooden grip", "wooden stock"]) },
     ] {
         reg.register(def).expect("actor registered once");
     }
@@ -1684,6 +1693,7 @@ pub fn register_items(reg: &mut ItemRegistry) {
         building(TOOL_CUPBOARD, "A cupboard of tools. Set it down: only your group builds near it, and its upkeep keeps your pieces from decay.", ItemKind::Deployable, 1, Some(6)),
         building(WOOD, "Split wood, for building.", ItemKind::Material, 100, None),
         building(STONE, "Broken stone, for building.", ItemKind::Material, 100, None),
+        building(TURRET, "A shotgun on a stand. Set it down and it guards the spot, loaded with your shells.", ItemKind::Deployable, 1, None),
         ItemDef {
             name: "storage box".to_string(),
             description: "A wooden box to keep things in. Set it down and fill it.".to_string(),
