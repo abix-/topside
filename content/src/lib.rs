@@ -897,17 +897,29 @@ pub static QUALITY: std::sync::LazyLock<Vec<modforge::quality::Tier>> = std::syn
 /// What Randy Random rolls while the player walks topside (design.md "The
 /// unknown" rule 1, "The first hour" rule 4; todo 10h1). A roll every 100 m
 /// walked, hitting one in three: Claude's numbers, for the operator to
-/// change.
-pub fn encounter_table() -> modforge::randy::EncounterTable {
+/// change. The radio speaks only in a world whose question is the radio.
+pub fn encounter_table(seed: u64) -> modforge::randy::EncounterTable {
+    let mut encounters = vec![
+        modforge::randy::Encounter { name: STRANGER_CROSSES, weight: 1 },
+        modforge::randy::Encounter { name: BAND_PASSES, weight: 1 },
+    ];
+    if starting_question(seed).name == RADIO_QUESTION {
+        encounters.push(modforge::randy::Encounter { name: RADIO_SPEAKS, weight: 1 });
+    }
     modforge::randy::EncounterTable {
         every_metres: 100.0,
         chance_in_100: 33,
-        encounters: vec![
-            modforge::randy::Encounter { name: STRANGER_CROSSES, weight: 1 },
-            modforge::randy::Encounter { name: BAND_PASSES, weight: 1 },
-        ],
+        encounters,
     }
 }
+
+/// The radio's clicks become a voice (todo 10h3): once, the radio's words
+/// become what the voice says. The words are Claude's, for the operator
+/// to change.
+pub const RADIO_SPEAKS: &str = "the radio speaks";
+pub const RADIO_QUESTION: &str = "the radio";
+pub const RADIO_ITEM: &str = "radio";
+pub const RADIO_VOICE: &str = "Static. Two clicks. Then a voice, faint: \"...anyone still down there... don't trust the sky... the clicks are the count...\" Then nothing.";
 
 /// A stranger crosses the player's path and leaves.
 pub const STRANGER_CROSSES: &str = "a stranger crosses";

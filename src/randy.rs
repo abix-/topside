@@ -15,6 +15,40 @@ use crate::content::ActorRegistryRes;
 pub struct RandyRes {
     pub walking: modforge::randy::Walking,
     pub last: Option<Vec2>,
+    /// Whether this world's radio has spoken (once a world).
+    #[serde(default)]
+    pub radio_spoke: bool,
+}
+
+/// The radio speaks (todo 10h3): its words, wherever it is (in the world,
+/// carried, or in a box), become the voice.
+fn radio_speaks(
+    items: &mut Query<&mut crate::interact::WorldItem>,
+    held: &mut Query<&mut crate::actor::Inventory>,
+    hotbars: &mut Query<&mut crate::actor::Hotbar>,
+    boxes: &mut Query<&mut crate::interact::Container>,
+) {
+    let speak = |stack: &mut modforge::item::ItemStack| {
+        if stack.item == crate::content::RADIO_ITEM
+            && let Some(note) = stack.note.as_mut()
+        {
+            note.text = crate::content::RADIO_VOICE.to_string();
+        }
+    };
+    for mut item in items.iter_mut() {
+        speak(&mut item.stack);
+    }
+    let mut each = |inventory: &mut modforge::item::Inventory| inventory.slots.iter_mut().flatten().for_each(speak);
+    for mut h in held.iter_mut() {
+        each(&mut h.0);
+    }
+    for mut h in hotbars.iter_mut() {
+        each(&mut h.0.slots);
+    }
+    for mut h in boxes.iter_mut() {
+        each(&mut h.0);
+    }
+    info!("randy: the radio's clicks become a voice");
 }
 
 /// More than this in one tick is not walking (a load, being put somewhere),
@@ -69,6 +103,12 @@ pub fn encounters(
     registry: Res<ActorRegistryRes>,
     (nav, archipelagos): (Res<crate::navmesh::Nav>, Query<&bevy_landmass::prelude::Archipelago3d>),
     mut spawn: SpawnActor,
+    (mut items, mut held, mut hotbars, mut boxes): (
+        Query<&mut crate::interact::WorldItem>,
+        Query<&mut crate::actor::Inventory>,
+        Query<&mut crate::actor::Hotbar>,
+        Query<&mut crate::interact::Container>,
+    ),
 ) {
     let Ok(player) = player.single() else {
         return;
@@ -81,13 +121,20 @@ pub fn encounters(
     if step.length() > MOST_IN_A_TICK || crate::structure::sheltered(&shelters, now) {
         return;
     }
-    let table = crate::content::encounter_table();
-    let RandyRes { walking, .. } = &mut *randy;
+    let table = crate::content::encounter_table(seed.0);
+    let RandyRes { walking, radio_spoke, .. } = &mut *randy;
     let Some(hit) = table.walked(walking, step.length(), seed.0) else {
         return;
     };
     let rolls = walking.rolls;
     info!("randy: roll {rolls} hit {}", hit.name);
+    if hit.name == crate::content::RADIO_SPEAKS {
+        if !*radio_spoke {
+            *radio_spoke = true;
+            radio_speaks(&mut items, &mut held, &mut hotbars, &mut boxes);
+        }
+        return;
+    }
     let Some(crossing) = CROSSINGS.iter().find(|c| c.encounter == hit.name) else {
         return;
     };
