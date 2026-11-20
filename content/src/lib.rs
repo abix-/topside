@@ -1603,21 +1603,6 @@ pub fn register_items(reg: &mut ItemRegistry) {
             breaks_when_struck: false,
             holds_litres: None,
         },
-        ItemDef {
-            name: "wooden handle".to_string(),
-            description: "A short wooden handle to swing. A head can be fixed to it.".to_string(),
-            unique: false,
-            kind: ItemKind::Weapon,
-            max_stack: 1,
-            quality_siblings: 3,
-            combat: Some(CombatStats {
-                damage: "handle swing".to_string(),
-                delay: 0.7,
-                reach: 1.8,
-                pellets: 1,
-                spread_degrees: 0.0,
-                ammo: None,
-            }),
         // A wolf's teeth: the weapon it is born with (todo 13w). Its delay
         // and reach are Claude's, for the operator to change.
         ItemDef {
@@ -1644,6 +1629,21 @@ pub fn register_items(reg: &mut ItemRegistry) {
             breaks_when_struck: false,
             holds_litres: None,
         },
+        ItemDef {
+            name: "wooden handle".to_string(),
+            description: "A short wooden handle to swing. A head can be fixed to it.".to_string(),
+            unique: false,
+            kind: ItemKind::Weapon,
+            max_stack: 1,
+            quality_siblings: 3,
+            combat: Some(CombatStats {
+                damage: "handle swing".to_string(),
+                delay: 0.7,
+                reach: 1.8,
+                pellets: 1,
+                spread_degrees: 0.0,
+                ammo: None,
+            }),
             food: None,
             storage: None,
             armor: None,
