@@ -306,11 +306,10 @@ pub fn place_things(
             if thing.kept_quiet {
                 memory.0.keep_quiet(key);
             }
-            // Every site near the way there, passed: been there too.
-            for passed in sites.iter().filter(|p| off_the_way(from, at, p.position).0 <= ON_THE_WAY) {
-                memory.0.see(site_key(passed.position), &passed.monument, ground(passed.position), tick.0);
-                memory.0.visited(site_key(passed.position), tick.0);
-            }
+            // The site it stands in: been there too. The sites on the way
+            // are what they saw walking before the player woke (todo 4b).
+            memory.0.see(site_key(site.position), &site.monument, ground(site.position), tick.0);
+            memory.0.visited(site_key(site.position), tick.0);
         }
         episode.things.push((thing.name.clone(), thing_at, key));
         episode.things.push((format!("{} site", thing.name), ground(site.position), site_key(site.position)));

@@ -19,7 +19,7 @@ use modforge::survival::Need;
 use crate::{Ground, SimTick};
 use crate::actor::{
     Actor, ActorCondition, ActorRecord, Dead, Facing, Home, Hotbar, Inventory, Memory, NextThink,
-    Npc, PLACE_KEY, Personality, Store, Survival, held_in,
+    Npc, PLACE_KEY, Personality, Store, Survival, held_in, site_key,
 };
 use crate::combat::Health;
 use crate::content::{
@@ -34,9 +34,10 @@ use crate::sight::Sight;
 /// Within this of home counts as home.
 pub(crate) const HOME_REACH: f32 = 6.0;
 
-/// The second bit of a place key marks a river's water, one per chunk:
-/// the shore last seen there.
-const WATER_KEY: u64 = 1 << 62;
+/// The third bit of a place key marks a river's water, one per chunk:
+/// the shore last seen there. Not the second, a site's (`actor::SITE`),
+/// or a river is taken for a site, a landmark on the way (todo 4b).
+const WATER_KEY: u64 = 1 << 61;
 
 /// The remembered key of the water in chunk `c`.
 fn water_key(c: modforge::walk::ChunkKey) -> u64 {
@@ -91,6 +92,8 @@ pub struct Thinkers<'w, 's> {
         (Entity, &'static Transform, Option<&'static Npc>, Option<&'static Actor>),
         (Or<(With<Npc>, With<Player>)>, Without<Dead>),
     >,
+    /// The sites standing, seen as they walk (todo 4b).
+    standing: Option<Res<'w, crate::structure::MonumentsRes>>,
 }
 
 /// Holding a place (todo 11z; Skyrim's guard package, Mount & Blade's hold
@@ -334,6 +337,22 @@ pub fn think(
             (e, actor.map_or(ActorId(0), |a| a.0), crate::interact::feet_of(t), faction)
         })
         .collect();
+    // Every standing site once: its key, what it is, where it stands, and
+    // the ground of each of its buildings and props, any of which in sight
+    // is the site seen.
+    let sites: Vec<(u64, String, Vec3, Vec<Vec3>)> = thinkers
+        .standing
+        .as_ref()
+        .map(|s| {
+            s.0.iter()
+                .map(|(at, def)| {
+                    let part = |offset: Vec3| crate::on_ground(*at + Vec2::new(offset.x, offset.z), 0.0);
+                    let parts = def.members.iter().map(|m| part(m.offset)).chain(def.props.iter().map(|p| part(p.position))).collect();
+                    (site_key(*at), def.kind.clone(), crate::on_ground(*at, 0.0), parts)
+                })
+                .collect()
+        })
+        .unwrap_or_default();
     // How hearing words feels: the episode choice that says them.
     let heard = |words: &str| episodes.felt(words);
     // How each faction stands toward each person someone thinking now has
@@ -497,6 +516,14 @@ pub fn think(
         // line goes into memory (seen, not yet looked inside).
         for (key, at, kind) in boxes.iter().chain(&sources_at) {
             if at.distance(here) <= def.sight && in_cone(facing, here, *at) && sight.clear(here, *at) {
+                memory.0.see(*key, kind, *at, tick.0);
+            }
+        }
+        // A site seen (todo 4b): any of its buildings or props in the cone
+        // within sight. No line is checked, as the building itself is what
+        // stands in the way (Claude's, for the operator to change).
+        for (key, kind, at, parts) in &sites {
+            if parts.iter().any(|p| p.distance(here) <= def.sight && in_cone(facing, here, *p)) {
                 memory.0.see(*key, kind, *at, tick.0);
             }
         }
