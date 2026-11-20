@@ -1874,6 +1874,37 @@ def wall_concrete():
     return join(parts, "wall concrete")
 
 
+def wall_wood():
+    """one tile of wooden wall: the block faced in upright planks, dark
+    gaps between them."""
+    gap = material("plank gap", (0.45, 0.45, 0.45))
+    parts = [box("block", (1.0, 1.0, WALL_HEIGHT), mat=material("wall", LIGHT))]
+    for i in range(1, 5):
+        x = -0.5 + i * 0.2
+        parts.append(box(f"gap_x_{i}", (0.02, 1.008, WALL_HEIGHT), at=(x, 0, WALL_HEIGHT / 2), mat=gap))
+        parts.append(box(f"gap_y_{i}", (1.008, 0.02, WALL_HEIGHT), at=(0, x, WALL_HEIGHT / 2), mat=gap))
+    return join(parts, "wall wood")
+
+
+def wall_stone():
+    """one tile of stone wall: the block laid in courses of stones, the
+    mortar lines between courses and the joints staggered course to
+    course."""
+    mortar = material("mortar", (0.55, 0.55, 0.52))
+    parts = [box("block", (1.0, 1.0, WALL_HEIGHT), mat=material("wall", LIGHT))]
+    courses = 8
+    for i in range(1, courses):
+        z = WALL_HEIGHT * i / courses
+        parts.append(box(f"course_{i}", (1.008, 1.008, 0.025), at=(0, 0, z), mat=mortar))
+    for i in range(courses):
+        z = WALL_HEIGHT * (i + 0.5) / courses
+        x = 0.0 if i % 2 else 0.5
+        h = WALL_HEIGHT / courses
+        parts.append(box(f"joint_x_{i}", (0.025, 1.008, h), at=(x - 0.25, 0, z), mat=mortar))
+        parts.append(box(f"joint_y_{i}", (1.008, 0.025, h), at=(0, x - 0.25, z), mat=mortar))
+    return join(parts, "wall stone")
+
+
 def furniture():
     """one tile of furniture (shelves, a counter): a block a little smaller
     than its tile."""
@@ -2214,6 +2245,8 @@ MODELS = {
     # Buildings, a tile at a time (src/structure.rs).
     "wall": wall,
     "wall concrete": wall_concrete,
+    "wall wood": wall_wood,
+    "wall stone": wall_stone,
     "furniture": furniture,
     "floor": floor,
     "door": door,

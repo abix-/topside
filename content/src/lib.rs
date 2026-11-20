@@ -1926,15 +1926,23 @@ const CLEAN: &[Rgb] = &[[0.8, 0.82, 0.85], [0.6, 0.7, 0.75], [0.3, 0.5, 0.6]];
 
 /// The model a wall tile is drawn with, by what it is made of (design.md
 /// "Walls and floors by what they are made of"), read from its colour:
-/// the bunker's concrete and the concrete palette are concrete; the rest
-/// are the plain wall.
+/// the bunker's concrete and the concrete palette are concrete, the wood
+/// palette wood, the stone palette stone; the rest are the plain wall.
 pub fn wall_model(color: Rgb) -> &'static str {
     if color == CONCRETE_WALL || CONCRETE.contains(&color) {
         "wall concrete"
+    } else if WOOD.contains(&color) {
+        "wall wood"
+    } else if STONE.contains(&color) {
+        "wall stone"
     } else {
         "wall"
     }
 }
+
+/// Stone buildings' colours (todo 15d2; Claude's: the lighthouse is
+/// built of stone, for the operator to change).
+const STONE: &[Rgb] = &[[0.55, 0.53, 0.5], [0.48, 0.47, 0.45], [0.6, 0.58, 0.52]];
 
 /// The building types (design.md "Building types"): small, medium,
 /// large, each with the parameter ranges that change on every roll:
@@ -1970,7 +1978,7 @@ pub fn register_buildings(reg: &mut BuildingRegistry) {
         Spec { name: "water well", size: Small, columns: (1, 1), rows: (1, 1), floors: (1, 1), basements: (0, 0), width: (3.5, 4.5), length: (3.5, 4.5), height: (2.6, 3.2), windows: 0, clutter: 300, lights: 0, damage: 300, carve: 0, palette: CONCRETE },
         Spec { name: "guard tower", size: Small, columns: (1, 1), rows: (1, 1), floors: (3, 5), basements: (0, 0), width: (3.5, 4.0), length: (5.0, 6.0), height: (2.8, 3.2), windows: 800, clutter: 200, lights: 600, damage: 100, carve: 0, palette: WOOD },
         Spec { name: "shack", size: Small, columns: (1, 1), rows: (1, 1), floors: (1, 1), basements: (0, 0), width: (4.0, 6.0), length: (4.0, 6.0), height: (2.5, 3.0), windows: 400, clutter: 500, lights: 800, damage: 350, carve: 0, palette: WOOD },
-        Spec { name: "lighthouse", size: Small, columns: (1, 1), rows: (1, 1), floors: (5, 8), basements: (0, 0), width: (4.0, 5.0), length: (5.0, 6.0), height: (2.8, 3.2), windows: 500, clutter: 200, lights: 500, damage: 100, carve: 0, palette: CLEAN },
+        Spec { name: "lighthouse", size: Small, columns: (1, 1), rows: (1, 1), floors: (5, 8), basements: (0, 0), width: (4.0, 5.0), length: (5.0, 6.0), height: (2.8, 3.2), windows: 500, clutter: 200, lights: 500, damage: 100, carve: 0, palette: STONE },
         // Medium: two to six rooms, one to three floors.
         Spec { name: "warehouse", size: Medium, columns: (2, 3), rows: (1, 2), floors: (1, 1), basements: (0, 0), width: (8.0, 12.0), length: (10.0, 16.0), height: (4.5, 6.0), windows: 300, clutter: 800, lights: 600, damage: 200, carve: 200, palette: STEEL },
         Spec { name: "office building", size: Medium, columns: (2, 3), rows: (1, 2), floors: (2, 4), basements: (0, 1), width: (5.0, 6.0), length: (6.0, 8.0), height: (2.8, 3.4), windows: 800, clutter: 600, lights: 400, damage: 150, carve: 200, palette: CONCRETE },
