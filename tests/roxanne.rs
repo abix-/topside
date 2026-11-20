@@ -75,6 +75,12 @@ fn comes_to(at: impl Fn() -> (f64, f64, f64), doing: impl Fn() -> String, to: (f
     (false, nearest)
 }
 
+/// The entrance: the middle of the bunker's surface room, on its floor
+/// (x, z, height), read from the world op.
+fn entrance() -> (f64, f64, f64) {
+    crate::opening::middle_of(&crate::opening::bunker_room("surface"))
+}
+
 /// The player in their room, woken there by dying (the respawn), its door
 /// shut first: the bunker's door on the deepest level nearest where the
 /// player wakes, used (the `use` op) if it stands open. Returns where the
@@ -85,8 +91,9 @@ fn the_player_shut_in_their_room() -> (f64, f64, f64) {
     // with her there (an earlier test, or her own errands while the player
     // woke, can leave her in the room with them).
     let id = roxanne()["id"].as_u64().expect("Roxanne's id");
-    op_with("command", json!({"id": id, "do": "move_to", "x": 1.5, "y": 0.0, "z": 0.0}));
-    let (out, _) = comes_to(|| npc_at(id), || npc_doing(id), (1.5, 0.0, 0.0), 20);
+    let up = entrance();
+    op_with("command", json!({"id": id, "do": "move_to", "x": up.0, "y": up.2, "z": up.1}));
+    let (out, _) = comes_to(|| npc_at(id), || npc_doing(id), up, 20);
     assert!(out, "Roxanne never went up to the entrance before the test");
     room
 }
@@ -151,7 +158,7 @@ fn knocks_on_the_players_door_and_the_player_hears_her() {
 fn walks_the_stairs_up_and_down_three_times() {
     let room = the_player_shut_in_their_room();
     let id = roxanne()["id"].as_u64().expect("Roxanne's id");
-    let entrance = (1.5, 0.0, 0.0);
+    let entrance = entrance();
     // In the room off to one side of the player, who wakes in its middle.
     let in_the_room = (room.0 - 1.5, room.1 + 1.5, room.2);
     for trip in 1..=3 {
@@ -182,7 +189,7 @@ fn leads_the_player_from_their_room_up_to_the_entrance() {
         comes_to(|| npc_at(id), || npc_doing(id),(room.0 - 1.5, room.1 + 1.5, room.2), 20)
     };
     assert!(came, "Roxanne never came down to the player's room");
-    let entrance = (1.5, 0.0, 0.0);
+    let entrance = entrance();
     op_with("command", json!({"id": id, "do": "lead", "who": player, "x": entrance.0, "y": entrance.2, "z": entrance.1}));
     op_with("command", json!({"do": "follow", "who": id}));
     // Done when both are within 2 m of the spot (modforge `LEAD_DONE`).
@@ -218,7 +225,7 @@ fn she_and_the_player_pass_each_other_on_the_way() {
     let room = the_player_shut_in_their_room();
     let id = roxanne()["id"].as_u64().expect("Roxanne's id");
     let player = op("player")["id"].as_u64().expect("the player op reports the player's id");
-    let entrance = (1.5, 0.0, 0.0);
+    let entrance = entrance();
     let in_the_room = (room.0 - 1.5, room.1 + 1.5, room.2);
     // Her in the room, the player up in the entrance.
     op_with("command", json!({"id": id, "do": "move_to", "x": in_the_room.0, "y": in_the_room.2, "z": in_the_room.1}));
@@ -255,13 +262,17 @@ fn the_player_steps_around_her_standing_at_their_door() {
     let room = the_player_shut_in_their_room();
     let id = roxanne()["id"].as_u64().expect("Roxanne's id");
     let player = op("player")["id"].as_u64().expect("the player op reports the player's id");
+    // Knocked once the player hears her (a talk opens only once the two are
+    // within talking reach, authority.md "Talking").
+    let heard = || op("player")["heard_knocking"].as_array().map_or(0, |h| h.iter().filter(|k| k["by"].as_u64() == Some(id)).count());
+    let before = heard();
     op_with("command", json!({"id": id, "do": "knock", "who": player}));
-    let knocked = within(30, || op("hud")["talk"]["to"].as_u64() == Some(id));
+    let knocked = within(30, || heard() > before);
     let her = npc_at(id);
     eprintln!("knocked: {knocked}; Roxanne stands at {her:?}, the player at {room:?}");
     assert!(knocked, "Roxanne never knocked, so never stood in the way");
     // The entrance, on the ground: where she stood before going down.
-    let entrance = (1.5, 0.0, 0.0);
+    let entrance = entrance();
     let entrance_3d = (entrance.0, entrance.2, entrance.1);
     op_with("command", json!({"do": "move_to", "x": entrance.0, "y": entrance.2, "z": entrance.1}));
     let (there, nearest) = comes_to(player_at, || format!("way {}", op("player")["way"]), entrance, 30);
