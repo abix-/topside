@@ -813,7 +813,12 @@ pub const SMALL_OTHER_BUNKERS: [Vec2; 5] = [
 /// The small world's topside people, placed by world generation on open
 /// land (operator, 2026-09-25: "another 25 nuetral topside creatures. and
 /// 25 hostile topside creatures"): each actor def and how many.
-pub const SMALL_TOPSIDE_PEOPLE: [(&str, u32); 3] = [("wanderer", 25), ("scavenger", 13), ("raider", 12)];
+pub const SMALL_TOPSIDE_PEOPLE: [(&str, u32); 4] = [("wanderer", 25), ("scavenger", 13), ("raider", 12), ("wolf", 10)];
+
+/// The wild animals (design.md "Bunker people and topside people"): each
+/// drawn as its own body, `person <name>` (scripts/models.py), with no
+/// rolled look and nothing worn.
+pub const ANIMALS: [&str; 1] = ["wolf"];
 
 /// The small world's sites (operator, 2026-09-26: "20 monuments of
 /// varying sizes"): every kind but the ruined city, from large to minor,
@@ -1086,6 +1091,10 @@ pub fn register_damage(reg: &mut DamageRegistry) {
         ignores_armor: false,
         self_scale: 0.5,
         falloff: Falloff::NONE,
+        // A wild animal (design.md "Bunker people and topside people":
+        // "Hostiles attack: wild animals"), hunting with its teeth. Its
+        // health and reach are Claude's, for the operator to change.
+        ActorDef { reach: 1.4, ..person("wolf", Some(TOPSIDE_HOSTILES), Behaviour::Hunter, 50.0, "teeth", &[]) },
     };
     // Rust's pipe shotgun: a handful of pellets, full damage only up
     // close (Facepunch devblog 123: shotguns fall off hardest).
@@ -1151,6 +1160,9 @@ pub fn register_damage(reg: &mut DamageRegistry) {
             self_scale: 1.0,
             falloff: Falloff::NONE,
         },
+        // A wild animal's teeth (todo 13w). Claude's, for the operator to
+        // change.
+        melee("bite", 15.0, DamageType::Pierce),
         // The control plane's `kill` op: one hit that kills anyone, no
         // armor helps, so a test can bring a death now.
         DamageDef {
@@ -1551,6 +1563,32 @@ pub fn register_items(reg: &mut ItemRegistry) {
                 spread_degrees: 0.0,
                 ammo: None,
             }),
+        // A wolf's teeth: the weapon it is born with (todo 13w). Its delay
+        // and reach are Claude's, for the operator to change.
+        ItemDef {
+            name: "teeth".to_string(),
+            description: "A wild animal's teeth.".to_string(),
+            unique: false,
+            kind: ItemKind::Weapon,
+            max_stack: 1,
+            quality_siblings: 1,
+            combat: Some(CombatStats {
+                damage: "bite".to_string(),
+                delay: 0.8,
+                reach: 1.4,
+                pellets: 1,
+                spread_degrees: 0.0,
+                ammo: None,
+            }),
+            food: None,
+            storage: None,
+            armor: None,
+            good_for: Default::default(),
+            picture: None,
+            layer_slots: Vec::new(),
+            breaks_when_struck: false,
+            holds_litres: None,
+        },
             food: None,
             storage: None,
             armor: None,

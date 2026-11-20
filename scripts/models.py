@@ -2035,6 +2035,91 @@ def people():
             for i, mesh in enumerate(meshes):
                 mesh.name = layer if i == 0 else f"{layer}.{i}"
         export(rig, f"person {body_name}")
+    for name, build in ANIMALS.items():
+        clear()
+        rig, meshes = build()
+        for i, mesh in enumerate(meshes):
+            mesh.name = "body" if i == 0 else f"body.{i}"
+        export(rig, f"person {name}")
+
+
+def bone_mesh(obj, rig, bone):
+    """pin `obj` to `bone` of `rig`, staying where it stands at rest."""
+    world = obj.matrix_world.copy()
+    obj.parent, obj.parent_type, obj.parent_bone = rig, "BONE", bone
+    obj.matrix_world = world
+    return obj
+
+
+def keyed(rig, name, frames):
+    """an action `name` on `rig` from `frames`: each frame number to
+    {bone: (rotation x degrees, forward metres)}, put on its own track of
+    the rig as `animations` does, so the exporter writes it."""
+    import math
+    rig.animation_data_create()
+    act = bpy.data.actions.new(name)
+    rig.animation_data.action = act
+    for frame, bones in frames.items():
+        for bone, (degrees, forward) in bones.items():
+            pb = rig.pose.bones[bone]
+            pb.rotation_mode = "XYZ"
+            pb.rotation_euler = (math.radians(degrees), 0.0, 0.0)
+            pb.location = (0.0, forward, 0.0)
+            pb.keyframe_insert("rotation_euler", frame=frame)
+            pb.keyframe_insert("location", frame=frame)
+    rig.animation_data.action = None
+    track = rig.animation_data.nla_tracks.new()
+    track.name = name
+    strip = track.strips.new(name, int(act.frame_range[0]), act)
+    if act.slots:
+        strip.action_slot = act.slots[0]
+
+
+def wolf():
+    """a wild animal (todo 13w): a grey wolf of boxes on a rig of a back,
+    a head and four legs, facing -y as the people do, with the three
+    animations a person has (src/people.rs): standing, walking, and the
+    bite as its swing. Its sizes and colours are Claude's."""
+    fur = material("fur", (0.45, 0.43, 0.4))
+    dark = material("snout", (0.2, 0.19, 0.18))
+    bpy.ops.object.armature_add(location=(0, 0, 0))
+    rig = bpy.context.object
+    rig.name = "wolf"
+    bpy.ops.object.mode_set(mode="EDIT")
+    bones = rig.data.edit_bones
+    for b in list(bones):
+        bones.remove(b)
+    back = bones.new("back")
+    back.head, back.tail = (0, 0.35, 0.55), (0, -0.35, 0.55)
+    head = bones.new("head")
+    head.head, head.tail, head.parent = (0, -0.4, 0.62), (0, -0.7, 0.62), back
+    legs = {"leg_fl": (0.11, -0.28), "leg_fr": (-0.11, -0.28), "leg_bl": (0.11, 0.28), "leg_br": (-0.11, 0.28)}
+    for name, (x, y) in legs.items():
+        leg = bones.new(name)
+        leg.head, leg.tail, leg.parent = (x, y, 0.48), (x, y, 0.02), back
+    bpy.ops.object.mode_set(mode="OBJECT")
+    meshes = [
+        bone_mesh(box("body", (0.26, 0.8, 0.28), at=(0, 0, 0.55), mat=fur), rig, "back"),
+        bone_mesh(box("tail", (0.07, 0.35, 0.07), at=(0, 0.55, 0.58), rotation=(0.5, 0, 0), mat=fur), rig, "back"),
+        bone_mesh(box("head", (0.2, 0.22, 0.2), at=(0, -0.5, 0.66), mat=fur), rig, "head"),
+        bone_mesh(box("snout", (0.1, 0.16, 0.09), at=(0, -0.68, 0.61), mat=dark), rig, "head"),
+    ]
+    for x in (0.06, -0.06):
+        meshes.append(bone_mesh(box("ear", (0.05, 0.03, 0.08), at=(x, -0.46, 0.8), mat=fur), rig, "head"))
+    for name, (x, y) in legs.items():
+        meshes.append(bone_mesh(box(name, (0.08, 0.08, 0.46), at=(x, y, 0.25), mat=fur), rig, name))
+    still = {b: (0.0, 0.0) for b in ["back", "head", *legs]}
+    keyed(rig, "Idle_Loop", {1: still, 25: {**still, "head": (-6.0, 0.0)}, 49: still})
+    stride = 28.0
+    step = lambda s: {"leg_fl": (s, 0.0), "leg_br": (s, 0.0), "leg_fr": (-s, 0.0), "leg_bl": (-s, 0.0)}
+    keyed(rig, "Walk_Loop", {1: {**still, **step(stride)}, 13: {**still, **step(-stride)}, 25: {**still, **step(stride)}})
+    keyed(rig, "Sword_Attack", {1: still, 8: {**still, "head": (15.0, 0.0), "back": (0.0, -0.05)},
+                                 12: {**still, "head": (-20.0, 0.0), "back": (0.0, 0.2)}, 20: still})
+    return rig, meshes
+
+
+# The wild animals, each exported as its own body (`person <name>`).
+ANIMALS = {"wolf": wolf}
 
 
 # Models that export several models themselves.

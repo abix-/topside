@@ -262,9 +262,11 @@ pub fn spawn_person(
             Err(e) => warn!("{}'s weapon: {e}", def.name),
         }
     }
-    // Everyone is dressed (operator, 2026-11-20: clothes were missing).
+    // Everyone is dressed (operator, 2026-11-20: clothes were missing);
+    // a wild animal wears nothing.
+    let animal = crate::content::ANIMALS.contains(&def.name.as_str());
     let mut worn = Equipment::default();
-    for def in crate::content::WORN.iter().filter_map(|w| spawn.items.0.def(w)) {
+    for def in crate::content::WORN.iter().filter(|_| !animal).filter_map(|w| spawn.items.0.def(w)) {
         let _ = worn.0.wear(item::create(def, 1, &[], 0.0, 0));
     }
     let entity = spawn
@@ -299,7 +301,13 @@ pub fn spawn_person(
     };
     let personality = modforge::actor::Personality::seed(id, spawn.seed.0);
     // What they look like, rolled from who they are.
-    let look = modforge::actor::Look::roll(id, spawn.seed.0, &crate::content::look_def());
+    // A wild animal is its own body, coloured by its model.
+    let mut look = modforge::actor::Look::roll(id, spawn.seed.0, &crate::content::look_def());
+    if animal {
+        look.body = def.name.clone();
+        look.pieces.clear();
+        look.skin = [1.0, 1.0, 1.0];
+    }
     spawn.commands.entity(entity).insert(Look(look));
     // Everybody has a name (operator, 2026-09-27), Bevy's `Name` on the
     // person, rolled from who they are.
