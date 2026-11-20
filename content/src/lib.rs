@@ -1310,6 +1310,10 @@ pub fn register_damage(reg: &mut DamageRegistry) {
         fall,
         wasting("starvation"),
         wasting("dehydration"),
+        // Temperature and radiation (todo 20): hurting like hunger.
+        wasting("cold"),
+        wasting("heat"),
+        wasting("radiation"),
         // Caught in the open when the storm hits: `amount` a second, no
         // armor helps. Tuning.
         DamageDef {

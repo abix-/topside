@@ -6,6 +6,7 @@ pub mod actor;
 pub mod ai;
 pub mod anomaly;
 pub mod building;
+pub mod exposure;
 pub mod combat;
 pub mod command;
 pub mod control_plane;
@@ -326,6 +327,7 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind, port: u16
                 lap("walk"),
                 survival::survival_tick,
                 survival::waste,
+                exposure::expose,
                 survival::rot,
                 lap("survival"),
                 (

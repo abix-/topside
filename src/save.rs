@@ -101,6 +101,7 @@ saved! {
         crate::prisoner::Prisoner,
         crate::building::Planning,
         crate::turret::Turret,
+        crate::exposure::Exposure,
         crate::combat::Health,
         crate::combat::Protection,
         crate::combat::Equipment,

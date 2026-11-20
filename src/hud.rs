@@ -894,10 +894,10 @@ pub fn render_vitals(
     day: Res<crate::survival::Day>,
     storms: Res<crate::storm::StormRes>,
     reality: Res<crate::Reality>,
-    players: Query<(&crate::combat::Health, &Survival), With<Player>>,
+    players: Query<(&crate::combat::Health, &Survival, Option<&crate::exposure::Exposure>), With<Player>>,
     mut texts: Query<&mut Text, With<VitalsText>>,
 ) {
-    let (Ok((health, needs)), Ok(mut text)) = (players.single(), texts.single_mut()) else {
+    let (Ok((health, needs, exposure)), Ok(mut text)) = (players.single(), texts.single_mut()) else {
         return;
     };
     let time = match crate::storm::phase(&tick, *day, &storms) {
@@ -907,9 +907,11 @@ pub fn render_vitals(
         StormPhase::Calm if crate::survival::night(&tick, *day, &reality) => "Night",
         StormPhase::Calm => "Day",
     };
+    // Temperature and radiation (todo 20) beside hunger and thirst.
+    let exposure = exposure.map(|e| e.0).unwrap_or_default();
     text.0 = format!(
-        "Health {:.0}   Hunger {:.0}   Thirst {:.0}   {time}",
-        health.0.current, needs.0.hunger, needs.0.thirst
+        "Health {:.0}   Hunger {:.0}   Thirst {:.0}   Temp {:.1}C   Rad {:.0}   {time}",
+        health.0.current, needs.0.hunger, needs.0.thirst, exposure.warmth, exposure.dose
     );
 }
 
