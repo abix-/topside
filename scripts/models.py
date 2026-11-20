@@ -622,6 +622,26 @@ def well():
     return join(parts + bucket, "well", 1.4)
 
 
+def tap():
+    """The Tap's tap (content/episodes/the-tap.yaml): a rusty pipe up out of
+    the floor, a valve wheel on it, a spout bent over a drain with water
+    running. Its look is Claude's (2026-11-19), for the operator to change.
+    1.1 m tall."""
+    rust = material("rust", (0.42, 0.24, 0.14))
+    iron = material("iron", (0.3, 0.3, 0.32))
+    water = material("water", (0.3, 0.45, 0.7))
+    parts = [
+        cylinder("drain", 0.28, 0.06, sides=12, at=(0.25, 0, 0.03), mat=iron),
+        cylinder("pipe", 0.05, 1.0, at=(0, 0, 0.5), mat=rust),
+        cylinder("spout", 0.045, 0.3, along="X", at=(0.13, 0, 0.95), mat=rust),
+        cylinder("lip", 0.045, 0.12, at=(0.27, 0, 0.9), mat=rust),
+        cylinder("valve", 0.12, 0.03, along="Y", at=(0, -0.09, 0.7), mat=iron),
+        cylinder("stem", 0.02, 0.1, along="Y", at=(0, -0.05, 0.7), mat=iron),
+        cylinder("running", 0.02, 0.8, at=(0.27, 0, 0.44), mat=water),
+    ]
+    return join(parts, "tap", 1.1)
+
+
 def pellet():
     """a shotgun pellet in flight (src/combat.rs), drawn 0.18 m across so it
     can be seen."""
@@ -1925,6 +1945,7 @@ MODELS = {
     # What people eat and drink from where it stands.
     "berry bush": berry_bush,
     "well": well,
+    "tap": tap,
     # What flies.
     "pellet": pellet,
     # Buildings, a tile at a time (src/structure.rs).

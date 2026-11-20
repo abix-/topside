@@ -22,6 +22,12 @@ These rules govern `docs/changelog.md`. Follow them exactly.
 - Use plain terms. Do not use vague descriptions, invented language, or design
   essays.
 
+## 2026-11-19
+
+| System | Item | Done when |
+|---|---|---|
+| scripts/models.py, assets/models | [x] Give the tap its model: assets/models/tap.glb was missing ("Path not found", logs/topside.err.log) | Blender built tap.glb (74 faces); after a restart and loading the run's save at the tap, the game's log has no "Path not found" for tap.glb and logs/tap_model_4.png shows the tap: the pipe, valve wheel, drain and running water |
+
 ## 2026-11-13
 
 | System | Item | Done when |
