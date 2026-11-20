@@ -372,9 +372,7 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind, port: u16
                     .chain(),
                 lap("storm"),
                 hud::hud_keys,
-                player::roll,
-                player::look,
-                player::aim,
+                (player::roll, player::look, player::aim).chain(),
                 lap("keys_roll_aim"),
             )
                 .chain(),

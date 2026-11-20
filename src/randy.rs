@@ -38,7 +38,7 @@ fn radio_speaks(
     for mut item in items.iter_mut() {
         speak(&mut item.stack);
     }
-    let mut each = |inventory: &mut modforge::item::Inventory| inventory.slots.iter_mut().flatten().for_each(speak);
+    let each = |inventory: &mut modforge::item::Inventory| inventory.slots.iter_mut().flatten().for_each(speak);
     for mut h in held.iter_mut() {
         each(&mut h.0);
     }

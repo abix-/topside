@@ -108,7 +108,7 @@ pub fn rot(
         return;
     }
     let today = today(&tick, *day);
-    let mut turn = |inventory: &mut modforge::item::Inventory| {
+    let turn = |inventory: &mut modforge::item::Inventory| {
         for stack in inventory.slots.iter_mut().flatten() {
             let Some(&(_, keeps)) = crate::content::KEEPS_DAYS.iter().find(|(item, _)| *item == stack.item) else {
                 continue;
