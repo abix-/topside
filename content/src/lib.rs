@@ -181,6 +181,10 @@ pub const ANOMALY_TELL: &str = "scorched ground";
 pub const ANOMALY_RADIUS: f32 = 2.0;
 pub const ANOMALY_FROM_SITE: f32 = 10.0;
 
+/// The danger a secret site's loot is rolled at (todo 11x1): a secret is
+/// worth finding. Claude's, for the operator to change.
+pub const SECRET_DANGER: u32 = 3;
+
 /// The bolt (todo 10i2): the item, how far it is thrown, how fast it
 /// flies, and how long an anomaly it lands in shows it has gone off.
 /// Claude's numbers, for the operator to change.

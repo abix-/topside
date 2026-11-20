@@ -410,6 +410,49 @@ const PLAYER_STORE_SALT: u64 = 1000;
 
 /// A bunker's store (design.md "The bunker you start in": the water store):
 /// a box of food and water, every bunker's the same way, the player's too.
+/// A loot box's contents at a spot's `danger`, from the one loot table
+/// (modforge's roll, seeded by `box_seed`); food in it keeps from `today`.
+pub fn fill_box(
+    items: &ItemRegistryRes,
+    layers: &crate::content::LayerRegistryRes,
+    table: &modforge::loot::LootTable,
+    box_def: &modforge::item::ItemDef,
+    danger: u32,
+    box_seed: u64,
+    today: f32,
+) -> item::Inventory {
+    let mut roll = Roll::new(box_seed);
+    let mut contents = item::Inventory::new(box_def.storage.unwrap_or(12));
+    // A weapon or something worn rolls its quality tier as it is found
+    // (design.md "Loot randomization"); the rest are base (Claude's
+    // reading, for the operator to change). The spot's danger caps the
+    // tier.
+    let odds = modforge::quality::odds(&crate::content::QUALITY, danger);
+    for (i, (name, on, count)) in roll_loot(table, danger, &mut roll).into_iter().enumerate() {
+        let Some(def) = items.0.def(&name) else {
+            continue;
+        };
+        let tiered = if def.combat.is_some() || def.armor.is_some() { &odds[..] } else { &[] };
+        match item::create_layered(def, &on, &layers.0, count, tiered, 0.0, box_seed ^ i as u64) {
+            Ok(mut stack) => {
+                // A container found in a box is found full of water
+                // (Claude's reading, for the operator to change).
+                stack.litres = def.holds_litres.unwrap_or(0.0);
+                stack.made_day = today;
+                // A found weapon rolls its affixes on top of its tier
+                // (design.md "Loot randomization").
+                if let Some(fight) = &def.combat {
+                    let table = crate::content::affixes(fight.ammo.is_some());
+                    stack.affixes = modforge::affix::roll(&table, crate::content::AFFIX_ONE_IN, 0.0, box_seed ^ (i as u64) << 8);
+                }
+                let _ = contents.add(stack, def.max_stack);
+            }
+            Err(e) => warn!("loot: {e}"),
+        }
+    }
+    contents
+}
+
 fn spawn_store(commands: &mut Commands, ids: &mut crate::interact::ThingIssuer, items: &ItemRegistryRes, bunker: Vec2, salt: u64) {
     let box_def = items.0.def("storage box").expect("the storage box is registered");
     let mut contents = item::Inventory::new(box_def.storage.unwrap_or(12));
@@ -554,36 +597,7 @@ pub fn spawn_sites(
         if let Some(box_def) = items.0.def("storage box").filter(|_| things) {
             for (k, spot) in monument.loot_spots.iter().enumerate() {
                 let box_seed = tile_hash(world.seed, cell_of(site.position), k as u64);
-                let mut roll = Roll::new(box_seed);
-                let mut contents = item::Inventory::new(box_def.storage.unwrap_or(12));
-                // A weapon or something worn rolls its quality tier as it
-                // is found (design.md "Loot randomization"); the rest are
-                // base (Claude's reading, for the operator to change). The
-                // spot's danger caps the tier.
-                let odds = modforge::quality::odds(&crate::content::QUALITY, spot.danger);
-                for (i, (name, on, count)) in roll_loot(&table, spot.danger, &mut roll).into_iter().enumerate() {
-                    let Some(def) = items.0.def(&name) else {
-                        continue;
-                    };
-                    let tiered = if def.combat.is_some() || def.armor.is_some() { &odds[..] } else { &[] };
-                    match item::create_layered(def, &on, &layers.0, count, tiered, 0.0, box_seed ^ i as u64) {
-                        Ok(mut stack) => {
-                            // A container found in a box is found full of
-                            // water (Claude's reading, for the operator to
-                            // change).
-                            stack.litres = def.holds_litres.unwrap_or(0.0);
-                            stack.made_day = today;
-                            // A found weapon rolls its affixes on top of
-                            // its tier (design.md "Loot randomization").
-                            if let Some(fight) = &def.combat {
-                                let table = crate::content::affixes(fight.ammo.is_some());
-                                stack.affixes = modforge::affix::roll(&table, crate::content::AFFIX_ONE_IN, 0.0, box_seed ^ (i as u64) << 8);
-                            }
-                            let _ = contents.add(stack, def.max_stack);
-                        }
-                        Err(e) => warn!("loot: {e}"),
-                    }
-                }
+                let contents = fill_box(&items, &layers, &table, box_def, spot.danger, box_seed, today);
                 // On the floor its spot is on.
                 let at = on_floor(site.position + Vec2::new(spot.position.x, spot.position.z), spot.position.y);
                 let (found, _) = spawn_item(&mut commands, &mut ids, box_def, item::create(box_def, 1, &[], 0.0, k as u64), at);

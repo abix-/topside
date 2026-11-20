@@ -142,6 +142,7 @@ saved! {
         crate::interact::ThingIssuer,
         crate::edge::EdgeRes,
         crate::randy::RandyRes,
+        crate::secrets::SecretsPlaced,
         crate::terrain::SavedChunks,
     ]
 }

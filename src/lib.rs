@@ -26,6 +26,7 @@ pub mod player;
 pub mod profile;
 pub mod randy;
 pub mod save;
+pub mod secrets;
 pub mod sight;
 pub mod storm;
 pub mod structure;
@@ -258,6 +259,7 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind, port: u16
     app.init_resource::<content::RecipeRegistryRes>();
     app.init_resource::<storm::StormRes>();
     app.init_resource::<anomaly::AnomalyPlaced>();
+    app.init_resource::<secrets::SecretsPlaced>();
     app.init_resource::<command::GivenThisRun>();
     app.init_resource::<command::Playing>();
     app.init_resource::<command::DoneThisRun>();
@@ -329,6 +331,7 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind, port: u16
                         anomaly::throw,
                         anomaly::fly,
                         anomaly::flare,
+                        secrets::place,
                         episode::cast_episode,
                         episode::name_the_cast,
                         episode::place_things,
