@@ -147,7 +147,8 @@ pub fn survival_tick(
     tick: Res<SimTick>,
     day: Res<Day>,
     reality: Res<crate::Reality>,
-    mut actors: Query<(&mut Survival, Option<&ActorCondition>), Without<Dead>>,
+    // A vehicle has fuel in place of needs (todo 57).
+    mut actors: Query<(&mut Survival, Option<&ActorCondition>), (Without<Dead>, Without<crate::vehicle::Vehicle>)>,
 ) {
     let night = night(&tick, *day, &reality);
     let rates = day.rates();

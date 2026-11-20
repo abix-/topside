@@ -249,6 +249,16 @@ pub const TURRET_AMMO: &str = "shotgun shell";
 /// the research station draws, where the bunker's generator stands
 /// (surface room, south east corner) and the fuel it starts with. All
 /// Claude's, for the operator to change.
+/// The car (todo 57, modforge vehicle): three times walking, a tank of
+/// ten minutes' driving, a can giving three, two seats, one breakdown in
+/// a few hours driven; parked a little south of the player's bunker,
+/// with a little fuel; repaired with scrap. All Claude's.
+pub const CAR: &str = "car";
+pub const CAR_DEF: modforge::vehicle::VehicleDef =
+    modforge::vehicle::VehicleDef { speed: 3.0, tank: 600.0, per_can: 180.0, seats: 2, breakdown: 0.005 };
+pub const CAR_PARKED: [f32; 2] = [0.0, -12.0];
+pub const CAR_FUEL: f32 = 120.0;
+pub const CAR_REPAIR: (&str, u32) = ("scrap", 3);
 pub const GENERATOR: &str = "generator";
 pub const FUEL: &str = "fuel";
 pub const GENERATOR_DEF: modforge::power::GeneratorDef = modforge::power::GeneratorDef { output: 10.0, burn_secs: 600.0 };
@@ -1349,6 +1359,9 @@ pub fn register_actors(reg: &mut ActorRegistry) {
         // it is set with a pipe shotgun; its faction the placer's. Health
         // and sight Claude's.
         ActorDef { sight: 20.0, reach: 12.0, ..person(TURRET, None, Behaviour::Guard, 150.0, "pipe shotgun", &["pipe barrel", "wooden grip", "wooden stock"]) },
+        // The car (todo 57): an actor that never thinks for itself; its
+        // driver fills its queue. Its health Claude's.
+        ActorDef { weapon: None, sight: 0.0, reach: 0.0, ..person(CAR, None, Behaviour::Guard, 400.0, "", &[]) },
     ] {
         reg.register(def).expect("actor registered once");
     }

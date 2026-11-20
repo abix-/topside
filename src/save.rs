@@ -104,6 +104,8 @@ saved! {
         crate::exposure::Exposure,
         crate::power::Generator,
         crate::skills::Skills,
+        crate::vehicle::Vehicle,
+        crate::vehicle::Riding,
         crate::combat::Health,
         crate::combat::Protection,
         crate::combat::Equipment,
@@ -156,6 +158,7 @@ saved! {
         crate::raid::Raids,
         crate::research::Researched,
         crate::silo::Silo,
+        crate::vehicle::Parked,
     ]
 }
 

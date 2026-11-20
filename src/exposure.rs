@@ -42,7 +42,7 @@ pub fn expose(
     harm: (Res<ItemRegistryRes>, Res<crate::content::LayerRegistryRes>, Res<DamageRegistryRes>),
     shelters: Query<&Shelter>,
     world: (Option<Res<crate::terrain::WorldRes>>, Res<crate::content::BiomeRegistryRes>),
-    mut people: Query<(Entity, &Transform, Option<&mut Exposure>, &Protection, &Equipment, &mut Health, Option<&mut Memory>), (With<crate::actor::Actor>, Without<Dead>)>,
+    mut people: Query<(Entity, &Transform, Option<&mut Exposure>, &Protection, &Equipment, &mut Health, Option<&mut Memory>), (With<crate::actor::Actor>, Without<Dead>, Without<crate::vehicle::Vehicle>)>,
 ) {
     let (items, layers, damage) = harm;
     let (world, biomes) = world;
