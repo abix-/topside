@@ -579,6 +579,20 @@ def bolted_door():
     return join(parts, "bolted door", 1.9)
 
 
+def ridge():
+    """a long earth ridge, stepped up to a grassy top: the medium triangle
+    between the bunker door and the gantry (design.md "The first hour"),
+    110 m long, 14 m deep, 10 m high (content `register_monuments`)."""
+    earth = material("earth", (0.42, 0.36, 0.28))
+    grass = material("ridge grass", (0.3, 0.42, 0.22))
+    parts = [
+        box("base", (110.0, 14.0, 4.0), at=(0, 0, 2.0), mat=earth),
+        box("middle", (100.0, 9.0, 3.5), at=(0, 0, 5.75), mat=earth),
+        box("top", (88.0, 4.5, 2.5), at=(0, 0, 8.75), mat=grass),
+    ]
+    return join(parts, "ridge", 110.0)
+
+
 def radio():
     """a radio: a box with a speaker grille, a dial and an aerial."""
     case = material("radio case", (0.3, 0.25, 0.2))
@@ -2032,6 +2046,7 @@ ITEMS = {
     "note": note,
     "bolted door": bolted_door,
     "radio": radio,
+    "ridge": ridge,
     "canned food": lambda: kenney("food", "can", "canned food"),
     "water bottle": lambda: kenney("survival", "bottle", "water bottle"),
     "bandage": bandage,

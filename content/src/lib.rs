@@ -811,7 +811,7 @@ pub const SMALL_TOPSIDE_PEOPLE: [(&str, u32); 3] = [("wanderer", 25), ("scavenge
 /// The small world's sites (operator, 2026-09-26: "20 monuments of
 /// varying sizes"): every kind but the ruined city, from large to minor,
 /// each at a fixed place clear of every bunker's ground.
-pub const SMALL_SITES: [(&str, [f32; 2]); 20] = [
+pub const SMALL_SITES: [(&str, [f32; 2]); 21] = [
     // Large.
     ("launch site", [-300.0, 300.0]),
     ("power plant", [300.0, 300.0]),
@@ -836,6 +836,12 @@ pub const SMALL_SITES: [(&str, [f32; 2]); 20] = [
     ("supply drop", [420.0, -420.0]),
     ("body", [-80.0, -90.0]),
     ("body", [-420.0, -420.0]),
+    // Medium triangles. Across the way from the bunker door to the launch
+    // site's gantry, 180 m out: the gantry is seen over it from the door
+    // and lost behind it for the last stretch before it (design.md "The
+    // first hour": "a medium triangle between you and it so it vanishes as
+    // you walk"). Where it stands is Claude's, for the operator to change.
+    ("ridge", [-127.0, 127.0]),
 ];
 
 /// How each ground kind is drawn. Tuning.
@@ -1777,6 +1783,7 @@ pub fn register_monuments(reg: &mut MonumentRegistry, buildings: &BuildingRegist
                     count: (1, 1),
                     radius: 0.0,
                     picture: Some("gantry".to_string()),
+                    centred: false,
                 }],
                 _ => vec![],
             },
@@ -1806,6 +1813,7 @@ pub fn register_monuments(reg: &mut MonumentRegistry, buildings: &BuildingRegist
         count,
         radius,
         picture: Some(picture.to_string()),
+        centred: false,
     };
     let minor = |name: &str, danger, suffix: &str, props: Vec<PropDef>| MonumentTypeDef {
         name: name.to_string(),
@@ -1957,6 +1965,19 @@ pub fn register_monuments(reg: &mut MonumentRegistry, buildings: &BuildingRegist
                 prop("stone", [0.5, 0.5, 0.5], [0.4, 0.4, 0.38], (0, 2), 3.0),
             ],
         ),
+        // A medium triangle (design.md "The triangle rule": "the hills,
+        // ridges, and wall runs that hide what is past them"): one long
+        // ridge, its size Claude's, for the operator to change.
+        MonumentTypeDef {
+            height: 10.0,
+            ..minor(
+                "ridge",
+                0,
+                "Ridge",
+                // On the site's middle, its box behind it.
+                vec![PropDef { centred: true, ..prop("ridge", [110.0, 10.0, 14.0], [0.42, 0.36, 0.28], (1, 1), 0.0) }],
+            )
+        },
     ];
     for monument in monuments {
         reg.register(monument, buildings)
