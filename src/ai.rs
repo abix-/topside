@@ -75,6 +75,7 @@ pub struct Thinkers<'w, 's> {
                 Option<&'static crate::actor::Map>,
                 Option<&'static crate::actor::Asked>,
                 Option<&'static mut Holding>,
+                Option<&'static crate::prisoner::Prisoner>,
             ),
         ),
         // The dead for good never think again.
@@ -417,7 +418,7 @@ pub fn think(
             mut memory,
             mut record,
             mut condition,
-            (mut actions, inventory, hotbar, open, mut next_think, dead, store, way, map, asked, mut holding),
+            (mut actions, inventory, hotbar, open, mut next_think, dead, store, way, map, asked, mut holding, prisoner),
         )) = thinkers.npcs.get_mut(entity)
         else {
             continue;
@@ -499,6 +500,8 @@ pub fn think(
                     .min_by(|a, b| a.1.distance(here).total_cmp(&b.1.distance(here)))
             }
         };
+        // A prisoner fights no one (todo 11u, prisoner.rs).
+        let hostile = hostile.filter(|_| prisoner.is_none());
         // A guard holds home; one holding a place holds it the same way.
         let home_at = holding.as_ref().map(|h| h.at).or(home.map(|h| h.0));
         let at_home = home_at.is_some_and(|h| h.distance(here) <= HOME_REACH);

@@ -23,6 +23,7 @@ pub mod navmesh;
 pub mod outline;
 pub mod people;
 pub mod player;
+pub mod prisoner;
 pub mod profile;
 pub mod radio;
 pub mod randy;
@@ -359,6 +360,11 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind, port: u16
             (
                 (
                     talk::look_at,
+                    // Recruiting (todo 11u): the downed act not at all; a
+                    // downed person used is taken prisoner, before the Use
+                    // opens a talk.
+                    prisoner::down,
+                    prisoner::capture,
                     interact::interact_on_use,
                     hud::close_read_notes,
                     hud::show_act_result,
@@ -372,6 +378,7 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind, port: u16
                     // Joining (todo 11af): agreed in talk, or leaving for a
                     // group felt better toward; made after.
                     joining::leave_for_better,
+                    prisoner::put_to_work,
                     joining::join,
                     // Word of a place reaching the edge brings newcomers
                     // (todo 11i).

@@ -52,7 +52,8 @@ pub fn leave_for_better(
     tick: Res<crate::SimTick>,
     episodes: Res<EpisodeRegistryRes>,
     mut joins: ResMut<Joins>,
-    people: Query<(Entity, &Actor, Option<&Npc>, &Memory, Has<crate::player::Player>, Has<Home>), Without<Dead>>,
+    // A prisoner never leaves on their own (todo 11u).
+    people: Query<(Entity, &Actor, Option<&Npc>, &Memory, Has<crate::player::Player>, Has<Home>), (Without<Dead>, Without<crate::prisoner::Prisoner>)>,
 ) {
     if tick.0 % 60 != 0 {
         return;
