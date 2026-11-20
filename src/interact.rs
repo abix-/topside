@@ -9,6 +9,7 @@ use bevy::prelude::*;
 use modforge::crafting::StationKind;
 use modforge::hud::{HudState, InteractKind, InteractResult, OpenPanel, interact};
 use modforge::item::{self, ItemDef, ItemKind, ItemStack};
+use modforge::memory::Did;
 
 use modforge::walk::centre;
 
@@ -656,6 +657,10 @@ pub fn interact_on_use(
                         modforge::fluid::fill(to, &mut river, &registry.0);
                     }
                 }
+            } else if let Some(memory) = memory.as_deref_mut() {
+                // Every act's result is remembered, a failed one with why
+                // (todo: write every act's result into memory, 2026-11-19).
+                memory.0.did(Did::Failed("use".to_string(), "nothing in reach".to_string()), tick.0);
             }
             continue;
         };
@@ -671,6 +676,9 @@ pub fn interact_on_use(
                 let breaks = registry.0.def(&item.stack.item).is_some_and(|d| d.breaks_when_struck);
                 if breaks && fills.is_empty() && hotbar.as_ref().is_some_and(|h| melee_in_hand(&h.0, &registry.0)) {
                     commands.entity(entity).despawn();
+                    if let Some(memory) = memory.as_deref_mut() {
+                        memory.0.did(Did::Done(format!("broke the {}", item.stack.item)), tick.0);
+                    }
                     continue;
                 }
                 // Water drawn from a store comes out of the store's water
@@ -696,6 +704,9 @@ pub fn interact_on_use(
                     if let Some(store) = store.as_mut()
                         && modforge::fluid::take_from(&mut store.0, modforge::fluid::MOUTHFUL) <= 0.0
                     {
+                        if let Some(memory) = memory.as_deref_mut() {
+                            memory.0.did(Did::Failed(format!("drink at the {}", item.stack.item), "its store is empty".to_string()), tick.0);
+                        }
                         continue;
                     }
                     eat_from_source(&item.stack.item, &registry, &mut needs, &mut health, memory.as_deref_mut(), tick.0);
@@ -706,7 +717,7 @@ pub fn interact_on_use(
         if !fills.is_empty() {
             continue;
         }
-        let read = use_thing(
+        let did = use_thing(
             &mut commands,
             &registry,
             (entity, thing, door, item, transform),
@@ -715,10 +726,10 @@ pub fn interact_on_use(
             &mut open,
             &mut station,
         );
-        // Reading is something done, remembered as anything done is (an
-        // episode's cue may wait on it).
-        if let (Some(read), Some(memory)) = (read, memory.as_deref_mut()) {
-            memory.0.did(modforge::memory::Did::Read(read), tick.0);
+        // What the use came to is remembered, as anything done is (an
+        // episode's cue may wait on a note read).
+        if let (Some(did), Some(memory)) = (did, memory.as_deref_mut()) {
+            memory.0.did(did, tick.0);
         }
     }
 }
@@ -755,18 +766,19 @@ fn use_thing(
     hud: &mut Hud,
     open: &mut OpenContainer,
     station: &mut OpenStation,
-) -> Option<String> {
+) -> Option<Did> {
     let stack = item.map(|w| w.stack.clone());
     let max_stack = match &stack {
         Some(stack) => match registry.0.def(&stack.item) {
             Some(def) => def.max_stack,
             // Not a registered item: it never enters the inventory.
-            None => return None,
+            None => return Some(Did::Failed(format!("pick up {}", stack.item), "not a known item".to_string())),
         },
         None => 0,
     };
-    let what = stack.as_ref().map(|s| s.item.clone());
-    // modforge decides what happens; this carries out the engine side.
+    let what = stack.as_ref().map_or_else(String::new, |s| s.item.clone());
+    // modforge decides what happens; this carries out the engine side, and
+    // answers what it came to, for the user's memory.
     match interact(thing.kind, &mut inventory.0, stack, max_stack, &mut hud.0) {
         InteractResult::ToggleDoor => {
             let Some(mut door) = door else {
@@ -781,11 +793,16 @@ fn use_thing(
             } else {
                 commands.entity(entity).remove::<ColliderDisabled>();
             }
+            Some(Did::Done(if door.open { "opened a door" } else { "closed a door" }.to_string()))
         }
-        InteractResult::PickedUp => commands.entity(entity).despawn(),
+        InteractResult::PickedUp => {
+            commands.entity(entity).despawn();
+            Some(Did::Done(format!("picked up {what}")))
+        }
         // modforge toggled the panel: E opens the box, E again closes it.
         InteractResult::OpenContainer => {
             open.0 = (hud.0.open_panel == OpenPanel::Inventory).then_some(entity);
+            Some(Did::Done(if open.0.is_some() { "opened a box" } else { "closed a box" }.to_string()))
         }
         // modforge toggled the station panel: remember which station.
         InteractResult::OpenStation => {
@@ -793,13 +810,17 @@ fn use_thing(
                 InteractKind::Station(kind) if hud.0.open_panel == OpenPanel::Station => Some(kind),
                 _ => None,
             };
+            Some(Did::Done(match station.0 {
+                Some(kind) => format!("opened the {kind:?}"),
+                None => "closed a station".to_string(),
+            }))
         }
-        // The note's words are in the HUD state now; nothing moves; what
-        // was read is answered, for the reader's memory.
-        InteractResult::Read => return what,
-        // A gate stays shut. A full inventory leaves the item lying. A
-        // source is eaten from before this (`eat_from_source`), never here.
-        InteractResult::Locked(_) | InteractResult::InventoryFull | InteractResult::UseSource => {}
+        // The note's words are in the HUD state now; nothing moves.
+        InteractResult::Read => Some(Did::Read(what)),
+        // A gate stays shut. A full inventory leaves the item lying.
+        InteractResult::Locked(level) => Some(Did::Failed("open the gate".to_string(), format!("it is locked (level {level})"))),
+        InteractResult::InventoryFull => Some(Did::Failed(format!("pick up {what}"), "the bags are full".to_string())),
+        // A source is eaten from before this (`eat_from_source`), never here.
+        InteractResult::UseSource => None,
     }
-    None
 }

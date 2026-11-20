@@ -50,6 +50,49 @@ static KILL_ASK: Mutex<Option<u64>> = Mutex::new(None);
 static NEEDS_ASK: Mutex<Vec<(u64, Option<f32>, Option<f32>)>> = Mutex::new(Vec::new());
 /// The `forget` op's requests: whose things known are forgotten.
 static FORGET_ASK: Mutex<Vec<u64>> = Mutex::new(Vec::new());
+/// The `use` op waiting on what its act came to: whose act, the tick it was
+/// done at (once done), and what their memory holds of it since (once the
+/// interact path has run on it).
+struct ActWatch {
+    token: u64,
+    who: u64,
+    since: Option<u64>,
+    answer: Option<Vec<String>>,
+}
+static ACT_WATCH: Mutex<Vec<ActWatch>> = Mutex::new(Vec::new());
+static ACT_TOKEN: AtomicU64 = AtomicU64::new(0);
+
+/// What an act came to, read from the person's memory, the one record of
+/// what anyone did (todo: write every act's result into memory,
+/// 2026-11-19): every watched act done at least two ticks ago (its Use runs
+/// the tick after it is done) is answered with what that person did since.
+pub fn answer_act_results(tick: Res<crate::SimTick>, registry: Res<crate::content::ItemRegistryRes>, people: Query<(&Actor, &crate::actor::Memory)>) {
+    let Ok(mut watches) = ACT_WATCH.lock() else { return };
+    for watch in watches.iter_mut().filter(|w| w.answer.is_none()) {
+        let Some(since) = watch.since.filter(|s| tick.0 >= s + 2) else { continue };
+        let memory = people.iter().find(|(a, _)| a.0.0 == watch.who).map(|(_, m)| m);
+        watch.answer = Some(
+            memory
+                .map(|m| m.0.done.iter().filter(|(t, d)| *t > since && !matches!(d, modforge::memory::Did::Saw(_))).map(|(_, d)| act_words(d, &registry)).collect())
+                .unwrap_or_default(),
+        );
+    }
+}
+
+/// A thing done in words, as memory's own (`Did::words`), but a drink said
+/// as one: water from a source is "drank at the tap", not "ate tap".
+fn act_words(did: &modforge::memory::Did, registry: &crate::content::ItemRegistryRes) -> String {
+    if let modforge::memory::Did::Ate(item) = did
+        && let Some(def) = registry.0.def(item)
+        && def.food.is_some_and(|f| f.thirst > 0.0 && f.hunger <= 0.0)
+    {
+        return match def.kind {
+            modforge::item::ItemKind::Source => format!("drank at the {item}"),
+            _ => format!("drank {item}"),
+        };
+    }
+    did.words()
+}
 
 /// The `needs` and `forget` ops' requests, on the game's next step: a
 /// person's hunger and thirst set; every thing a person knows, and all they
@@ -365,6 +408,11 @@ pub fn answer_acts(
     }
     for (id, act) in due {
         done.0.push(Done { tick: tick.0, who: id, act });
+        if let Ok(mut watches) = ACT_WATCH.lock() {
+            for watch in watches.iter_mut().filter(|w| w.who == id && w.since.is_none()) {
+                watch.since = Some(tick.0);
+            }
+        }
         // The point on the ground, the floor it is on, and the height on
         // them the eyes look at: a point's own ground (the eyes on a
         // person's middle would look over a low thing at whoever stands
@@ -1558,6 +1606,10 @@ pub fn publish(
                     modforge::memory::Did::Talked(to, said) => Some(json!({"tick": t, "to": to.0, "said": said.words, "line": said.name})),
                     _ => None,
                 }).collect::<Vec<_>>(),
+                // What their acts came to, done or failed and why, the last
+                // ten, as the npc op's "did" (todo: write every act's result
+                // into memory, 2026-11-19).
+                "did": memory.0.done.iter().filter(|(_, d)| matches!(d, modforge::memory::Did::Done(_) | modforge::memory::Did::Failed(..))).rev().take(10).map(|(t, d)| json!({"tick": t, "did": d.words()})).collect::<Vec<_>>(),
             });
         }
         HEALTH_BITS.store(health.0.current.to_bits(), Ordering::Relaxed);
@@ -1969,10 +2021,32 @@ pub fn start(port: u16) {
                 (Some(at), None) => modforge::command::Act::UseAt { at: modforge::command::Point { x: at.x, y: height, z: at.y } },
                 (None, None) => return Err("at: [x, y], or person: an id".to_string()),
             };
+            // Paused, the act is done on the next tick `step` runs; nothing
+            // to wait for here.
+            let paused = PAUSED_AT.load(Ordering::Relaxed) != u64::MAX;
+            let token = ACT_TOKEN.fetch_add(1, Ordering::Relaxed);
+            if !paused && let Ok(mut watches) = ACT_WATCH.lock() {
+                watches.push(ActWatch { token, who: id, since: None, answer: None });
+            }
             if let Ok(mut ask) = crate::command::ACT_ASK.lock() {
                 ask.push((id, act));
             }
-            Ok(json!({"use": id, "at": at.map(|a| [a.x, a.y]), "person": args.get("person")}))
+            let mut answer = json!({"use": id, "at": at.map(|a| [a.x, a.y]), "person": args.get("person")});
+            if paused {
+                answer["did"] = json!("paused: done on the next step, its result in their memory");
+                return Ok(answer);
+            }
+            // Answered once the act is done and the interact path has run
+            // on it, with what their memory holds of it: no clock here.
+            loop {
+                std::thread::sleep(std::time::Duration::from_millis(10));
+                let Ok(mut watches) = ACT_WATCH.lock() else { break };
+                let Some(at) = watches.iter().position(|w| w.token == token && w.answer.is_some()) else { continue };
+                let did = watches.remove(at).answer.unwrap_or_default();
+                answer["did"] = if did.is_empty() { json!(["nothing remembered"]) } else { json!(did) };
+                break;
+            }
+            Ok(answer)
         },
     ));
     OP_REGISTRY.register(OpDef::new(

@@ -370,7 +370,7 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind, port: u16
                 control_plane::publish,
                 control_plane::publish_world,
                 control_plane::publish_ways,
-                (control_plane::answer_kill, control_plane::answer_give, control_plane::answer_needs, control_plane::answer_acts).chain(),
+                (control_plane::answer_kill, control_plane::answer_give, control_plane::answer_needs, control_plane::answer_acts, control_plane::answer_act_results).chain(),
                 lap("publish"),
             )
                 .chain(),

@@ -12,6 +12,7 @@ use bevy::prelude::*;
 use modforge::actions::{ActionQueue, Stamped};
 use modforge::actor::ActorId;
 use modforge::command::{Act, Command, Done, Given, Replay, Step};
+use modforge::memory::Did;
 
 use crate::actor::{Actor, Dead, Memory, Npc};
 use crate::ai::{Following, Leading};
@@ -212,8 +213,9 @@ pub fn carry_out(
     registry: Res<ActorRegistryRes>,
     factions: Res<FactionRegistryRes>,
     episodes: Res<EpisodeRegistryRes>,
+    ways: crate::navmesh::Ways,
     mut people: Query<(
-        (Entity, &Actor, &Transform, &mut ThisTick, &mut Commanded),
+        (Entity, &Actor, &Transform, &mut ThisTick, &mut Commanded, Option<&crate::navmesh::Walker>),
         (
             Has<Following>,
             Has<Dead>,
@@ -235,12 +237,15 @@ pub fn carry_out(
     let archipelago = archipelagos.get(nav.archipelago).ok();
     let on_mesh = |at: Vec3| archipelago.and_then(|a| crate::navmesh::on_mesh(a, at));
     let heard = |words: &str| episodes.felt(words);
-    for ((entity, actor, at, mut this_tick, mut commanded), (following, dead, hud, looking, children, leading, holding, is_player)) in &mut people {
+    for ((entity, actor, at, mut this_tick, mut commanded, walker), (following, dead, hud, looking, children, leading, holding, is_player)) in &mut people {
         // A move of their own is the player's keys (a move with no aim);
         // anyone else's moves come from the walk, never their own.
         let (x, y) = ActionQueue::movement(&this_tick.0);
         let own_move = is_player && (x != 0.0 || y != 0.0) && ActionQueue::aim(&this_tick.0).is_none();
         if dead || own_move {
+            if own_move && let Some(command) = commanded.left.front() {
+                remember(&mut commands, entity, Did::Failed(words_of(command), "stopped by a move of their own".to_string()), tick.0);
+            }
             commands.entity(entity).remove::<Commanded>();
             continue;
         }
@@ -339,8 +344,30 @@ pub fn carry_out(
                 _ => false,
             };
             let looking_at_them = who.is_some() && looking.and_then(|l| l.0).map(|(_, id)| id) == who;
+            // A move to a point the navigation mesh gives no way to stops,
+            // and why is remembered: landmass, walking them to that very
+            // point, found no way (todo: write every act's result into
+            // memory, 2026-11-19).
+            if let Command::MoveTo { to } = command
+                && let Some((state, going)) = crate::navmesh::way_of(walker, &ways)
+                && crate::navmesh::going_to(going).is_some_and(|p| p.distance(to.into()) < 1.0)
+                && let Some(why) = match state {
+                    bevy_landmass::AgentState::NoPath => Some("no way there"),
+                    bevy_landmass::AgentState::TargetNotOnNavMesh => Some("the place is not on the navigation mesh"),
+                    bevy_landmass::AgentState::AgentNotOnNavMesh => Some("they are not on the navigation mesh"),
+                    _ => None,
+                }
+            {
+                remember(&mut commands, entity, Did::Failed(words_of(&command), why.to_string()), tick.0);
+                this_tick.0.retain(|s| !matches!(s.action, Action::Go { .. } | Action::Aim { .. }));
+                commanded.next();
+                continue;
+            }
             let actions = match modforge::command::step(&command, here, target, ended, looking_at_them, crate::talk::TALK_REACH) {
                 Step::Done => {
+                    if let Command::MoveTo { .. } = command {
+                        remember(&mut commands, entity, Did::Done(format!("{}: there", words_of(&command))), tick.0);
+                    }
                     // Answered, the knocker stays for the talk that began
                     // (talk::hold, as the talk holds anyone it is with), not
                     // off on their own the moment their knock is done.
@@ -383,6 +410,31 @@ pub fn carry_out(
             }
             break;
         }
+    }
+}
+
+/// Note what a command came to in that person's memory, the one record of
+/// what anyone did, at the end of this step (the carrying out reads every
+/// memory while it runs).
+fn remember(commands: &mut Commands, who: Entity, did: Did, tick: u64) {
+    commands.entity(who).queue(move |mut person: EntityWorldMut| {
+        if let Some(mut memory) = person.get_mut::<Memory>() {
+            memory.0.did(did, tick);
+        }
+    });
+}
+
+/// A command in words, as memory keeps it: "move to 3.0, 0.0, 5.0".
+fn words_of(command: &Command) -> String {
+    match command {
+        Command::MoveTo { to } => format!("move to {:.1}, {:.1}, {:.1}", to.x, to.y, to.z),
+        Command::Follow { who } => format!("follow {who}"),
+        Command::Lead { who, .. } => format!("lead {who}"),
+        Command::Hold { .. } => "hold".to_string(),
+        Command::TalkTo { who } => format!("talk to {who}"),
+        Command::Knock { who } => format!("knock for {who}"),
+        Command::Attack { who } => format!("attack {who}"),
+        Command::AttackNearestEnemy => "attack the nearest enemy".to_string(),
     }
 }
 
