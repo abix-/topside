@@ -1924,6 +1924,18 @@ const WOOD: &[Rgb] = &[[0.45, 0.32, 0.18], [0.55, 0.45, 0.2], [0.35, 0.25, 0.15]
 const STEEL: &[Rgb] = &[[0.3, 0.32, 0.35], [0.25, 0.3, 0.4], [0.5, 0.2, 0.15]];
 const CLEAN: &[Rgb] = &[[0.8, 0.82, 0.85], [0.6, 0.7, 0.75], [0.3, 0.5, 0.6]];
 
+/// The model a wall tile is drawn with, by what it is made of (design.md
+/// "Walls and floors by what they are made of"), read from its colour:
+/// the bunker's concrete and the concrete palette are concrete; the rest
+/// are the plain wall.
+pub fn wall_model(color: Rgb) -> &'static str {
+    if color == CONCRETE_WALL || CONCRETE.contains(&color) {
+        "wall concrete"
+    } else {
+        "wall"
+    }
+}
+
 /// The building types (design.md "Building types"): small, medium,
 /// large, each with the parameter ranges that change on every roll:
 /// columns and rows of rooms per floor, floors, room footprint,

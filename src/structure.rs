@@ -176,7 +176,7 @@ pub fn spawn_structure(commands: &mut Commands, ids: &mut crate::interact::Thing
             for x in r.from..r.to {
                 let tile = at + Vec2::new(x as f32 + 0.5, r.row as f32 + 0.5);
                 if r.kind == TileKind::Wall {
-                    pieces.push((Model("wall".to_string()), tint, Transform::from_translation(on_ground(tile, y)).with_scale(Vec3::new(1.0, (height + SLAB) / WALL_HEIGHT, 1.0))));
+                    pieces.push((Model(crate::content::wall_model(r.color).to_string()), tint, Transform::from_translation(on_ground(tile, y)).with_scale(Vec3::new(1.0, (height + SLAB) / WALL_HEIGHT, 1.0))));
                     continue;
                 }
                 // The slab, drawn as the floor tile stretched to its
@@ -236,7 +236,7 @@ pub fn spawn_structure(commands: &mut Commands, ids: &mut crate::interact::Thing
             let size = block.along * along + Vec2::new(block.along.y, block.along.x);
             shapes.push((on_ground(middle, bottom + tall / 2.0), Rotation::IDENTITY, Collider::cuboid(size.x, tall, size.y)));
             pieces.push((
-                Model("wall".to_string()),
+                Model(crate::content::wall_model(def.wall_color).to_string()),
                 wall_tint,
                 Transform::from_translation(on_ground(at + middle, bottom)).with_scale(Vec3::new(size.x, tall / WALL_HEIGHT, size.y)),
             ));

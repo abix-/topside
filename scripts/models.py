@@ -1854,6 +1854,26 @@ def wall():
     return join([box("block", (1.0, 1.0, WALL_HEIGHT), mat=material("wall", LIGHT))], "wall")
 
 
+def wall_concrete():
+    """one tile of poured concrete wall (design.md "Walls and floors by
+    what they are made of"): the block with the dark seams between its
+    pours running round it, and the form-tie holes in rows between them,
+    so it reads apart from the tiled floor."""
+    seam = material("pour seam", (0.6, 0.6, 0.6))
+    hole = material("tie hole", (0.3, 0.3, 0.3))
+    parts = [box("block", (1.0, 1.0, WALL_HEIGHT), mat=material("wall", LIGHT))]
+    pours = 4
+    for i in range(1, pours):
+        z = WALL_HEIGHT * i / pours
+        parts.append(box(f"seam_{i}", (1.008, 1.008, 0.025), at=(0, 0, z), mat=seam))
+    for i in range(pours):
+        z = WALL_HEIGHT * (i + 0.5) / pours
+        for x in (-0.25, 0.25):
+            for k, (sx, sy, at) in enumerate([(0.05, 1.008, (x, 0, z)), (1.008, 0.05, (0, x, z))]):
+                parts.append(box(f"hole_{i}_{x}_{k}", (sx, sy, 0.05), at=at, mat=hole))
+    return join(parts, "wall concrete")
+
+
 def furniture():
     """one tile of furniture (shelves, a counter): a block a little smaller
     than its tile."""
@@ -2193,6 +2213,7 @@ MODELS = {
     "pellet": pellet,
     # Buildings, a tile at a time (src/structure.rs).
     "wall": wall,
+    "wall concrete": wall_concrete,
     "furniture": furniture,
     "floor": floor,
     "door": door,
