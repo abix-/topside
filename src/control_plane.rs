@@ -1789,9 +1789,27 @@ pub fn start(port: u16) {
     ));
     OP_REGISTRY.register(OpDef::new(
         "people",
-        "every NPC: id, def, faction, position, health, needs, traits, actions this tick",
-        "",
-        |_| Ok(PEOPLE_LIST.lock().map(|p| p.clone()).unwrap_or(Json::Null)),
+        "every NPC: id, def, faction, position, health, needs, traits, actions this tick; with a filter, only those it takes (the whole list is too big for one MCP answer): `ids` [id, ...], `near` [x, z] within `within` metres (10 when left out), `faction` (a bunker's people share its faction, \"bunker 1\")",
+        "{\"near\": [400, 160], \"within\": 20}",
+        |args| {
+            let list = PEOPLE_LIST.lock().map(|p| p.clone()).unwrap_or(Json::Null);
+            let ids: Option<Vec<u64>> = args.get("ids").and_then(Json::as_array).map(|a| a.iter().filter_map(Json::as_u64).collect());
+            let near = args.get("near").and_then(Json::as_array).and_then(|a| Some((a.first()?.as_f64()?, a.get(1)?.as_f64()?)));
+            let within = args.get("within").and_then(Json::as_f64).unwrap_or(10.0);
+            let faction = args.get("faction").and_then(Json::as_str);
+            if ids.is_none() && near.is_none() && faction.is_none() {
+                return Ok(list);
+            }
+            let takes = |p: &Json| {
+                ids.as_ref().is_none_or(|ids| p["id"].as_u64().is_some_and(|id| ids.contains(&id)))
+                    && near.is_none_or(|(x, z)| {
+                        let (px, pz) = (p["at"][0].as_f64().unwrap_or(f64::INFINITY), p["at"][1].as_f64().unwrap_or(f64::INFINITY));
+                        (px - x).hypot(pz - z) <= within
+                    })
+                    && faction.is_none_or(|f| p["faction"].as_str() == Some(f))
+            };
+            Ok(Json::Array(list.as_array().map(|l| l.iter().filter(|p| takes(p)).cloned().collect()).unwrap_or_default()))
+        },
     ));
     OP_REGISTRY.register(OpDef::new(
         "speed",
