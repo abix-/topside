@@ -310,6 +310,7 @@ pub fn melee(
         >,
     )>,
     tick: Res<crate::SimTick>,
+    mut practice: (Query<&crate::skills::Skills>, ResMut<crate::skills::Practised>),
 ) {
     let dt = time.delta_secs();
     // Every swing that goes this tick: who, from where, which way,
@@ -423,11 +424,13 @@ pub fn melee(
             // the body.
             let y = lines.get(&attacker).map_or(at.translation.y, |(eye, rise)| eye + rise * offset.length());
             let area = area_hit(y, at);
+            // A practised fighter hits harder (todo 31).
+            let skill = crate::skills::hit_scale(practice.0.get(attacker).ok());
             let hit = Hit {
                 def,
                 self_inflicted: false,
                 distance: offset.length(),
-                location_scale: scale * area.scale(),
+                location_scale: scale * area.scale() * skill,
             };
             let (result, killed) = hit_actor(
                 &hit,
@@ -443,6 +446,7 @@ pub fn melee(
             );
             feel_hit(&mut commands, target, here, at.translation.ground(), &result);
             struck(memory, attacker_id, here, result.damage_dealt, tick.0);
+            practice.1.0.push((attacker, crate::skills::COMBAT, (result.damage_dealt * crate::skills::DAMAGE_XP).round() as u64));
             if let Some(whom) = target_id {
                 gave.push((attacker, whom.0, result.damage_dealt, killed));
             }
@@ -612,6 +616,7 @@ pub fn fly(
         (&Transform, &Protection, &Equipment, &mut Health, Option<&mut Memory>, Option<&Actor>),
         (Without<Dead>, Without<Bullet>),
     >,
+    mut practice: (Query<&crate::skills::Skills>, ResMut<crate::skills::Practised>),
 ) {
     let step = BULLET_SPEED * time.delta_secs();
     // (shooter, damage def, pellets summed per target, quality power) this
@@ -685,16 +690,19 @@ pub fn fly(
             };
             let to = at.translation.ground();
             let area = areas.iter().find(|(e, _)| *e == target).map_or(BodyArea::default(), |(_, a)| *a);
+            // A practised shooter hits harder (todo 31).
+            let skill = crate::skills::hit_scale(practice.0.get(shooter).ok());
             let hit = Hit {
                 def,
                 self_inflicted: false,
                 distance,
-                location_scale: pellets as f32 * area.scale() * power,
+                location_scale: pellets as f32 * area.scale() * power * skill,
             };
             let (result, killed) =
                 hit_actor(&hit, own, worn, &items.0, &layers.0, area, &mut health, memory.as_deref_mut(), Some(by), tick.0);
             feel_hit(&mut commands, target, from, to, &result);
             struck(memory, by, from, result.damage_dealt, tick.0);
+            practice.1.0.push((shooter, crate::skills::COMBAT, (result.damage_dealt * crate::skills::DAMAGE_XP).round() as u64));
             let whom = target_id.map(|a| a.0);
             if let (Some(whom), Ok((.., Some(mut memory), _))) = (whom, targets.get_mut(shooter)) {
                 gave_hit(&mut memory, whom, result.damage_dealt, killed, tick.0);

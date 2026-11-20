@@ -103,6 +103,7 @@ saved! {
         crate::turret::Turret,
         crate::exposure::Exposure,
         crate::power::Generator,
+        crate::skills::Skills,
         crate::combat::Health,
         crate::combat::Protection,
         crate::combat::Equipment,

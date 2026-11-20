@@ -34,6 +34,7 @@ pub mod weather;
 pub mod power;
 pub mod randy;
 pub mod silo;
+pub mod skills;
 pub mod research;
 pub mod save;
 pub mod secrets;
@@ -249,6 +250,7 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind, port: u16
     app.init_resource::<research::TechTreeRes>();
     app.init_resource::<research::Researched>();
     app.init_resource::<silo::Silo>();
+    app.init_resource::<skills::Practised>();
     app.init_resource::<building::Builds>();
     app.init_resource::<raid::Raids>();
     app.init_resource::<content::LayerRegistryRes>();
@@ -335,7 +337,7 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind, port: u16
                 survival::survival_tick,
                 survival::waste,
                 // Temperature and radiation, then the generators (todo 29).
-                (exposure::expose, power::run, silo::dig, silo::rebuild, silo::set_down).chain(),
+                (exposure::expose, power::run, silo::dig, silo::rebuild, silo::set_down, skills::learn).chain(),
                 survival::rot,
                 lap("survival"),
                 (

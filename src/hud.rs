@@ -1141,11 +1141,11 @@ pub fn hud_keys(
     registry: Res<ItemRegistryRes>,
     recipes: Res<RecipeRegistryRes>,
     layers: Res<crate::content::LayerRegistryRes>,
-    mut research: (Res<crate::research::TechTreeRes>, ResMut<crate::research::Researched>),
+    mut research: (Res<crate::research::TechTreeRes>, ResMut<crate::research::Researched>, ResMut<crate::skills::Practised>),
     stations: Query<(&crate::interact::Interactable, &Transform, Option<&crate::power::Powered>)>,
     mut people: Query<
         (
-            (Entity, Option<&crate::actor::Actor>, &ThisTick, &Transform, Has<Player>, Option<&crate::actor::Npc>),
+            (Entity, Option<&crate::actor::Actor>, &ThisTick, &Transform, Has<Player>, Option<&crate::actor::Npc>, Option<&crate::skills::Skills>),
             (&mut Hud, &mut OpenContainer, &mut OpenStation),
             &mut Survival,
             &mut Hotbar,
@@ -1165,7 +1165,7 @@ pub fn hud_keys(
     let order = crate::actor::in_actor_order(people.iter().map(|((entity, actor, ..), ..)| (actor.map(|a| a.0), entity)));
     for entity in order {
         let Ok((
-            (_, _, this_tick, at, is_player, npc),
+            (_, _, this_tick, at, is_player, npc, skills),
             (mut hud, mut open, mut station),
             mut needs,
             mut hotbar,
@@ -1297,7 +1297,7 @@ pub fn hud_keys(
                         continue;
                     };
                     let group = crate::research::group_of(is_player, npc);
-                    let (tree, researched) = (&research.0, &mut research.1);
+                    let (tree, researched, practised) = (&research.0, &mut research.1, &mut research.2);
                     let known = researched.0.get(&group).cloned().unwrap_or_default();
                     let recipe = match crate::research::rows(kind, &recipes.0, &tree.0, &known).into_iter().nth(index) {
                         Some(crate::research::Row::Recipe(recipe)) => recipe,
@@ -1306,10 +1306,12 @@ pub fn hud_keys(
                             if !crate::power::station_powered(at.translation, kind, &stations) {
                                 continue;
                             }
-                            let cost = tree.0.cost(topic, &known);
+                            // A practised researcher's topic takes less (todo 31).
+                            let cost = crate::skills::research_cost(tree.0.cost(topic, &known), skills);
                             if crate::research::pay(&mut inventory.0, &cost) {
                                 let name = topic.name.clone();
                                 tree.0.research(&name, researched.0.entry(group).or_default());
+                                practised.0.push((entity, crate::skills::RESEARCH, crate::skills::RESEARCH_XP));
                             }
                             continue;
                         }
@@ -1317,10 +1319,17 @@ pub fn hud_keys(
                     };
                     // modforge's `craft`, the one way anything is made; what
                     // is made goes into the inventory, or at the feet when it
-                    // is full.
-                    let Some(made) = craft(recipe, &mut inventory.0, &registry.0, &layers.0, &[], tick.0 as f32, tick.0) else {
+                    // is full. A practised crafter's odds lean to better
+                    // quality (todo 31).
+                    let odds = modforge::practice::lean_odds(
+                        &modforge::quality::odds(&crate::content::QUALITY, 0),
+                        crate::skills::mastery(skills, crate::skills::CRAFTING),
+                        crate::skills::CRAFT_LEAN,
+                    );
+                    let Some(made) = craft(recipe, &mut inventory.0, &registry.0, &layers.0, &odds, tick.0 as f32, tick.0) else {
                         continue;
                     };
+                    practised.0.push((entity, crate::skills::CRAFTING, crate::skills::CRAFT_XP));
                     let Some(def) = registry.0.def(&made.item) else {
                         continue;
                     };
@@ -1404,12 +1413,12 @@ pub fn render_station(
     recipes: Res<RecipeRegistryRes>,
     research: (Res<crate::research::TechTreeRes>, Res<crate::research::Researched>),
     stations: Query<(&crate::interact::Interactable, &Transform, Option<&crate::power::Powered>)>,
-    players: Query<(&Inventory, &OpenStation, &Transform), With<Player>>,
+    players: Query<(&Inventory, &OpenStation, &Transform, Option<&crate::skills::Skills>), With<Player>>,
     mut panels: Query<(&mut Visibility, &Children), (With<StationPanel>, Without<RecipeRow>)>,
     mut rows: Query<(&mut RecipeRow, &Children, &mut BackgroundColor, &mut Node)>,
     mut texts: Query<&mut Text>,
 ) {
-    let (Ok((mut panel, in_order)), Ok((inventory, station, at))) = (panels.single_mut(), players.single()) else {
+    let (Ok((mut panel, in_order)), Ok((inventory, station, at, skills))) = (panels.single_mut(), players.single()) else {
         return;
     };
     let Some(kind) = station.0 else {
@@ -1437,7 +1446,7 @@ pub fn render_station(
                 (format!("{} x{}  <-  {}", recipe.output.0, recipe.output.1, takes.join(", ")), can_craft(recipe, &inventory.0))
             }
             crate::research::Row::Topic(topic) => {
-                let cost = tree.0.cost(topic, &known);
+                let cost = crate::skills::research_cost(tree.0.cost(topic, &known), skills);
                 let takes: Vec<String> = cost.iter().map(|(item, n)| format!("{item} x{n}")).collect();
                 let level = known.level(&topic.name) + 1;
                 let name = if topic.endless { format!("Research {} {level}", topic.name) } else { format!("Research {}", topic.name) };
