@@ -334,7 +334,9 @@ pub fn melee(
             .and_then(|s| items.0.def(&s.item).and_then(|d| numbers_of(d, s, &layers.0).combat))
             .filter(|w| w.ammo.is_none());
         // A better tier hits harder (design.md "Loot randomization").
-        let quality = modforge::quality::power(held.and_then(|s| s.quality).map(|q| q.tier), &crate::content::QUALITY);
+        // Its affixes too, all together.
+        let quality = modforge::quality::power(held.and_then(|s| s.quality).map(|q| q.tier), &crate::content::QUALITY)
+            * held.map_or(1.0, |s| modforge::affix::power(&s.affixes));
         let personality = personality.map(|p| p.0).unwrap_or_default();
         // The swing pressed earlier lands once its wind-up has passed
         // (combat.md "Simple to use": every attack shows a wind-up before
@@ -543,7 +545,8 @@ pub fn fire(
         let Some(gun) = held.and_then(|s| items.0.def(&s.item).and_then(|d| numbers_of(d, s, &layers.0).combat)) else {
             continue;
         };
-        let power = modforge::quality::power(held.and_then(|s| s.quality).map(|q| q.tier), &crate::content::QUALITY);
+        let power = modforge::quality::power(held.and_then(|s| s.quality).map(|q| q.tier), &crate::content::QUALITY)
+            * held.map_or(1.0, |s| modforge::affix::power(&s.affixes));
         // Hand weapons are `melee`'s.
         let Some(ammo) = gun.ammo.as_deref() else {
             continue;

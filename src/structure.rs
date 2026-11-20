@@ -569,6 +569,12 @@ pub fn spawn_sites(
                             // water (Claude's reading, for the operator to
                             // change).
                             stack.litres = def.holds_litres.unwrap_or(0.0);
+                            // A found weapon rolls its affixes on top of
+                            // its tier (design.md "Loot randomization").
+                            if let Some(fight) = &def.combat {
+                                let table = crate::content::affixes(fight.ammo.is_some());
+                                stack.affixes = modforge::affix::roll(&table, crate::content::AFFIX_ONE_IN, 0.0, box_seed ^ (i as u64) << 8);
+                            }
                             let _ = contents.add(stack, def.max_stack);
                         }
                         Err(e) => warn!("loot: {e}"),

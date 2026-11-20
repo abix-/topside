@@ -825,6 +825,26 @@ pub const ANIMALS: [&str; 1] = ["wolf"];
 /// one armor there is.
 pub const HOSTILE_ARMOR: &str = "road sign vest";
 
+/// The affixes a found weapon rolls on top of its tier (design.md "Loot
+/// randomization": a lightweight pipe swings faster, a precise gun is more
+/// accurate, and affixes stack), as (name, reach, spread, delay, power).
+/// "Sturdy" and "rugged" wait for durability and condition. The numbers and
+/// the one in five are Claude's, for the operator to change.
+pub const AFFIX_ONE_IN: u64 = 5;
+pub fn affixes(gun: bool) -> Vec<modforge::affix::Affix> {
+    let melee: &[(&str, f32, f32, f32, f32)] = &[("lightweight", 0.0, 0.0, -0.1, 1.0), ("sharpened", 0.0, 0.0, 0.0, 1.15)];
+    let guns: &[(&str, f32, f32, f32, f32)] = &[("precise", 0.0, -3.0, 0.0, 1.0), ("lightweight", 0.0, 0.0, -0.1, 1.0)];
+    (if gun { guns } else { melee })
+        .iter()
+        .map(|&(name, reach, spread_degrees, delay, power)| modforge::affix::Affix {
+            name: name.to_string(),
+            reach,
+            spread_degrees,
+            delay,
+            power,
+        })
+        .collect()
+}
 
 /// The quality tiers a found item rolls (design.md "Loot randomization",
 /// authority.md "Quality": every item rolls a tier, rarer is better), best

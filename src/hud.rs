@@ -201,6 +201,11 @@ pub fn information(
             lines.push(format!("Hits x{:.2}", modforge::quality::power(tier, &crate::content::QUALITY)));
         }
     }
+    // Its affixes, each by name.
+    if !stack.affixes.is_empty() {
+        let names: Vec<&str> = stack.affixes.iter().map(|a| a.name.as_str()).collect();
+        lines.push(format!("Affixes {}", names.join(", ")));
+    }
     if let Some(armor) = numbers.armor {
         lines.push(format!("Protection {:.0}", armor.amount));
     }
