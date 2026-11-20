@@ -16,6 +16,7 @@ fn items() -> Vec<Json> {
 /// the grip's quickening on its 1.2 s.
 #[test]
 fn the_pipe_shotgun_lies_with_its_parts_and_their_numbers() {
+    crate::opening::you_wake();
     let list = items();
     let gun = list
         .iter()
@@ -31,6 +32,7 @@ fn the_pipe_shotgun_lies_with_its_parts_and_their_numbers() {
 /// of its layers' models on it (`<item> <layer>`).
 #[test]
 fn a_layered_item_lying_in_the_world_shows_its_layers() {
+    crate::opening::you_wake();
     let list = items();
     eprintln!("{} layered items lying in the world", list.len());
     assert!(!list.is_empty(), "no layered item lying in the world");

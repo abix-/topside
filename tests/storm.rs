@@ -10,6 +10,7 @@ use crate::endpoint::{is_bunker_person, op, people};
 /// again until it has published since the request).
 #[test]
 fn the_storm_op_brings_the_storm_now() {
+    crate::opening::you_wake();
     let before = op("world");
     let asked = op("storm");
     eprintln!("storm op answered {asked}; before it: tick {}, storm {}, {} storms", before["tick"], before["storm"], before["storms"]);
@@ -28,6 +29,7 @@ fn the_storm_op_brings_the_storm_now() {
 
 #[test]
 fn the_storm_hurts_the_open_bunker_people_shelter_and_the_world_shifts() {
+    crate::opening::you_wake();
     let w = op("world");
     let storms = w["storms"].as_u64().unwrap_or(0);
     let list = people();

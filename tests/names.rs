@@ -5,6 +5,7 @@ use crate::endpoint::people;
 
 #[test]
 fn everybody_has_a_name() {
+    crate::opening::you_wake();
     let list = people();
     let unnamed: Vec<_> = list.iter().filter(|p| p["name"].as_str().is_none_or(str::is_empty)).map(|p| p["id"].clone()).collect();
     let some: Vec<_> = list.iter().take(5).map(|p| p["name"].clone()).collect();
@@ -15,6 +16,7 @@ fn everybody_has_a_name() {
 
 #[test]
 fn roxanne_lives_in_the_players_bunker() {
+    crate::opening::you_wake();
     let list = people();
     let roxanne: Vec<_> = list.iter().filter(|p| p["name"] == "Roxanne" && p["faction"] == "player").collect();
     eprintln!("Roxanne: {:?}", roxanne.iter().map(|p| (p["id"].clone(), p["dead"].clone())).collect::<Vec<_>>());

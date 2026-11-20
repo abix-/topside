@@ -15,6 +15,7 @@ fn panel<'a>(hud: &'a Json, holder: &str) -> &'a Json {
 
 #[test]
 fn the_inventory_screen_is_rusts_layout() {
+    crate::opening::you_wake();
     let hud = op("hud");
     eprintln!("{hud:#}");
     let (worn, inventory, belt, container) =
@@ -37,6 +38,7 @@ fn the_inventory_screen_is_rusts_layout() {
 /// ending in Drop.
 #[test]
 fn the_selected_slot_shows_its_item_information() {
+    crate::opening::you_wake();
     let hud = op("hud");
     let selected = &hud["selected"];
     eprintln!("{selected:#}");
@@ -58,6 +60,7 @@ fn the_selected_slot_shows_its_item_information() {
 /// layers', pictures scripts/models.py rendered from the models.
 #[test]
 fn every_filled_slot_shows_icons_rendered_from_the_models() {
+    crate::opening::you_wake();
     let hud = op("hud");
     let filled = hud["filled"].as_array().expect("the hud op gives the filled slots");
     let icons = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../assets/icons");

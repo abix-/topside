@@ -6,6 +6,7 @@ use crate::endpoint::op;
 
 #[test]
 fn the_camera_sees_the_world_cel_shaded() {
+    crate::opening::you_wake();
     let view = op("view");
     eprintln!("view: {view}");
     let camera = &view["camera"];
@@ -20,6 +21,7 @@ fn the_camera_sees_the_world_cel_shaded() {
 /// up on the storeys, and the stair towers' steps and landings.
 #[test]
 fn buildings_stand_their_floors_above_the_ground_with_stairs() {
+    crate::opening::you_wake();
     let view = op("view");
     let status = op("status");
     eprintln!("floors above {}, blocks above {}, the player's feet at {}", view["floors_above"], view["blocks_above"], status["player_feet"]);

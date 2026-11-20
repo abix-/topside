@@ -26,6 +26,7 @@ fn op_with(name: &str, args: Json) -> Option<Json> {
 /// frame rate: read only, the game left as it is.
 #[test]
 fn what_each_step_costs_now() {
+    crate::opening::you_wake();
     let (Some(perf), Some(status)) = (op("perf"), op("status")) else {
         panic!("no game answering");
     };
@@ -46,6 +47,7 @@ fn what_each_step_costs_now() {
 
 #[test]
 fn the_game_keeps_up_with_real_time_and_its_people_live() {
+    crate::opening::you_wake();
     let (Some(status), Some(world), Some(perf)) = (op("status"), op("world"), op("perf")) else {
         panic!("no topside game answering on {}; start it with scripts/build.ps1 run", url());
     };

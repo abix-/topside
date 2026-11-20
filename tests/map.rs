@@ -7,6 +7,7 @@ use crate::endpoint::{op, people};
 
 #[test]
 fn people_carry_maps_that_fill_as_they_look_around() {
+    crate::opening::you_wake();
     let list = people();
     let tiles: Vec<u64> = list.iter().filter(|p| p["dead"] == false).filter_map(|p| p["map_tiles"].as_u64()).collect();
     let with_map = tiles.iter().filter(|t| **t > 0).count();
@@ -20,6 +21,7 @@ fn people_carry_maps_that_fill_as_they_look_around() {
 /// tiles only a mate saw.
 #[test]
 fn bunker_people_learn_the_map_from_their_bunker() {
+    crate::opening::you_wake();
     let list = people();
     let told: Vec<String> = list
         .iter()
@@ -35,6 +37,7 @@ fn bunker_people_learn_the_map_from_their_bunker() {
 /// the player at its centre.
 #[test]
 fn the_map_shows_only_what_the_player_has_seen_around_them() {
+    crate::opening::you_wake();
     let view = op("view");
     let map = &view["map"];
     eprintln!("map: {map}");

@@ -31,6 +31,7 @@ fn player_until(done: impl Fn(&serde_json::Value) -> bool) -> serde_json::Value 
 /// closed it meanwhile.
 #[test]
 fn use_on_a_person_opens_the_talk_panel() {
+    crate::opening::you_wake();
     crate::endpoint::player_alive();
     let w = op("world");
     let Some((dell, _)) = dell_and_the_tap(&w) else {
@@ -64,6 +65,7 @@ fn use_on_a_person_opens_the_talk_panel() {
 /// The `talk` op: Dell tells the player of the tap again; both remember.
 #[test]
 fn the_talk_op_brings_a_talk_now() {
+    crate::opening::you_wake();
     crate::endpoint::player_alive();
     let w = op("world");
     let Some((dell, tap)) = dell_and_the_tap(&w) else {

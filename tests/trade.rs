@@ -59,6 +59,7 @@ fn click_slot(holder: &str, item: &str) -> bool {
 /// for water, and both remember it.
 #[test]
 fn a_thirsty_person_trades_with_one_carrying_water_to_spare() {
+    crate::opening::you_wake();
     op_with("replay", json!({"stop": true}));
     let strangers: Vec<u64> = people().into_iter().filter(|p| p["faction"].is_null() && p["dead"] != true).filter_map(|p| p["id"].as_u64()).take(8).collect();
     assert!(strangers.len() >= 2, "two living strangers needed, found {}", strangers.len());
@@ -102,6 +103,7 @@ fn a_thirsty_person_trades_with_one_carrying_water_to_spare() {
 
 #[test]
 fn the_player_trades_with_a_stranger_through_the_panel_and_a_poor_offer_is_refused() {
+    crate::opening::you_wake();
     crate::endpoint::player_alive();
     op_with("replay", json!({"stop": true}));
     let player = op("player")["id"].as_u64().expect("the player op reports the player's id");

@@ -73,6 +73,7 @@ fn within(secs: u64, done: impl Fn() -> bool) -> bool {
 
 #[test]
 fn talk_to_walks_the_player_over_and_the_talk_box_opens() {
+    crate::opening::you_wake();
     crate::endpoint::player_alive();
     // No commands left from an earlier test.
     op_with("replay", json!({"stop": true}));
@@ -101,6 +102,7 @@ fn talk_to_walks_the_player_over_and_the_talk_box_opens() {
 
 #[test]
 fn move_to_walks_the_player_there() {
+    crate::opening::you_wake();
     crate::endpoint::player_alive();
     // No commands left from an earlier test.
     op_with("replay", json!({"stop": true}));
@@ -155,8 +157,8 @@ fn tick_and_command(g: &Json) -> (Json, Json, Json) {
 #[test]
 fn a_replay_played_from_a_save_gives_the_commands_after_it_at_their_own_ticks() {
     const START: &str = "replay_start";
-    crate::endpoint::player_alive();
     let _paused = crate::endpoint::pause();
+    crate::opening::you_wake();
     op_with("replay", json!({"stop": true}));
     crate::endpoint::step(1);
     // The save the replay starts from, and the commands given before it.

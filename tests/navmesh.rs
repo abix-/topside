@@ -40,6 +40,7 @@ fn way(from: [f64; 3], to: [f64; 3], secs: u64) -> Json {
 /// its half landings at z -5 (modforge monument.rs's stair tower).
 #[test]
 fn each_piece_of_the_way_down_is_joined() {
+    crate::opening::you_wake();
     let pieces = [
         ("entrance to the stairwell's landing", [0.0, 0.0, 0.0], [5.2, 0.0, 0.0]),
         ("landing down to the half landing", [5.2, 0.0, 0.0], [5.2, -1.5, -5.0]),
@@ -71,6 +72,7 @@ fn each_piece_of_the_way_down_is_joined() {
 /// none left waiting.
 #[test]
 fn every_chunk_made_has_its_mesh() {
+    crate::opening::you_wake();
     let mut answer = Json::Null;
     for _ in 0..60 {
         op_with("nav_path", json!({"from": [0.0, 0.0, 0.0], "to": [0.0, 0.0, 0.0]}));
@@ -90,6 +92,7 @@ fn every_chunk_made_has_its_mesh() {
 /// bunker to the bunker 300 m east, across about ten chunk edges.
 #[test]
 fn a_way_runs_across_the_world_from_bunker_to_bunker() {
+    crate::opening::you_wake();
     let answer = way([0.0, 0.0, 12.0], [300.0, 0.0, 12.0], 30);
     let path = answer["path"].as_array().cloned().unwrap_or_default();
     eprintln!("{} waypoints; error {}; first {:?}, last {:?}", path.len(), answer["error"], path.first(), path.last());
@@ -100,6 +103,7 @@ fn a_way_runs_across_the_world_from_bunker_to_bunker() {
 
 #[test]
 fn the_mesh_gives_a_way_down_the_stairwell_to_the_players_room() {
+    crate::opening::you_wake();
     // The bunker point (0, 0): its entrance floor, and the player's room
     // 6 m down.
     let answer = way([0.0, 0.0, 0.0], [0.0, -6.0, 0.0], 20);

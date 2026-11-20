@@ -80,9 +80,6 @@ fn comes_to(at: impl Fn() -> (f64, f64, f64), doing: impl Fn() -> String, to: (f
 /// player wakes, used (the `use` op) if it stands open. Returns where the
 /// player wakes.
 fn the_player_shut_in_their_room() -> (f64, f64, f64) {
-    crate::endpoint::player_alive();
-    // No commands left from an earlier test.
-    op_with("replay", json!({"stop": true}));
     let room = shut_in();
     // Roxanne out of the room last, up in the entrance, so the test starts
     // with her there (an earlier test, or her own errands while the player
@@ -94,36 +91,14 @@ fn the_player_shut_in_their_room() -> (f64, f64, f64) {
     room
 }
 
-/// The player woken in their room with its door shut.
+/// The player woken in their room under the shut hatch: the game's start
+/// (tap_0_you_wake), where they stand.
 fn shut_in() -> (f64, f64, f64) {
-    let player = op("player")["id"].as_u64().expect("the player op reports the player's id");
-    let wake = |_: ()| {
-        op_with("kill", json!({"id": player}));
-        within(3, || op("player")["dead"] == true);
-        crate::endpoint::player_alive();
-        within(3, || (op("status")["player_feet"].as_f64().unwrap_or(0.0) + 6.0).abs() < 0.3);
-        let s = op("status");
-        (s["player"][0].as_f64().unwrap_or(0.0), s["player"][1].as_f64().unwrap_or(0.0), s["player_feet"].as_f64().unwrap_or(0.0))
-    };
-    let room = wake(());
-    let doors = op("world")["bunker_doors"].as_array().cloned().unwrap_or_default();
-    let door = doors
-        .iter()
-        .filter(|d| d["floor"].as_f64().is_some_and(|f| (f - room.2).abs() < 0.5))
-        .min_by(|a, b| {
-            let far = |d: &Json| ((d["at"][0].as_f64().unwrap_or(0.0) - room.0).powi(2) + (d["at"][1].as_f64().unwrap_or(0.0) - room.1).powi(2)).sqrt();
-            far(a).total_cmp(&far(b))
-        })
-        .cloned()
-        .expect("a door on the player's level");
-    eprintln!("the player's room door: {door}");
-    if door["open"] == true {
-        op_with("use", json!({"id": player, "at": door["at"], "height": door["floor"]}));
-        std::thread::sleep(Duration::from_millis(1500));
-        let now = op("world")["bunker_doors"].as_array().and_then(|d| d.iter().find(|d| d["at"] == door["at"] && d["floor"] == door["floor"]).cloned());
-        eprintln!("used it: now {now:?}");
-        return wake(());
-    }
+    crate::opening::you_wake();
+    let s = op("status");
+    let room = (s["player"][0].as_f64().unwrap_or(0.0), s["player"][1].as_f64().unwrap_or(0.0), s["player_feet"].as_f64().unwrap_or(0.0));
+    let hatch = op("world")["bunker_doors"].as_array().and_then(|d| d.iter().find(|d| d["hatch"] == true).cloned());
+    eprintln!("the player's room at {room:?}; the hatch over it: {hatch:?}");
     room
 }
 
@@ -304,17 +279,9 @@ fn the_player_steps_around_her_standing_at_their_door() {
 /// no one is in her way.
 #[test]
 fn walks_down_to_the_players_room_and_back() {
-    crate::endpoint::player_alive();
-    // No commands left from an earlier test.
-    op_with("replay", json!({"stop": true}));
     let player = op("player")["id"].as_u64().expect("the player op reports the player's id");
     // Where the player wakes: in their room.
-    op_with("kill", json!({"id": player}));
-    within(3, || op("player")["dead"] == true);
-    crate::endpoint::player_alive();
-    within(3, || (op("status")["player_feet"].as_f64().unwrap_or(0.0) + 6.0).abs() < 0.3);
-    let s = op("status");
-    let room = (s["player"][0].as_f64().unwrap_or(0.0), s["player"][1].as_f64().unwrap_or(0.0), s["player_feet"].as_f64().unwrap_or(0.0));
+    let room = shut_in();
     // Out of her way: topside, south of the front door.
     op_with("use", json!({"id": player, "at": [0.0, 12.0]}));
     within(3, || op("status")["player_feet"].as_f64().is_some_and(|f| f.abs() < 0.1));

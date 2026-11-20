@@ -26,6 +26,7 @@ fn relation_toward(n: &serde_json::Value, id: u64) -> Option<serde_json::Value> 
 
 #[test]
 fn a_threat_turns_mara_and_not_her_bunker() {
+    crate::opening::you_wake();
     let w = op("world");
     let Some(mara) = w["cast"].as_array().and_then(|c| c.iter().find(|p| p["part"] == "Mara")).and_then(|p| p["id"].as_u64()) else {
         panic!("the episode is {}, with no Mara; not played this run", w["episode"]);
@@ -117,6 +118,7 @@ fn a_threat_turns_mara_and_not_her_bunker() {
 /// half (modforge `talk::share`).
 #[test]
 fn word_of_the_threat_spreads_to_a_mate() {
+    crate::opening::you_wake();
     let w = op("world");
     let Some(mara) = w["cast"].as_array().and_then(|c| c.iter().find(|p| p["part"] == "Mara")).and_then(|p| p["id"].as_u64()) else {
         panic!("the episode is {}, with no Mara; not played this run", w["episode"]);
@@ -165,6 +167,7 @@ fn word_of_the_threat_spreads_to_a_mate() {
 /// the `use` op learns what else she knows and not the tap.
 #[test]
 fn dell_keeps_the_tap_quiet() {
+    crate::opening::you_wake();
     let w = op("world");
     let cast = |part: &str| w["cast"].as_array().and_then(|c| c.iter().find(|p| p["part"] == part)).and_then(|p| p["id"].as_u64());
     let (Some(dell), Some(tap)) = (cast("Dell"), w["things"].as_array().and_then(|t| t.iter().find(|t| t["name"] == "tap")).and_then(|t| t["key"].as_u64())) else {

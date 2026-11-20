@@ -14,6 +14,7 @@ const REALITIES: [(&str, &str, bool, bool); 3] = [
 
 #[test]
 fn the_game_is_in_a_registered_reality_with_its_rules() {
+    crate::opening::you_wake();
     let w = op("world");
     let storms = w["storms"].as_u64().unwrap_or(0);
     let reality = &w["reality"];
@@ -35,6 +36,7 @@ fn the_game_is_in_a_registered_reality_with_its_rules() {
 /// same night everyone tires by.
 #[test]
 fn no_night_in_a_reality_without_night() {
+    crate::opening::you_wake();
     let w = op("world");
     let reality = &w["reality"];
     eprintln!(
@@ -71,6 +73,7 @@ fn world_until(secs: u64, done: impl Fn(&serde_json::Value) -> bool) -> serde_js
 /// the death with ops, so it takes about half a minute.
 #[test]
 fn in_loop_the_killed_come_back_and_the_storm_takes_everything_topside() {
+    crate::opening::you_wake();
     let before = op("world")["storms"].as_u64().unwrap_or(0);
     eprintln!("storm op answered {}", op_with("storm", serde_json::json!({"reality": "Loop"})));
     let w = world_until(60, |w| w["storms"].as_u64().unwrap_or(0) > before);
@@ -107,6 +110,7 @@ fn in_loop_the_killed_come_back_and_the_storm_takes_everything_topside() {
 /// realities each fits, from its file in docs/episodes/.
 #[test]
 fn the_episode_fits_its_reality() {
+    crate::opening::you_wake();
     const FITS: [(&str, &[&str]); 5] = [
         ("The Tap", &["Mixed world", "Sky Islands"]),
         ("The Fever", &[]),
