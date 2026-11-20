@@ -24,6 +24,7 @@ pub mod outline;
 pub mod people;
 pub mod player;
 pub mod profile;
+pub mod radio;
 pub mod randy;
 pub mod save;
 pub mod secrets;
@@ -332,6 +333,7 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind, port: u16
                         anomaly::fly,
                         anomaly::flare,
                         secrets::place,
+                        radio::clicks,
                         episode::cast_episode,
                         episode::name_the_cast,
                         episode::place_things,
