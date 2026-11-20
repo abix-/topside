@@ -21,6 +21,21 @@ use crate::input::{Action, Actions, ThisTick};
 use crate::interact::{Container, Hud, OpenContainer, OpenStation};
 use crate::player::Player;
 
+/// A note read closes once it has been read: as long after the reading
+/// (the `Did::Read` in the reader's memory) as its words take, by the one
+/// reading rule talk lines use (modforge `talk::reading_secs`; todo: close a
+/// read note by the reading rule, 2026-11-19).
+pub fn close_read_notes(tick: Res<crate::SimTick>, mut readers: Query<(&mut Hud, &crate::actor::Memory)>) {
+    for (mut hud, memory) in &mut readers {
+        let Some(note) = hud.0.reading.as_ref().filter(|_| hud.0.open_panel == OpenPanel::Note) else { continue };
+        let Some(read_at) = memory.0.done.iter().rev().find_map(|(t, d)| matches!(d, Did::Read(_)).then_some(*t)) else { continue };
+        if tick.0 >= read_at + crate::talk::ticks_of(modforge::talk::reading_secs(&note.text)) {
+            toggle_panel(&mut hud.0, OpenPanel::Note);
+            hud.0.reading = None;
+        }
+    }
+}
+
 /// Slots drawn for an open box; a bigger box shows its first ones.
 pub const CONTAINER_SLOTS: usize = 24;
 /// Slots across a row of the inventory and the open box (Rust's 6 by 4).
