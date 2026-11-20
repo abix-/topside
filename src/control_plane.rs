@@ -1790,8 +1790,15 @@ fn snapshot() -> Json {
         "fps": f(&FPS_BITS),
         "speed": f(&RUNS_AT_BITS),
         "loading": crate::loading::LOADING.load(Ordering::Relaxed),
+        // Game ticks played since the last save loaded (or the launch): how
+        // far a test has played from its save point (todo 9k).
+        "since_load": TICK.load(Ordering::Relaxed).saturating_sub(LOADED_AT.load(Ordering::Relaxed)),
     })
 }
+
+/// The tick the last save loaded at (0 from the launch), for `status`'s
+/// `since_load`; set by `save::load` when a load is done.
+pub static LOADED_AT: AtomicU64 = AtomicU64::new(0);
 
 /// Every op registered and the server listening on `port` (main.rs
 /// `--port`, `DEFAULT_PORT` when not given).

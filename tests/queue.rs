@@ -72,9 +72,19 @@ fn run_the_queue() {
         let next = op_with("tests", json!({"take": run}));
         let Some(name) = next.as_str() else { break };
         eprintln!("running {name}");
-        let (passed, text) = run_one(&me, name);
+        let (passed, mut text) = run_one(&me, name);
+        // How far the test played from its save point (todo 9k: a few game
+        // seconds): the save it loaded last, as `start_from` names it, and
+        // the game seconds played since (the `status` op's `since_load`).
+        let save = text.lines().filter_map(|l| l.strip_prefix("loaded the save ")).last().and_then(|l| l.split(':').next()).map(str::to_string);
+        let played = crate::endpoint::op("status")["since_load"].as_u64().unwrap_or(0) as f64 / 60.0;
+        let from = match &save {
+            Some(save) => format!("from its save {save}: {played:.1} game seconds played after it"),
+            None => format!("from no save: {played:.1} game seconds played since the last load"),
+        };
+        text.push_str(&format!("\n{from}\n"));
         let cut = text.char_indices().rev().nth(OUTPUT_CHARS).map_or(0, |(i, _)| i);
-        eprintln!("  {}", if passed { "passed" } else { "FAILED" });
+        eprintln!("  {}, {from}", if passed { "passed" } else { "FAILED" });
         if !passed {
             eprintln!("{}", &text[cut..]);
         }

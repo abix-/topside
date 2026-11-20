@@ -192,7 +192,7 @@ switch ($Action) {
         $env:TOPSIDE_QUEUE = (@($Name) + $GameArgs) -join ' '
         $code = Invoke-Cargo 'nextest run -p topside-tests --no-capture --run-ignored only -E test(=queue::run_the_queue)' $log
         Show-Problems $log
-        Select-String -Path $log -Pattern '^run \d+:|^running |^\s+(passed|FAILED)$|^(queued|running|passed|failed)\s+\S|^error: ' |
+        Select-String -Path $log -Pattern '^run \d+:|^running |^\s+(passed|FAILED)\b|^(queued|running|passed|failed)\s+\S|^error: ' |
             ForEach-Object {
                 $color = if ($_.Line -match 'FAILED|^failed|^error') { 'Red' } else { 'Gray' }
                 Write-Host $_.Line -ForegroundColor $color

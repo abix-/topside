@@ -528,6 +528,7 @@ fn loaded(loaded: On<Loaded>, mut actors: ResMut<crate::actor::ActorMapRes>, mut
         // the loading screen (`loading::ready_the_world`).
         world.insert_resource(crate::loading::Loading::start());
         info!("load done in {:.0} ms ({})", start.elapsed().as_secs_f64() * 1000.0, if rolled { "its world rolled" } else { "the same world" });
+        crate::control_plane::LOADED_AT.store(world.resource::<crate::SimTick>().0, std::sync::atomic::Ordering::Relaxed);
         // A stop: what the ops read published and the load answered at
         // this frame's end, once the HUD has drawn the loaded game.
         crate::control_plane::stopped(crate::control_plane::Stop::Load);
