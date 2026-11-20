@@ -147,9 +147,10 @@ pub const GAME_DAY_SECS: f32 = 1200.0;
 
 /// How long the world runs before the player wakes, in game seconds
 /// (design.md "History, not decoration": "before the player wakes, the
-/// world is run"; todo 4a). Claude's number, for the operator to change:
-/// every second of it is loading time.
-pub const HISTORY_SECS: f32 = 300.0;
+/// world is run: the people ... live for some days in the rolled world";
+/// todo 4a, 4b). Two days is Claude's reading of "some", for the operator
+/// to change: every second of it is loading time.
+pub const HISTORY_SECS: f32 = 2.0 * GAME_DAY_SECS;
 
 /// How a storm goes (design.md "The storm", MISERY's emission): a minute
 /// of warning, twenty seconds of storm. When it comes is the episode's
