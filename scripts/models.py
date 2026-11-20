@@ -569,11 +569,13 @@ def bolted_door():
     steel = material("bolt", (0.55, 0.55, 0.58))
     bare = material("scratch", (0.8, 0.78, 0.7))
     parts = [box("panel", (0.8, 0.05, 1.9), at=(0, 0, 0.95), mat=paint)]
-    parts.append(box("bolt", (0.22, 0.04, 0.04), at=(0.25, -0.045, 1.0), mat=steel))
-    parts.append(box("keeper", (0.06, 0.05, 0.08), at=(0.38, -0.045, 1.0), mat=steel))
+    # On the +y face: the game's -z, toward the room from where the
+    # door stands in it (QUESTION_AT).
+    parts.append(box("bolt", (0.22, 0.04, 0.04), at=(0.25, 0.045, 1.0), mat=steel))
+    parts.append(box("keeper", (0.06, 0.05, 0.08), at=(0.38, 0.045, 1.0), mat=steel))
     for i in range(6):
         x = -0.25 + i * 0.09
-        parts.append(box(f"scratch_{i}", (0.012, 0.004, 0.35), at=(x, -0.027, 0.3 + (i % 3) * 0.05), rotation=(0, 0.15 * (i % 2 * 2 - 1), 0), mat=bare))
+        parts.append(box(f"scratch_{i}", (0.012, 0.004, 0.35), at=(x, 0.027, 0.3 + (i % 3) * 0.05), rotation=(0, 0.15 * (i % 2 * 2 - 1), 0), mat=bare))
     return join(parts, "bolted door", 1.9)
 
 
