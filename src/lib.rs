@@ -31,6 +31,7 @@ pub mod radio;
 pub mod raid;
 pub mod turret;
 pub mod weather;
+pub mod power;
 pub mod randy;
 pub mod research;
 pub mod save;
@@ -331,7 +332,8 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind, port: u16
                 lap("walk"),
                 survival::survival_tick,
                 survival::waste,
-                exposure::expose,
+                // Temperature and radiation, then the generators (todo 29).
+                (exposure::expose, power::run).chain(),
                 survival::rot,
                 lap("survival"),
                 (

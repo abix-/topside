@@ -373,6 +373,20 @@ pub fn spawn_bunker(
     // The research station, where E opens the topics (todo 28).
     let [x, z] = crate::content::RESEARCH_AT;
     spawn_station(&mut commands, &mut ids, StationKind::ResearchStation, on_floor(at + Vec2::new(x, z), SURFACE_ROOM_FLOOR));
+    // The generator that powers it, with a little fuel in it (todo 29).
+    let generator = def(crate::content::GENERATOR);
+    let fuel = def(crate::content::FUEL);
+    let mut tank = item::Inventory::new(generator.storage.unwrap_or(4));
+    let _ = tank.add(create(fuel, crate::content::GENERATOR_FUEL, &[], 0.0, PLAYER_STORE_SALT), fuel.max_stack);
+    let [x, z] = crate::content::GENERATOR_AT;
+    let (placed, _) = spawn_item(
+        &mut commands,
+        &mut ids,
+        generator,
+        create(generator, 1, &[], 0.0, PLAYER_STORE_SALT),
+        on_floor(at + Vec2::new(x, z), SURFACE_ROOM_FLOOR),
+    );
+    commands.entity(placed).insert(Container(tank));
     // The note and the world both come from the world's seed.
     let [x, z] = STARTING_NOTE_AT;
     spawn_item(

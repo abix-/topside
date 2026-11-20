@@ -1142,6 +1142,7 @@ pub fn hud_keys(
     recipes: Res<RecipeRegistryRes>,
     layers: Res<crate::content::LayerRegistryRes>,
     mut research: (Res<crate::research::TechTreeRes>, ResMut<crate::research::Researched>),
+    stations: Query<(&crate::interact::Interactable, &Transform, Option<&crate::power::Powered>)>,
     mut people: Query<
         (
             (Entity, Option<&crate::actor::Actor>, &ThisTick, &Transform, Has<Player>, Option<&crate::actor::Npc>),
@@ -1301,6 +1302,10 @@ pub fn hud_keys(
                     let recipe = match crate::research::rows(kind, &recipes.0, &tree.0, &known).into_iter().nth(index) {
                         Some(crate::research::Row::Recipe(recipe)) => recipe,
                         Some(crate::research::Row::Topic(topic)) => {
+                            // Research takes power (todo 29).
+                            if !crate::power::station_powered(at.translation, kind, &stations) {
+                                continue;
+                            }
                             let cost = tree.0.cost(topic, &known);
                             if crate::research::pay(&mut inventory.0, &cost) {
                                 let name = topic.name.clone();
@@ -1398,12 +1403,13 @@ pub fn setup_station(mut commands: Commands) {
 pub fn render_station(
     recipes: Res<RecipeRegistryRes>,
     research: (Res<crate::research::TechTreeRes>, Res<crate::research::Researched>),
-    players: Query<(&Inventory, &OpenStation), With<Player>>,
+    stations: Query<(&crate::interact::Interactable, &Transform, Option<&crate::power::Powered>)>,
+    players: Query<(&Inventory, &OpenStation, &Transform), With<Player>>,
     mut panels: Query<(&mut Visibility, &Children), (With<StationPanel>, Without<RecipeRow>)>,
     mut rows: Query<(&mut RecipeRow, &Children, &mut BackgroundColor, &mut Node)>,
     mut texts: Query<&mut Text>,
 ) {
-    let (Ok((mut panel, in_order)), Ok((inventory, station))) = (panels.single_mut(), players.single()) else {
+    let (Ok((mut panel, in_order)), Ok((inventory, station, at))) = (panels.single_mut(), players.single()) else {
         return;
     };
     let Some(kind) = station.0 else {
@@ -1435,7 +1441,10 @@ pub fn render_station(
                 let takes: Vec<String> = cost.iter().map(|(item, n)| format!("{item} x{n}")).collect();
                 let level = known.level(&topic.name) + 1;
                 let name = if topic.endless { format!("Research {} {level}", topic.name) } else { format!("Research {}", topic.name) };
-                (format!("{name}  <-  {}", takes.join(", ")), crate::research::affords(&inventory.0, &cost))
+                // No power, no research (todo 29).
+                let powered = crate::power::station_powered(at.translation, kind, &stations);
+                let power = if powered { "" } else { "  (no power)" };
+                (format!("{name}  <-  {}{power}", takes.join(", ")), powered && crate::research::affords(&inventory.0, &cost))
             }
         };
         if let Some(mut text) = children.first().and_then(|c| texts.get_mut(*c).ok()) {

@@ -174,6 +174,8 @@ pub fn loot_table() -> LootTable {
             e(HAMMER, (1, 1), 3, 0),
             e(TOOL_CUPBOARD, (1, 1), 1, 1),
             e(TURRET, (1, 1), 1, 3),
+            e(FUEL, (1, 3), 4, 0),
+            e(GENERATOR, (1, 1), 1, 2),
             weapon("pipe shotgun", &["pipe barrel", "wooden grip", "wooden stock"], 1, 3),
             weapon("pipe shotgun", &["short pipe barrel", "taped grip"], 1, 3),
             weapon("pipe shotgun", &["pipe barrel", "taped grip", "wooden stock", "nail sight"], 1, 4),
@@ -244,6 +246,19 @@ pub const GATE: &str = "gate";
 pub const TURRET: &str = "turret";
 /// What a turret fires.
 pub const TURRET_AMMO: &str = "shotgun shell";
+
+/// Power (todo 29, modforge power): the generator, its fuel, what it
+/// gives and how long a can runs it, how far its wiring reaches, what
+/// the research station draws, where the bunker's generator stands
+/// (surface room, south east corner) and the fuel it starts with. All
+/// Claude's, for the operator to change.
+pub const GENERATOR: &str = "generator";
+pub const FUEL: &str = "fuel";
+pub const GENERATOR_DEF: modforge::power::GeneratorDef = modforge::power::GeneratorDef { output: 10.0, burn_secs: 600.0 };
+pub const WIRE_REACH: f32 = 12.0;
+pub const RESEARCH_DRAW: f32 = 5.0;
+pub const GENERATOR_AT: [f32; 2] = [2.5, -3.3];
+pub const GENERATOR_FUEL: u32 = 3;
 
 /// What building at a grade costs (Rust's: twig and wood are wood, stone
 /// is stone, metal and armored are metal, here scrap; Claude's mapping).
@@ -1746,6 +1761,9 @@ pub fn register_items(reg: &mut ItemRegistry) {
         building(WOOD, "Split wood, for building.", ItemKind::Material, 100, None),
         building(STONE, "Broken stone, for building.", ItemKind::Material, 100, None),
         building(TURRET, "A shotgun on a stand. Set it down and it guards the spot, loaded with your shells.", ItemKind::Deployable, 1, None),
+        // Power (todo 29; descriptions and the 4 slots Claude's).
+        building(GENERATOR, "A fuel generator. Fill it with fuel and it powers what is wired near it.", ItemKind::Deployable, 1, Some(4)),
+        building(FUEL, "A can of fuel, for a generator.", ItemKind::Material, 20, None),
         ItemDef {
             name: "storage box".to_string(),
             description: "A wooden box to keep things in. Set it down and fill it.".to_string(),
