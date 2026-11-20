@@ -23,8 +23,13 @@ use modforge::walk::cell_of;
 use crate::content::{
     BENCH_AT, BUNKER_STORE, BUNKER_STORE_AT, ItemRegistryRes, PLAYER_ROOM_FLOOR, STARTING_ITEMS, SURFACE_ROOM_FLOOR,
     STARTING_NOTE_AT, loot_table,
-    starting_bunker, starting_note,
+    question_answer, starting_bunker, starting_note, starting_question,
 };
+
+/// How far from the bunker, each way, the bunker's question's answer is
+/// looked for: the first hour's walk (design.md "The first hour"). Claude's
+/// number, for the operator to change.
+const FIRST_HOUR_WALK: f32 = 300.0;
 use crate::interact::{Container, Door, Interactable, spawn_item, spawn_station};
 use crate::model::{Model, Tint};
 use crate::on_ground;
@@ -425,14 +430,16 @@ pub struct MonumentsRes(pub Vec<(Vec2, MonumentDef)>, pub Vec<usize>);
 /// floor through `spawn_structure`, and its props as one static collider.
 /// The monument is the one world generation rolled with its site
 /// (design.md "A valid world"), never rolled again here.
+#[allow(clippy::too_many_arguments)]
 pub fn spawn_sites(
     mut commands: Commands,
-    world: Res<WorldRes>,
+    mut world: ResMut<WorldRes>,
     mut new_sites: ResMut<NewSites>,
     mut monuments: ResMut<MonumentsRes>,
     items: Res<ItemRegistryRes>,
     layers: Res<crate::content::LayerRegistryRes>,
     mut ids: ResMut<crate::interact::ThingIssuer>,
+    (biomes, kinds, storm): (Res<crate::content::BiomeRegistryRes>, Res<crate::content::MonumentRegistryRes>, Res<crate::storm::StormRes>),
 ) {
     // Built only when a site is new, not every step.
     if new_sites.0.is_empty() {
@@ -440,6 +447,31 @@ pub fn spawn_sites(
     }
     let table = loot_table();
     for (site, things) in new_sites.0.drain(..) {
+        // The bunker's question is answered at the nearest site of its
+        // answer's kind, in the first world only (design.md "The first
+        // hour").
+        let question = starting_question(world.seed);
+        if things && storm.shifts == 0 && site.monument == question.answer_at {
+            let r = modforge::world2d::Registries {
+                biomes: &biomes.0,
+                monuments: &kinds.monuments,
+                buildings: &kinds.buildings,
+            };
+            let (bunker, reach) = (world.bunker, Vec2::splat(FIRST_HOUR_WALK));
+            let nearest = world
+                .world
+                .sites_in(r, bunker - reach, bunker + reach)
+                .into_iter()
+                .filter(|p| p.monument == question.answer_at)
+                .min_by(|a, b| a.position.distance(bunker).total_cmp(&b.position.distance(bunker)));
+            if nearest.is_some_and(|p| p.position == site.position) {
+                let note = items.0.def("note").expect("the note is registered");
+                let answer = write(note, question_answer(world.seed), 0.0, 14).expect("the note def is a note");
+                let (found, _) = spawn_item(&mut commands, &mut ids, note, answer, on_ground(site.position + Vec2::new(1.0, 0.0), 0.0));
+                commands.entity(found).insert(WorldPiece);
+                info!("the bunker's question ({}) is answered at {}", question.name, site.position);
+            }
+        }
         let monument = site.rolled.clone();
         // Its doors, loot boxes and people made once a world; made again
         // after a load, they come from the save.

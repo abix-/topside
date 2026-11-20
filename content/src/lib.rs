@@ -1170,6 +1170,52 @@ pub const STARTING_NOTES: [&str; 3] = [
     "whatever you hear, do not open the door",
 ];
 
+/// One question the bunker's starting room asks, and its answer placed
+/// within the first hour's walk (design.md "The first hour": "The bunker's
+/// starting room carries one rolled question from a registry of
+/// questions ... each with its answer placed by history somewhere within
+/// the first hour's walk").
+pub struct Question {
+    pub name: &'static str,
+    /// The kind of site its answer lies at: the one of that kind nearest
+    /// the bunker.
+    pub answer_at: &'static str,
+    /// The words of the answer, one of these, signed by the same name as
+    /// the starting note.
+    pub answers: &'static [&'static str],
+}
+
+/// The bunker's questions. The note with a name you do not know is
+/// answered at the nearest body, by a note in the same name (design.md:
+/// the first trace "carries the name from the note"). The answers' words
+/// are Claude's, for the operator to change. The bolted door with
+/// scratches and the radio that clicks wait for their answers to be
+/// designed.
+pub const QUESTIONS: [Question; 1] = [Question {
+    name: "the note",
+    answer_at: "body",
+    answers: &[
+        "couldn't wait any longer. went out for water. if you find this, go back",
+        "I told you not to come out. it isn't the people. it's the sky",
+        "three days was all I could leave you. I'm sorry",
+    ],
+}];
+
+/// The question this world's bunker asks: same seed, same question.
+pub fn starting_question(seed: u64) -> &'static Question {
+    let mut roll = Roll::new(seed ^ 0x5155_4553);
+    roll.pick(&QUESTIONS)
+}
+
+/// The answer to this world's question, signed as the starting note is.
+pub fn question_answer(seed: u64) -> Note {
+    let mut roll = Roll::new(seed ^ 0x414e_5357);
+    Note {
+        text: (*roll.pick(starting_question(seed).answers)).to_string(),
+        signed: starting_note(seed).signed,
+    }
+}
+
 /// Names the world signs things with.
 pub const NAMES: [&str; 12] = [
     "M.", "Tomas", "Ida", "Reyes", "Cal", "the doctor", "Anja", "Booker", "Sol", "Wren",
