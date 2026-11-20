@@ -3,14 +3,19 @@
 //! the middle over the belt of 6, the open box on the right. Read from
 //! the running game's `hud` op.
 
-use crate::endpoint::op;
+use crate::endpoint::{op, op_with};
 use serde_json::Value as Json;
 
+/// The `holder` panel the inventory screen shows: its own (the trade
+/// shows the inventory too), else the one always shown (the belt).
 fn panel<'a>(hud: &'a Json, holder: &str) -> &'a Json {
-    hud["panels"]
-        .as_array()
-        .and_then(|list| list.iter().find(|p| p["holder"] == holder))
-        .unwrap_or_else(|| panic!("the hud op has no {holder} panel: {hud}"))
+    let list = hud["panels"].as_array().unwrap_or_else(|| panic!("the hud op has no panels: {hud}"));
+    let of = |p: &&Json| p["holder"] == holder;
+    list.iter()
+        .filter(of)
+        .find(|p| p["inventory_screen"] == true)
+        .or_else(|| list.iter().filter(of).find(|p| p["holder"] == "Hotbar"))
+        .unwrap_or_else(|| panic!("the hud op has no {holder} panel on the inventory screen: {hud}"))
 }
 
 #[test]
@@ -38,8 +43,33 @@ fn the_inventory_screen_is_rusts_layout() {
 /// ending in Drop.
 #[test]
 fn the_selected_slot_shows_its_item_information() {
+    // Paused, each act followed by a step, so the hud op's copy is read
+    // after it (published at every stop), not against real time.
+    let _p = crate::endpoint::pause();
     crate::opening::you_wake();
+    // A can given to the player (the `give` op), the inventory opened (I)
+    // and the can clicked, as the player does.
+    let player = op("player")["id"].as_u64().expect("the player's id");
+    op_with("give", serde_json::json!({"id": player, "item": "canned food", "count": 1, "clear": true}));
+    crate::endpoint::step(1);
+    let can = op("hud")["filled"].as_array().and_then(|f| f.iter().find(|s| s["holder"] == "Inventory" && s["item"] == "canned food").cloned());
+    let slot = can.unwrap_or_else(|| panic!("the given can is not in the player's inventory: {}", op("hud")["filled"]));
+    op_with("key", serde_json::json!({"key": "I"}));
+    crate::endpoint::step(1);
+    assert_eq!(op("hud")["open"], true, "I pressed and the inventory screen did not open");
+    let at = op("hud")["slots"].as_array().and_then(|s| s.iter().find(|s| s["holder"] == slot["holder"] && s["index"] == slot["index"]).map(|s| s["at"].clone())).expect("where the can's slot stands");
+    // The click lands through Bevy's picking in a drawn frame, maybe not
+    // the step's own: a tick at a time until the copy shows it.
+    op_with("pointer", serde_json::json!({"at": at, "click": true}));
+    for _ in 0..30 {
+        crate::endpoint::step(1);
+        if !op("hud")["selected"].is_null() {
+            break;
+        }
+    }
     let hud = op("hud");
+    op_with("key", serde_json::json!({"key": "I"}));
+    crate::endpoint::step(1);
     let selected = &hud["selected"];
     eprintln!("{selected:#}");
     assert!(!selected.is_null(), "nothing is selected yet: open the inventory and click an item");
@@ -60,7 +90,15 @@ fn the_selected_slot_shows_its_item_information() {
 /// layers', pictures scripts/models.py rendered from the models.
 #[test]
 fn every_filled_slot_shows_icons_rendered_from_the_models() {
+    // Paused, so the hud op's copy is read after a step (it is published
+    // at every stop), not against real time.
+    let _p = crate::endpoint::pause();
     crate::opening::you_wake();
+    // A can and a layered weapon given to the player (the `give` op).
+    let player = op("player")["id"].as_u64().expect("the player's id");
+    op_with("give", serde_json::json!({"id": player, "item": "canned food", "count": 1, "clear": true}));
+    op_with("give", serde_json::json!({"id": player, "item": "pipe", "count": 1}));
+    crate::endpoint::step(1);
     let hud = op("hud");
     let filled = hud["filled"].as_array().expect("the hud op gives the filled slots");
     let icons = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../assets/icons");

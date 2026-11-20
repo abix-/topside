@@ -843,9 +843,10 @@ static HUD: Mutex<Json> = Mutex::new(Json::Null);
 pub fn publish_hud(
     tick: Res<crate::SimTick>,
     windows: Query<&Window, With<bevy::window::PrimaryWindow>>,
-    screen: Query<&Visibility, With<crate::hud::InventoryScreen>>,
-    panels: Query<(&crate::hud::Panel, &UiGlobalTransform)>,
+    screen: Query<(Entity, &Visibility), With<crate::hud::InventoryScreen>>,
+    panels: Query<(Entity, &crate::hud::Panel, &UiGlobalTransform)>,
     slots: Query<(&crate::hud::SlotUi, &crate::hud::SlotIcons, &UiGlobalTransform, &InheritedVisibility)>,
+    tree: Query<&Children>,
     deal: Query<(&UiGlobalTransform, &InheritedVisibility), With<crate::hud::DealButton>>,
     item_panel: Query<&crate::hud::ItemPanel>,
     talk_box: Query<&Visibility, With<crate::hud::TalkBox>>,
@@ -892,12 +893,17 @@ pub fn publish_hud(
         return;
     };
     let (w, h) = (window.physical_width() as f32, window.physical_height() as f32);
+    // The panels of the inventory screen (I), not the trade's.
+    let on_screen: Vec<Entity> = screen.single().map_or(Vec::new(), |(e, _)| tree.iter_descendants(e).collect());
     let list: Vec<Json> = panels
         .iter()
-        .map(|(panel, at)| {
+        .map(|(entity, panel, at)| {
             json!({
                 "holder": format!("{:?}", panel.0),
-                "slots": slots.iter().filter(|(s, ..)| s.0.holder == panel.0).count(),
+                "inventory_screen": on_screen.contains(&entity),
+                // Its own slots: the inventory is shown in two panels (the
+                // inventory screen and the trade), each of the same slots.
+                "slots": tree.iter_descendants(entity).filter(|e| slots.contains(*e)).count(),
                 "x": at.translation.x / w,
                 "y": at.translation.y / h,
             })
@@ -943,7 +949,7 @@ pub fn publish_hud(
     });
     if let Ok(mut slot) = HUD.lock() {
         *slot = json!({
-            "open": screen.single().is_ok_and(|v| *v != Visibility::Hidden),
+            "open": screen.single().is_ok_and(|(_, v)| *v != Visibility::Hidden),
             "panels": list,
             "filled": filled,
             "slots": every_slot,
