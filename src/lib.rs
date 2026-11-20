@@ -438,7 +438,9 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind, port: u16
                 held::swing,
                 control_plane::take_screenshot,
                 control_plane::apply_window,
-                control_plane::publish_view,
+                // After the cel pass, so a mesh that appeared this frame is
+                // counted with the material it is drawn with.
+                control_plane::publish_view.after(model::cel_shade),
                 control_plane::publish_items,
                 control_plane::publish_hud,
             ),

@@ -1,6 +1,7 @@
 //! The navigation mesh (docs/pathing.md "A navigation mesh"), proved on
 //! the bunker: the mesh built from the colliders gives a way from the
-//! entrance down the stairwell to the player's room, two levels down.
+//! surface room down the stairs under the hatch to the player's room, one
+//! level down.
 
 use std::time::Duration;
 
@@ -36,24 +37,20 @@ fn way(from: [f64; 3], to: [f64; 3], secs: u64) -> Json {
 }
 
 /// Each piece of the way down on its own, to see which is joined: the
-/// bunker point (0, 0); the stairwell's middle x 5.2, its landings at z 0,
-/// its half landings at z -5 (modforge monument.rs's stair tower).
+/// player's bunker (design.md "The bunker you start in"), the surface room
+/// and the player's room one level below it, joined by stairs under the
+/// hatch, read from the world op; and the ground across a chunk edge.
 #[test]
 fn each_piece_of_the_way_down_is_joined() {
     crate::opening::you_wake();
+    let (sx, sz, sf) = crate::opening::middle_of(&crate::opening::bunker_room("surface"));
+    let (bx, bz, bf) = crate::opening::middle_of(&crate::opening::bunker_room("below"));
+    let hatch = op("world")["bunker_doors"].as_array().and_then(|d| d.iter().find(|d| d["hatch"] == true).cloned()).expect("the player's hatch");
+    let (hx, hz) = (hatch["at"][0].as_f64().unwrap_or(f64::NAN), hatch["at"][1].as_f64().unwrap_or(f64::NAN));
     let pieces = [
-        ("entrance to the stairwell's landing", [0.0, 0.0, 0.0], [5.2, 0.0, 0.0]),
-        ("landing down to the half landing", [5.2, 0.0, 0.0], [5.2, -1.5, -5.0]),
-        ("half landing down to level 1's landing", [5.2, -1.5, -5.0], [5.2, -3.0, 0.0]),
-        ("level 1's landing into its room", [5.2, -3.0, 0.0], [0.0, -3.0, 0.0]),
-        ("level 1's landing down to the half landing", [5.2, -3.0, 0.0], [5.2, -4.5, -5.0]),
-        ("half landing down to level 2's landing", [5.2, -4.5, -5.0], [5.2, -6.0, 0.0]),
-        ("level 2's landing into the player's room", [5.2, -6.0, 0.0], [0.0, -6.0, 0.0]),
-        // The same, the landings 1 m inside the chunk the flights are in
-        // (the landing lies across the chunk edge at z 0).
-        ("in its chunk: landing down to the half landing", [5.2, 0.0, -1.0], [5.2, -1.5, -5.0]),
-        ("in its chunk: half landing down to level 1's landing", [5.2, -1.5, -5.0], [5.2, -3.0, -1.0]),
-        ("level 1's landing across the chunk edge", [5.2, -3.0, -1.0], [5.2, -3.0, 1.0]),
+        ("the surface room to the hatch", [sx, sf, sz], [hx, sf, hz]),
+        ("the hatch down to the player's room", [hx, sf, hz], [bx, bf, bz]),
+        ("the player's room up to the hatch", [bx, bf, bz], [hx, sf, hz]),
         ("the ground across the chunk edge", [-10.0, 0.0, -1.0], [-10.0, 0.0, 1.0]),
     ];
     let mut broken = Vec::new();
@@ -104,14 +101,14 @@ fn a_way_runs_across_the_world_from_bunker_to_bunker() {
 #[test]
 fn the_mesh_gives_a_way_down_the_stairwell_to_the_players_room() {
     crate::opening::you_wake();
-    // The bunker point (0, 0): its entrance floor, and the player's room
-    // 6 m down.
-    let answer = way([0.0, 0.0, 0.0], [0.0, -6.0, 0.0], 20);
+    // The surface room's middle, and the player's room one level below.
+    let (sx, sz, sf) = crate::opening::middle_of(&crate::opening::bunker_room("surface"));
+    let (bx, bz, bf) = crate::opening::middle_of(&crate::opening::bunker_room("below"));
+    let answer = way([sx, sf, sz], [bx, bf, bz], 20);
     eprintln!("{answer:#}");
     let path = answer["path"].as_array().cloned().unwrap_or_default();
     assert!(!path.is_empty(), "no way down: {}", answer["error"]);
     let y = |p: &Json| p[1].as_f64().unwrap_or(0.0);
     let last = path.last().cloned().unwrap_or(Json::Null);
-    assert!((y(&last) + 6.0).abs() < 0.5, "the way ends at height {}, not 6 m down", y(&last));
-    assert!(path.iter().any(|p| p[0].as_f64().is_some_and(|x| x > 3.4)), "the way never goes into the stairwell east of the rooms");
+    assert!((y(&last) - bf).abs() < 0.5, "the way ends at height {}, not the player's room's floor {bf}", y(&last));
 }
