@@ -100,6 +100,7 @@ saved! {
         crate::combat::Equipment,
         crate::combat::Firing,
         crate::combat::Rolling,
+        crate::combat::Knocked,
         crate::combat::Bullet,
         crate::command::Commanded,
         crate::input::Actions,

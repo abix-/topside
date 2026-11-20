@@ -373,6 +373,7 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind, port: u16
                 combat::fire,
                 combat::fly,
                 lap("guns"),
+                combat::knock_back,
                 combat::die,
                 player::respawn,
                 lap("death"),
@@ -442,6 +443,7 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind, port: u16
                 people::animate,
                 held::hold,
                 held::swing,
+                combat::flash,
                 control_plane::take_screenshot,
                 control_plane::apply_window,
                 // After the cel pass, so a mesh that appeared this frame is
@@ -455,6 +457,7 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind, port: u16
             Startup,
             (
                 spawn_sun,
+                combat::setup_flash,
                 hud::setup,
                 hud::setup_death,
                 hud::setup_vitals,

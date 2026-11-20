@@ -107,6 +107,138 @@ impl Rolling {
     }
 }
 
+/// Quake 3's g_knockback: modforge's knockback (damage over mass) times
+/// this is the push in Quake units a second; a Quake unit is an inch, so
+/// metres a second here (combat.md "Simple to use": a knock back).
+const KNOCKBACK_SPEED: f32 = 1000.0 * 0.0254;
+/// Quake 3's ground friction (pm_friction): the push loses this many
+/// times itself a second.
+const KNOCKBACK_FRICTION: f32 = 6.0;
+/// Below this speed, metres a second, the push is over (Claude's).
+const KNOCKBACK_STOP: f32 = 0.1;
+/// How long a hit's flash shows, seconds (Claude's, for the operator to
+/// change).
+pub const FLASH_SECS: f32 = 0.15;
+
+/// The push a hit gave this person, metres a second along the ground,
+/// slowing as Quake 3's friction slows it (combat.md "Simple to use").
+#[derive(Component, Default, Debug, PartialEq, Clone, serde::Serialize, serde::Deserialize, Reflect)]
+#[reflect(opaque, Component, Serialize, Deserialize)]
+pub struct Knocked(pub Vec2);
+
+/// A hit's flash still showing on this person: seconds left (drawn only:
+/// the screen for the player, the body for anyone else).
+#[derive(Component)]
+pub struct Flash(pub f32);
+
+/// What every hit gives the one it lands on (combat.md "Simple to use":
+/// clear feedback, a flash and a knock back): a push away from where it
+/// came from, as big as modforge's knockback for it, and the flash.
+fn feel_hit(commands: &mut Commands, target: Entity, from: Vec2, to: Vec2, result: &HitResult) {
+    let push = (to - from).normalize_or_zero() * result.knockback * KNOCKBACK_SPEED;
+    commands.entity(target).try_insert((Knocked(push), Flash(FLASH_SECS)));
+}
+
+/// Everyone knocked back slides with the push, walls stopping them, until
+/// friction ends it.
+pub fn knock_back(
+    mut commands: Commands,
+    time: Res<Time<Fixed>>,
+    move_and_slide: MoveAndSlide,
+    mut knocked: Query<(Entity, &Collider, &mut Transform, &mut Knocked), Without<Dead>>,
+) {
+    let dt = time.delta_secs();
+    for (entity, shape, mut transform, mut knocked) in &mut knocked {
+        if knocked.0.length() < KNOCKBACK_STOP {
+            commands.entity(entity).remove::<Knocked>();
+            continue;
+        }
+        let filter = SpatialQueryFilter::from_excluded_entities([entity]);
+        let to = move_and_slide
+            .move_and_slide(
+                shape,
+                transform.translation,
+                Quat::IDENTITY,
+                on_ground(knocked.0, 0.0),
+                time.delta(),
+                &MoveAndSlideConfig::default(),
+                &filter,
+                |_| MoveAndSlideHitResponse::Accept,
+            )
+            .position;
+        transform.translation = on_ground(to.ground(), transform.translation.y);
+        knocked.0 *= (1.0 - KNOCKBACK_FRICTION * dt).max(0.0);
+    }
+}
+
+/// The white shell a hit person's body flashes in.
+#[derive(Component)]
+pub struct FlashShell;
+
+/// The screen the player's own hits flash red on.
+#[derive(Component)]
+pub struct FlashScreen;
+
+/// The player's hit flash: the whole screen, red, clear at first.
+pub fn setup_flash(mut commands: Commands) {
+    commands.spawn((
+        FlashScreen,
+        Node {
+            position_type: PositionType::Absolute,
+            width: Val::Percent(100.0),
+            height: Val::Percent(100.0),
+            ..default()
+        },
+        BackgroundColor(Color::NONE),
+        bevy::picking::Pickable::IGNORE,
+    ));
+}
+
+/// Each hit's flash while it shows: the player's screen goes red, anyone
+/// else's body white (Enter the Gungeon's enemies flash white), fading
+/// out over `FLASH_SECS`.
+#[allow(clippy::type_complexity)]
+pub fn flash(
+    mut commands: Commands,
+    time: Res<Time>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+    mut shell: Local<Option<(Handle<Mesh>, Handle<StandardMaterial>)>>,
+    mut flashed: Query<(Entity, &mut Flash, Has<Player>, Option<&Children>)>,
+    shells: Query<(), With<FlashShell>>,
+    mut screen: Query<&mut BackgroundColor, With<FlashScreen>>,
+) {
+    let (mesh, material) = shell
+        .get_or_insert_with(|| {
+            let radius = crate::player::PLAYER_SIZE / 2.0 + 0.05;
+            (
+                meshes.add(Capsule3d::new(radius, crate::player::BODY_HEIGHT - crate::player::PLAYER_SIZE)),
+                materials.add(StandardMaterial { base_color: Color::WHITE, unlit: true, ..default() }),
+            )
+        })
+        .clone();
+    let mut red = 0.0;
+    for (entity, mut flash, is_player, children) in &mut flashed {
+        let shown: Vec<Entity> = children.into_iter().flatten().copied().filter(|c| shells.contains(*c)).collect();
+        flash.0 -= time.delta_secs();
+        if flash.0 <= 0.0 {
+            for c in shown {
+                commands.entity(c).despawn();
+            }
+            commands.entity(entity).remove::<Flash>();
+            continue;
+        }
+        if is_player {
+            red = (flash.0 / FLASH_SECS).max(red);
+        } else if shown.is_empty() {
+            commands.entity(entity).with_child((FlashShell, Mesh3d(mesh.clone()), MeshMaterial3d(material.clone())));
+        }
+    }
+    for mut colour in &mut screen {
+        colour.0 = Color::srgba(1.0, 0.0, 0.0, 0.4 * red);
+    }
+}
+
 /// How far the overhead steps in, in metres.
 pub const OVERHEAD_STEP: f32 = 0.5;
 
@@ -117,6 +249,7 @@ pub const OVERHEAD_STEP: f32 = 0.5;
 /// everyone inside the swing's shape takes one hit through
 /// `hit_actor`, unless they are blocking. The overhead steps in.
 pub fn melee(
+    mut commands: Commands,
     time: Res<Time<Fixed>>,
     items: Res<ItemRegistryRes>,
     layers: Res<LayerRegistryRes>,
@@ -271,6 +404,7 @@ pub fn melee(
                 Some(attacker_id),
                 tick.0,
             );
+            feel_hit(&mut commands, target, here, at.translation.ground(), &result);
             struck(memory, attacker_id, here, result.damage_dealt, tick.0);
             if let Some(whom) = target_id {
                 gave.push((attacker, whom.0, result.damage_dealt, killed));
@@ -418,7 +552,7 @@ pub fn fly(
     tick: Res<crate::SimTick>,
     shooters: Query<(&Transform, Option<&Actor>), Without<Bullet>>,
     mut bullets: Query<(Entity, &mut Bullet, &mut Transform)>,
-    mut targets: Query<(&Protection, &Equipment, &mut Health, Option<&mut Memory>, Option<&Actor>), Without<Dead>>,
+    mut targets: Query<(&Transform, &Protection, &Equipment, &mut Health, Option<&mut Memory>, Option<&Actor>), Without<Dead>>,
 ) {
     let step = BULLET_SPEED * time.delta_secs();
     // (shooter, damage def, pellets summed per target) this step.
@@ -477,9 +611,10 @@ pub fn fly(
         let hits: Vec<(Entity, u32, f32)> = multi.drain().into_iter().collect();
         let order = crate::actor::in_actor_order(hits.iter().map(|(t, ..)| (targets.get(*t).ok().and_then(|(.., a)| a.map(|a| a.0)), *t)));
         for (target, pellets, distance) in order.into_iter().filter_map(|t| hits.iter().find(|(h, ..)| *h == t).copied()) {
-            let Ok((own, worn, mut health, mut memory, target_id)) = targets.get_mut(target) else {
+            let Ok((at, own, worn, mut health, mut memory, target_id)) = targets.get_mut(target) else {
                 continue;
             };
+            let to = at.translation.ground();
             let hit = Hit {
                 def,
                 self_inflicted: false,
@@ -488,6 +623,7 @@ pub fn fly(
             };
             let (result, killed) =
                 hit_actor(&hit, own, worn, &items.0, &layers.0, &mut health, memory.as_deref_mut(), Some(by), tick.0);
+            feel_hit(&mut commands, target, from, to, &result);
             struck(memory, by, from, result.damage_dealt, tick.0);
             let whom = target_id.map(|a| a.0);
             if let (Some(whom), Ok((.., Some(mut memory), _))) = (whom, targets.get_mut(shooter)) {
