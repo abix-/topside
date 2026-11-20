@@ -32,6 +32,7 @@ pub mod raid;
 pub mod turret;
 pub mod weather;
 pub mod randy;
+pub mod research;
 pub mod save;
 pub mod secrets;
 pub mod sight;
@@ -243,6 +244,8 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind, port: u16
     app.init_resource::<edge::EdgeRes>();
     app.init_resource::<edge::WordToEdge>();
     app.init_resource::<randy::RandyRes>();
+    app.init_resource::<research::TechTreeRes>();
+    app.init_resource::<research::Researched>();
     app.init_resource::<building::Builds>();
     app.init_resource::<raid::Raids>();
     app.init_resource::<content::LayerRegistryRes>();

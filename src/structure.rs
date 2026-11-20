@@ -370,6 +370,9 @@ pub fn spawn_bunker(
     // The crafting bench, where E opens its recipes.
     let [x, z] = BENCH_AT;
     spawn_station(&mut commands, &mut ids, StationKind::CraftingBench, on_floor(at + Vec2::new(x, z), SURFACE_ROOM_FLOOR));
+    // The research station, where E opens the topics (todo 28).
+    let [x, z] = crate::content::RESEARCH_AT;
+    spawn_station(&mut commands, &mut ids, StationKind::ResearchStation, on_floor(at + Vec2::new(x, z), SURFACE_ROOM_FLOOR));
     // The note and the world both come from the world's seed.
     let [x, z] = STARTING_NOTE_AT;
     spawn_item(

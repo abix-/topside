@@ -152,6 +152,7 @@ saved! {
         crate::terrain::SavedChunks,
         crate::building::Builds,
         crate::raid::Raids,
+        crate::research::Researched,
     ]
 }
 

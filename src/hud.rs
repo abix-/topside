@@ -1141,9 +1141,10 @@ pub fn hud_keys(
     registry: Res<ItemRegistryRes>,
     recipes: Res<RecipeRegistryRes>,
     layers: Res<crate::content::LayerRegistryRes>,
+    mut research: (Res<crate::research::TechTreeRes>, ResMut<crate::research::Researched>),
     mut people: Query<
         (
-            (Entity, Option<&crate::actor::Actor>, &ThisTick, &Transform),
+            (Entity, Option<&crate::actor::Actor>, &ThisTick, &Transform, Has<Player>, Option<&crate::actor::Npc>),
             (&mut Hud, &mut OpenContainer, &mut OpenStation),
             &mut Survival,
             &mut Hotbar,
@@ -1163,7 +1164,7 @@ pub fn hud_keys(
     let order = crate::actor::in_actor_order(people.iter().map(|((entity, actor, ..), ..)| (actor.map(|a| a.0), entity)));
     for entity in order {
         let Ok((
-            (_, _, this_tick, at),
+            (_, _, this_tick, at, is_player, npc),
             (mut hud, mut open, mut station),
             mut needs,
             mut hotbar,
@@ -1288,8 +1289,26 @@ pub fn hud_keys(
                     }
                 }
                 Action::Craft { index } => {
-                    let Some(recipe) = station.0.and_then(|kind| recipes.0.for_station(kind).get(index).copied()) else {
+                    // The row picked, of what this person's group is shown
+                    // (todo 28): a topic at a research station is paid for
+                    // and researched; a locked recipe is never listed.
+                    let Some(kind) = station.0 else {
                         continue;
+                    };
+                    let group = crate::research::group_of(is_player, npc);
+                    let (tree, researched) = (&research.0, &mut research.1);
+                    let known = researched.0.get(&group).cloned().unwrap_or_default();
+                    let recipe = match crate::research::rows(kind, &recipes.0, &tree.0, &known).into_iter().nth(index) {
+                        Some(crate::research::Row::Recipe(recipe)) => recipe,
+                        Some(crate::research::Row::Topic(topic)) => {
+                            let cost = tree.0.cost(topic, &known);
+                            if crate::research::pay(&mut inventory.0, &cost) {
+                                let name = topic.name.clone();
+                                tree.0.research(&name, researched.0.entry(group).or_default());
+                            }
+                            continue;
+                        }
+                        None => continue,
                     };
                     // modforge's `craft`, the one way anything is made; what
                     // is made goes into the inventory, or at the feet when it
@@ -1378,6 +1397,7 @@ pub fn setup_station(mut commands: Commands) {
 /// recipe the inventory can pay for is lit.
 pub fn render_station(
     recipes: Res<RecipeRegistryRes>,
+    research: (Res<crate::research::TechTreeRes>, Res<crate::research::Researched>),
     players: Query<(&Inventory, &OpenStation), With<Player>>,
     mut panels: Query<(&mut Visibility, &Children), (With<StationPanel>, Without<RecipeRow>)>,
     mut rows: Query<(&mut RecipeRow, &Children, &mut BackgroundColor, &mut Node)>,
@@ -1391,22 +1411,37 @@ pub fn render_station(
         return;
     };
     *panel = Visibility::Visible;
-    let list = recipes.0.for_station(kind);
+    // The player's group's research decides what is listed (todo 28).
+    let (tree, researched) = research;
+    let known = researched.0.get(crate::content::PLAYER_FACTION).cloned().unwrap_or_default();
+    let list = crate::research::rows(kind, &recipes.0, &tree.0, &known);
     for (i, child) in in_order.iter().enumerate() {
         let Ok((mut row, children, mut color, mut node)) = rows.get_mut(child) else {
             continue;
         };
-        let Some(recipe) = list.get(i) else {
+        let Some(entry) = list.get(i) else {
             node.display = Display::None;
             continue;
         };
         node.display = Display::Flex;
         row.0 = i;
-        let takes: Vec<String> = recipe.inputs.iter().map(|(item, n)| format!("{item} x{n}")).collect();
+        let (line, can) = match entry {
+            crate::research::Row::Recipe(recipe) => {
+                let takes: Vec<String> = recipe.inputs.iter().map(|(item, n)| format!("{item} x{n}")).collect();
+                (format!("{} x{}  <-  {}", recipe.output.0, recipe.output.1, takes.join(", ")), can_craft(recipe, &inventory.0))
+            }
+            crate::research::Row::Topic(topic) => {
+                let cost = tree.0.cost(topic, &known);
+                let takes: Vec<String> = cost.iter().map(|(item, n)| format!("{item} x{n}")).collect();
+                let level = known.level(&topic.name) + 1;
+                let name = if topic.endless { format!("Research {} {level}", topic.name) } else { format!("Research {}", topic.name) };
+                (format!("{name}  <-  {}", takes.join(", ")), crate::research::affords(&inventory.0, &cost))
+            }
+        };
         if let Some(mut text) = children.first().and_then(|c| texts.get_mut(*c).ok()) {
-            text.0 = format!("{} x{}  <-  {}", recipe.output.0, recipe.output.1, takes.join(", "));
+            text.0 = line;
         }
-        color.0 = if can_craft(recipe, &inventory.0) { HELD_COLOR } else { SLOT_COLOR };
+        color.0 = if can { HELD_COLOR } else { SLOT_COLOR };
     }
 }
 

@@ -65,6 +65,10 @@ pub const SURFACE_ROOM_FLOOR: f32 = 0.0;
 /// (x, z), in the surface room: its right end.
 pub const BENCH_AT: [f32; 2] = [2.8, 3.5];
 
+/// Where the research station is used, in the surface room: its left
+/// end, across from the bench (todo 28; the place is Claude's).
+pub const RESEARCH_AT: [f32; 2] = [-2.8, 3.5];
+
 /// Where the note lies in the starting bunker's plan (x, z), in the
 /// player's room beside the bed: the first question (design.md "The
 /// first hour").
@@ -104,6 +108,28 @@ impl Default for RecipeRegistryRes {
             reg.register(def).expect("recipe registered once");
         }
         Self(reg)
+    }
+}
+
+/// The research topics (todo 28, modforge tech): the improvised weapons
+/// and field medicine unlock the bench's recipes; better tools branches
+/// from the weapons and never caps. Topics, costs and branches are
+/// Claude's, for the operator to change.
+pub fn tech_tree() -> modforge::tech::TechTree {
+    let topic = |name: &str, cost: &[(&str, u32)], needs: &[&str], unlocks: &[&str], endless| modforge::tech::TopicDef {
+        name: name.to_string(),
+        cost: cost.iter().map(|(i, n)| (i.to_string(), *n)).collect(),
+        needs: needs.iter().map(|s| s.to_string()).collect(),
+        unlocks: unlocks.iter().map(|s| s.to_string()).collect(),
+        endless,
+    };
+    modforge::tech::TechTree {
+        topics: vec![
+            topic("field medicine", &[("cloth", 2)], &[], &["bandage"], false),
+            topic("pipework", &[("scrap", 2)], &[], &["pipe"], false),
+            topic("improvised weapons", &[("scrap", 4)], &["pipework"], &["spiked bat", "sharpened road sign"], false),
+            topic("better tools", &[("scrap", 5)], &["improvised weapons"], &[], true),
+        ],
     }
 }
 
@@ -320,6 +346,12 @@ pub fn starting_bunker() -> StructureDef {
                 center: Vec3::new(2.2, SURFACE_ROOM_FLOOR + 0.45, 3.5),
                 size: Vec3::new(1.6, 0.9, 0.7),
                 color: [0.45, 0.32, 0.18],
+            },
+            // The research station, in the surface room (todo 28).
+            SolidDef {
+                center: Vec3::new(-2.2, SURFACE_ROOM_FLOOR + 0.45, 3.5),
+                size: Vec3::new(1.6, 0.9, 0.7),
+                color: [0.30, 0.40, 0.42],
             },
             // The food crate, in the player's room.
             SolidDef {
