@@ -163,6 +163,12 @@ pub const HISTORY_SECS: f32 = 2.0 * GAME_DAY_SECS;
 /// How a storm goes (design.md "The storm", MISERY's emission): a minute
 /// of warning, twenty seconds of storm. When it comes is the episode's
 /// (its `storm_in`). Tuning.
+/// When the sky changes once in the first hour, in seconds after the
+/// player wakes, and for how long (todo 10cb). Claude's numbers, for the
+/// operator to change.
+pub const SKY_CHANGE_AFTER_SECS: f32 = 1800.0;
+pub const SKY_CHANGE_SECS: f32 = 30.0;
+
 pub const STORM: StormDef = StormDef {
     warning_secs: 60.0,
     storm_secs: 20.0,
