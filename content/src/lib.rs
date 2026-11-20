@@ -1495,7 +1495,12 @@ pub fn register_items(reg: &mut ItemRegistry) {
         // stand, a mouthful a use, never used up. Tuning.
         source("well", 0.0, 50.0),
         source("river", 0.0, 50.0),
-        source("berry bush", 20.0, 0.0),
+        // Food heals, each food its own amounts (todo Survive 2): berries
+        // less hunger and less health than a can. The 2 is Claude's.
+        ItemDef {
+            food: Some(FoodStats { hunger: 20.0, thirst: 0.0, health: 2.0 }),
+            ..source("berry bush", 20.0, 0.0)
+        },
         // Made at the bench from cloth; heals far faster than food, a
         // reason to craft before going out (todo 10ca). Tuning.
         ItemDef {
