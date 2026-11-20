@@ -402,12 +402,24 @@ pub fn populate_monuments(
     mut monuments: ResMut<MonumentsRes>,
     tick: Res<SimTick>,
     boxes: Query<(&ThingId, &Transform, &WorldItem), With<Container>>,
+    land: (Option<Res<WorldRes>>, Res<BiomeRegistryRes>),
 ) {
+    let (world, biomes) = land;
     let due = std::mem::take(&mut monuments.1);
     for (at, monument) in due.into_iter().filter_map(|i| monuments.0.get(i)) {
         let known = home_knowledge(*at, &monument.kind, &boxes, tick.0);
-        for spot in &monument.npc_spots {
-            let Some(def) = registry.0.def(def_for_danger(spot.danger)) else {
+        for (k, spot) in monument.npc_spots.iter().enumerate() {
+            // A spot with no danger is the biome's own people; a dangerous
+            // one is by its danger (todo 33; Claude's split).
+            let by_danger = def_for_danger(spot.danger);
+            let name = match world.as_deref().filter(|_| spot.danger == 0) {
+                Some(world) => {
+                    let seed = modforge::ground::tile_hash(world.seed, modforge::walk::cell_of(*at), 0x517E + k as u64);
+                    crate::biome::who(crate::biome::at(world, &biomes, *at), by_danger, &registry, seed)
+                }
+                None => by_danger,
+            };
+            let Some(def) = registry.0.def(name) else {
                 continue;
             };
             // On the floor its spot is on.

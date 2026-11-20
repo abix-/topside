@@ -252,6 +252,7 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind, port: u16
     app.init_resource::<research::Researched>();
     app.init_resource::<silo::Silo>();
     app.init_resource::<skills::Practised>();
+    app.init_resource::<terrain::Rivers>();
     app.init_resource::<building::Builds>();
     app.init_resource::<raid::Raids>();
     app.init_resource::<content::LayerRegistryRes>();

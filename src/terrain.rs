@@ -348,6 +348,46 @@ fn ground_body(commands: &mut Commands, key: ChunkKey, ground: &[Ground], open: 
     }
 }
 
+/// Rivers carved by descent (todo 33, modforge descent): each starts at
+/// the highest of a few tiles tried and runs downhill to water or the
+/// edge, a ford left every few tiles. Worked out from the world, once a
+/// world, never saved. How many, how long and the fords are Claude's.
+#[derive(Resource, Default)]
+pub struct Rivers {
+    pub seed: Option<u64>,
+    pub tiles: HashSet<(i32, i32)>,
+}
+
+const RIVERS: u64 = 6;
+const SOURCE_TRIES: u64 = 12;
+const RIVER_MOST: usize = 4000;
+const FORD_EVERY: usize = 12;
+
+/// The rivers of a world with an edge (none in a world without one).
+fn carve(world: &WorldRes) -> HashSet<(i32, i32)> {
+    let ground = &world.world.ground;
+    let mut tiles = HashSet::new();
+    let Some((lo, hi)) = ground.chunk_range() else {
+        return tiles;
+    };
+    let (lo, span) = (lo * CHUNK, ((hi - lo) * CHUNK).max(1) as u64);
+    let end = |t: (i32, i32)| matches!(ground.ground_at(t), Ground::Water | Ground::OutOfMap);
+    for k in 0..RIVERS {
+        let source = (0..SOURCE_TRIES)
+            .map(|a| {
+                let h = modforge::ground::tile_hash(world.seed, (k as i32, 0), 0x5249_5645 + a);
+                (lo + (h % span) as i32, lo + ((h >> 32) % span) as i32)
+            })
+            .max_by(|a, b| ground.elevation(*a).total_cmp(&ground.elevation(*b)));
+        let Some(source) = source else {
+            continue;
+        };
+        let path = modforge::descent::river(source, |t| ground.elevation(t), end, RIVER_MOST);
+        tiles.extend(path.into_iter().enumerate().filter(|(i, _)| !modforge::descent::ford(*i, FORD_EVERY)).map(|(_, t)| t));
+    }
+    tiles
+}
+
 /// Make every chunk the world needs now and has not made: round the
 /// player, round every person, and at the bunkers.
 pub fn make_chunks(
@@ -365,7 +405,12 @@ pub fn make_chunks(
     players: Query<(Entity, &Transform), With<crate::player::Player>>,
     people: Query<(Entity, &Transform), (With<crate::actor::Npc>, Without<crate::player::Player>)>,
     below: Query<&crate::structure::Below>,
+    mut rivers: ResMut<Rivers>,
 ) {
+    if rivers.seed != Some(world.seed) {
+        rivers.tiles = carve(&world);
+        rivers.seed = Some(world.seed);
+    }
     // In key order, whoever is near (authority.md rule 5): the order chunks
     // are made in is the order their things are issued ids, the same after
     // a load.
@@ -411,7 +456,20 @@ pub fn make_chunks(
         if !chunks.made.insert(key) {
             continue;
         }
-        let chunk = world.world.chunk(r, key);
+        let mut chunk = world.world.chunk(r, key);
+        // The rivers carved through it, roads left as their bridges; what
+        // stood there is gone (todo 33).
+        let first = chunk.first();
+        for y in 0..CHUNK {
+            for x in 0..CHUNK {
+                let t = (first.0 + x, first.1 + y);
+                let i = (y * CHUNK + x) as usize;
+                if rivers.tiles.contains(&t) && chunk.ground.get(i).is_some_and(|g| g.is_land() && *g != Ground::Road) {
+                    chunk.ground[i] = Ground::Water;
+                    chunk.things.retain(|thing| thing.tile != t);
+                }
+            }
+        }
         chunks.roads += chunk.ground.iter().filter(|g| **g == Ground::Road).count();
         chunks.ground.insert(key, chunk.ground.to_vec());
         let first = chunk.first();
