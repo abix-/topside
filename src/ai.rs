@@ -276,7 +276,7 @@ pub fn think(
     monuments: Res<MonumentRegistryRes>,
     tree: Res<crate::content::brain::BrainTreeRes>,
     day: Res<crate::survival::Day>,
-    storms: Res<crate::storm::StormRes>,
+    (storms, reality): (Res<crate::storm::StormRes>, Res<crate::Reality>),
     nav: Res<crate::navmesh::Nav>,
     archipelagos: Query<&bevy_landmass::prelude::Archipelago3d>,
     sight: Sight,
@@ -324,6 +324,9 @@ pub fn think(
     let can_go = |at: Vec3| archipelago.is_some_and(|a| crate::navmesh::standable(a, at));
     // The storm is the same for everyone: coming or here, hide.
     let storm_coming = crate::storm::phase(&tick, *day, &storms) != modforge::storm::StormPhase::Calm;
+    // Night is the same for everyone too: it sends them home to sleep
+    // (todo 11e4, modforge brain::sleeps_tonight).
+    let night = crate::survival::night(&tick, *day, &reality);
     // Everyone's position and faction first, so the pass below holds
     // no second borrow. The player carries no id yet: zero names it.
     let everyone: Vec<(Entity, ActorId, Vec3, Option<String>)> = thinkers
@@ -661,6 +664,7 @@ pub fn think(
             asleep: condition.0.asleep,
             hostile,
             storm_coming,
+            night,
             carries_food: carried.is_some(),
             carries_drink,
             store: store_at,

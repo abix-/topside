@@ -232,6 +232,7 @@ mod tests {
             asleep: false,
             hostile: None,
             storm_coming: false,
+            night: false,
             carries_food: false,
             carries_drink: false,
             store: None,
