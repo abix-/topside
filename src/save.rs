@@ -81,6 +81,7 @@ saved! {
         crate::actor::Inventory,
         crate::actor::Hotbar,
         crate::actor::Personality,
+        crate::actor::Traits,
         crate::actor::Memory,
         crate::actor::Map,
         crate::actor::Home,

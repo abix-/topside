@@ -1584,7 +1584,7 @@ pub fn publish(
     player_walk: (Query<(Option<&crate::navmesh::Walker>, &ThisTick, Option<&crate::command::Commanded>), With<Player>>, crate::navmesh::Ways),
     npcs: Query<(
         (&Actor, &Npc, &Transform, &Health, &Survival, &Personality, &ThisTick, Option<&Name>),
-        (&crate::actor::Memory, &crate::actor::ActorRecord, Has<crate::actor::Dead>, &crate::actor::Hotbar, &crate::actor::Facing, Option<&crate::people::Drawn>, &crate::actor::Map, &crate::combat::Equipment, Option<&crate::ai::Holding>),
+        (&crate::actor::Memory, &crate::actor::ActorRecord, Has<crate::actor::Dead>, &crate::actor::Hotbar, &crate::actor::Facing, Option<&crate::people::Drawn>, &crate::actor::Map, &crate::combat::Equipment, Option<&crate::ai::Holding>, Option<&crate::actor::Traits>),
     )>,
 ) {
     TICK.store(tick.0, Ordering::Relaxed);
@@ -1692,7 +1692,7 @@ pub fn publish(
         in_order.sort_by_key(|((actor, ..), _)| actor.0);
         let list: Vec<Json> = in_order
             .into_iter()
-            .map(|((actor, npc, at, health, needs, personality, this_tick, name), (memory, record, dead, hotbar, facing, drawn, map, worn, holding))| {
+            .map(|((actor, npc, at, health, needs, personality, this_tick, name), (memory, record, dead, hotbar, facing, drawn, map, worn, holding, traits))| {
                 // What is in their hands, its layers, and the damage its
                 // hits land, worked out by the one place a hit reads it.
                 let weapon = hotbar.0.held_stack().map(|stack| {
@@ -1734,6 +1734,8 @@ pub fn publish(
                     // height, z], or null.
                     "holding": holding.map(|h| [h.at.x, h.at.y, h.at.z]),
                     "weapon": weapon,
+                    // A hostile's rolled traits (design.md "Enemy randomization").
+                    "traits": traits.map(|t| t.0.names()).unwrap_or_default(),
                     // Where they face on the ground, in radians (0 along +x).
                     "facing": facing.0,
                     // What they wear, each in its equipment slot (one row of

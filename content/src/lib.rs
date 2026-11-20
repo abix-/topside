@@ -820,6 +820,10 @@ pub const SMALL_TOPSIDE_PEOPLE: [(&str, u32); 4] = [("wanderer", 25), ("scavenge
 /// rolled look and nothing worn.
 pub const ANIMALS: [&str; 1] = ["wolf"];
 
+/// What an armored hostile wears (design.md "Enemy randomization"): the
+/// one armor there is.
+pub const HOSTILE_ARMOR: &str = "road sign vest";
+
 /// The small world's sites (operator, 2026-09-26: "20 monuments of
 /// varying sizes"): every kind but the ruined city, from large to minor,
 /// each at a fixed place clear of every bunker's ground.

@@ -131,6 +131,16 @@ pub struct Npc {
 #[reflect(opaque, Component, Serialize, Deserialize)]
 pub struct Personality(pub modforge::actor::Personality);
 
+/// A hostile's rolled traits (design.md "Enemy randomization"): armored,
+/// pack leader. Only the topside hostiles roll them.
+#[derive(Component, Default, Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize, Reflect)]
+#[reflect(opaque, Component, Serialize, Deserialize)]
+pub struct Traits(pub modforge::actor::HostileTraits);
+
+/// How many friends a pack leader brings, of its own kind. Claude's, for
+/// the operator to change.
+pub const PACK_FRIENDS: usize = 2;
+
 /// What this person knows (modforge::memory). The brain reads only
 /// this.
 #[derive(Component, Default, Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, Reflect)]
@@ -319,6 +329,23 @@ pub fn spawn_person(
     // Thinking spread across the first second by who they are, so people
     // do not all decide on the same tick.
     let first_think = id.0 % (AWAKE_REACTION * 60.0) as u64;
+    // A topside hostile rolls its traits; an armored one wears armor (an
+    // animal wears nothing, so it is never armored).
+    if def.faction.as_deref() == Some(crate::content::TOPSIDE_HOSTILES) {
+        let mut traits = modforge::actor::HostileTraits::roll(id, spawn.seed.0);
+        traits.armored &= !animal;
+        if traits.armored
+            && let Some(vest) = spawn.items.0.def(crate::content::HOSTILE_ARMOR)
+        {
+            let vest = item::create(vest, 1, &[], 0.0, 0);
+            spawn.commands.entity(entity).queue(move |mut person: EntityWorldMut| {
+                if let Some(mut worn) = person.get_mut::<Equipment>() {
+                    let _ = worn.0.wear(vest);
+                }
+            });
+        }
+        spawn.commands.entity(entity).insert(Traits(traits));
+    }
     spawn.commands.entity(entity).insert((
         Actor(id),
         Personality(personality),
@@ -413,8 +440,21 @@ pub fn populate_topside_people(
     };
     let known = Memory(modforge::memory::Memory::default());
     for (name, at) in world.world.topside_people(r) {
-        if let Some(def) = registry.0.def(&name) {
-            settle(&mut spawn, def, on_ground(at, 0.0), &known);
+        let Some(def) = registry.0.def(&name) else {
+            continue;
+        };
+        let Some(npc) = settle(&mut spawn, def, on_ground(at, 0.0), &known) else {
+            continue;
+        };
+        // A pack leader brings friends of its kind, standing beside it.
+        let leads = def.faction.as_deref() == Some(crate::content::TOPSIDE_HOSTILES)
+            && spawn.actors.0.id_of(npc).is_some_and(|id| modforge::actor::HostileTraits::roll(id, spawn.seed.0).pack_leader);
+        if leads {
+            for i in 0..PACK_FRIENDS {
+                let side = if i % 2 == 0 { 1.2 } else { -1.2 };
+                let beside = at + Vec2::new(side, (i / 2) as f32 * 1.2);
+                settle(&mut spawn, def, on_ground(beside, 0.0), &known);
+            }
         }
     }
 }
