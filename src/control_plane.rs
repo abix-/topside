@@ -870,6 +870,19 @@ pub fn publish_hud(
         "name": talking.as_ref().map(|t| t.name.clone()),
         "line": talking.as_ref().and_then(|t| t.line.clone()).map(|(by, words)| json!({"by": by, "words": words})),
         "choices": talking.as_ref().map_or(Vec::new(), |t| t.choices.iter().map(|c| c.words.clone()).collect()),
+        // What each choice says, in the same order, as the `talk` op takes
+        // it ({"Line": {"line", "key"}}, "Trade"), a line's id as a string
+        // (too big for a JSON number read as a float): a choice made through
+        // the talk op is kept in the replay; one made by a number key is not.
+        "said": talking.as_ref().map_or(Vec::new(), |t| {
+            t.choices
+                .iter()
+                .map(|c| match c.said {
+                    modforge::actions::Said::Line { line, key } => json!({"Line": {"line": line.to_string(), "key": key}}),
+                    said => serde_json::to_value(said).unwrap_or(Json::Null),
+                })
+                .collect()
+        }),
         "drawn": talk_box.single().is_ok_and(|v| *v != Visibility::Hidden) && choice_list.single().is_ok_and(|n| n.display != Display::None),
         // Game seconds the line shown still has to be read (talk.rs, modforge
         // `talk::reading_secs`, counted in ticks).
@@ -2203,13 +2216,18 @@ pub fn start(port: u16) {
     ));
     OP_REGISTRY.register(OpDef::new(
         "talk",
-        "one living person by id says something to another (`to`) on the game's next step, through the one talk path: said is {\"Tell\": {\"key\": k}}, {\"Ask\": {\"key\": k}}, {\"Offer\": {\"slot\": n}}, or \"Threaten\"; a thing's key is the one in the `npc` op's knowledge",
+        "one living person by id says something to another (`to`) on the game's next step, through the one talk path: said is {\"Tell\": {\"key\": k}}, {\"Ask\": {\"key\": k}}, {\"Offer\": {\"slot\": n}}, \"Threaten\", \"Trade\", or a choice as the `hud` op's talk `said` gives it, {\"Line\": {\"line\": \"<id>\", \"key\": k}} (the id a string: it is too big for a JSON number read as a float); a thing's key is the one in the `npc` op's knowledge",
         "{\"id\": 3, \"to\": 1, \"said\": {\"Tell\": {\"key\": 42}}}",
         |args| {
             let id = args.get("id").and_then(Json::as_u64).ok_or_else(|| "id: a number".to_string())?;
             let to = args.get("to").and_then(Json::as_u64).ok_or_else(|| "to: a number".to_string())?;
-            let said: modforge::actions::Said =
-                serde_json::from_value(args.get("said").cloned().unwrap_or(Json::Null)).map_err(|e| format!("said: {e}"))?;
+            let mut said = args.get("said").cloned().unwrap_or(Json::Null);
+            if let Some(line) = said.pointer_mut("/Line/line")
+                && let Some(text) = line.as_str()
+            {
+                *line = json!(text.parse::<u64>().map_err(|e| format!("said: Line's line {text:?}: {e}"))?);
+            }
+            let said: modforge::actions::Said = serde_json::from_value(said).map_err(|e| format!("said: {e}"))?;
             if let Ok(mut ask) = crate::command::ACT_ASK.lock() {
                 ask.push((id, modforge::command::Act::Talk { to, said }));
             }
