@@ -1,7 +1,7 @@
 //! Relationships at both levels (life.md "How a person feels about
 //! others"), played the way the player plays it: at the tap the player
-//! says "Step away from it." to Mara through the talk panel with the
-//! pointer; her feeling toward the player, from her memory of it, is
+//! says "Step away from it." to Mara, by its number key in the talk panel;
+//! her feeling toward the player, from her memory of it, is
 //! hostile, she turns on the player, and her bunker mates, who heard
 //! nothing, do not. The meeting is brought on with the `use` op (Mara to
 //! the tap, the player by her), nothing waited for. Screenshots in
@@ -24,9 +24,11 @@ fn relation_toward(n: &serde_json::Value, id: u64) -> Option<serde_json::Value> 
     n["feelings"].as_array()?.iter().find(|f| f["toward"].as_u64() == Some(id)).map(|f| f["relation"].clone())
 }
 
-#[test]
-fn a_threat_turns_mara_and_not_her_bunker() {
-    crate::opening::you_wake();
+/// The meeting played and Mara threatened, from wherever the game is:
+/// Mara brought to the tap and the player by her (the `use` op), and
+/// "Step away from it." said by its number key, as the player says it.
+/// Returns Mara's and the player's ids once she has turned on the player.
+pub(crate) fn threaten_mara() -> (u64, u64) {
     let w = op("world");
     let Some(mara) = w["cast"].as_array().and_then(|c| c.iter().find(|p| p["part"] == "Mara")).and_then(|p| p["id"].as_u64()) else {
         panic!("the episode is {}, with no Mara; not played this run", w["episode"]);
@@ -55,17 +57,22 @@ fn a_threat_turns_mara_and_not_her_bunker() {
     op_with("use", serde_json::json!({"id": player, "person": mara}));
     // The meeting's line and choices, at most 8 real seconds (a game just
     // started runs slow).
-    let has_threat = |t: &serde_json::Value| t["open"] == true && t["rows"].as_array().is_some_and(|r| r.iter().any(|r| r["words"] == "Step away from it."));
-    let mut talk = talk_after(has_threat);
+    let threat = |t: &serde_json::Value| {
+        if t["open"] != true {
+            return None;
+        }
+        t["choices"].as_array().and_then(|c| c.iter().position(|c| c == "Step away from it."))
+    };
+    let mut talk = talk_after(|t| threat(t).is_some());
     for _ in 0..20 {
-        if has_threat(&talk) {
+        if threat(&talk).is_some() {
             break;
         }
         std::thread::sleep(Duration::from_millis(250));
         talk = op("hud")["talk"].clone();
     }
     shot("relationship_1_meeting");
-    let Some(row) = talk["rows"].as_array().and_then(|r| r.iter().find(|r| r["words"] == "Step away from it.")).cloned() else {
+    let Some(number) = threat(&talk) else {
         panic!(
             "the meeting's choices are not in the panel: {talk}; tap at {tap}, Mara at {}, the player at {}; reached {}",
             npc(mara)["at"],
@@ -73,10 +80,8 @@ fn a_threat_turns_mara_and_not_her_bunker() {
             op("world")["reached"]
         );
     };
-    // The threat, with the mouse.
-    op_with("pointer", serde_json::json!({"at": row["at"]}));
-    std::thread::sleep(Duration::from_millis(400));
-    op_with("pointer", serde_json::json!({"click": true}));
+    // The threat, said by its number key.
+    op_with("key", serde_json::json!({"key": (number + 1).to_string()}));
     for _ in 0..12 {
         if reached("threatens Mara") {
             break;
@@ -94,6 +99,16 @@ fn a_threat_turns_mara_and_not_her_bunker() {
         std::thread::sleep(Duration::from_millis(250));
         m = npc(mara);
     }
+    (mara, player)
+}
+
+/// At the tap the player threatens Mara: she turns on the player, and her
+/// bunker mates, who heard nothing, do not.
+#[test]
+fn a_threat_turns_mara_and_not_her_bunker() {
+    crate::opening::you_wake();
+    let (mara, player) = threaten_mara();
+    let m = npc(mara);
     shot("relationship_3_mara_turns");
     eprintln!("Mara: feelings {}, last threat {}, doing {}", m["feelings"], m["last_threat"], m["doing"]);
     assert_eq!(relation_toward(&m, player), Some(serde_json::json!("Hostile")), "Mara is not hostile to the player after the threat");
@@ -118,7 +133,7 @@ fn a_threat_turns_mara_and_not_her_bunker() {
 /// half (modforge `talk::share`).
 #[test]
 fn word_of_the_threat_spreads_to_a_mate() {
-    crate::opening::you_wake();
+    crate::saves::tap_mara_threatened();
     let w = op("world");
     let Some(mara) = w["cast"].as_array().and_then(|c| c.iter().find(|p| p["part"] == "Mara")).and_then(|p| p["id"].as_u64()) else {
         panic!("the episode is {}, with no Mara; not played this run", w["episode"]);

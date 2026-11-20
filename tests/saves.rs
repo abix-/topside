@@ -119,6 +119,19 @@ pub(crate) fn tap_mara_at_the_tap() {
     });
 }
 
+/// Just after the player threatens Mara at the tap (the pivot "threatens
+/// Mara"), from the game's start.
+pub(crate) fn tap_mara_threatened() {
+    // Played on in real time, then paused for the save's one step.
+    let mut paused = None;
+    start_from("tap_mara_threatened", || {
+        crate::opening::you_wake();
+        crate::relationship::threaten_mara();
+        paused = Some(crate::endpoint::pause());
+    });
+    drop(paused);
+}
+
 /// Knowing the tap, just before Roxanne's store passes 10 days of water.
 pub(crate) fn tap_store_nine_days() {
     start_from("tap_store_nine_days", || {
