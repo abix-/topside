@@ -561,6 +561,34 @@ def note():
     return join(parts, "note", ITEM)
 
 
+def bolted_door():
+    """a door standing in the room, its bolt shot, scratches in its paint
+    low down (design.md "The first hour": "a door bolted from the inside
+    with scratches on it"). Door sized, not item sized."""
+    paint = material("door paint", (0.35, 0.4, 0.35))
+    steel = material("bolt", (0.55, 0.55, 0.58))
+    bare = material("scratch", (0.8, 0.78, 0.7))
+    parts = [box("panel", (0.8, 0.05, 1.9), at=(0, 0, 0.95), mat=paint)]
+    parts.append(box("bolt", (0.22, 0.04, 0.04), at=(0.25, -0.045, 1.0), mat=steel))
+    parts.append(box("keeper", (0.06, 0.05, 0.08), at=(0.38, -0.045, 1.0), mat=steel))
+    for i in range(6):
+        x = -0.25 + i * 0.09
+        parts.append(box(f"scratch_{i}", (0.012, 0.004, 0.35), at=(x, -0.027, 0.3 + (i % 3) * 0.05), rotation=(0, 0.15 * (i % 2 * 2 - 1), 0), mat=bare))
+    return join(parts, "bolted door", 1.9)
+
+
+def radio():
+    """a radio: a box with a speaker grille, a dial and an aerial."""
+    case = material("radio case", (0.3, 0.25, 0.2))
+    grille = material("grille", (0.15, 0.15, 0.15))
+    dial = material("dial", (0.8, 0.75, 0.6))
+    parts = [box("case", (0.3, 0.12, 0.18), at=(0, 0, 0.09), mat=case)]
+    parts.append(box("grille", (0.14, 0.004, 0.12), at=(-0.06, -0.061, 0.09), mat=grille))
+    parts.append(cylinder("dial", 0.03, 0.01, along="Y", at=(0.08, -0.062, 0.09), mat=dial))
+    parts.append(cylinder("aerial", 0.004, 0.3, along="Z", at=(0.12, 0.03, 0.33), mat=grille))
+    return join(parts, "radio", ITEM)
+
+
 def bandage():
     """a bandage: a white roll with its loose end lying out."""
     cloth = material("gauze", (0.9, 0.88, 0.84))
@@ -2000,6 +2028,8 @@ SETS = {"person": people, "weapons": weapons}
 # Items, named as in content/src/lib.rs: each also gets its icon.
 ITEMS = {
     "note": note,
+    "bolted door": bolted_door,
+    "radio": radio,
     "canned food": lambda: kenney("food", "can", "canned food"),
     "water bottle": lambda: kenney("survival", "bottle", "water bottle"),
     "bandage": bandage,

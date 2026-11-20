@@ -68,6 +68,10 @@ pub const BENCH_AT: [f32; 2] = [2.8, 3.5];
 /// first hour").
 pub const STARTING_NOTE_AT: [f32; 2] = [-1.4, 3.6];
 
+/// Where the room's question lies in the starting bunker's plan (x, z)
+/// when it is not the note: by the note, west of the stairs.
+pub const QUESTION_AT: [f32; 2] = [0.4, 3.6];
+
 /// Every recipe, as data (modforge crafting).
 #[derive(Resource)]
 pub struct RecipeRegistryRes(pub RecipeRegistry);
@@ -1194,23 +1198,47 @@ pub struct Question {
     /// The words of the answer, one of these, signed by the same name as
     /// the starting note.
     pub answers: &'static [&'static str],
+    /// The fourth thing in the room that asks it, and what using it shows
+    /// (design.md: "The three things in the room (bed, bench, food) stay;
+    /// the question is a fourth"); none when the starting note asks it.
+    pub in_room: Option<(&'static str, &'static str)>,
 }
 
-/// The bunker's questions. The note with a name you do not know is
-/// answered at the nearest body, by a note in the same name (design.md:
-/// the first trace "carries the name from the note"). The answers' words
-/// are Claude's, for the operator to change. The bolted door with
-/// scratches and the radio that clicks wait for their answers to be
-/// designed.
-pub const QUESTIONS: [Question; 1] = [Question {
-    name: "the note",
-    answer_at: "body",
-    answers: &[
-        "couldn't wait any longer. went out for water. if you find this, go back",
-        "I told you not to come out. it isn't the people. it's the sky",
-        "three days was all I could leave you. I'm sorry",
-    ],
-}];
+/// The bunker's questions (design.md "The first hour": "the bolted door,
+/// the note, the radio, and more"), each answered at the nearest body by
+/// a note in the starting note's name (the first trace "carries the name
+/// from the note, or the note's handwriting"). The words are Claude's,
+/// for the operator to change.
+pub const QUESTIONS: [Question; 3] = [
+    Question {
+        name: "the note",
+        answer_at: "body",
+        answers: &[
+            "couldn't wait any longer. went out for water. if you find this, go back",
+            "I told you not to come out. it isn't the people. it's the sky",
+            "three days was all I could leave you. I'm sorry",
+        ],
+        in_room: None,
+    },
+    Question {
+        name: "the bolted door",
+        answer_at: "body",
+        answers: &[
+            "I bolted you in so you'd stay. you scratched at it all night. I'm sorry",
+            "the scratches aren't yours. something wanted in. I bolted it and ran",
+        ],
+        in_room: Some(("bolted door", "Bolted from this side. Scratches in the paint, low down.")),
+    },
+    Question {
+        name: "the radio",
+        answer_at: "body",
+        answers: &[
+            "two clicks means I'm still out here. if the clicks stop, don't come looking",
+            "the clicks aren't me. they started after the sky changed",
+        ],
+        in_room: Some(("radio", "Static. Then two clicks, and nothing.")),
+    },
+];
 
 /// The question this world's bunker asks: same seed, same question.
 pub fn starting_question(seed: u64) -> &'static Question {
@@ -1293,6 +1321,42 @@ pub fn register_items(reg: &mut ItemRegistry) {
         ItemDef {
             name: "note".to_string(),
             description: "Someone's words on a scrap of paper.".to_string(),
+            unique: false,
+            kind: ItemKind::Note,
+            max_stack: 1,
+            quality_siblings: 1,
+            combat: None,
+            food: None,
+            storage: None,
+            armor: None,
+            good_for: Default::default(),
+            picture: None,
+            layer_slots: Vec::new(),
+            breaks_when_struck: false,
+            holds_litres: None,
+        },
+        // The room's question when it is not the note (QUESTIONS): read
+        // as a note is, by using it.
+        ItemDef {
+            name: "bolted door".to_string(),
+            description: "A door, bolted shut, scratched.".to_string(),
+            unique: false,
+            kind: ItemKind::Note,
+            max_stack: 1,
+            quality_siblings: 1,
+            combat: None,
+            food: None,
+            storage: None,
+            armor: None,
+            good_for: Default::default(),
+            picture: None,
+            layer_slots: Vec::new(),
+            breaks_when_struck: false,
+            holds_litres: None,
+        },
+        ItemDef {
+            name: "radio".to_string(),
+            description: "A radio that clicks.".to_string(),
             unique: false,
             kind: ItemKind::Note,
             max_stack: 1,

@@ -22,7 +22,7 @@ use modforge::walk::cell_of;
 
 use crate::content::{
     BENCH_AT, BUNKER_STORE, BUNKER_STORE_AT, ItemRegistryRes, PLAYER_ROOM_FLOOR, STARTING_ITEMS, SURFACE_ROOM_FLOOR,
-    STARTING_NOTE_AT, loot_table,
+    QUESTION_AT, STARTING_NOTE_AT, loot_table,
     question_answer, starting_bunker, starting_note, starting_question,
 };
 
@@ -379,6 +379,19 @@ pub fn spawn_bunker(
         write(def("note"), starting_note(world.seed), 0.0, 13).expect("the note def is a note"),
         on_floor(at + Vec2::new(x, z), PLAYER_ROOM_FLOOR),
     );
+    // The room's question when the note does not ask it: a fourth thing,
+    // read as a note is.
+    if let Some((name, says)) = starting_question(world.seed).in_room {
+        let [x, z] = QUESTION_AT;
+        let words = modforge::item::Note { text: says.to_string(), signed: String::new() };
+        spawn_item(
+            &mut commands,
+            &mut ids,
+            def(name),
+            write(def(name), words, 0.0, 15).unwrap_or_else(|e| panic!("the question {name}: {e}")),
+            on_floor(at + Vec2::new(x, z), PLAYER_ROOM_FLOOR),
+        );
+    }
 }
 
 /// The other bunkers (design.md: every bunker is its own faction), each
