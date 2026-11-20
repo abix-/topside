@@ -329,11 +329,12 @@ pub fn melee(
         // What is in the hands: the held hotbar slot (Rust), its numbers
         // worked out from its layers; guns are their own row, this is the
         // hand weapons.
-        let weapon = hotbar
-            .0
-            .held_stack()
+        let held = hotbar.0.held_stack();
+        let weapon = held
             .and_then(|s| items.0.def(&s.item).and_then(|d| numbers_of(d, s, &layers.0).combat))
             .filter(|w| w.ammo.is_none());
+        // A better tier hits harder (design.md "Loot randomization").
+        let quality = modforge::quality::power(held.and_then(|s| s.quality).map(|q| q.tier), &crate::content::QUALITY);
         let personality = personality.map(|p| p.0).unwrap_or_default();
         // The swing pressed earlier lands once its wind-up has passed
         // (combat.md "Simple to use": every attack shows a wind-up before
@@ -387,7 +388,7 @@ pub fn melee(
             facing.direction(),
             swing,
             weapon.reach * personality.range_mult(),
-            personality.damage_mult(health.0.fraction()),
+            personality.damage_mult(health.0.fraction()) * quality,
             weapon.damage.clone(),
         ));
     }
@@ -491,6 +492,13 @@ pub struct Bullet {
     /// range.
     pub travelled: f32,
     pub range: f32,
+    /// How much harder it hits for its gun's quality tier (1 the base).
+    #[serde(default = "base_power")]
+    pub power: f32,
+}
+
+fn base_power() -> f32 {
+    1.0
 }
 
 /// How high above the feet a bullet leaves anyone who aims without eyes,
@@ -531,13 +539,11 @@ pub fn fire(
         if Rolling::busy(rolling) {
             continue;
         }
-        let Some(gun) = hotbar
-            .0
-            .held_stack()
-            .and_then(|s| items.0.def(&s.item).and_then(|d| numbers_of(d, s, &layers.0).combat))
-        else {
+        let held = hotbar.0.held_stack();
+        let Some(gun) = held.and_then(|s| items.0.def(&s.item).and_then(|d| numbers_of(d, s, &layers.0).combat)) else {
             continue;
         };
+        let power = modforge::quality::power(held.and_then(|s| s.quality).map(|q| q.tier), &crate::content::QUALITY);
         // Hand weapons are `melee`'s.
         let Some(ammo) = gun.ammo.as_deref() else {
             continue;
@@ -573,6 +579,7 @@ pub fn fire(
                     rise,
                     travelled: 0.0,
                     range: gun.reach,
+                    power,
                 },
                 crate::model::Model("pellet".to_string()),
                 Transform::from_translation(on_ground(muzzle, height)),
@@ -604,8 +611,9 @@ pub fn fly(
     >,
 ) {
     let step = BULLET_SPEED * time.delta_secs();
-    // (shooter, damage def, pellets summed per target) this step.
-    let mut landed: Vec<(Entity, String, MultiDamage<Entity>)> = Vec::new();
+    // (shooter, damage def, pellets summed per target, quality power) this
+    // step.
+    let mut landed: Vec<(Entity, String, MultiDamage<Entity>, f32)> = Vec::new();
     // Where on each target the first pellet to reach them landed.
     let mut areas: Vec<(Entity, BodyArea)> = Vec::new();
     for (entity, mut bullet, mut transform) in &mut bullets {
@@ -630,13 +638,13 @@ pub fn fly(
                 }
                 match landed
                     .iter_mut()
-                    .find(|(s, d, _)| *s == bullet.shooter && *d == bullet.damage)
+                    .find(|(s, d, ..)| *s == bullet.shooter && *d == bullet.damage)
                 {
-                    Some((_, _, multi)) => multi.add(hit.entity, at),
+                    Some((_, _, multi, _)) => multi.add(hit.entity, at),
                     None => {
                         let mut multi = MultiDamage::default();
                         multi.add(hit.entity, at);
-                        landed.push((bullet.shooter, bullet.damage.clone(), multi));
+                        landed.push((bullet.shooter, bullet.damage.clone(), multi, bullet.power));
                     }
                 }
             }
@@ -659,7 +667,7 @@ pub fn fly(
             ordered.push(landed.remove(i));
         }
     }
-    for (shooter, name, mut multi) in ordered {
+    for (shooter, name, mut multi, power) in ordered {
         let Some(def) = damage.0.def(&name) else {
             continue;
         };
@@ -678,7 +686,7 @@ pub fn fly(
                 def,
                 self_inflicted: false,
                 distance,
-                location_scale: pellets as f32 * area.scale(),
+                location_scale: pellets as f32 * area.scale() * power,
             };
             let (result, killed) =
                 hit_actor(&hit, own, worn, &items.0, &layers.0, area, &mut health, memory.as_deref_mut(), Some(by), tick.0);

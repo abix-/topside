@@ -824,6 +824,18 @@ pub const ANIMALS: [&str; 1] = ["wolf"];
 /// one armor there is.
 pub const HOSTILE_ARMOR: &str = "road sign vest";
 
+
+/// The quality tiers a found item rolls (design.md "Loot randomization",
+/// authority.md "Quality": every item rolls a tier, rarer is better), best
+/// first; anything else is the base tier. The names are modforge
+/// quality's; the odds (per mille) and how much harder each hits are
+/// Claude's, for the operator to change.
+pub static QUALITY: std::sync::LazyLock<Vec<modforge::quality::Tier>> = std::sync::LazyLock::new(|| {
+    [("legendary", 5, 1.6), ("epic", 20, 1.4), ("rare", 75, 1.25), ("uncommon", 150, 1.1)]
+        .into_iter()
+        .map(|(name, per_mille, power)| modforge::quality::Tier { name: name.to_string(), per_mille, power })
+        .collect()
+});
 /// The small world's sites (operator, 2026-09-26: "20 monuments of
 /// varying sizes"): every kind but the ruined city, from large to minor,
 /// each at a fixed place clear of every bunker's ground.

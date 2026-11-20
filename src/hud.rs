@@ -192,6 +192,15 @@ pub fn information(
         }
     }
     let numbers = modforge::item::numbers_of(def, stack, layers);
+    // Its quality tier, when better than the base (design.md "Loot
+    // randomization").
+    let tier = stack.quality.map(|q| q.tier);
+    if let Some(name) = modforge::quality::name(tier, &crate::content::QUALITY) {
+        lines.push(format!("Quality {name}"));
+        if numbers.combat.is_some() {
+            lines.push(format!("Hits x{:.2}", modforge::quality::power(tier, &crate::content::QUALITY)));
+        }
+    }
     if let Some(armor) = numbers.armor {
         lines.push(format!("Protection {:.0}", armor.amount));
     }

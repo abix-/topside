@@ -550,13 +550,19 @@ pub fn spawn_sites(
         // one loot table (modforge's roll, seeded by the site).
         if let Some(box_def) = items.0.def("storage box").filter(|_| things) {
             for (k, spot) in monument.loot_spots.iter().enumerate() {
-                let mut roll = Roll::new(tile_hash(world.seed, cell_of(site.position), k as u64));
+                let box_seed = tile_hash(world.seed, cell_of(site.position), k as u64);
+                let mut roll = Roll::new(box_seed);
                 let mut contents = item::Inventory::new(box_def.storage.unwrap_or(12));
-                for (name, on, count) in roll_loot(&table, spot.danger, &mut roll) {
+                // A weapon or something worn rolls its quality tier as it
+                // is found (design.md "Loot randomization"); the rest are
+                // base (Claude's reading, for the operator to change).
+                let odds = modforge::quality::odds(&crate::content::QUALITY);
+                for (i, (name, on, count)) in roll_loot(&table, spot.danger, &mut roll).into_iter().enumerate() {
                     let Some(def) = items.0.def(&name) else {
                         continue;
                     };
-                    match item::create_layered(def, &on, &layers.0, count, &[], 0.0, k as u64) {
+                    let tiered = if def.combat.is_some() || def.armor.is_some() { &odds[..] } else { &[] };
+                    match item::create_layered(def, &on, &layers.0, count, tiered, 0.0, box_seed ^ i as u64) {
                         Ok(mut stack) => {
                             // A container found in a box is found full of
                             // water (Claude's reading, for the operator to
