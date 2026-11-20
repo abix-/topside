@@ -439,7 +439,11 @@ pub fn populate_topside_people(
         buildings: &monuments.buildings,
     };
     let known = Memory(modforge::memory::Memory::default());
-    for (name, at) in world.world.topside_people(r) {
+    let people = world.world.topside_people(r);
+    for (k, (name, at)) in people.into_iter().enumerate() {
+        // Who stands here is the biome's (todo 32).
+        let seed = modforge::ground::tile_hash(world.seed, modforge::walk::cell_of(at), 0xB10E + k as u64);
+        let name = crate::biome::who(crate::biome::at(&world, &biomes, at), &name, &registry, seed).to_string();
         let Some(def) = registry.0.def(&name) else {
             continue;
         };

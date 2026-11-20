@@ -230,17 +230,11 @@ pub const HAMMER: &str = "hammer";
 pub const TOOL_CUPBOARD: &str = "tool cupboard";
 pub const WOOD: &str = "wood";
 pub const STONE: &str = "stone";
-/// Each biome's weather, by weight, rolled a game hour at a time (todo
-/// 21, modforge weather). The weights are Claude's.
-pub fn weather_table(biome: &str) -> Vec<(modforge::weather::Weather, u32)> {
-    use modforge::weather::Weather::*;
-    match biome {
-        "forest" => vec![(Clear, 10), (Rain, 6), (Fog, 4), (ColdSnap, 1)],
-        "wasteland" => vec![(Clear, 10), (HeatWave, 4), (RadiationStorm, 2), (Fog, 1)],
-        "ruins" => vec![(Clear, 10), (Fog, 3), (RadiationStorm, 3), (Rain, 2)],
-        "grassland" => vec![(Clear, 12), (Rain, 4), (ColdSnap, 2), (HeatWave, 2)],
-        _ => vec![(Clear, 1)],
-    }
+/// A biome's weather list (todo 21, 32): each weather named as often as
+/// its weight, rolled a game hour at a time (modforge weather). The
+/// weights are Claude's.
+fn weather_list(weights: &[(&str, u32)]) -> Vec<String> {
+    weights.iter().flat_map(|(name, n)| std::iter::repeat_n(name.to_string(), *n as usize)).collect()
 }
 
 /// The Labyrinth's gate site and its model (todo 11v).
@@ -2525,7 +2519,7 @@ pub fn register_biomes(reg: &mut BiomeRegistry) {
                     source: None,
                 },
             ],
-            weather: vec!["rain".to_string(), "fog".to_string()],
+            weather: weather_list(&[("clear", 10), ("rain", 6), ("fog", 4), ("cold snap", 1)]),
             monuments: vec![
                 "roadside stop".to_string(),
                 "research station".to_string(),
@@ -2555,7 +2549,7 @@ pub fn register_biomes(reg: &mut BiomeRegistry) {
                     source: None,
                 },
             ],
-            weather: vec!["dust storm".to_string(), "clear".to_string()],
+            weather: weather_list(&[("dust storm", 1), ("clear", 10), ("heat wave", 4), ("radiation storm", 2), ("fog", 1)]),
             monuments: vec![
                 "roadside stop".to_string(),
                 "airfield".to_string(),
@@ -2586,7 +2580,7 @@ pub fn register_biomes(reg: &mut BiomeRegistry) {
                     source: None,
                 },
             ],
-            weather: vec!["rain".to_string(), "fog".to_string(), "clear".to_string()],
+            weather: weather_list(&[("rain", 2), ("fog", 3), ("clear", 10), ("radiation storm", 3)]),
             monuments: vec![
                 "ruined city".to_string(),
                 "power plant".to_string(),
@@ -2613,11 +2607,12 @@ pub fn register_biomes(reg: &mut BiomeRegistry) {
             name: "grassland".to_string(),
             ground: [0.3, 0.45, 0.22],
             scatter: sources().to_vec(),
-            weather: vec!["clear".to_string()],
+            weather: weather_list(&[("clear", 12), ("rain", 4), ("cold snap", 2), ("heat wave", 2)]),
             monuments: vec![],
-            npcs: vec![],
-            wildlife: vec![],
-            harvest: vec![],
+            // Claude's (todo 32), for the operator to change.
+            npcs: vec!["wanderer".to_string()],
+            wildlife: vec!["wolf".to_string()],
+            harvest: vec!["cloth".to_string()],
         },
     ];
     for biome in biomes {

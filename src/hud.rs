@@ -896,6 +896,7 @@ pub fn render_vitals(
     reality: Res<crate::Reality>,
     players: Query<(&crate::combat::Health, &Survival, Option<&crate::exposure::Exposure>, &Transform), With<Player>>,
     world: Option<Res<crate::terrain::WorldRes>>,
+    biomes: Res<crate::content::BiomeRegistryRes>,
     mut texts: Query<&mut Text, With<VitalsText>>,
 ) {
     let (Ok((health, needs, exposure, at)), Ok(mut text)) = (players.single(), texts.single_mut()) else {
@@ -911,7 +912,7 @@ pub fn render_vitals(
     // Temperature and radiation (todo 20) beside hunger and thirst.
     let exposure = exposure.map(|e| e.0).unwrap_or_default();
     // The weather where the player stands (todo 21).
-    let weather = world.as_deref().map_or("", |w| crate::weather::at(w, tick.0, *day, crate::Ground::ground(at.translation)).name());
+    let weather = world.as_deref().map_or("", |w| crate::weather::at(w, &biomes, tick.0, *day, crate::Ground::ground(at.translation)).name());
     text.0 = format!(
         "Health {:.0}   Hunger {:.0}   Thirst {:.0}   Temp {:.1}C   Rad {:.0}   {time}   {weather}",
         health.0.current, needs.0.hunger, needs.0.thirst, exposure.warmth, exposure.dose

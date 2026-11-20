@@ -622,7 +622,9 @@ pub fn spawn_sites(
         if let Some(box_def) = items.0.def("storage box").filter(|_| things) {
             for (k, spot) in monument.loot_spots.iter().enumerate() {
                 let box_seed = tile_hash(world.seed, cell_of(site.position), k as u64);
-                let contents = fill_box(&items, &layers, &table, box_def, spot.danger, box_seed, today);
+                let mut contents = fill_box(&items, &layers, &table, box_def, spot.danger, box_seed, today);
+                // And the biome's own resources (todo 32).
+                crate::biome::harvest_into(&mut contents, crate::biome::at(&world, &biomes, site.position), &items, box_seed);
                 // On the floor its spot is on.
                 let at = on_floor(site.position + Vec2::new(spot.position.x, spot.position.z), spot.position.y);
                 let (found, _) = spawn_item(&mut commands, &mut ids, box_def, item::create(box_def, 1, &[], 0.0, k as u64), at);

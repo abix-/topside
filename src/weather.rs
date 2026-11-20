@@ -1,6 +1,6 @@
 //! Weather (todo 21) on modforge's rules (modforge weather.rs): each game
-//! hour each biome rolls its weather from its table (content
-//! `weather_table`). Where a person stands, it changes the air and the
+//! hour each biome rolls its weather from its own weather list (its
+//! `BiomeDef`, biome.rs). Where a person stands, it changes the air and the
 //! radiation they are exposed to in the open (exposure.rs), the same for
 //! everyone; the player sees it as fog closing in, coloured by the
 //! weather, and named on the vitals line. The colours are Claude's.
@@ -10,12 +10,13 @@ use modforge::weather::Weather;
 
 use crate::Ground;
 
-/// The weather at a point on the ground now.
-pub fn at(world: &crate::terrain::WorldRes, tick: u64, day: crate::survival::Day, point: Vec2) -> Weather {
-    let ground = &world.world.ground;
-    let biome = ground.biomes.get(ground.biome_at(modforge::walk::cell_of(point)) as usize).map_or("", String::as_str);
+/// The weather at a point on the ground now, from its biome's weather
+/// list (todo 32).
+pub fn at(world: &crate::terrain::WorldRes, biomes: &crate::content::BiomeRegistryRes, tick: u64, day: crate::survival::Day, point: Vec2) -> Weather {
+    let biome = crate::biome::at(world, biomes, point);
     let hour = ((day.0 / 24.0) * 60.0).round().max(1.0) as u64;
-    modforge::weather::roll(&crate::content::weather_table(biome), world.seed, tick / hour, biome)
+    let name = biome.map_or("", |b| b.name.as_str());
+    modforge::weather::roll(&crate::biome::weathers(biome), world.seed, tick / hour, name)
 }
 
 fn colour(weather: Weather) -> Color {
@@ -36,13 +37,14 @@ pub fn sky(
     tick: Res<crate::SimTick>,
     day: Res<crate::survival::Day>,
     world: Option<Res<crate::terrain::WorldRes>>,
+    biomes: Res<crate::content::BiomeRegistryRes>,
     player: Query<&Transform, With<crate::player::Player>>,
     eyes: Query<(Entity, Option<&DistanceFog>), With<crate::player::Eyes>>,
 ) {
     let (Some(world), Ok(at)) = (world, player.single()) else {
         return;
     };
-    let weather = self::at(&world, tick.0, *day, at.translation.ground());
+    let weather = self::at(&world, &biomes, tick.0, *day, at.translation.ground());
     // A heat wave or a cold snap is a haze far off; clear is no fog.
     let far = match weather {
         Weather::Clear => None,

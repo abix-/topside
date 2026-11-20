@@ -31,6 +31,7 @@ pub mod radio;
 pub mod raid;
 pub mod turret;
 pub mod weather;
+pub mod biome;
 pub mod power;
 pub mod randy;
 pub mod silo;
