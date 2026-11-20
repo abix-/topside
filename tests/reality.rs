@@ -53,14 +53,15 @@ fn no_night_in_a_reality_without_night() {
     }
 }
 
-/// Read the `world` op until `done` holds, at most `secs` real seconds.
+/// While paused, the `world` op a game second at a time until `done`
+/// holds, at most `secs` game seconds.
 fn world_until(secs: u64, done: impl Fn(&serde_json::Value) -> bool) -> serde_json::Value {
     let mut w = op("world");
-    for _ in 0..secs * 4 {
+    for _ in 0..secs {
         if done(&w) {
             break;
         }
-        std::thread::sleep(std::time::Duration::from_millis(250));
+        crate::endpoint::step(crate::opening::SECOND);
         w = op("world");
     }
     w
@@ -73,10 +74,13 @@ fn world_until(secs: u64, done: impl Fn(&serde_json::Value) -> bool) -> serde_js
 /// the death with ops, so it takes about half a minute.
 #[test]
 fn in_loop_the_killed_come_back_and_the_storm_takes_everything_topside() {
+    let _p = crate::endpoint::pause();
     crate::opening::you_wake();
     let before = op("world")["storms"].as_u64().unwrap_or(0);
     eprintln!("storm op answered {}", op_with("storm", serde_json::json!({"reality": "Loop"})));
-    let w = world_until(60, |w| w["storms"].as_u64().unwrap_or(0) > before);
+    // The storm's own span: it warns 60 game seconds and lasts 20
+    // (content STORM), then the world shifts.
+    let w = world_until(90, |w| w["storms"].as_u64().unwrap_or(0) > before);
     assert_eq!(w["reality"]["name"], "Loop", "the storm op named Loop, yet the world is in {} (tick {})", w["reality"]["name"], w["tick"]);
     let list = people();
     let topside: Vec<_> = list.iter().filter(|p| !is_bunker_person(p)).collect();
@@ -92,7 +96,7 @@ fn in_loop_the_killed_come_back_and_the_storm_takes_everything_topside() {
     eprintln!("kill op answered {}", op_with("kill", serde_json::json!({"id": id})));
     let mut back = None;
     for _ in 0..40 {
-        std::thread::sleep(std::time::Duration::from_millis(250));
+        crate::endpoint::step(15);
         let now = people().into_iter().find(|p| p["id"].as_u64() == Some(id));
         if let Some(p) = now
             && p["dead"] != true
