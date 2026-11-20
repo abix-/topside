@@ -51,6 +51,10 @@ pub const STARTING_ITEMS: [(&str, u32, u64, [f32; 2], Rgb); 7] = [
 /// How tall each level of the bunker you start in is, and the levels of
 /// its two rooms (design.md "The bunker you start in"): the surface room
 /// on the ground, the player's room below it.
+/// What every person wears from the start: a shirt, trousers and boots,
+/// each a layer of their model (scripts/models.py `WORN`).
+pub const WORN: [&str; 3] = ["shirt", "trousers", "boots"];
+
 pub const BUNKER_LEVEL: f32 = 3.0;
 pub const PLAYER_ROOM_FLOOR: f32 = -BUNKER_LEVEL;
 pub const SURFACE_ROOM_FLOOR: f32 = 0.0;
@@ -1494,6 +1498,26 @@ pub fn register_items(reg: &mut ItemRegistry) {
             holds_litres: None,
         },
     ];
+    // What everyone wears (WORN): plain clothes, wearable and guarding
+    // nothing.
+    let clothes = WORN.iter().map(|name| ItemDef {
+        name: name.to_string(),
+        description: format!("Plain {name}. Worn."),
+        unique: false,
+        kind: ItemKind::Tool,
+        max_stack: 1,
+        quality_siblings: 1,
+        combat: None,
+        food: None,
+        storage: None,
+        armor: Some(Armor { amount: 0.0 }),
+        good_for: Default::default(),
+        picture: None,
+        layer_slots: Vec::new(),
+        breaks_when_struck: false,
+        holds_litres: None,
+    });
+    let items = items.into_iter().chain(clothes).collect::<Vec<_>>();
     // With every episode's own items (each episode's file).
     for mut item in items.into_iter().chain(episodes().into_iter().flat_map(|e| e.items)) {
         // Every item is drawn with the picture named after it, rendered

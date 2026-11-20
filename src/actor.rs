@@ -262,6 +262,11 @@ pub fn spawn_person(
             Err(e) => warn!("{}'s weapon: {e}", def.name),
         }
     }
+    // Everyone is dressed (operator, 2026-11-20: clothes were missing).
+    let mut worn = Equipment::default();
+    for def in crate::content::WORN.iter().filter_map(|w| spawn.items.0.def(w)) {
+        let _ = worn.0.wear(item::create(def, 1, &[], 0.0, 0));
+    }
     let entity = spawn
         .commands
         .spawn((
@@ -270,7 +275,7 @@ pub fn spawn_person(
                 Facing::default(),
                 Inventory::default(),
                 hotbar,
-                Equipment::default(),
+                worn,
                 Firing::default(),
                 Rolling::default(),
                 crate::player::Fall::default(),

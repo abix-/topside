@@ -571,6 +571,17 @@ def bandage():
     return join(parts, "bandage", ITEM)
 
 
+def folded(name, rgb):
+    """clothes folded flat on the ground: a cloth square with its fold."""
+    cloth = material(name, rgb)
+    fold = material(f"{name} fold", tuple(c * 0.7 for c in rgb))
+    parts = [
+        box("cloth", (0.3, 0.25, 0.04), mat=cloth),
+        box("fold", (0.3, 0.01, 0.002), at=(0, 0, 0.021), mat=fold),
+    ]
+    return join(parts, name, ITEM)
+
+
 def road_sign_vest():
     """the road sign vest: a green road sign with a white border, worn on
     two straps."""
@@ -1897,9 +1908,53 @@ def vest(rig, body):
     return parts
 
 
+def clothing(body, bones, name, rgb, out):
+    """clothes cut from the body itself: a copy of its skin holding only
+    what moves with `bones` (a vertex's strongest bone starts with one of
+    them), pushed `out` metres off the skin and coloured `rgb`. It keeps
+    the body's rig, so it moves as the body does."""
+    skin = max(body, key=lambda o: len(o.data.vertices))
+    cloth = skin.copy()
+    cloth.data = skin.data.copy()
+    bpy.context.collection.objects.link(cloth)
+    groups = {g.index: g.name for g in cloth.vertex_groups}
+    mesh = cloth.data
+    gone = []
+    for v in mesh.vertices:
+        strongest = max(v.groups, key=lambda g: g.weight, default=None)
+        bone = groups.get(strongest.group, "") if strongest else ""
+        if not bone.startswith(bones):
+            gone.append(v.index)
+    import bmesh
+    bm = bmesh.new()
+    bm.from_mesh(mesh)
+    bm.verts.ensure_lookup_table()
+    bmesh.ops.delete(bm, geom=[bm.verts[i] for i in gone], context="VERTS")
+    for v in bm.verts:
+        v.co += v.normal * out
+    bm.to_mesh(mesh)
+    bm.free()
+    mat = material(name, rgb)
+    mesh.materials.clear()
+    mesh.materials.append(mat)
+    return [cloth]
+
+
+# What everyone wears (content/src/lib.rs `worn`): each cut from the body by
+# the bones it covers. The shirt runs from the waist to the wrists and the
+# neck; the trousers from the waist to the ankles; the boots are the feet.
+SHIRT = ("spine", "clavicle", "upperarm", "lowerarm")
+TROUSERS = ("pelvis", "thigh", "calf")
+BOOTS = ("foot", "ball")
+
 # What people wear, drawn as a layer over the body like a piece: by the
 # item's picture name (content/src/lib.rs), built on each body.
-WORN = {"road sign vest": vest}
+WORN = {
+    "road sign vest": vest,
+    "shirt": lambda rig, body: clothing(body, SHIRT, "shirt", (0.42, 0.4, 0.33), 0.02),
+    "trousers": lambda rig, body: clothing(body, TROUSERS, "trousers", (0.25, 0.27, 0.3), 0.012),
+    "boots": lambda rig, body: clothing(body, BOOTS, "boots", (0.22, 0.16, 0.11), 0.015),
+}
 
 
 def people():
@@ -1932,6 +1987,9 @@ ITEMS = {
     "cloth": lambda: kenney("survival", "bedroll-packed", "cloth"),
     "shotgun shell": shotgun_shell,
     "road sign vest": road_sign_vest,
+    "shirt": lambda: folded("shirt", (0.42, 0.4, 0.33)),
+    "trousers": lambda: folded("trousers", (0.25, 0.27, 0.3)),
+    "boots": lambda: folded("boots", (0.22, 0.16, 0.11)),
 }
 
 MODELS = {
