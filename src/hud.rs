@@ -1123,6 +1123,7 @@ pub fn hud_keys(
     tick: Res<crate::SimTick>,
     registry: Res<ItemRegistryRes>,
     recipes: Res<RecipeRegistryRes>,
+    layers: Res<crate::content::LayerRegistryRes>,
     mut people: Query<
         (
             (Entity, Option<&crate::actor::Actor>, &ThisTick, &Transform),
@@ -1276,7 +1277,7 @@ pub fn hud_keys(
                     // modforge's `craft`, the one way anything is made; what
                     // is made goes into the inventory, or at the feet when it
                     // is full.
-                    let Some(made) = craft(recipe, &mut inventory.0, &registry.0, &[], tick.0 as f32, tick.0) else {
+                    let Some(made) = craft(recipe, &mut inventory.0, &registry.0, &layers.0, &[], tick.0 as f32, tick.0) else {
                         continue;
                     };
                     let Some(def) = registry.0.def(&made.item) else {

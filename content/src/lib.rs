@@ -79,18 +79,25 @@ pub struct RecipeRegistryRes(pub RecipeRegistry);
 impl Default for RecipeRegistryRes {
     fn default() -> Self {
         let mut reg = RecipeRegistry::default();
-        // The bench's first recipes (todo 10): cloth into a bandage,
-        // scrap into a pipe. Tuning.
-        let bench = |name: &str, inputs: &[(&str, u32)], output: (&str, u32)| RecipeDef {
+        // The bench's recipes (todo 10, Craft 1; design.md "Technology and
+        // crafting"): cloth into a bandage, scrap into a pipe, and the
+        // improvised weapons, a spiked bat (a handle with nails) and a
+        // sharpened road sign on a pipe. What each takes is Claude's, for
+        // the operator to change.
+        let made = |name: &str, inputs: &[(&str, u32)], output: (&str, u32), layers: &[&str]| RecipeDef {
             name: name.to_string(),
             inputs: inputs.iter().map(|(i, n)| (i.to_string(), *n)).collect(),
             output: (output.0.to_string(), output.1),
+            layers: layers.iter().map(|l| l.to_string()).collect(),
             station: StationKind::CraftingBench,
             craft_time: 0.0,
         };
+        let bench = |name: &str, inputs: &[(&str, u32)], output: (&str, u32)| made(name, inputs, output, &[]);
         for def in [
             bench("bandage", &[("cloth", 2)], ("bandage", 1)),
             bench("pipe", &[("scrap", 3)], ("pipe", 1)),
+            made("spiked bat", &[("wooden handle", 1), ("scrap", 2)], ("wooden handle", 1), &["nails"]),
+            made("sharpened road sign", &[("pipe", 1), ("scrap", 3)], ("pipe", 1), &["sharpened road sign"]),
         ] {
             reg.register(def).expect("recipe registered once");
         }
