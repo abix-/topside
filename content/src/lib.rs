@@ -1126,6 +1126,10 @@ pub fn register_actors(reg: &mut ActorRegistry) {
         person("raider", Some(TOPSIDE_HOSTILES), Behaviour::Hunter, 100.0, "wooden handle", &["axe head"]),
         person("lookout", Some(TOPSIDE_HOSTILES), Behaviour::Guard, 80.0, "long pole", &["spear point"]),
         person("wanderer", None, Behaviour::Guard, 70.0, "pipe", &[]),
+        // A wild animal (design.md "Bunker people and topside people":
+        // "Hostiles attack: wild animals"), hunting with its teeth. Its
+        // health and reach are Claude's, for the operator to change.
+        ActorDef { reach: 1.4, ..person("wolf", Some(TOPSIDE_HOSTILES), Behaviour::Hunter, 50.0, "teeth", &[]) },
     ] {
         reg.register(def).expect("actor registered once");
     }
@@ -1141,10 +1145,6 @@ pub fn register_damage(reg: &mut DamageRegistry) {
         ignores_armor: false,
         self_scale: 0.5,
         falloff: Falloff::NONE,
-        // A wild animal (design.md "Bunker people and topside people":
-        // "Hostiles attack: wild animals"), hunting with its teeth. Its
-        // health and reach are Claude's, for the operator to change.
-        ActorDef { reach: 1.4, ..person("wolf", Some(TOPSIDE_HOSTILES), Behaviour::Hunter, 50.0, "teeth", &[]) },
     };
     // Rust's pipe shotgun: a handful of pellets, full damage only up
     // close (Facepunch devblog 123: shotguns fall off hardest).
@@ -1195,6 +1195,9 @@ pub fn register_damage(reg: &mut DamageRegistry) {
         melee("axe chop", 30.0, DamageType::Slash),
         melee("spear thrust", 28.0, DamageType::Pierce),
         melee("sign cut", 24.0, DamageType::Slash),
+        // A wild animal's teeth (todo 13w). Claude's, for the operator to
+        // change.
+        melee("bite", 15.0, DamageType::Pierce),
         pellet,
         fall,
         wasting("starvation"),
@@ -1210,9 +1213,6 @@ pub fn register_damage(reg: &mut DamageRegistry) {
             self_scale: 1.0,
             falloff: Falloff::NONE,
         },
-        // A wild animal's teeth (todo 13w). Claude's, for the operator to
-        // change.
-        melee("bite", 15.0, DamageType::Pierce),
         // The control plane's `kill` op: one hit that kills anyone, no
         // armor helps, so a test can bring a death now.
         DamageDef {
@@ -1741,6 +1741,25 @@ pub fn register_items(reg: &mut ItemRegistry) {
             breaks_when_struck: false,
             holds_litres: None,
         },
+        // A helmet (todo Fight 8): worn armor that guards only the head.
+        // Its amount is Claude's, for the operator to change.
+        ItemDef {
+            name: "helmet".to_string(),
+            description: "A dented helmet. Wear it to guard your head.".to_string(),
+            unique: false,
+            kind: ItemKind::Tool,
+            max_stack: 1,
+            quality_siblings: 3,
+            combat: None,
+            food: None,
+            storage: None,
+            armor: Some(Armor { amount: 40.0, area: modforge::combat::BodyArea::Head }),
+            good_for: Default::default(),
+            picture: None,
+            layer_slots: Vec::new(),
+            breaks_when_struck: false,
+            holds_litres: None,
+        },
     ];
     // What everyone wears (WORN): plain clothes, wearable and guarding
     // nothing.
@@ -1783,25 +1802,6 @@ const CLEAN: &[Rgb] = &[[0.8, 0.82, 0.85], [0.6, 0.7, 0.75], [0.3, 0.5, 0.6]];
 /// out at two until multi-flight stairwells land.
 pub fn register_buildings(reg: &mut BuildingRegistry) {
     use BuildingSize::*;
-        // A helmet (todo Fight 8): worn armor that guards only the head.
-        // Its amount is Claude's, for the operator to change.
-        ItemDef {
-            name: "helmet".to_string(),
-            description: "A dented helmet. Wear it to guard your head.".to_string(),
-            unique: false,
-            kind: ItemKind::Tool,
-            max_stack: 1,
-            quality_siblings: 3,
-            combat: None,
-            food: None,
-            storage: None,
-            armor: Some(Armor { amount: 40.0, area: modforge::combat::BodyArea::Head }),
-            good_for: Default::default(),
-            picture: None,
-            layer_slots: Vec::new(),
-            breaks_when_struck: false,
-            holds_litres: None,
-        },
     struct Spec {
         name: &'static str,
         size: BuildingSize,
