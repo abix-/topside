@@ -874,6 +874,13 @@ pub fn site_kinds(monuments: &MonumentRegistry) -> Vec<SiteKind> {
 /// Where the player's bunker stands.
 pub const BUNKER_AT: Vec2 = Vec2::ZERO;
 
+/// The gap through the trees from the player's bunker toward the launch
+/// site's gantry (SMALL_SITES), so the door opens on the big thing on the
+/// horizon; past its end the trees hide it as the player walks (design.md
+/// "The first hour"). Its length and width are Claude's, for the operator
+/// to change.
+pub const DOOR_GAP: (Vec2, f32, f32) = (Vec2::new(-300.0, 300.0), 100.0, 10.0);
+
 /// The world a seed gives (design.md "2D world generation"): the ground,
 /// the sites (rolled in the big world, placed by hand in the small one),
 /// and every bunker on its cleared ground. The one way a world is made,
@@ -891,7 +898,11 @@ pub fn roll_world2d(
     let ground = GroundGen::new(def, seed, biomes)?;
     let clearings: Vec<Clearing> = std::iter::once(BUNKER_AT)
         .chain(kind.other_bunkers())
-        .map(|at| Clearing { at, radius: BUNKER_CLEAR })
+        .map(|at| Clearing {
+            at,
+            radius: BUNKER_CLEAR,
+            gap: (at == BUNKER_AT && kind == WorldKind::Small).then_some(DOOR_GAP),
+        })
         .collect();
     let keep_clear = clearings.iter().map(|c| (c.at, c.radius)).collect();
     let places = match kind {
@@ -1693,7 +1704,18 @@ pub fn register_monuments(reg: &mut MonumentRegistry, buildings: &BuildingRegist
             suffix: suffix.to_string(),
             // Big monuments keep 180 m from each other.
             spacing: 180.0,
-            props: vec![],
+            // The launch site's gantry stands in its yard, the big thing
+            // seen from the bunker door (design.md "The first hour").
+            props: match name {
+                "launch site" => vec![PropDef {
+                    size: Vec3::new(6.6, 60.0, 6.6),
+                    color: [0.55, 0.55, 0.58],
+                    count: (1, 1),
+                    radius: 0.0,
+                    picture: Some("gantry".to_string()),
+                }],
+                _ => vec![],
+            },
             // Walls and a roof: the people who live there rest and
             // feel safe there.
             good_for: GoodFor::new(&[(Need::Rest, 100.0), (Need::Safety, 60.0)]),

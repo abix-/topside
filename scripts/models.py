@@ -671,6 +671,27 @@ def parachute():
     return join(parts, "parachute", 3.0)
 
 
+def gantry():
+    """the launch site's gantry, the big thing on the horizon (design.md
+    "The first hour"): a steel lattice tower 60 m tall, four legs braced
+    every six metres, a red light-band at its top."""
+    steel = material("steel", (0.55, 0.55, 0.58))
+    red = material("band", (0.7, 0.2, 0.15))
+    w, h, step = 6.0, 60.0, 6.0
+    parts = []
+    for x in (-w / 2, w / 2):
+        for y in (-w / 2, w / 2):
+            parts.append(box("leg", (0.5, 0.5, h), at=(x, y, h / 2), mat=steel))
+    for i in range(1, int(h / step) + 1):
+        z = i * step
+        for side, (sx, sy) in enumerate([(w, 0.3), (w, 0.3), (0.3, w), (0.3, w)]):
+            x = 0 if side < 2 else (-w / 2 if side == 2 else w / 2)
+            y = (-w / 2 if side == 0 else w / 2) if side < 2 else 0
+            parts.append(box("brace", (sx, sy, 0.3), at=(x, y, z), mat=steel))
+    parts.append(box("band", (w + 0.6, w + 0.6, 2.0), at=(0, 0, h - 1.0), mat=red))
+    return join(parts, "gantry")
+
+
 # -- the mustang ---------------------------------------------------------------
 #
 # The operator's blue Mustang GT, #776, as in their twelve track photos
@@ -2021,6 +2042,7 @@ MODELS = {
     "crate": lambda: kenney("survival", "box", "crate", 0.5),
     "supply crate": lambda: kenney("survival", "box-large", "supply crate", 1.6),
     "parachute": parachute,
+    "gantry": gantry,
     "grave": lambda: kenney("graveyard", "grave", "grave", 1.8),
     # The operator's Mustang, as in their photos.
     "mustang": mustang,
