@@ -4,6 +4,7 @@
 
 pub mod actor;
 pub mod ai;
+pub mod anomaly;
 pub mod combat;
 pub mod command;
 pub mod control_plane;
@@ -254,6 +255,7 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind, port: u16
     app.init_resource::<survival::Day>();
     app.init_resource::<content::RecipeRegistryRes>();
     app.init_resource::<storm::StormRes>();
+    app.init_resource::<anomaly::AnomalyPlaced>();
     app.init_resource::<command::GivenThisRun>();
     app.init_resource::<command::Playing>();
     app.init_resource::<command::DoneThisRun>();
@@ -320,6 +322,8 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind, port: u16
                     // wakes, after the world's history.
                     (
                         storm::storm,
+                        anomaly::place,
+                        anomaly::burn,
                         episode::cast_episode,
                         episode::name_the_cast,
                         episode::place_things,

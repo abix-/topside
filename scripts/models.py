@@ -658,6 +658,23 @@ def berry_bush():
     return join(load(MEGAKIT / "Bush_Common_Flowers.gltf", colours), "berry bush", 1.0)
 
 
+def scorched_ground():
+    """the burner anomaly's tell (design.md "Maze, mined": scorched
+    ground): a black burn 4 m across (content's ANOMALY_RADIUS), ringed
+    in brown, with grey ash in the middle, lying flat on the ground."""
+    burn = material("burn", (0.06, 0.05, 0.04))
+    ring = material("singed", (0.3, 0.2, 0.1))
+    ash = material("ash", (0.5, 0.5, 0.48))
+    parts = [
+        cylinder("ring", 2.0, 0.02, sides=16, at=(0, 0, 0.01), mat=ring),
+        cylinder("burn", 1.7, 0.03, sides=14, at=(0, 0, 0.015), mat=burn),
+    ]
+    for i in range(5):
+        a = i * math.tau / 5 + 0.4
+        parts.append(cylinder(f"ash_{i}", 0.25, 0.04, sides=6, at=(0.6 * math.cos(a), 0.6 * math.sin(a), 0.02), mat=ash))
+    return join(parts, "scorched ground")
+
+
 def well():
     """a well: a ring of stones round dark water, two posts and a crossbar,
     Kenney's bucket hanging from it, 1.4 m across (content/src/lib.rs)."""
@@ -2157,6 +2174,8 @@ MODELS = {
     "berry bush": berry_bush,
     "well": well,
     "tap": tap,
+    # An anomaly's tell.
+    "scorched ground": scorched_ground,
     # What flies.
     "pellet": pellet,
     # Buildings, a tile at a time (src/structure.rs).

@@ -169,6 +169,16 @@ pub const HISTORY_SECS: f32 = 2.0 * GAME_DAY_SECS;
 pub const SKY_CHANGE_AFTER_SECS: f32 = 1800.0;
 pub const SKY_CHANGE_SECS: f32 = 30.0;
 
+/// The first teeth (todo 10i1; design.md "Maze, mined"): a burner, the
+/// damage it does to whoever walks in, the model of its tell, how far it
+/// reaches from its middle, and how far outside the second site's ground
+/// it lies, toward the bunker. Claude's numbers, for the operator to
+/// change.
+pub const ANOMALY: &str = "burner";
+pub const ANOMALY_TELL: &str = "scorched ground";
+pub const ANOMALY_RADIUS: f32 = 2.0;
+pub const ANOMALY_FROM_SITE: f32 = 10.0;
+
 pub const STORM: StormDef = StormDef {
     warning_secs: 60.0,
     storm_secs: 20.0,
@@ -1220,6 +1230,17 @@ pub fn register_damage(reg: &mut DamageRegistry) {
         DamageDef {
             name: "storm".to_string(),
             amount: 25.0,
+            kind: DamageType::Blunt,
+            knockback: 0.0,
+            ignores_armor: true,
+            self_scale: 1.0,
+            falloff: Falloff::NONE,
+        },
+        // The burner anomaly (`ANOMALY`): one hit kills whoever walks in,
+        // no armor helps.
+        DamageDef {
+            name: ANOMALY.to_string(),
+            amount: 1_000_000.0,
             kind: DamageType::Blunt,
             knockback: 0.0,
             ignores_armor: true,
