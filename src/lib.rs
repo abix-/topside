@@ -5,6 +5,7 @@
 pub mod actor;
 pub mod ai;
 pub mod anomaly;
+pub mod building;
 pub mod combat;
 pub mod command;
 pub mod control_plane;
@@ -238,6 +239,7 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind, port: u16
     app.init_resource::<edge::EdgeRes>();
     app.init_resource::<edge::WordToEdge>();
     app.init_resource::<randy::RandyRes>();
+    app.init_resource::<building::Builds>();
     app.init_resource::<content::LayerRegistryRes>();
     app.init_resource::<content::DamageRegistryRes>();
     app.init_resource::<content::ActorRegistryRes>();
@@ -365,6 +367,10 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind, port: u16
                     // opens a talk.
                     prisoner::down,
                     prisoner::capture,
+                    // Building (todo 9f): the plan, hammer and cupboard,
+                    // before the Use reaches anything else; the pieces
+                    // made after.
+                    (building::build, building::upkeep, building::make).chain(),
                     interact::interact_on_use,
                     hud::close_read_notes,
                     hud::show_act_result,

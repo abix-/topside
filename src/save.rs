@@ -99,6 +99,7 @@ saved! {
         crate::prisoner::Downed,
         crate::prisoner::LastDowned,
         crate::prisoner::Prisoner,
+        crate::building::Planning,
         crate::combat::Health,
         crate::combat::Protection,
         crate::combat::Equipment,
@@ -147,6 +148,7 @@ saved! {
         crate::randy::RandyRes,
         crate::secrets::SecretsPlaced,
         crate::terrain::SavedChunks,
+        crate::building::Builds,
     ]
 }
 

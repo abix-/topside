@@ -141,6 +141,12 @@ pub fn loot_table() -> LootTable {
             weapon("long pole", &["spear point"], 1, 2),
             e("road sign vest", (1, 1), 1, 3),
             e("helmet", (1, 1), 1, 2),
+            // Building (todo 9f; weights Claude's).
+            e(WOOD, (5, 20), 8, 0),
+            e(STONE, (5, 15), 5, 0),
+            e(BUILDING_PLAN, (1, 1), 3, 0),
+            e(HAMMER, (1, 1), 3, 0),
+            e(TOOL_CUPBOARD, (1, 1), 1, 1),
             weapon("pipe shotgun", &["pipe barrel", "wooden grip", "wooden stock"], 1, 3),
             weapon("pipe shotgun", &["short pipe barrel", "taped grip"], 1, 3),
             weapon("pipe shotgun", &["pipe barrel", "taped grip", "wooden stock", "nail sight"], 1, 4),
@@ -184,6 +190,25 @@ pub const ANOMALY_FROM_SITE: f32 = 10.0;
 /// The danger a secret site's loot is rolled at (todo 11x1): a secret is
 /// worth finding. Claude's, for the operator to change.
 pub const SECRET_DANGER: u32 = 3;
+
+/// Building (todo 9f): the building plan, the hammer, the tool cupboard,
+/// and the materials.
+pub const BUILDING_PLAN: &str = "building plan";
+pub const HAMMER: &str = "hammer";
+pub const TOOL_CUPBOARD: &str = "tool cupboard";
+pub const WOOD: &str = "wood";
+pub const STONE: &str = "stone";
+
+/// What building at a grade costs (Rust's: twig and wood are wood, stone
+/// is stone, metal and armored are metal, here scrap; Claude's mapping).
+pub fn grade_material(grade: modforge::building::Grade) -> &'static str {
+    use modforge::building::Grade;
+    match grade {
+        Grade::Twig | Grade::Wood => WOOD,
+        Grade::Stone => STONE,
+        Grade::Metal | Grade::Armored => "scrap",
+    }
+}
 
 /// The bolt (todo 10i2): the item, how far it is thrown, how fast it
 /// flies, and how long an anomaly it lands in shows it has gone off.
@@ -1491,6 +1516,23 @@ fn container(name: &str, description: &str, litres: f32) -> ItemDef {
 }
 
 pub fn register_items(reg: &mut ItemRegistry) {
+    let building = |name: &str, description: &str, kind: ItemKind, max_stack: u32, storage: Option<usize>| ItemDef {
+        name: name.to_string(),
+        description: description.to_string(),
+        unique: false,
+        kind,
+        max_stack,
+        quality_siblings: 1,
+        combat: None,
+        food: None,
+        storage,
+        armor: None,
+        good_for: Default::default(),
+        picture: None,
+        layer_slots: Vec::new(),
+        breaks_when_struck: false,
+        holds_litres: None,
+    };
     let items = [
         ItemDef {
             name: "note".to_string(),
@@ -1634,6 +1676,14 @@ pub fn register_items(reg: &mut ItemRegistry) {
             breaks_when_struck: false,
             holds_litres: None,
         },
+        // Building (todo 9f, Rust's building plan, hammer and tool
+        // cupboard; the materials each grade costs, `grade_material`).
+        // Descriptions and the cupboard's 6 slots Claude's.
+        building(BUILDING_PLAN, "Rolled paper. Hold it and strike to build a twig piece; use it to pick the next piece.", ItemKind::Tool, 1, None),
+        building(HAMMER, "A claw hammer. Strike a piece to upgrade it to its next grade.", ItemKind::Tool, 1, None),
+        building(TOOL_CUPBOARD, "A cupboard of tools. Set it down: only your group builds near it, and its upkeep keeps your pieces from decay.", ItemKind::Deployable, 1, Some(6)),
+        building(WOOD, "Split wood, for building.", ItemKind::Material, 100, None),
+        building(STONE, "Broken stone, for building.", ItemKind::Material, 100, None),
         ItemDef {
             name: "storage box".to_string(),
             description: "A wooden box to keep things in. Set it down and fill it.".to_string(),
