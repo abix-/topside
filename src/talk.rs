@@ -493,15 +493,23 @@ pub fn look_at(
     let Ok(view) = Dir3::new(Vec3::new(ground.x * eyes.pitch.cos(), eyes.pitch.sin(), ground.y * eyes.pitch.cos())) else {
         return;
     };
-    let hit = spatial.cast_ray(from, view, TALK_REACH, true, &SpatialQueryFilter::from_excluded_entities([me]));
-    let person = hit.and_then(|h| people.get(h.entity).ok().map(|(actor, name)| (h.entity, actor.0.0, name.as_str())));
-    looking.0 = person.map(|(entity, id, _)| (entity, id));
     // The thing E would use (interact::pointed_thing, a step ahead of where
-    // they face): a store (a bunker's, some person's `Store`) says what it
-    // holds, each kind with how many (todo 11ad; any store, not only one
-    // another place draws from).
+    // they face), and how far it is along the ground.
     let feet = crate::interact::feet_of(body);
     let thing = crate::interact::pointed_thing(feet, feet.ground() + ground, things.iter());
+    let thing_away = thing
+        .and_then(|e| things.get(e).ok())
+        .map(|(_, door, at)| crate::interact::use_point(door, at).ground().distance(feet.ground()));
+    // The person the ray hits is the one looked at only when no thing to use
+    // is nearer: whatever is nearest under the crosshair is what E acts on
+    // (a tap with someone standing behind it is the tap).
+    let hit = spatial.cast_ray(from, view, TALK_REACH, true, &SpatialQueryFilter::from_excluded_entities([me]));
+    let hit = hit.filter(|h| thing_away.is_none_or(|away| h.distance * eyes.pitch.cos() < away));
+    let person = hit.and_then(|h| people.get(h.entity).ok().map(|(actor, name)| (h.entity, actor.0.0, name.as_str())));
+    looking.0 = person.map(|(entity, id, _)| (entity, id));
+    // A store (a bunker's, some person's `Store`) says what it holds, each
+    // kind with how many (todo 11ad; any store, not only one another place
+    // draws from).
     let store = thing
         .filter(|e| stores.iter().any(|s| s.0 == *e))
         .and_then(|e| containers.get(e).ok())
