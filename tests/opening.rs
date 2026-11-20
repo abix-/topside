@@ -466,6 +466,38 @@ pub(crate) fn who_you_take() {
     start_from("tap_2_who_you_take", play_to_pivot_2);
 }
 
+/// The loading screen holds until the navigation mesh is built (todo 9j,
+/// authority.md "Running tests": loading): a saved game loaded, and the
+/// moment `status` says loading is done, the way from the bunker door out
+/// to the tap is asked once, and the first answer to that ask is a way that
+/// ends at the tap.
+#[test]
+fn a_way_runs_from_the_bunker_door_to_the_tap() {
+    let _p = pause();
+    // `start_from` waits until `status` says loading is done (`loaded`).
+    start_from("tap_2_who_you_take", || panic!("the save tap_2_who_you_take is made by the_way_to_the_tap_plays_to_who_you_take"));
+    let door = op("world")["bunker_doors"].as_array().and_then(|d| d.iter().find(|d| d["hatch"] == false)).cloned().expect("the bunker's door out");
+    let from = [door["at"][0].as_f64().unwrap_or(f64::NAN), door["floor"].as_f64().unwrap_or(f64::NAN), door["at"][1].as_f64().unwrap_or(f64::NAN)];
+    let tap = the_tap();
+    let to = [tap.0, tap.2, tap.1];
+    op_with("nav_path", json!({"from": from, "to": to}));
+    // Answered on the next frame; only this ask's own answer counts (the
+    // game keeps the last answer until the next is worked out).
+    let own = |a: &Json| a["from"].as_array().is_some_and(|f| f.iter().zip(from).all(|(f, x)| f.as_f64().map(|f| f as f32) == Some(x as f32)));
+    let mut way = op("nav_path");
+    for _ in 0..50 {
+        if own(&way) {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(100));
+        way = op("nav_path");
+    }
+    assert!(own(&way), "no answer of its own to the way from the door {from:?} to the tap {to:?}: {way}");
+    let end = way["path"].as_array().and_then(|p| p.last()).cloned().unwrap_or(Json::Null);
+    let ends_at = (end[0].as_f64().unwrap_or(f64::NAN), end[2].as_f64().unwrap_or(f64::NAN), 0.0);
+    assert!(apart(ends_at, tap).0 < 1.5, "asked once loading was done, no way from the bunker door {from:?} to the tap {tap:?}: it ends at {ends_at:?}; {way}");
+}
+
 /// The way to the tap plays from pivot point 1 to just before pivot point 2
 /// (`play_to_pivot_2`).
 #[test]
