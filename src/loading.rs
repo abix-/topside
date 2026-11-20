@@ -66,14 +66,63 @@ pub fn ready_the_world(world: &mut World) {
     let _ = world.run_system_cached(crate::actor::populate_topside_people);
     crate::navmesh::mesh_the_world(world);
     crate::navmesh::run_landmass(world);
-    world.resource_mut::<Loading>().on = false;
-    // The start of the game, after the launch only: the game's own first
-    // save, a replay of this run plays from it.
+    // The start of the game, after the launch only: the world's history
+    // runs, then the game's own first save, a replay of this run plays
+    // from it.
     if !LAUNCHED.swap(true, Ordering::Relaxed) {
+        run_history(world);
         crate::save::own_save();
     }
+    world.resource_mut::<Loading>().on = false;
     LOADING.store(false, Ordering::Relaxed);
     info!("the world is ready in {:.0} ms", start.elapsed().as_secs_f64() * 1000.0);
+}
+
+/// While the world's history runs: the episode and the storm wait for the
+/// player to wake.
+#[derive(Resource)]
+pub struct History;
+
+/// Whether the player has woken: the world's history is over.
+pub fn awake(history: Option<Res<History>>) -> bool {
+    history.is_none()
+}
+
+/// The world's history (design.md "History, not decoration": "before the
+/// player wakes, the world is run: the people live for some days in the
+/// rolled world"; Dwarf Fortress's world history, run before play): the
+/// game's own ticks, `HISTORY_SECS` of them, run as Bevy's fixed loop runs
+/// them, behind the loading screen. The episode and its storm start when
+/// the player wakes.
+fn run_history(world: &mut World) {
+    let start = std::time::Instant::now();
+    let step = world.resource::<Time<Fixed>>().timestep();
+    let ticks = (crate::content::HISTORY_SECS / step.as_secs_f32()).round() as u64;
+    // The player has not woken: they wake with the needs they lay down
+    // with (Claude's, for the operator to change).
+    let mut player = world.query_filtered::<&crate::actor::Survival, With<crate::player::Player>>();
+    let slept = player.iter(world).next().cloned();
+    world.insert_resource(History);
+    let _ = world.try_schedule_scope(bevy::app::FixedMain, |world, schedule| {
+        for _ in 0..ticks {
+            world.resource_mut::<Time<Fixed>>().advance_by(step);
+            *world.resource_mut::<Time>() = world.resource::<Time<Fixed>>().as_generic();
+            schedule.run(world);
+        }
+    });
+    *world.resource_mut::<Time>() = world.resource::<Time<Virtual>>().as_generic();
+    world.remove_resource::<History>();
+    if let Some(slept) = slept {
+        let mut player = world.query_filtered::<&mut crate::actor::Survival, With<crate::player::Player>>();
+        for mut survival in player.iter_mut(world) {
+            *survival = slept.clone();
+        }
+    }
+    let now = world.resource::<crate::SimTick>().0;
+    let mut episode = world.resource_mut::<crate::episode::Episode>();
+    let name = episode.name.clone();
+    episode.start(name, now);
+    info!("the world's history ran {ticks} ticks in {:.0} ms", start.elapsed().as_secs_f64() * 1000.0);
 }
 
 /// The loading screen itself: the whole window, "Loading" in its middle.

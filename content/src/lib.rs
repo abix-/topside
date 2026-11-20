@@ -145,6 +145,12 @@ pub fn loot_table() -> LootTable {
 /// rest one awake.
 pub const GAME_DAY_SECS: f32 = 1200.0;
 
+/// How long the world runs before the player wakes, in game seconds
+/// (design.md "History, not decoration": "before the player wakes, the
+/// world is run"; todo 4a). Claude's number, for the operator to change:
+/// every second of it is loading time.
+pub const HISTORY_SECS: f32 = 300.0;
+
 /// How a storm goes (design.md "The storm", MISERY's emission): a minute
 /// of warning, twenty seconds of storm. When it comes is the episode's
 /// (its `storm_in`). Tuning.

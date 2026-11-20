@@ -305,7 +305,7 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind, port: u16
                 ai::think,
                 (trade::between_people, ai::warn_off).chain(),
                 lap("think"),
-                (input::drain_actions, lap("drain_actions"), hud::learn_hints, episode::cues, command::give, command::carry_out, ai::follow, ai::lead, save::save_at_steps).chain(),
+                (input::drain_actions, lap("drain_actions"), hud::learn_hints, episode::cues.run_if(loading::awake), command::give, command::carry_out, ai::follow, ai::lead, save::save_at_steps).chain(),
                 (nav::record_solids, nav::record_doors),
                 // Everyone sent somewhere walks the way on the navigation
                 // mesh (docs/pathing.md).
@@ -315,15 +315,21 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind, port: u16
                 survival::waste,
                 lap("survival"),
                 (
-                    storm::storm,
-                    episode::cast_episode,
-                    episode::name_the_cast,
-                    episode::place_things,
-                    episode::pivots_said,
-                    episode::held_conditions,
-                    episode::errands,
-                    episode::deeds,
-                    episode::the_ending,
+                    // The episode and its storm start when the player
+                    // wakes, after the world's history.
+                    (
+                        storm::storm,
+                        episode::cast_episode,
+                        episode::name_the_cast,
+                        episode::place_things,
+                        episode::pivots_said,
+                        episode::held_conditions,
+                        episode::errands,
+                        episode::deeds,
+                        episode::the_ending,
+                    )
+                        .chain()
+                        .run_if(loading::awake),
                     talk::lines,
                 )
                     .chain(),
