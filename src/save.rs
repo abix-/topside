@@ -149,6 +149,7 @@ saved! {
         crate::secrets::SecretsPlaced,
         crate::terrain::SavedChunks,
         crate::building::Builds,
+        crate::raid::Raids,
     ]
 }
 

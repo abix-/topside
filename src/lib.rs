@@ -27,6 +27,7 @@ pub mod player;
 pub mod prisoner;
 pub mod profile;
 pub mod radio;
+pub mod raid;
 pub mod randy;
 pub mod save;
 pub mod secrets;
@@ -240,6 +241,7 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind, port: u16
     app.init_resource::<edge::WordToEdge>();
     app.init_resource::<randy::RandyRes>();
     app.init_resource::<building::Builds>();
+    app.init_resource::<raid::Raids>();
     app.init_resource::<content::LayerRegistryRes>();
     app.init_resource::<content::DamageRegistryRes>();
     app.init_resource::<content::ActorRegistryRes>();
@@ -389,6 +391,8 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind, port: u16
                     // Word of a place reaching the edge brings newcomers
                     // (todo 11i).
                     edge::newcomers,
+                    // Factions vote on what to do; a raid sets out (todo 11j).
+                    raid::vote_and_raid,
                     // While the player walks topside, Randy Random rolls
                     // encounters (todo 10h1).
                     randy::encounters.run_if(loading::awake),
