@@ -478,11 +478,31 @@ pub fn spawn_sites(
                 .filter(|p| p.monument == question.answer_at)
                 .min_by(|a, b| a.position.distance(bunker).total_cmp(&b.position.distance(bunker)));
             if nearest.is_some_and(|p| p.position == site.position) {
+                // The next question: the nearest other site to this one, a
+                // place to go (todo 10g).
+                let next = world
+                    .world
+                    .sites_in(r, site.position - reach, site.position + reach)
+                    .into_iter()
+                    .filter(|p| p.position != site.position && !crate::content::TRIANGLES.contains(&p.monument.as_str()))
+                    .min_by(|a, b| a.position.distance(site.position).total_cmp(&b.position.distance(site.position)));
+                let way = next.as_ref().map(|p| crate::content::compass(site.position, p.position)).unwrap_or_default();
+                let next_kind = next.as_ref().map(|p| p.monument.clone()).unwrap_or_default();
+                let slots: Vec<(&str, &str)> = next.as_ref().map(|_| vec![("next", next_kind.as_str()), ("way", way)]).unwrap_or_default();
                 let note = items.0.def("note").expect("the note is registered");
-                let answer = write(note, question_answer(world.seed), 0.0, 14).expect("the note def is a note");
-                let (found, _) = spawn_item(&mut commands, &mut ids, note, answer, on_ground(site.position + Vec2::new(1.0, 0.0), 0.0));
-                commands.entity(found).insert(WorldPiece);
-                info!("the bunker's question ({}) is answered at {}", question.name, site.position);
+                if let Some(words) = question_answer(world.seed, &slots) {
+                    let answer = write(note, words, 0.0, 14).expect("the note def is a note");
+                    let (found, _) = spawn_item(&mut commands, &mut ids, note, answer, on_ground(site.position + Vec2::new(1.0, 0.0), 0.0));
+                    commands.entity(found).insert(WorldPiece);
+                    info!(
+                        "the bunker's question ({}) is answered at {}, pointing at the {next_kind} at {:?}",
+                        question.name,
+                        site.position,
+                        next.as_ref().map(|p| p.position)
+                    );
+                } else {
+                    warn!("no site near the answer at {} for it to point at; no answer left", site.position);
+                }
             }
         }
         let monument = site.rolled.clone();

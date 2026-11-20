@@ -1209,7 +1209,10 @@ pub struct Question {
     /// the bunker.
     pub answer_at: &'static str,
     /// The words of the answer, one of these, signed by the same name as
-    /// the starting note.
+    /// the starting note. Each asks the next question (design.md "The
+    /// first hour": the first trace "answers the bunker's question and
+    /// asks the next one"; todo 10g): {next} is the nearest other site to
+    /// the answer's, by what it is, {way} where it lies from there.
     pub answers: &'static [&'static str],
     /// The fourth thing in the room that asks it, and what using it shows
     /// (design.md: "The three things in the room (bed, bench, food) stay;
@@ -1227,9 +1230,9 @@ pub const QUESTIONS: [Question; 3] = [
         name: "the note",
         answer_at: "body",
         answers: &[
-            "couldn't wait any longer. went out for water. if you find this, go back",
-            "I told you not to come out. it isn't the people. it's the sky",
-            "three days was all I could leave you. I'm sorry",
+            "couldn't wait any longer. went out for water. what I found is at the {next}, {way} of here. if you find this, go back",
+            "I told you not to come out. it isn't the people. it's the sky. ask at the {next}, {way} of here. they saw it too",
+            "three days was all I could leave you. the rest is at the {next}, {way} of here. I'm sorry",
         ],
         in_room: None,
     },
@@ -1237,8 +1240,8 @@ pub const QUESTIONS: [Question; 3] = [
         name: "the bolted door",
         answer_at: "body",
         answers: &[
-            "I bolted you in so you'd stay. you scratched at it all night. I'm sorry",
-            "the scratches aren't yours. something wanted in. I bolted it and ran",
+            "I bolted you in so you'd stay. you scratched at it all night. I'm sorry. I'm going on to the {next}, {way} of here",
+            "the scratches aren't yours. something wanted in. I bolted it and ran. it came from the {next}, {way} of here",
         ],
         in_room: Some(("bolted door", "Bolted from this side. Scratches in the paint, low down.")),
     },
@@ -1246,8 +1249,8 @@ pub const QUESTIONS: [Question; 3] = [
         name: "the radio",
         answer_at: "body",
         answers: &[
-            "two clicks means I'm still out here. if the clicks stop, don't come looking",
-            "the clicks aren't me. they started after the sky changed",
+            "two clicks means I'm still out here. if the clicks stop, don't come looking. I'll be at the {next}, {way} of here",
+            "the clicks aren't me. they started after the sky changed. they come loudest at the {next}, {way} of here",
         ],
         in_room: Some(("radio", "Static. Then two clicks, and nothing.")),
     },
@@ -1259,13 +1262,27 @@ pub fn starting_question(seed: u64) -> &'static Question {
     roll.pick(&QUESTIONS)
 }
 
-/// The answer to this world's question, signed as the starting note is.
-pub fn question_answer(seed: u64) -> Note {
-    let mut roll = Roll::new(seed ^ 0x414e_5357);
-    Note {
-        text: (*roll.pick(starting_question(seed).answers)).to_string(),
+/// The answer to this world's question, signed as the starting note is,
+/// its {slots} filled; None when they cannot be.
+pub fn question_answer(seed: u64, slots: &[(&str, &str)]) -> Option<Note> {
+    let ways: Vec<String> = starting_question(seed).answers.iter().map(|a| a.to_string()).collect();
+    Some(Note {
+        text: modforge::storyteller::say(&ways, slots, seed, 0x414e_5357)?,
         signed: starting_note(seed).signed,
-    }
+    })
+}
+
+/// The sites that are no place to go to: the medium triangles, there only
+/// to hide what is past them (design.md "The triangle rule").
+pub const TRIANGLES: [&str; 1] = ["ridge"];
+
+/// Which way `to` lies from `from`, as a person says it: north, south-east
+/// (north is +y, as the map is drawn: minimap.rs).
+pub fn compass(from: Vec2, to: Vec2) -> &'static str {
+    const WAYS: [&str; 8] = ["east", "north-east", "north", "north-west", "west", "south-west", "south", "south-east"];
+    let d = to - from;
+    let eighth = (d.y.atan2(d.x) / std::f32::consts::FRAC_PI_4).round().rem_euclid(8.0) as usize;
+    WAYS[eighth]
 }
 
 /// Names the world signs things with.
