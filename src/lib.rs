@@ -170,6 +170,24 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind, port: u16
                     },
                 }),
         );
+        // Bevy quits on every render error (bevy_render error_handler.rs,
+        // its default handler). DX12 failing to resize the swap chain while
+        // the window is being resized or minimized ("window is in use",
+        // wgpu-hal dx12) is not a broken renderer: the next frame
+        // configures the surface again. wgpu reports it as a Validation
+        // error from Surface::configure whose cause reads "Invalid surface"
+        // (wgpu-core present.rs; the "window is in use" words only reach
+        // the log). That one error is let pass; every other still quits
+        // (todo: keep the game running through a window error, 2026-11-19).
+        app.insert_resource(bevy::render::error_handler::RenderErrorHandler(|error, main_world, _| {
+            if error.description.contains("Surface::configure") || error.description.contains("Invalid surface") {
+                bevy::log::warn!("render error let pass, the window could not be configured: {}", error.description);
+                return bevy::render::error_handler::RenderErrorPolicy::Ignore;
+            }
+            bevy::log::error!("Quitting the application due to {:?} RenderError: {}", error.ty, error.description);
+            main_world.write_message(bevy::app::AppExit::error());
+            bevy::render::error_handler::RenderErrorPolicy::StopRendering
+        }));
     }
     // Avian 3D is the one physics system. Bodies are kinematic and walk
     // the ground; nothing falls yet (one floor, flat ground).
@@ -416,6 +434,7 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind, port: u16
                 held::hold,
                 held::swing,
                 control_plane::take_screenshot,
+                control_plane::apply_window,
                 control_plane::publish_view,
                 control_plane::publish_items,
                 control_plane::publish_hud,

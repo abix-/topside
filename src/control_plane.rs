@@ -602,6 +602,17 @@ static SCREENSHOT: Mutex<Option<String>> = Mutex::new(None);
 /// Where screenshots are saved: logs/<name>.png, `screenshot` unnamed.
 const SCREENSHOT_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/logs");
 
+/// What the `window` op asked of the game window, done the next frame:
+/// a new size in logical pixels, minimized, or restored.
+static WINDOW_ASK: Mutex<Option<WindowAsk>> = Mutex::new(None);
+
+#[derive(Clone, Copy, Debug)]
+enum WindowAsk {
+    Size(f32, f32),
+    Minimize,
+    Restore,
+}
+
 /// What the camera sees, once a second, for the `view` op.
 static VIEW: Mutex<Json> = Mutex::new(Json::Null);
 
@@ -921,6 +932,19 @@ pub fn take_screenshot(mut commands: Commands) {
     if let Some(path) = SCREENSHOT.lock().ok().and_then(|mut s| s.take()) {
         use bevy::render::view::screenshot::{Screenshot, save_to_disk};
         commands.spawn(Screenshot::primary_window()).observe(save_to_disk(path));
+    }
+}
+
+/// Resizes, minimizes or restores the game window when the `window` op
+/// asked, as the player dragging its edge or pressing minimize does, so the
+/// swap chain is made again through the same path.
+pub fn apply_window(mut windows: Query<&mut Window, With<bevy::window::PrimaryWindow>>) {
+    let Some(ask) = WINDOW_ASK.lock().ok().and_then(|mut a| a.take()) else { return };
+    let Ok(mut window) = windows.single_mut() else { return };
+    match ask {
+        WindowAsk::Size(w, h) => window.resolution.set(w, h),
+        WindowAsk::Minimize => window.set_minimized(true),
+        WindowAsk::Restore => window.set_minimized(false),
     }
 }
 
@@ -2090,6 +2114,29 @@ pub fn start(port: u16) {
                 *slot = Some(path.clone());
             }
             Ok(json!({"path": path}))
+        },
+    ));
+    OP_REGISTRY.register(OpDef::new(
+        "window",
+        "resize the game window (`width` and `height` in logical pixels), `minimize` it, or `restore` it, on the next frame, as the player does",
+        "{\"width\": 1280, \"height\": 720}",
+        |args| {
+            let ask = if args.get("minimize").and_then(Json::as_bool) == Some(true) {
+                WindowAsk::Minimize
+            } else if args.get("restore").and_then(Json::as_bool) == Some(true) {
+                WindowAsk::Restore
+            } else {
+                let w = args.get("width").and_then(Json::as_f64).ok_or_else(|| "width and height, minimize true, or restore true".to_string())?;
+                let h = args.get("height").and_then(Json::as_f64).ok_or_else(|| "height: a number".to_string())?;
+                if !(100.0..=8000.0).contains(&w) || !(100.0..=8000.0).contains(&h) {
+                    return Err("width and height: 100 to 8000".to_string());
+                }
+                WindowAsk::Size(w as f32, h as f32)
+            };
+            if let Ok(mut slot) = WINDOW_ASK.lock() {
+                *slot = Some(ask);
+            }
+            Ok(json!({"window": format!("{ask:?}")}))
         },
     ));
     modforge::server::spawn(
