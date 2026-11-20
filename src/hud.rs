@@ -21,6 +21,36 @@ use crate::input::{Action, Actions, ThisTick};
 use crate::interact::{Container, Hud, OpenContainer, OpenStation};
 use crate::player::Player;
 
+/// What the player's last act came to, read from their memory (a
+/// `Did::Done`, `Did::Failed` or `Did::Ate`, written by the path that did
+/// it), on the prompt line for as long as its words take to read (modforge
+/// `talk::reading_secs`, the one reading rule): "drank at the tap", "could
+/// not open the gate: locked". Runs after `talk::look_at` writes the prompt.
+pub fn show_act_result(tick: Res<crate::SimTick>, registry: Res<ItemRegistryRes>, mut players: Query<(&mut Hud, &crate::actor::Memory), With<Player>>) {
+    let Ok((mut hud, memory)) = players.single_mut() else { return };
+    let last = memory.0.done.iter().rev().find(|(_, d)| matches!(d, Did::Done(_) | Did::Failed(..) | Did::Ate(_)));
+    let Some((at, did)) = last else { return };
+    let words = act_words(did, &registry);
+    if tick.0 < at + crate::talk::ticks_of(modforge::talk::reading_secs(&words)) {
+        hud.0.prompt = modforge::hud::Prompt { text: words, can_interact: false };
+    }
+}
+
+/// A thing done in words, as memory's own (`Did::words`), but a drink said
+/// as one: water from a source is "drank at the tap", not "ate tap".
+pub fn act_words(did: &Did, registry: &ItemRegistryRes) -> String {
+    if let Did::Ate(item) = did
+        && let Some(def) = registry.0.def(item)
+        && def.food.is_some_and(|f| f.thirst > 0.0 && f.hunger <= 0.0)
+    {
+        return match def.kind {
+            modforge::item::ItemKind::Source => format!("drank at the {item}"),
+            _ => format!("drank {item}"),
+        };
+    }
+    did.words()
+}
+
 /// A note read closes once it has been read: as long after the reading
 /// (the `Did::Read` in the reader's memory) as its words take, by the one
 /// reading rule talk lines use (modforge `talk::reading_secs`; todo: close a

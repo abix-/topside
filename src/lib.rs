@@ -340,6 +340,7 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind, port: u16
                     talk::look_at,
                     interact::interact_on_use,
                     hud::close_read_notes,
+                    hud::show_act_result,
                     interact::knock,
                     talk::talk,
                     trade::trade,

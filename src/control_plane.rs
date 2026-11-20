@@ -73,25 +73,10 @@ pub fn answer_act_results(tick: Res<crate::SimTick>, registry: Res<crate::conten
         let memory = people.iter().find(|(a, _)| a.0.0 == watch.who).map(|(_, m)| m);
         watch.answer = Some(
             memory
-                .map(|m| m.0.done.iter().filter(|(t, d)| *t > since && !matches!(d, modforge::memory::Did::Saw(_))).map(|(_, d)| act_words(d, &registry)).collect())
+                .map(|m| m.0.done.iter().filter(|(t, d)| *t > since && !matches!(d, modforge::memory::Did::Saw(_))).map(|(_, d)| crate::hud::act_words(d, &registry)).collect())
                 .unwrap_or_default(),
         );
     }
-}
-
-/// A thing done in words, as memory's own (`Did::words`), but a drink said
-/// as one: water from a source is "drank at the tap", not "ate tap".
-fn act_words(did: &modforge::memory::Did, registry: &crate::content::ItemRegistryRes) -> String {
-    if let modforge::memory::Did::Ate(item) = did
-        && let Some(def) = registry.0.def(item)
-        && def.food.is_some_and(|f| f.thirst > 0.0 && f.hunger <= 0.0)
-    {
-        return match def.kind {
-            modforge::item::ItemKind::Source => format!("drank at the {item}"),
-            _ => format!("drank {item}"),
-        };
-    }
-    did.words()
 }
 
 /// The `needs` and `forget` ops' requests, on the game's next step: a

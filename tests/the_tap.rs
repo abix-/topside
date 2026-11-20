@@ -194,6 +194,26 @@ fn maras_people_hold_the_tap() {
     assert!(apart(spot_of(holder), tap).0 < 8.0, "Mara's person {holder} left the tap within a game minute: they hold nothing");
 }
 
+/// Using the tap while the game runs: the use op answers what the player's
+/// memory holds of it, "drank at the tap", and the prompt line shows the
+/// same (hud::show_act_result).
+#[test]
+fn drinking_at_the_tap_is_remembered_and_shown() {
+    let p = pause();
+    at_the_tap();
+    drop(p);
+    let tap = the_tap();
+    let used = op_with("use", json!({"id": player(), "at": [tap.0, tap.1]}));
+    let did: Vec<&str> = used["did"].as_array().map(|d| d.iter().filter_map(|w| w.as_str()).collect()).unwrap_or_default();
+    assert!(did.contains(&"drank at the tap"), "using the tap answered {}", used["did"]);
+    // Paused and one tick stepped: every copy the ops read is written at
+    // the stop, so the hud op answers this tick's prompt line.
+    let _p = pause();
+    step(1);
+    let prompt = op("hud")["prompt"].clone();
+    assert_eq!(prompt, json!("drank at the tap"), "the prompt line shows {prompt}");
+}
+
 // Pivot point 4, what you tell your people.
 
 /// Drinking at the tap and coming home having told no one: "tells no one".
