@@ -2197,6 +2197,20 @@ pub fn start(port: u16) {
         },
     ));
     OP_REGISTRY.register(OpDef::new(
+        "look",
+        "move the mouse as the player does to look around: `x` pixels right (left when below 0) and `y` pixels down (up when below 0), taken by the next tick with the real mouse's movement (input::input_to_actions); about 628 pixels turn the view a half circle. Only while no panel is open, as the real mouse",
+        "{\"x\": 300, \"y\": 0}",
+        |args| {
+            let x = args.get("x").and_then(Json::as_f64).unwrap_or(0.0) as f32;
+            let y = args.get("y").and_then(Json::as_f64).unwrap_or(0.0) as f32;
+            if x == 0.0 && y == 0.0 {
+                return Err("x and y: pixels to move the mouse".to_string());
+            }
+            crate::input::look_from_op(Vec2::new(x, y));
+            Ok(json!({"x": x, "y": y}))
+        },
+    ));
+    OP_REGISTRY.register(OpDef::new(
         "player",
         "the player: their id, every thing they know (key, kind, and who told them, if told), and everything they heard said",
         "",

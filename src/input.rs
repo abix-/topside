@@ -111,6 +111,19 @@ pub fn press_from_op(code: KeyCode, hold: Option<bool>) -> bool {
     true
 }
 
+/// Mouse movement the `look` op gave, in the mouse's pixels, not yet taken
+/// by a tick: added to the real mouse's look, and turned by the same
+/// LOOK_PER_PIXEL (`input_to_actions`).
+static OP_LOOK: std::sync::Mutex<Vec2> = std::sync::Mutex::new(Vec2::ZERO);
+
+/// The `look` op: move the mouse by `by` pixels (x right, y down), as a
+/// hand does while the game holds the cursor.
+pub fn look_from_op(by: Vec2) {
+    if let Ok(mut look) = OP_LOOK.lock() {
+        *look += by;
+    }
+}
+
 /// Every frame: the keys and buttons pressed this frame, and the mouse's
 /// look while the cursor is held by the game in the world, kept until a
 /// tick takes them.
@@ -153,6 +166,10 @@ pub fn input_to_actions(
     mut players: Query<(&mut Actions, &Hud, &crate::actor::Facing), With<Player>>,
 ) {
     let mut taken = std::mem::take(&mut *pending);
+    // The `look` op's mouse movement, the same as the real mouse's.
+    if let Ok(mut look) = OP_LOOK.lock() {
+        taken.look += std::mem::take(&mut *look);
+    }
     // The `key` op's presses and held keys, the same as real ones.
     let op_held: Vec<Key> = match OP_KEYS.lock() {
         Ok(mut keys) => {
