@@ -7,7 +7,7 @@
 use avian3d::prelude::*;
 use bevy::prelude::*;
 use modforge::combat::{
-    BULLET_SPEED, FireTimer, Health as HealthStats, Hit, HitResult, MultiDamage, Protection as ProtectionStats,
+    BULLET_SPEED, BodyArea, FireTimer, Health as HealthStats, Hit, HitResult, MultiDamage, Protection as ProtectionStats,
     RollTimer, Swing, Trigger, pellet_directions_2d, resolve_hit,
 };
 use modforge::item::{self, ItemRegistry};
@@ -48,8 +48,8 @@ pub struct Protection(pub ProtectionStats);
 pub struct Equipment(pub item::Equipment);
 
 /// The one path a hit lands on an actor: its protection is its own
-/// plus every piece it wears, added into one total, then modforge's
-/// damage function decides. It goes into the actor's memory (life.md
+/// plus every piece it wears on the `area` hit (combat.md "How deadly"),
+/// then modforge's damage function decides. It goes into the actor's memory (life.md
 /// "What a person did"): a hit by a person (`by`), and the hit that kills,
 /// with who gave it and the damage's name (a weapon, hunger, the storm).
 /// Returns the result and whether this hit killed.
@@ -60,13 +60,14 @@ pub fn hit_actor(
     worn: &Equipment,
     items: &ItemRegistry,
     layers: &modforge::item::LayerRegistry,
+    area: BodyArea,
     health: &mut Health,
     memory: Option<&mut Memory>,
     by: Option<ActorId>,
     now: u64,
 ) -> (HitResult, bool) {
     let alive = health.0.current > 0.0;
-    let mut protection = own.0.worn(&worn.0, items, layers);
+    let mut protection = own.0.worn(&worn.0, items, layers, area);
     let result = resolve_hit(hit, &mut protection, &mut health.0);
     let killed = alive && health.0.current <= 0.0;
     if let Some(memory) = memory {
@@ -130,6 +131,29 @@ pub struct Knocked(pub Vec2);
 /// the screen for the player, the body for anyone else).
 #[derive(Component)]
 pub struct Flash(pub f32);
+
+/// Where on `target` a hit coming in at height `y` lands (combat.md "How
+/// deadly": a hit lands on a part of the body): by how far up their body
+/// it is (modforge `BodyArea::from_height`).
+fn area_hit(y: f32, target: &Transform) -> BodyArea {
+    let feet = crate::interact::feet_of(target).y;
+    BodyArea::from_height((y - feet) / crate::player::BODY_HEIGHT)
+}
+
+/// Each person who looks with eyes (the player's camera): the height of
+/// their eyes and how much their look rises a metre out, by the person.
+/// Anyone else aims at the middle of the body they attack.
+fn eye_lines(
+    eyes: &Query<(&crate::player::Eyes, &ChildOf)>,
+    bodies: impl Fn(Entity) -> Option<Vec3>,
+) -> std::collections::HashMap<Entity, (f32, f32)> {
+    eyes.iter()
+        .filter_map(|(eyes, parent)| {
+            let body = bodies(parent.parent())?;
+            Some((parent.parent(), (body.y - crate::player::BODY_CENTRE + crate::EYE_HEIGHT, eyes.pitch.tan())))
+        })
+        .collect()
+}
 
 /// What every hit gives the one it lands on (combat.md "Simple to use":
 /// clear feedback, a flash and a knock back): a push away from where it
@@ -254,6 +278,7 @@ pub fn melee(
     items: Res<ItemRegistryRes>,
     layers: Res<LayerRegistryRes>,
     damage: Res<DamageRegistryRes>,
+    eyes: Query<(&crate::player::Eyes, &ChildOf)>,
     move_and_slide: MoveAndSlide,
     mut actors: ParamSet<(
         Query<(
@@ -370,6 +395,10 @@ pub fn melee(
     // attacker did goes into their memory after: (attacker, whom, how
     // much, killed).
     let mut gave: Vec<(Entity, ActorId, f32, bool)> = Vec::new();
+    let lines = {
+        let bodies = actors.p1();
+        eye_lines(&eyes, |e| bodies.get(e).ok().map(|(_, t, ..)| t.translation))
+    };
     for (attacker, attacker_id, here, facing, swing, reach, scale, damage_name) in swings {
         let Some(def) = damage.0.def(&damage_name) else {
             continue;
@@ -387,11 +416,15 @@ pub fn melee(
             {
                 continue;
             }
+            // Where it lands: where the attacker looks, or the middle of
+            // the body.
+            let y = lines.get(&attacker).map_or(at.translation.y, |(eye, rise)| eye + rise * offset.length());
+            let area = area_hit(y, at);
             let hit = Hit {
                 def,
                 self_inflicted: false,
                 distance: offset.length(),
-                location_scale: scale,
+                location_scale: scale * area.scale(),
             };
             let (result, killed) = hit_actor(
                 &hit,
@@ -399,6 +432,7 @@ pub fn melee(
                 target_worn,
                 &items.0,
                 &layers.0,
+                area,
                 &mut target_health,
                 memory.as_deref_mut(),
                 Some(attacker_id),
@@ -449,13 +483,19 @@ pub struct Bullet {
     pub shooter: Entity,
     pub damage: String,
     pub direction: Vec2,
-    /// How far it has flown, for falloff and the maximum range.
+    /// How much it rises a metre out along the ground: where the shooter
+    /// looked (a look down falls), straight with no drop.
+    #[serde(default)]
+    pub rise: f32,
+    /// How far it has flown along the ground, for falloff and the maximum
+    /// range.
     pub travelled: f32,
     pub range: f32,
 }
 
-/// How high a bullet flies, in metres: chest height, flat (combat.md
-/// "Guns": no drop).
+/// How high above the feet a bullet leaves anyone who aims without eyes,
+/// in metres: chest height, flat (combat.md "Guns": no drop). One with
+/// eyes (the player) shoots from them, where they look.
 const BULLET_HEIGHT: f32 = 1.3;
 
 /// Every actor with the trigger held and a gun in its hands fires
@@ -468,6 +508,8 @@ pub fn fire(
     tick: Res<crate::SimTick>,
     items: Res<ItemRegistryRes>,
     layers: Res<LayerRegistryRes>,
+    eyes: Query<(&crate::player::Eyes, &ChildOf)>,
+    bodies: Query<&Transform, With<Actor>>,
     mut shooters: Query<
         (
             Entity,
@@ -483,6 +525,7 @@ pub fn fire(
         Without<Dead>,
     >,
 ) {
+    let lines = eye_lines(&eyes, |e| bodies.get(e).ok().map(|t| t.translation));
     for (entity, this_tick, facing, hotbar, transform, rolling, mut firing, inventory, actor) in &mut shooters {
         // Mid roll: committed to it, no shooting.
         if Rolling::busy(rolling) {
@@ -519,17 +562,20 @@ pub fn fire(
         // Seeded by who fires, by their lasting id, so a loaded game
         // spreads the same (the player is zero).
         let seed = tick.0 ^ actor.map_or(0, |a| a.0.0);
+        let feet = crate::interact::feet_of(transform).y;
+        let (height, rise) = lines.get(&entity).copied().unwrap_or((feet + BULLET_HEIGHT, 0.0));
         for direction in pellet_directions_2d(facing.direction(), gun.spread_degrees, gun.pellets, seed) {
             commands.spawn((
                 Bullet {
                     shooter: entity,
                     damage: gun.damage.clone(),
                     direction,
+                    rise,
                     travelled: 0.0,
                     range: gun.reach,
                 },
                 crate::model::Model("pellet".to_string()),
-                Transform::from_translation(on_ground(muzzle, BULLET_HEIGHT)),
+                Transform::from_translation(on_ground(muzzle, height)),
             ));
         }
     }
@@ -552,11 +598,16 @@ pub fn fly(
     tick: Res<crate::SimTick>,
     shooters: Query<(&Transform, Option<&Actor>), Without<Bullet>>,
     mut bullets: Query<(Entity, &mut Bullet, &mut Transform)>,
-    mut targets: Query<(&Transform, &Protection, &Equipment, &mut Health, Option<&mut Memory>, Option<&Actor>), Without<Dead>>,
+    mut targets: Query<
+        (&Transform, &Protection, &Equipment, &mut Health, Option<&mut Memory>, Option<&Actor>),
+        (Without<Dead>, Without<Bullet>),
+    >,
 ) {
     let step = BULLET_SPEED * time.delta_secs();
     // (shooter, damage def, pellets summed per target) this step.
     let mut landed: Vec<(Entity, String, MultiDamage<Entity>)> = Vec::new();
+    // Where on each target the first pellet to reach them landed.
+    let mut areas: Vec<(Entity, BodyArea)> = Vec::new();
     for (entity, mut bullet, mut transform) in &mut bullets {
         let from = transform.translation.ground();
         let reach = step.min(bullet.range - bullet.travelled);
@@ -564,12 +615,19 @@ pub fn fly(
         // Items lying about and anyone in the safe half of a roll let a
         // bullet through.
         let passes = |e: Entity| sensors.contains(e) || Rolling::safe(rollers.get(e).ok());
-        let hit = Dir3::new(on_ground(bullet.direction, 0.0)).ok().and_then(|dir| {
-            spatial.cast_ray_predicate(on_ground(from, transform.translation.y), dir, reach, true, &filter, &|e| !passes(e))
+        // Straight along its line: `rise` up a metre out along the ground.
+        let line = Vec3::new(bullet.direction.x, bullet.rise, bullet.direction.y);
+        let slant = line.length().max(1e-6);
+        let hit = Dir3::new(line).ok().and_then(|dir| {
+            spatial.cast_ray_predicate(transform.translation, dir, reach * slant, true, &filter, &|e| !passes(e))
         });
         if let Some(hit) = hit {
-            if targets.contains(hit.entity) {
-                let at = bullet.travelled + hit.distance;
+            let along = hit.distance / slant;
+            if let Ok((body, ..)) = targets.get(hit.entity) {
+                let at = bullet.travelled + along;
+                if !areas.iter().any(|(e, _)| *e == hit.entity) {
+                    areas.push((hit.entity, area_hit(transform.translation.y + bullet.rise * along, body)));
+                }
                 match landed
                     .iter_mut()
                     .find(|(s, d, _)| *s == bullet.shooter && *d == bullet.damage)
@@ -586,7 +644,7 @@ pub fn fly(
             continue;
         }
         bullet.travelled += reach;
-        transform.translation = on_ground(from + bullet.direction * reach, transform.translation.y);
+        transform.translation = on_ground(from + bullet.direction * reach, transform.translation.y + bullet.rise * reach);
         if bullet.travelled >= bullet.range - 1e-4 {
             commands.entity(entity).despawn();
         }
@@ -615,14 +673,15 @@ pub fn fly(
                 continue;
             };
             let to = at.translation.ground();
+            let area = areas.iter().find(|(e, _)| *e == target).map_or(BodyArea::default(), |(_, a)| *a);
             let hit = Hit {
                 def,
                 self_inflicted: false,
                 distance,
-                location_scale: pellets as f32,
+                location_scale: pellets as f32 * area.scale(),
             };
             let (result, killed) =
-                hit_actor(&hit, own, worn, &items.0, &layers.0, &mut health, memory.as_deref_mut(), Some(by), tick.0);
+                hit_actor(&hit, own, worn, &items.0, &layers.0, area, &mut health, memory.as_deref_mut(), Some(by), tick.0);
             feel_hit(&mut commands, target, from, to, &result);
             struck(memory, by, from, result.damage_dealt, tick.0);
             let whom = target_id.map(|a| a.0);

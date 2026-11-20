@@ -362,7 +362,7 @@ pub fn answer_kill(
             distance: 0.0,
             location_scale: 1.0,
         };
-        crate::combat::hit_actor(&hit, own, worn, &items.0, &layers.0, &mut health, memory.as_deref_mut(), None, tick.0);
+        crate::combat::hit_actor(&hit, own, worn, &items.0, &layers.0, Default::default(), &mut health, memory.as_deref_mut(), None, tick.0);
     }
 }
 

@@ -99,7 +99,7 @@ pub fn storm(
                 distance: 0.0,
                 location_scale: 1.0,
             };
-            hit_actor(&hit, own, worn, &items.0, &layers.0, &mut health, memory.as_deref_mut(), None, tick.0);
+            hit_actor(&hit, own, worn, &items.0, &layers.0, Default::default(), &mut health, memory.as_deref_mut(), None, tick.0);
         }
     }
     if state.at.is_some_and(|at| day.storm().passed(secs, at)) {
