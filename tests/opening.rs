@@ -370,10 +370,24 @@ pub(crate) fn open_the_door() {
     assert!(opened, "the player never opened the hatch walking up the stairs to {to:?}; they stand at {:?}", player_spot());
 }
 
+/// The game's start, just before its first pivot point ("the note read"):
+/// the player waking in their room on a game just launched, as the
+/// opening plays it (`play_to_pivot_1` checks the same fresh game). Made
+/// once with TOPSIDE_MAKE_SAVE=tap_0_you_wake on a game just launched.
+pub(crate) fn you_wake() {
+    start_from("tap_0_you_wake", || {
+        step(SECOND);
+        let w = op("world");
+        let fresh = w["episode"] == "The Tap" && w["reached"].as_array().is_some_and(|r| r.is_empty());
+        assert!(fresh, "tap_0_you_wake is made on a game just launched: run scripts/build.ps1 run first (now: episode {}, reached {})", w["episode"], w["reached"]);
+    });
+}
+
 /// Pivot point 1's save (authority.md "Running tests": one save per pivot,
 /// just before it): Roxanne's opening said and the player's answers shown.
 /// Made on a game just launched by the opening's one play
 /// (`play_to_pivot_1`).
+
 pub(crate) fn choosing() {
     start_from("tap_1_dell_tells_you", play_to_pivot_1);
 }

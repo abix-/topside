@@ -1,38 +1,24 @@
-//! NPCs eat, read from each person's memory in the running game's
-//! `people` op.
+//! NPCs eat, read from each person's memory in the running game.
 
-use serde_json::{Value as Json, json};
+use serde_json::json;
 
-use crate::endpoint::url;
+use crate::endpoint::{op_with, pause, step};
+use crate::opening::{roxanne, within};
 
-fn people() -> Option<Json> {
-    let resp = ureq::post(url()).send_json(json!({"op": "people", "args": {}})).ok()?;
-    resp.into_body().read_json().ok()
-}
-
+/// From the game's start (tap_0_you_wake), Roxanne made hungry with a can
+/// of food in her hands (the `needs` and `give` ops) eats it within a few
+/// game seconds: her memory holds the eating.
 #[test]
 fn npcs_eat() {
-    let people = people().unwrap_or_else(|| panic!("no topside game answering on {}; start it with scripts/build.ps1 run", url()));
-    let list = people["result"].as_array().cloned().unwrap_or_default();
-    let ate: Vec<String> = list
-        .iter()
-        .filter_map(|p| {
-            let n = p["did"]["ate"].as_u64().unwrap_or(0);
-            (n > 0).then(|| format!("{} {} ({}): {n}", p["id"], p["def"].as_str().unwrap_or("?"), p["faction"].as_str().unwrap_or("-")))
-        })
-        .collect();
-    let hungriest = list.iter().filter_map(|p| p["hunger"].as_f64()).fold(f64::MAX, f64::min);
-    let tick = ureq::post(url())
-        .send_json(json!({"op": "status", "args": {}}))
-        .ok()
-        .and_then(|r| r.into_body().read_json::<Json>().ok())
-        .map(|s| s["state"]["tick"].clone())
-        .unwrap_or(Json::Null);
-    eprintln!(
-        "people op at tick {tick}: {} people, {} ate, the hungriest at {hungriest:.0} hunger\n{}",
-        list.len(),
-        ate.len(),
-        ate.join("\n")
-    );
-    assert!(!ate.is_empty(), "no NPC in the running game has eaten ({} people)", list.len());
+    let _p = pause();
+    crate::opening::you_wake();
+    let her = roxanne();
+    op_with("give", json!({"id": her, "item": "canned food", "count": 1, "clear": true}));
+    op_with("needs", json!({"id": her, "hunger": 10}));
+    step(1);
+    // The people op counts what each did from their memory.
+    let her_now = || op_with("people", json!({"ids": [her]})).as_array().and_then(|p| p.first().cloned()).unwrap_or_default();
+    let eaten = within(10, || her_now()["did"]["ate"].as_u64().unwrap_or(0) > 0);
+    let n = her_now();
+    assert!(eaten, "Roxanne, hungry with canned food, did not eat within ten game seconds: hunger {}, doing {}, did {}", n["hunger"], n["doing"], n["did"]);
 }

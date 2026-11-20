@@ -78,10 +78,7 @@ pub(crate) fn the_bunker_is_two_rooms_the_surface_room_and_the_players_room_belo
 /// "Presentation").
 #[test]
 fn the_player_wakes_in_their_room_and_reads_the_note_there() {
-    let player = op("player")["id"].as_u64().expect("the player op reports the player's id");
-    op_with("kill", serde_json::json!({"id": player}));
-    within(3, || op("player")["dead"] == true);
-    crate::endpoint::player_alive();
+    crate::opening::you_wake();
     let woke = within(3, || (status().2 + 3.0).abs() < 0.3);
     let (x, y, feet) = status();
     eprintln!("woke at ({x:.1}, {y:.1}), feet {feet:.2}");
@@ -107,7 +104,7 @@ fn the_player_wakes_in_their_room_and_reads_the_note_there() {
 /// logs/bunker_door_closed.png and logs/bunker_door_open.png.
 #[test]
 fn the_front_door_turns_on_its_hinge() {
-    crate::endpoint::player_alive();
+    crate::opening::you_wake();
     let player = op("player")["id"].as_u64().expect("the player op reports the player's id");
     // The door block's middle, its 2 tiles in the south wall.
     let door = (0.0, 4.5);
@@ -128,19 +125,20 @@ fn the_front_door_turns_on_its_hinge() {
 /// rest stay.
 #[test]
 fn the_controls_show_in_the_room_and_each_goes_once_done() {
-    crate::endpoint::player_alive();
+    // Paused, so the E press is taken by the one tick stepped and the hud's
+    // copy read is published at that stop.
+    let _paused = crate::endpoint::pause();
+    crate::opening::you_wake();
     let feet = status().2;
     let shown = op("hud")["hints"].as_array().cloned().unwrap_or_default();
     eprintln!("feet {feet:.2}; the controls shown: {shown:?}");
-    if feet > -0.5 {
-        assert!(shown.is_empty(), "controls shown topside: {shown:?}");
-        panic!("the player is topside: none shown, as it should be; the rest not played this run");
-    }
+    assert!(shown.iter().any(|t| t == "E  use"), "waking in their room, the controls are not shown: {shown:?}");
     op_with("key", serde_json::json!({"key": "E"}));
-    let gone = within(3, || op("hud")["hints"].as_array().is_some_and(|h| !h.iter().any(|t| t == "E  use")));
+    crate::endpoint::step(1);
     let after = op("hud")["hints"].clone();
     crate::talk_ui::shot("bunker_controls");
-    eprintln!("after E: {after}");
+    eprintln!("after E: {after}; the player did {}", op("player")["did"]);
+    let gone = after.as_array().is_some_and(|h| !h.iter().any(|t| t == "E  use"));
     assert!(gone, "E pressed and its line still shown: {after}");
 }
 
@@ -160,11 +158,8 @@ fn no_ground_shows_through_a_floor_or_a_step() {
 
 #[test]
 fn every_bunker_goes_one_level_below_the_ground_open_over_the_hatch() {
-    // Nothing is asked before the world is ready (authority.md "Running
-    // tests": loading), and the world op is published a game second later.
-    crate::endpoint::loaded();
     let _paused = crate::endpoint::pause();
-    crate::endpoint::step(60);
+    crate::opening::you_wake();
     let w = op("world");
     let below = w["below"].as_array().cloned().unwrap_or_default();
     eprintln!("buildings that go below the ground: {}", serde_json::Value::Array(below.clone()));
