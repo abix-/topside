@@ -893,6 +893,22 @@ pub static QUALITY: std::sync::LazyLock<Vec<modforge::quality::Tier>> = std::syn
         })
         .collect()
 });
+
+/// What Randy Random rolls while the player walks topside (design.md "The
+/// unknown" rule 1, "The first hour" rule 4; todo 10h1). A roll every 100 m
+/// walked, hitting one in three: Claude's numbers, for the operator to
+/// change.
+pub fn encounter_table() -> modforge::randy::EncounterTable {
+    modforge::randy::EncounterTable {
+        every_metres: 100.0,
+        chance_in_100: 33,
+        encounters: vec![modforge::randy::Encounter { name: STRANGER_CROSSES, weight: 1 }],
+    }
+}
+
+/// A stranger crosses the player's path and leaves.
+pub const STRANGER_CROSSES: &str = "a stranger crosses";
+
 /// The small world's sites (operator, 2026-09-26: "20 monuments of
 /// varying sizes"): every kind but the ruined city, from large to minor,
 /// each at a fixed place clear of every bunker's ground.

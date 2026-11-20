@@ -141,6 +141,7 @@ saved! {
         crate::navmesh::MeshesLanding,
         crate::interact::ThingIssuer,
         crate::edge::EdgeRes,
+        crate::randy::RandyRes,
         crate::terrain::SavedChunks,
     ]
 }

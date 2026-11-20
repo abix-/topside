@@ -24,6 +24,7 @@ pub mod outline;
 pub mod people;
 pub mod player;
 pub mod profile;
+pub mod randy;
 pub mod save;
 pub mod sight;
 pub mod storm;
@@ -233,6 +234,7 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind, port: u16
     app.init_resource::<joining::Joins>();
     app.init_resource::<edge::EdgeRes>();
     app.init_resource::<edge::WordToEdge>();
+    app.init_resource::<randy::RandyRes>();
     app.init_resource::<content::LayerRegistryRes>();
     app.init_resource::<content::DamageRegistryRes>();
     app.init_resource::<content::ActorRegistryRes>();
@@ -366,6 +368,9 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind, port: u16
                     // Word of a place reaching the edge brings newcomers
                     // (todo 11i).
                     edge::newcomers,
+                    // While the player walks topside, Randy Random rolls
+                    // encounters (todo 10h1).
+                    randy::encounters.run_if(loading::awake),
                 )
                     .chain(),
                 lap("interact"),
