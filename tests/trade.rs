@@ -138,17 +138,18 @@ fn the_player_trades_with_a_stranger_through_the_panel_and_a_poor_offer_is_refus
     }
     crate::talk_ui::shot("trade_open");
     let them = trading.unwrap_or_else(|| panic!("none of {} strangers would let the player ask to trade", strangers.len()));
-    // What each carries, set: the player cloth and scrap, they two waters.
+    // What each carries, set: the player cloth and scrap, they one water
+    // (a water bottle is a stack of one).
     op_with("give", json!({"id": player, "item": "cloth", "count": 1, "clear": true}));
     op_with("give", json!({"id": player, "item": "scrap", "count": 100}));
-    op_with("give", json!({"id": them, "item": "water bottle", "count": 2, "clear": true}));
-    within(3, || players_count("scrap") == 100 && theirs_count(them, "water bottle") == 2);
+    op_with("give", json!({"id": them, "item": "water bottle", "count": 1, "clear": true}));
+    within(3, || players_count("scrap") == 100 && theirs_count(them, "water bottle") == 1);
 
     let before = (players_count("scrap"), players_count("cloth"), players_count("water bottle"));
     let theirs_before = (theirs_count(them, "scrap"), theirs_count(them, "cloth"), theirs_count(them, "water bottle"));
     eprintln!("before: the player scrap, cloth, water {before:?}; the stranger {theirs_before:?}");
 
-    // A poor offer: the cloth (2) for her water (2 x 10, asked at more).
+    // A poor offer: the cloth (2) for her water (10, asked at more).
     // Clicked once shown (the `hud` op shows the screen once a game second).
     assert!(within(3, || click_slot("Inventory", "cloth")), "no cloth shown in the player's side");
     assert!(within(3, || click_slot("Theirs", "water bottle")), "no water shown in the stranger's side");
@@ -158,7 +159,7 @@ fn the_player_trades_with_a_stranger_through_the_panel_and_a_poor_offer_is_refus
     op_with("pointer", json!({"at": deal, "click": true}));
     let refused = within(5, || op("hud")["trading"]["refused"] == true);
     crate::talk_ui::shot("trade_refused");
-    assert!(refused, "cloth for two waters was not refused: {}", op("hud")["trading"]);
+    assert!(refused, "cloth for a water was not refused: {}", op("hud")["trading"]);
     assert_eq!(players_count("water bottle"), before.2, "refused, and the water moved anyway");
 
     // Scrap too, a stack at a time (it stacks to 20), the deal put again
@@ -171,7 +172,7 @@ fn the_player_trades_with_a_stranger_through_the_panel_and_a_poor_offer_is_refus
         }
         within(5, || op("hud")["trading"]["mine"].as_array().is_some_and(|m| m.len() > on_table));
         op_with("pointer", json!({"at": deal, "click": true}));
-        traded = within(4, || players_count("water bottle") >= before.2 + 2);
+        traded = within(4, || players_count("water bottle") > before.2);
         eprintln!("{stacks} stack(s) of scrap and the cloth: taken {traded}; the trade {}", op("hud")["trading"]);
         if traded {
             break;
@@ -186,7 +187,7 @@ fn the_player_trades_with_a_stranger_through_the_panel_and_a_poor_offer_is_refus
     // Whole stacks change hands: what one side lost, the other got.
     let lost = |b: u64, a: u64| b as i64 - a as i64;
     assert!(lost(before.0, after.0) >= 20 && lost(before.1, after.1) >= 1, "the player paid less than the scrap and cloth put down");
-    assert!(lost(after.2, before.2) >= 2, "the player got less than the two waters");
+    assert!(lost(after.2, before.2) >= 1, "the player got no water");
     assert_eq!(
         (lost(before.0, after.0), lost(before.1, after.1), lost(after.2, before.2)),
         (lost(theirs_after.0, theirs_before.0), lost(theirs_after.1, theirs_before.1), lost(theirs_before.2, theirs_after.2)),
