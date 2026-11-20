@@ -1524,7 +1524,12 @@ pub fn register_items(reg: &mut ItemRegistry) {
         // wells scattered, food sources): eaten or drunk from where they
         // stand, a mouthful a use, never used up. Tuning.
         source("well", 0.0, 50.0),
-        source("river", 0.0, 50.0),
+        // Dirty water works but makes you sick (todo Survive 4): each
+        // mouthful of river water hurts a little. The 3 is Claude's.
+        ItemDef {
+            food: Some(FoodStats { hunger: 0.0, thirst: 50.0, health: -3.0 }),
+            ..source("river", 0.0, 50.0)
+        },
         // Food heals, each food its own amounts (todo Survive 2): berries
         // less hunger and less health than a can. The 2 is Claude's.
         ItemDef {
