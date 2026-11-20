@@ -182,7 +182,9 @@ fn word_of_the_threat_spreads_to_a_mate() {
 /// the `use` op learns what else she knows and not the tap.
 #[test]
 fn dell_keeps_the_tap_quiet() {
-    crate::opening::you_wake();
+    // Dell's bunker at the start is Dell and the player; by this save a
+    // stranger has been taken in (the-tap.md pivot point 6, "Take one in").
+    crate::saves::stranger_taken_in();
     let w = op("world");
     let cast = |part: &str| w["cast"].as_array().and_then(|c| c.iter().find(|p| p["part"] == part)).and_then(|p| p["id"].as_u64());
     let (Some(dell), Some(tap)) = (cast("Dell"), w["things"].as_array().and_then(|t| t.iter().find(|t| t["name"] == "tap")).and_then(|t| t["key"].as_u64())) else {

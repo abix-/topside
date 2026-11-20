@@ -396,20 +396,28 @@ pub(crate) fn newcomers_before_next_group() {
     });
 }
 
-/// The first living stranger of no faction.
-fn a_stranger() -> u64 {
-    people().into_iter().find(|p| p["dead"] != true && p["faction"].is_null()).and_then(|p| p["id"].as_u64()).expect("a living stranger")
-}
-
-/// The player beside a stranger of no faction.
+/// The player beside a stranger of no faction: the nearest, so the way to
+/// them is over chunks made round the player.
 pub(crate) fn beside_a_stranger() {
     start_from("beside_a_stranger", || {
         let go = || {
             choosing();
-            follow(None, a_stranger());
+            follow(None, the_stranger());
         };
         // Within talking reach (3 m): a follower stands once 2.5 m off.
-        grow("beside_a_stranger", 15, go, || apart(player_spot(), spot_of(a_stranger())).0 < 3.0, Until::At);
+        grow("beside_a_stranger", 15, go, || apart(player_spot(), spot_of(the_stranger())).0 < 3.0, Until::At);
+    });
+}
+
+/// Just after the player takes a stranger in (the-tap.md pivot point 6,
+/// "takes a stranger in"): given gifts, asked to stay, and joined.
+pub(crate) fn stranger_taken_in() {
+    start_from("stranger_taken_in", || {
+        beside_a_stranger();
+        let stranger = the_stranger();
+        gifts(player(), stranger, 3);
+        ask_to_join(stranger);
+        assert!(within(10, || faction_of(stranger) == "player"), "the stranger did not join");
     });
 }
 
@@ -419,12 +427,8 @@ pub(crate) fn joined_with_mara_near() {
         // The joined stranger is the newest of the player's bunker.
         let joined = || people().into_iter().filter(|p| p["faction"] == "player" && p["dead"] != true).filter_map(|p| p["id"].as_u64()).max().expect("someone of the player's bunker");
         let join = || {
-            beside_a_stranger();
-            let stranger = the_stranger();
-            gifts(player(), stranger, 3);
-            ask_to_join(stranger);
-            assert!(within(10, || faction_of(stranger) == "player"), "the stranger did not join");
-            walk_to(Some(part("Mara")), spot_of(stranger));
+            stranger_taken_in();
+            walk_to(Some(part("Mara")), spot_of(joined()));
         };
         grow("joined_with_mara_near", 15, join, || apart(spot_of(part("Mara")), spot_of(joined())).0 < 2.5, Until::At);
     });

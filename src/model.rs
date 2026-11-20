@@ -134,9 +134,11 @@ pub fn draw_item_layers(
 pub fn attach(mut commands: Commands, assets: Res<AssetServer>, added: Query<(Entity, &Model), Added<Model>>) {
     for (entity, model) in &added {
         let scene = assets.load(GltfAssetLabel::Scene(0).from_asset(format!("models/{}.glb", model.0)));
+        // The thing may be despawned this same frame (a load, a despawn
+        // after this system ran): then there is nothing to draw.
         commands
             .entity(entity)
-            .insert(bevy::world_serialization::prelude::WorldAssetRoot(scene));
+            .try_insert(bevy::world_serialization::prelude::WorldAssetRoot(scene));
     }
 }
 
