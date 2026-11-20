@@ -1,6 +1,7 @@
 //! Temperature and radiation on everyone (todo 20), on modforge's rules
 //! (modforge exposure.rs). The air is mild by day and cold at night, and
-//! mild under shelter; the storm is radiation in the open. Out of the
+//! mild under shelter; the storm is radiation in the open, and the
+//! weather (weather.rs) adds its own to both. Out of the
 //! safe band, or over the dose line, a person is hurt once a game second
 //! through the one hit path, as hunger hurts. Everyone is equal. The
 //! airs and the storm's radiation are Claude's, for the operator to
@@ -40,6 +41,7 @@ pub fn expose(
     storms: Res<crate::storm::StormRes>,
     harm: (Res<ItemRegistryRes>, Res<crate::content::LayerRegistryRes>, Res<DamageRegistryRes>),
     shelters: Query<&Shelter>,
+    world: Option<Res<crate::terrain::WorldRes>>,
     mut people: Query<(Entity, &Transform, Option<&mut Exposure>, &Protection, &Equipment, &mut Health, Option<&mut Memory>), (With<crate::actor::Actor>, Without<Dead>)>,
 ) {
     let (items, layers, damage) = harm;
@@ -52,8 +54,12 @@ pub fn expose(
             continue;
         };
         let inside = sheltered(&shelters, at.translation.ground());
-        let air = if inside { SHELTER_AIR } else if night { NIGHT_AIR } else { DAY_AIR };
-        let radiation = if storm && !inside { STORM_RADIATION } else { 0.0 };
+        // The weather where they stand, in the open (todo 21).
+        let weather = world.as_deref().filter(|_| !inside).map(|w| crate::weather::at(w, tick.0, *day, at.translation.ground()));
+        let base_air = if inside { SHELTER_AIR } else if night { NIGHT_AIR } else { DAY_AIR };
+        let air = base_air + weather.map_or(0.0, |w| w.air());
+        let base_radiation = if storm && !inside { STORM_RADIATION } else { 0.0 };
+        let radiation = base_radiation + weather.map_or(0.0, |w| w.radiation());
         exposure.0.tick(air, radiation, time.delta_secs());
         if !second {
             continue;

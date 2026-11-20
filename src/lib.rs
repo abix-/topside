@@ -30,6 +30,7 @@ pub mod profile;
 pub mod radio;
 pub mod raid;
 pub mod turret;
+pub mod weather;
 pub mod randy;
 pub mod save;
 pub mod secrets;
@@ -534,6 +535,8 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind, port: u16
                 hud::render_prompt,
                 hud::render_hints,
                 hud::render_sky,
+                // The weather seen where the player stands (todo 21).
+                weather::sky,
             ),
         );
     }

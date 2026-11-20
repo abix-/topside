@@ -199,6 +199,19 @@ pub const HAMMER: &str = "hammer";
 pub const TOOL_CUPBOARD: &str = "tool cupboard";
 pub const WOOD: &str = "wood";
 pub const STONE: &str = "stone";
+/// Each biome's weather, by weight, rolled a game hour at a time (todo
+/// 21, modforge weather). The weights are Claude's.
+pub fn weather_table(biome: &str) -> Vec<(modforge::weather::Weather, u32)> {
+    use modforge::weather::Weather::*;
+    match biome {
+        "forest" => vec![(Clear, 10), (Rain, 6), (Fog, 4), (ColdSnap, 1)],
+        "wasteland" => vec![(Clear, 10), (HeatWave, 4), (RadiationStorm, 2), (Fog, 1)],
+        "ruins" => vec![(Clear, 10), (Fog, 3), (RadiationStorm, 3), (Rain, 2)],
+        "grassland" => vec![(Clear, 12), (Rain, 4), (ColdSnap, 2), (HeatWave, 2)],
+        _ => vec![(Clear, 1)],
+    }
+}
+
 /// The Labyrinth's gate site and its model (todo 11v).
 pub const GATE: &str = "gate";
 /// The turret (todo 11k): the item set down and the actor it becomes.
