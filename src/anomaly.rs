@@ -10,7 +10,10 @@ use modforge::world2d::Registries;
 
 use crate::actor::{Dead, Memory};
 use crate::combat::{Equipment, Health, Protection, hit_actor};
-use crate::content::{ANOMALY, ANOMALY_FROM_SITE, ANOMALY_RADIUS, BiomeRegistryRes, DamageRegistryRes, ItemRegistryRes, MonumentRegistryRes};
+use crate::content::{
+    ANOMALY, ANOMALY_FROM_SITE, ANOMALY_RADIUS, BOLT, BOLT_REACH, BOLT_SPEED, BiomeRegistryRes, DamageRegistryRes, GOES_OFF_SECS,
+    ItemRegistryRes, MonumentRegistryRes,
+};
 use crate::terrain::{WorldPiece, WorldRes};
 use crate::{Ground as _, on_ground};
 
@@ -66,6 +69,106 @@ pub fn place(
         crate::model::Model(crate::content::ANOMALY_TELL.to_string()),
         Transform::from_translation(on_ground(at, 0.0)),
     ));
+}
+
+/// A bolt in the air (todo 10i2): where it flies on the ground, how far it
+/// has come, and the height it flies and lands at.
+#[derive(Component)]
+pub struct Bolt {
+    pub direction: Vec2,
+    pub travelled: f32,
+    pub height: f32,
+}
+
+/// An anomaly a bolt has set off, for this many seconds more.
+#[derive(Component)]
+pub struct GoingOff(pub f32);
+
+/// The tick someone last threw, so one press throws one bolt.
+#[derive(Component)]
+pub struct Threw(pub u64);
+
+/// The least time between two throws, in ticks (Claude's).
+const THROW_EVERY: u64 = 36;
+
+/// Anyone attacking with a bolt in their hands throws it ahead, where
+/// they face (design.md "Maze, mined": "throwing a bolt is an action on
+/// the queue like any other"); the one in the hands is used up.
+pub fn throw(
+    mut commands: Commands,
+    tick: Res<crate::SimTick>,
+    mut throwers: Query<
+        (Entity, &crate::input::ThisTick, &crate::actor::Facing, &Transform, &mut crate::actor::Hotbar, Option<&Threw>),
+        Without<Dead>,
+    >,
+) {
+    for (entity, this_tick, facing, at, mut hotbar, threw) in &mut throwers {
+        if !crate::input::ActionQueue::has(&this_tick.0, crate::input::Action::Attack)
+            || threw.is_some_and(|t| tick.0 < t.0 + THROW_EVERY)
+        {
+            continue;
+        }
+        let Some(slot) = hotbar.0.held.filter(|_| hotbar.0.held_stack().is_some_and(|s| s.item == BOLT)) else {
+            continue;
+        };
+        hotbar.0.slots.remove(slot, 1);
+        commands.entity(entity).insert(Threw(tick.0));
+        let height = crate::interact::feet_of(at).y;
+        let from = at.translation.ground() + facing.direction() * 0.5;
+        commands.spawn((
+            Bolt { direction: facing.direction(), travelled: 0.0, height },
+            crate::model::Model(BOLT.to_string()),
+            Transform::from_translation(on_ground(from, height + 1.2)),
+        ));
+    }
+}
+
+/// Every bolt in the air flies a fixed step. It lands at its reach, or in
+/// the first anomaly it comes over, and that anomaly goes off; landed, it
+/// is a bolt lying on the ground to pick up again.
+#[allow(clippy::too_many_arguments)]
+pub fn fly(
+    mut commands: Commands,
+    time: Res<Time<Fixed>>,
+    items: Res<ItemRegistryRes>,
+    mut ids: ResMut<crate::interact::ThingIssuer>,
+    tick: Res<crate::SimTick>,
+    anomalies: Query<(Entity, &Transform), (With<Anomaly>, Without<Bolt>)>,
+    mut bolts: Query<(Entity, &mut Bolt, &mut Transform)>,
+) {
+    let step = BOLT_SPEED * time.delta_secs();
+    for (entity, mut bolt, mut transform) in &mut bolts {
+        let at = transform.translation.ground() + bolt.direction * step;
+        bolt.travelled += step;
+        let left = 1.0 - (bolt.travelled / BOLT_REACH).min(1.0);
+        transform.translation = on_ground(at, bolt.height + 1.2 * left);
+        let into = anomalies.iter().find(|(_, a)| a.translation.ground().distance(at) < ANOMALY_RADIUS);
+        if into.is_none() && bolt.travelled < BOLT_REACH {
+            continue;
+        }
+        if let Some((anomaly, _)) = into {
+            info!("anomaly: a bolt sets the {ANOMALY} off at {at}");
+            commands.entity(anomaly).insert(GoingOff(GOES_OFF_SECS));
+        }
+        commands.entity(entity).despawn();
+        if let Some(def) = items.0.def(BOLT) {
+            let stack = modforge::item::create(def, 1, &[], 0.0, tick.0);
+            crate::interact::spawn_item(&mut commands, &mut ids, def, stack, on_ground(at, bolt.height));
+        }
+    }
+}
+
+/// An anomaly going off flares: its tell swells up while it lasts.
+pub fn flare(mut commands: Commands, time: Res<Time<Fixed>>, mut going: Query<(Entity, &mut GoingOff, &mut Transform)>) {
+    for (entity, mut off, mut transform) in &mut going {
+        off.0 -= time.delta_secs();
+        if off.0 <= 0.0 {
+            transform.scale = Vec3::ONE;
+            commands.entity(entity).remove::<GoingOff>();
+        } else {
+            transform.scale = Vec3::new(1.4, 6.0, 1.4);
+        }
+    }
 }
 
 /// Every tick, anyone living inside an anomaly takes its hit.

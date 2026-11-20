@@ -551,6 +551,18 @@ def shotgun_shell():
     return join(parts, "shotgun shell", ITEM)
 
 
+def bolt():
+    """a bolt (design.md "Maze, mined": the bolt you throw ahead): a steel
+    shank with a six-sided head and a nut near its end."""
+    steel = material("steel", (0.55, 0.56, 0.58))
+    parts = [
+        cylinder("shank", 0.006, 0.07, along="X", at=(0, 0, 0), mat=steel),
+        cylinder("head", 0.012, 0.008, sides=6, along="X", at=(-0.039, 0, 0), mat=steel),
+        cylinder("nut", 0.011, 0.008, sides=6, along="X", at=(0.025, 0, 0), mat=steel),
+    ]
+    return join(parts, "bolt", ITEM * 0.3)
+
+
 def note():
     """a note: a sheet of paper with lines of writing."""
     paper = material("paper", (0.85, 0.82, 0.7))
@@ -2145,6 +2157,7 @@ SETS = {"person": people, "weapons": weapons}
 
 # Items, named as in content/src/lib.rs: each also gets its icon.
 ITEMS = {
+    "bolt": bolt,
     "note": note,
     "bolted door": bolted_door,
     "radio": radio,

@@ -36,7 +36,9 @@ use modforge::structure::{
 /// food; a can is half a day of hunger, so six), plus the first weapons
 /// and a vest: item, count, salt, where in the bunker's plan (x, z),
 /// colour. Water is the bunker's: its barrel and bottles (`BUNKER_STORE`).
-pub const STARTING_ITEMS: [(&str, u32, u64, [f32; 2], Rgb); 7] = [
+pub const STARTING_ITEMS: [(&str, u32, u64, [f32; 2], Rgb); 8] = [
+    // The bolt in your hand (design.md "The first hour" rule 5).
+    ("bolt", 5, 17, [0.8, 2.6], [0.55, 0.56, 0.58]),
     // Enough cloth for the bench's first bandage.
     ("cloth", 2, 14, [-1.6, 2.0], [0.75, 0.7, 0.6]),
     ("canned food", 6, 1, [-1.0, 2.0], [0.2, 0.6, 0.2]),
@@ -178,6 +180,14 @@ pub const ANOMALY: &str = "burner";
 pub const ANOMALY_TELL: &str = "scorched ground";
 pub const ANOMALY_RADIUS: f32 = 2.0;
 pub const ANOMALY_FROM_SITE: f32 = 10.0;
+
+/// The bolt (todo 10i2): the item, how far it is thrown, how fast it
+/// flies, and how long an anomaly it lands in shows it has gone off.
+/// Claude's numbers, for the operator to change.
+pub const BOLT: &str = "bolt";
+pub const BOLT_REACH: f32 = 12.0;
+pub const BOLT_SPEED: f32 = 15.0;
+pub const GOES_OFF_SECS: f32 = 1.5;
 
 pub const STORM: StormDef = StormDef {
     warning_secs: 60.0,
@@ -1633,6 +1643,25 @@ pub fn register_items(reg: &mut ItemRegistry) {
             armor: None,
             // A box feeds nobody; the food seen inside it does
             // (modforge `food_worth`, life.md "What things are good for").
+            good_for: Default::default(),
+            picture: None,
+            layer_slots: Vec::new(),
+            breaks_when_struck: false,
+            holds_litres: None,
+        },
+        // Thrown ahead to set an anomaly off (todo 10i2; design.md "Maze,
+        // mined": the bolt).
+        ItemDef {
+            name: BOLT.to_string(),
+            description: "A steel bolt. Throw it ahead and watch where it lands.".to_string(),
+            unique: false,
+            kind: ItemKind::Tool,
+            max_stack: 20,
+            quality_siblings: 1,
+            combat: None,
+            food: None,
+            storage: None,
+            armor: None,
             good_for: Default::default(),
             picture: None,
             layer_slots: Vec::new(),
