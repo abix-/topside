@@ -352,7 +352,9 @@ pub fn spawn_bunker(
     mut ids: ResMut<crate::interact::ThingIssuer>,
 ) {
     let at = world.bunker;
-    spawn_structure(&mut commands, &mut ids, &starting_bunker(), at, false, Some(BUNKER_DOOR));
+    // Built undug; the silo rebuilds it to its depth (todo 30).
+    let bunker = spawn_structure(&mut commands, &mut ids, &starting_bunker(), at, false, Some(BUNKER_DOOR));
+    commands.entity(bunker).insert(crate::silo::PlayerBunker(0));
     let def = |name: &str| {
         items
             .0

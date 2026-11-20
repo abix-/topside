@@ -175,6 +175,9 @@ pub fn loot_table() -> LootTable {
             e(TOOL_CUPBOARD, (1, 1), 1, 1),
             e(TURRET, (1, 1), 1, 3),
             e(FUEL, (1, 3), 4, 0),
+            e(SHOVEL, (1, 1), 2, 0),
+            e("crafting bench", (1, 1), 1, 1),
+            e("research station", (1, 1), 1, 2),
             e(GENERATOR, (1, 1), 1, 2),
             weapon("pipe shotgun", &["pipe barrel", "wooden grip", "wooden stock"], 1, 3),
             weapon("pipe shotgun", &["short pipe barrel", "taped grip"], 1, 3),
@@ -310,6 +313,60 @@ pub const HATCH_SIZE: (i32, i32) = (2, 4);
 /// player's room climb north along its east wall to the hatch in the
 /// surface room's floor. Every bunker is this building. The bed and the
 /// food crate in the player's room; the crafting bench in the surface room.
+/// The starting bunker dug `depth` levels down (todo 30, the silo;
+/// authority.md "Silo", Fallout Shelter's vertical): each level a room
+/// of the bunker's footprint under the one above, reached by a flight up
+/// through a hatch in the floor above, the hatches turn and turn about
+/// the west and the east of the room so no flight lands on another.
+pub fn silo_bunker(depth: u32) -> StructureDef {
+    let mut def = starting_bunker();
+    let flight_length = (BUNKER_LEVEL / STEP_RISE_MAX).ceil() * STEP_DEPTH;
+    for n in 1..=depth {
+        let level = PLAYER_ROOM_FLOOR - n as f32 * BUNKER_LEVEL;
+        def.rooms.push(RoomDef {
+            origin: Vec3::new(0.0, level, 0.0),
+            interior: Vec3::new(6.0, BUNKER_LEVEL, 8.0),
+            wall_thickness: 0.2,
+            openings: Vec::new(),
+            floor: true,
+            ceiling: false,
+        });
+        let min = if n % 2 == 1 { SILO_HATCH_MIN } else { HATCH_MIN };
+        let hole_x = min.0 as f32 + HATCH_SIZE.0 as f32 / 2.0;
+        def.stairs.push(StairDef {
+            base: Vec3::new(hole_x, level, min.1 as f32 + flight_length),
+            side: Side::North,
+            width: 1.2,
+            rise: BUNKER_LEVEL,
+            landing: 0.0,
+        });
+        def.hatches.push(Hatch { level: level + BUNKER_LEVEL, min, size: HATCH_SIZE, hinge: Side::East });
+        def.lights.push(LightDef { position: Vec3::new(0.0, level + 2.7, 0.0), color: [1.0, 0.9, 0.7], intensity: 400_000.0 });
+    }
+    def
+}
+
+/// The silo's other hatch, in the west of the room, clear of the bed
+/// and the food crate (the place is Claude's).
+pub const SILO_HATCH_MIN: (i32, i32) = (-3, -2);
+
+/// What digging the next silo level takes: deeper costs more, the scrap
+/// times the level dug (Claude's numbers), with a shovel held.
+pub const SHOVEL: &str = "shovel";
+pub fn dig_cost(depth: u32) -> (&'static str, u32) {
+    ("scrap", 5 * (depth + 1))
+}
+
+/// The stations that can be carried and set down (todo 30): each item's
+/// station.
+pub fn station_of(item: &str) -> Option<StationKind> {
+    match item {
+        "crafting bench" => Some(StationKind::CraftingBench),
+        "research station" => Some(StationKind::ResearchStation),
+        _ => None,
+    }
+}
+
 pub fn starting_bunker() -> StructureDef {
     let room = |level: f32, openings: Vec<Opening>| RoomDef {
         origin: Vec3::new(0.0, level, 0.0),
@@ -1764,6 +1821,10 @@ pub fn register_items(reg: &mut ItemRegistry) {
         // Power (todo 29; descriptions and the 4 slots Claude's).
         building(GENERATOR, "A fuel generator. Fill it with fuel and it powers what is wired near it.", ItemKind::Deployable, 1, Some(4)),
         building(FUEL, "A can of fuel, for a generator.", ItemKind::Material, 20, None),
+        // The silo (todo 30; descriptions Claude's).
+        building(SHOVEL, "A shovel. Strike the deepest floor of your bunker to dig a level down.", ItemKind::Tool, 1, None),
+        building("crafting bench", "A bench folded for carrying. Set it down and craft at it.", ItemKind::Deployable, 1, None),
+        building("research station", "A research desk folded for carrying. Set it down and research at it, with power.", ItemKind::Deployable, 1, None),
         ItemDef {
             name: "storage box".to_string(),
             description: "A wooden box to keep things in. Set it down and fill it.".to_string(),

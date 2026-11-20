@@ -154,6 +154,7 @@ saved! {
         crate::building::Builds,
         crate::raid::Raids,
         crate::research::Researched,
+        crate::silo::Silo,
     ]
 }
 
