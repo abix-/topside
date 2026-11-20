@@ -586,7 +586,13 @@ pub fn spawn_sites(
                 // Its model; never a box (design.md: no coloured boxes).
                 match &p.picture {
                     Some(name) => {
-                        commands.spawn((WorldPiece, of_chunk, Model(name.clone()), at));
+                        let mut prop = commands.spawn((WorldPiece, of_chunk, Model(name.clone()), at));
+                        // The Labyrinth's gate is locked at its site's
+                        // danger (todo 11v), its box behind it.
+                        if name == crate::content::GATE {
+                            let level = monument.loot_spots.first().map_or(0, |s| s.danger);
+                            prop.insert(crate::interact::Interactable { kind: modforge::hud::InteractKind::Gate { level } });
+                        }
                     }
                     None => warn!("a prop of {} has no model", monument.name),
                 }

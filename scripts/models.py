@@ -1942,6 +1942,25 @@ def steel_door():
     return join(parts, "steel door")
 
 
+def gate():
+    """the Labyrinth's locked gate (todo 11v): rusted iron bars across a
+    whole corridor, 9 m between its walls and 6 m high (Claude's), on two
+    heavy posts, with a chained lock in the middle. Its ground point is
+    its middle, the bars along x."""
+    iron = material("iron", (0.3, 0.22, 0.18))
+    post = material("post", (0.22, 0.2, 0.2))
+    chain = material("chain", (0.6, 0.6, 0.58))
+    width, height = 9.0, 6.0
+    parts = [box(f"post_{i}", (0.4, 0.4, height), at=(x, 0, height / 2), mat=post) for i, x in enumerate((-width / 2, width / 2))]
+    for i in range(19):
+        x = -width / 2 + 0.45 + i * (width - 0.9) / 18
+        parts.append(box(f"bar_{i}", (0.08, 0.08, height * 0.95), at=(x, 0, height * 0.95 / 2), mat=iron))
+    for i, z in enumerate((0.3, height / 2, height - 0.3)):
+        parts.append(box(f"rail_{i}", (width, 0.12, 0.15), at=(0, 0, z), mat=iron))
+    parts.append(box("lock", (0.4, 0.3, 0.5), at=(0, 0, height * 0.45), mat=chain))
+    return join(parts, "gate")
+
+
 def floor():
     """one tile of floor, with darker seams along its edges so the tiles
     show."""
@@ -2251,6 +2270,7 @@ MODELS = {
     "floor": floor,
     "door": door,
     "steel door": steel_door,
+    "gate": gate,
     # The minor sites' props, named as in content/src/lib.rs.
     # A wrecked car: Kenney's sedan all in rust, lying along x (4.2 m long).
     "car wreck": lambda: kenney("car", "sedan", "car wreck", 4.2, rgb=(0.45, 0.2, 0.15), turn=90),

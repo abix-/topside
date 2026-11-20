@@ -199,6 +199,8 @@ pub const HAMMER: &str = "hammer";
 pub const TOOL_CUPBOARD: &str = "tool cupboard";
 pub const WOOD: &str = "wood";
 pub const STONE: &str = "stone";
+/// The Labyrinth's gate site and its model (todo 11v).
+pub const GATE: &str = "gate";
 /// The turret (todo 11k): the item set down and the actor it becomes.
 pub const TURRET: &str = "turret";
 /// What a turret fires.
@@ -650,9 +652,10 @@ pub fn labyrinth_def() -> WorldDef {
         ("campsite".to_string(), 90),
         ("supply drop".to_string(), 45),
         ("body".to_string(), 90),
+        (GATE.to_string(), 150),
     ];
-    // Nothing in the maze stands over its walls yet (the gate tower
-    // is row 11v), so no landmark can be in sight from the door.
+    // Nothing in the maze stands over its walls (the gate is lower than
+    // them), so no landmark can be in sight from the door.
     def.landmarks = 0;
     // The maze grows out of one clearing; a second clearing would be a
     // maze of its own, cut off from the first. No other bunkers here yet.
@@ -2323,6 +2326,20 @@ pub fn register_monuments(reg: &mut MonumentRegistry, buildings: &BuildingRegist
                 vec![PropDef { centred: true, ..prop("ridge", [110.0, 10.0, 14.0], [0.42, 0.36, 0.28], (1, 1), 0.0) }],
             )
         },
+        // The Labyrinth's gate (todo 11v): no buildings, a locked gate
+        // across the corridor and a box behind it; turned across the
+        // corridor where it stands (structure::spawn_monuments). Its
+        // danger and spacing Claude's.
+        MonumentTypeDef {
+            spacing: 150.0,
+            height: 6.0,
+            ..minor(
+                GATE,
+                3,
+                "Gate",
+                vec![PropDef { centred: true, ..prop(GATE, [9.0, 6.0, 0.4], [0.3, 0.22, 0.18], (1, 1), 0.0) }],
+            )
+        },
     ];
     for monument in monuments {
         reg.register(monument, buildings)
@@ -2387,6 +2404,8 @@ pub fn register_biomes(reg: &mut BiomeRegistry) {
                 "military outpost".to_string(),
                 "campsite".to_string(),
                 "body".to_string(),
+                // Placed only where a world lists it (the Labyrinth).
+                GATE.to_string(),
                 "supply drop".to_string(),
             ],
             npcs: vec!["scavenger".to_string(), "hunter".to_string()],
@@ -2416,6 +2435,8 @@ pub fn register_biomes(reg: &mut BiomeRegistry) {
                 "launch site".to_string(),
                 "wreck".to_string(),
                 "body".to_string(),
+                // Placed only where a world lists it (the Labyrinth).
+                GATE.to_string(),
                 "supply drop".to_string(),
             ],
             npcs: vec!["raider".to_string(), "wanderer".to_string()],
@@ -2446,6 +2467,8 @@ pub fn register_biomes(reg: &mut BiomeRegistry) {
                 "wreck".to_string(),
                 "campsite".to_string(),
                 "body".to_string(),
+                // Placed only where a world lists it (the Labyrinth).
+                GATE.to_string(),
             ],
             npcs: vec![
                 "raider".to_string(),
