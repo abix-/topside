@@ -62,6 +62,7 @@ fn person(id: u64) -> String {
 
 #[test]
 fn bunker_people_haul_food_home() {
+    crate::opening::you_wake();
     let no_game = || panic!("no topside game answering on {}; start it with scripts/build.ps1 run", url());
     let people = op("people").unwrap_or_else(no_game);
     let world = op("world").unwrap_or_else(no_game);

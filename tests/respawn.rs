@@ -1,46 +1,39 @@
 //! People come back from the dead with half health, full food, and full
-//! water (operator, 2026-09-26): from each person's memory in the
-//! running game's `npc` op, nobody who respawned starves or dies of
-//! thirst within half a game day, which full food and water outlast.
+//! water (operator, 2026-09-26), so nobody who respawned starves or dies
+//! of thirst straight away. Read from the game's state the moment they are
+//! back (authority.md "Running tests": a rule with a long span is read
+//! from the state, never waited out).
 
-use serde_json::{Value as Json, json};
+use serde_json::json;
 
-use crate::endpoint::url;
-/// Half a game day in ticks (a day is 1200 s at 60 ticks a second).
-const HALF_DAY: u64 = 600 * 60;
+use crate::endpoint::{op, op_with, pause, step};
 
-fn op(name: &str, args: Json) -> Option<Json> {
-    let resp = ureq::post(url()).send_json(json!({"op": name, "args": args})).ok()?;
-    resp.into_body().read_json().ok()
-}
-
+/// From the game's start (tap_0_you_wake), the player starving and
+/// parched is killed (the `kill` op) and presses Enter to come back: back,
+/// their food and water are full, their health half, and their memory
+/// holds the respawn.
 #[test]
 fn the_respawned_do_not_starve_straight_away() {
-    let people = op("people", json!({})).unwrap_or_else(|| panic!("no topside game answering on {}; start it with scripts/build.ps1 run", url()));
-    let ids: Vec<u64> = people["result"].as_array().into_iter().flatten().filter_map(|p| p["id"].as_u64()).collect();
-    let (mut respawns, mut starved) = (0, Vec::new());
-    for id in ids {
-        let Some(npc) = op("npc", json!({"id": id})) else { continue };
-        // Oldest first: (tick, words).
-        let did: Vec<(u64, String)> = npc["result"]["did"]
-            .as_array()
-            .into_iter()
-            .flatten()
-            .map(|d| (d["tick"].as_u64().unwrap_or(0), d["did"].as_str().unwrap_or("").to_string()))
-            .collect();
-        for (i, (at, words)) in did.iter().enumerate() {
-            if words != "respawned" {
-                continue;
-            }
-            respawns += 1;
-            if let Some((died, how)) = did[i + 1..].iter().find(|(_, w)| w.starts_with("died")) {
-                if (how.contains("starvation") || how.contains("dehydration")) && died - at < HALF_DAY {
-                    starved.push(format!("npc {id}: respawned at {at}, {how} at {died} ({} ticks later)", died - at));
-                }
-            }
-        }
-    }
-    eprintln!("{respawns} respawns read; {} starved or died of thirst within half a day\n{}", starved.len(), starved.join("\n"));
-    assert!(respawns > 0, "nobody in the running game has respawned yet");
-    assert!(starved.is_empty(), "the respawned came back without food or water:\n{}", starved.join("\n"));
+    let _p = pause();
+    crate::opening::you_wake();
+    let me = op("player")["id"].as_u64().expect("the player's id");
+    op_with("needs", json!({"id": me, "hunger": 3, "thirst": 3}));
+    step(1);
+    op_with("kill", json!({"id": me}));
+    // The kill is taken on the next step and the death lands through the
+    // one hit path: a tick at a time, at most a game second.
+    let died = (0..crate::opening::SECOND).any(|_| {
+        step(1);
+        op("player")["dead"] == true
+    });
+    assert!(died, "the killed player is not dead: {}", op("player"));
+    op_with("key", json!({"key": "Enter"}));
+    step(crate::opening::SECOND);
+    let (p, s) = (op("player"), op("status"));
+    eprintln!("back: dead {}, health {}, hunger {}, thirst {}; did {}", p["dead"], s["health"], s["hunger"], s["thirst"], p["did"]);
+    assert!(p["dead"] == false, "Enter pressed and the player did not come back: {p}");
+    let f = |k: &str| s[k].as_f64().unwrap_or(0.0);
+    // A game second after coming back: full less a second's drain.
+    assert!(f("hunger") > 99.0 && f("thirst") > 99.0, "the respawned player came back without full food and water: hunger {}, thirst {}", f("hunger"), f("thirst"));
+    assert!((f("health") - 50.0).abs() < 1.0, "the respawned player came back with health {}, not half", f("health"));
 }

@@ -14,6 +14,7 @@ fn world() -> Option<Json> {
 
 #[test]
 fn the_world_has_roads() {
+    crate::opening::you_wake();
     let world = world().unwrap_or_else(|| panic!("no topside game answering on {}; start it with scripts/build.ps1 run", url()));
     let result = &world["result"];
     let roads = result["roads"].as_u64().unwrap_or(0);

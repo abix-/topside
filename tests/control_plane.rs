@@ -12,6 +12,7 @@ fn status() -> Option<Json> {
 
 #[test]
 fn status_op_reports_a_ticking_simulation() {
+    crate::opening::you_wake();
     let status = status().unwrap_or_else(|| panic!("no topside game answering on {}; start it with scripts/build.ps1 run", url()));
     assert_eq!(status["ok"], true, "status op must succeed: {status}");
     let state = &status["state"];

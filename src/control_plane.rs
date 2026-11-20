@@ -1519,6 +1519,13 @@ pub fn publish_world(
         "cast": episode.cast.iter().map(|(part, id)| json!({"part": part, "id": id.0})).collect::<Vec<_>>(),
         // What the episode brought into the world, and where.
         "things": episode.things.iter().map(|(name, at, key)| json!({"name": name, "at": [at.x, at.z], "height": at.y, "key": key})).collect::<Vec<_>>(),
+        // Every well and berry bush lying in the world (an item of kind
+        // Source), and where: what a test has someone use.
+        "sources": things
+            .iter()
+            .filter(|(i, w, _)| i.kind == modforge::hud::InteractKind::Source && w.is_some())
+            .map(|(_, w, t)| json!({"name": w.map(|w| w.stack.item.clone()), "at": [t.translation.x, t.translation.z], "height": t.translation.y}))
+            .collect::<Vec<_>>(),
         // Each pivot point reached: who and when.
         "reached": episode.reached.iter().map(|(pivot, who, at)| json!({"pivot": pivot, "by": who.0, "tick": at})).collect::<Vec<_>>(),
         "did": did,

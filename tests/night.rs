@@ -10,6 +10,7 @@ const HOME_AT_NIGHT: f64 = 0.8;
 
 #[test]
 fn night_sends_people_home_and_morning_sends_them_out() {
+    crate::opening::you_wake();
     let w = op("world");
     let bunkers = w["bunkers"].as_object().cloned().unwrap_or_default();
     let sum = |field: &str| bunkers.values().map(|b| b[field].as_u64().unwrap_or(0)).sum::<u64>();

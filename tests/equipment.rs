@@ -5,6 +5,7 @@ use crate::endpoint::people;
 
 #[test]
 fn what_people_wear_sits_in_the_row_of_plain_slots() {
+    crate::opening::you_wake();
     let list = people();
     assert!(list.iter().all(|p| p["worn"].is_array()), "the people op gives no worn");
     let wearing: Vec<_> = list.iter().filter(|p| p["worn"].as_array().is_some_and(|w| !w.is_empty())).collect();

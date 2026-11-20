@@ -14,6 +14,7 @@ fn world() -> Option<Json> {
 
 #[test]
 fn the_small_world_has_its_twenty_monuments() {
+    crate::opening::you_wake();
     let world = world().unwrap_or_else(|| panic!("no topside game answering on {}; start it with scripts/build.ps1 run", url()));
     let standing = world["result"]["monuments"].as_array().cloned().unwrap_or_default();
     let lines: Vec<String> = standing

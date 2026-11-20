@@ -13,6 +13,7 @@ fn people() -> Option<Json> {
 
 #[test]
 fn people_go_through_doorways() {
+    crate::opening::you_wake();
     let people = people().unwrap_or_else(|| panic!("no topside game answering on {}; start it with scripts/build.ps1 run", url()));
     let list = people["result"].as_array().cloned().unwrap_or_default();
     let through: Vec<String> = list

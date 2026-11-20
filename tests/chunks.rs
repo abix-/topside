@@ -13,6 +13,7 @@ fn world() -> Option<Json> {
 
 #[test]
 fn every_chunk_of_the_small_world_is_made() {
+    crate::opening::you_wake();
     let world = world().unwrap_or_else(|| panic!("no topside game answering on {}; start it with scripts/build.ps1 run", url()));
     let chunks = &world["result"]["chunks"];
     eprintln!("world op, tick {}: chunks {chunks}", world["result"]["tick"]);

@@ -11,6 +11,7 @@ fn wandering(doing: &serde_json::Value) -> bool {
 
 #[test]
 fn people_wander_to_spots_they_can_reach() {
+    crate::opening::you_wake();
     let list = people();
     let wandering_now = list.iter().filter(|p| wandering(&p["doing"])).count();
     let ways = op("ways").as_array().cloned().unwrap_or_default();

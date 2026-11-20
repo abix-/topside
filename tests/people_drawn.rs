@@ -9,6 +9,10 @@ use crate::endpoint::people;
 
 #[test]
 fn people_show_their_pieces_hold_their_weapon_and_walk() {
+    // A game second from the game's start: everyone drawn, some walking.
+    let _p = crate::endpoint::pause();
+    crate::opening::you_wake();
+    crate::endpoint::step(crate::opening::SECOND);
     let list = people();
     let drawn: Vec<&Json> = list.iter().filter(|p| p["dead"] == false && p["drawn"].is_object()).collect();
     let shows = |p: &Json, layer: &str| p["drawn"]["layers"].as_array().is_some_and(|l| l.iter().any(|x| x == layer));

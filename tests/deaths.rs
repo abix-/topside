@@ -10,6 +10,7 @@ use crate::endpoint::{is_bunker_person, people};
 
 #[test]
 fn no_topside_person_starves_or_dies_of_thirst() {
+    crate::opening::you_wake();
     let list = people();
     let mut by_cause: BTreeMap<String, u32> = BTreeMap::new();
     let mut wasted = 0;
