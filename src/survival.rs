@@ -88,6 +88,47 @@ pub fn waste(
     }
 }
 
+/// The game day it is now, counted from the world's start: what a stack's
+/// made day is read against.
+pub fn today(tick: &SimTick, day: Day) -> f32 {
+    Day::secs(tick) / day.0
+}
+
+/// Once a second, food kept past its days turns rotten wherever it is
+/// held: an inventory, a hotbar or a box (design.md "Survival
+/// pressures": food spoils over time; modforge `item::spoiled`).
+pub fn rot(
+    tick: Res<SimTick>,
+    day: Res<Day>,
+    mut inventories: Query<&mut crate::actor::Inventory>,
+    mut hotbars: Query<&mut crate::actor::Hotbar>,
+    mut boxes: Query<&mut crate::interact::Container>,
+) {
+    if tick.0 % 60 != 0 {
+        return;
+    }
+    let today = today(&tick, *day);
+    let mut turn = |inventory: &mut modforge::item::Inventory| {
+        for stack in inventory.slots.iter_mut().flatten() {
+            let Some(&(_, keeps)) = crate::content::KEEPS_DAYS.iter().find(|(item, _)| *item == stack.item) else {
+                continue;
+            };
+            if modforge::item::spoiled(stack, today, keeps) {
+                stack.item = crate::content::ROTTEN_FOOD.to_string();
+            }
+        }
+    };
+    for mut held in &mut inventories {
+        turn(&mut held.0);
+    }
+    for mut held in &mut hotbars {
+        turn(&mut held.0.slots);
+    }
+    for mut held in &mut boxes {
+        turn(&mut held.0);
+    }
+}
+
 /// Whether the one day clock is in its night hours (todo 11e4).
 pub fn night_hours(tick: &SimTick, day: Day) -> bool {
     is_night(day_fraction(Day::secs(tick), day.0))

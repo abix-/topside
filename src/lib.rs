@@ -313,6 +313,7 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind, port: u16
                 lap("walk"),
                 survival::survival_tick,
                 survival::waste,
+                survival::rot,
                 lap("survival"),
                 (
                     // The episode and its storm start when the player

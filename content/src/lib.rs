@@ -832,6 +832,13 @@ pub const ANIMALS: [&str; 1] = ["wolf"];
 /// one armor there is.
 pub const HOSTILE_ARMOR: &str = "road sign vest";
 
+/// How many game days each food keeps before it turns to `ROTTEN_FOOD`
+/// (design.md "Survival pressures": food spoils over time). The 10 is
+/// Claude's, for the operator to change.
+pub const KEEPS_DAYS: [(&str, f32); 1] = [("canned food", 10.0)];
+/// What spoiled food becomes.
+pub const ROTTEN_FOOD: &str = "rotten food";
+
 /// The affixes a found weapon rolls on top of its tier (design.md "Loot
 /// randomization": a lightweight pipe swings faster, a precise gun is more
 /// accurate, and affixes stack), as (name, reach, spread, delay, power).
@@ -1476,6 +1483,29 @@ pub fn register_items(reg: &mut ItemRegistry) {
                 hunger: 50.0,
                 thirst: 0.0,
                 health: 5.0,
+            }),
+            storage: None,
+            armor: None,
+            good_for: Default::default(),
+            picture: None,
+            layer_slots: Vec::new(),
+            breaks_when_struck: false,
+            holds_litres: None,
+        },
+        // What food kept too long turns into (todo Survive 3): it barely
+        // fills and hurts. Its numbers are Claude's.
+        ItemDef {
+            name: ROTTEN_FOOD.to_string(),
+            description: "Food kept too long. It has gone bad.".to_string(),
+            unique: false,
+            kind: ItemKind::Food,
+            max_stack: 10,
+            quality_siblings: 1,
+            combat: None,
+            food: Some(FoodStats {
+                hunger: 10.0,
+                thirst: 0.0,
+                health: -10.0,
             }),
             storage: None,
             armor: None,

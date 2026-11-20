@@ -453,11 +453,14 @@ pub fn spawn_sites(
     layers: Res<crate::content::LayerRegistryRes>,
     mut ids: ResMut<crate::interact::ThingIssuer>,
     (biomes, kinds, storm): (Res<crate::content::BiomeRegistryRes>, Res<crate::content::MonumentRegistryRes>, Res<crate::storm::StormRes>),
+    (tick, day): (Res<crate::SimTick>, Res<crate::survival::Day>),
 ) {
     // Built only when a site is new, not every step.
     if new_sites.0.is_empty() {
         return;
     }
+    // Food in a box keeps from the day the box is found in the world.
+    let today = crate::survival::today(&tick, *day);
     let table = loot_table();
     for (site, things) in new_sites.0.drain(..) {
         // The bunker's question is answered at the nearest site of its
@@ -569,6 +572,7 @@ pub fn spawn_sites(
                             // water (Claude's reading, for the operator to
                             // change).
                             stack.litres = def.holds_litres.unwrap_or(0.0);
+                            stack.made_day = today;
                             // A found weapon rolls its affixes on top of
                             // its tier (design.md "Loot randomization").
                             if let Some(fight) = &def.combat {
