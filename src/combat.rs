@@ -168,37 +168,44 @@ pub fn melee(
             continue;
         };
         firing.0.tick(dt);
-        // Mid roll: committed to it, no swinging.
-        if Rolling::busy(rolling) {
-            continue;
-        }
-        if !ActionQueue::has(&this_tick.0, Action::Attack) {
-            // Let go: the next press may chain on the beat.
-            firing.0.release();
-            continue;
-        }
         // What is in the hands: the held hotbar slot (Rust), its numbers
-        // worked out from its layers.
-        let Some(weapon) = hotbar
+        // worked out from its layers; guns are their own row, this is the
+        // hand weapons.
+        let weapon = hotbar
             .0
             .held_stack()
             .and_then(|s| items.0.def(&s.item).and_then(|d| numbers_of(d, s, &layers.0).combat))
-        else {
+            .filter(|w| w.ammo.is_none());
+        let personality = personality.map(|p| p.0).unwrap_or_default();
+        // The swing pressed earlier lands once its wind-up has passed
+        // (combat.md "Simple to use": every attack shows a wind-up before
+        // it lands), with what is in the hands then.
+        let lands = firing.0.lands();
+        // Mid roll: committed to it, no swinging.
+        if !lands && Rolling::busy(rolling) {
+            continue;
+        }
+        if !lands {
+            if !ActionQueue::has(&this_tick.0, Action::Attack) {
+                // Let go: the next press may chain on the beat.
+                firing.0.release();
+                continue;
+            }
+            let Some(weapon) = weapon else {
+                continue;
+            };
+            let (x, y) = ActionQueue::movement(&this_tick.0);
+            let swing = Swing::from_ground_move(Vec2::new(x, y), facing.direction());
+            // The press starts the wind-up; the hit comes later.
+            firing
+                .0
+                .pull_melee(personality.swing_delay(weapon.delay), swing, personality.can_chain());
+            continue;
+        }
+        let Some(weapon) = weapon else {
             continue;
         };
-        // Guns are their own row; this is the hand weapons.
-        if weapon.ammo.is_some() {
-            continue;
-        }
-        let personality = personality.map(|p| p.0).unwrap_or_default();
-        let (x, y) = ActionQueue::movement(&this_tick.0);
-        let swing = Swing::from_ground_move(Vec2::new(x, y), facing.direction());
-        let trigger = firing
-            .0
-            .pull_melee(personality.swing_delay(weapon.delay), swing, personality.can_chain());
-        if trigger != Trigger::Fire {
-            continue;
-        }
+        let swing = firing.0.swing;
         if swing == Swing::Overhead {
             let filter = SpatialQueryFilter::from_excluded_entities([entity]);
             let to = move_and_slide

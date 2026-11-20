@@ -23,6 +23,9 @@ use crate::player::{BODY_CENTRE, Player};
 /// (KEPT_ANIMATIONS); change both together.
 const IDLE: &str = "Idle_Loop";
 const WALK: &str = "Walk_Loop";
+/// The swing: played from the press over the weapon's delay, so its
+/// wind-up is seen before the hit lands (combat.md "Simple to use").
+const SWING: &str = "Sword_Attack";
 /// How long one animation takes to blend into the next.
 const BLEND: Duration = Duration::from_millis(200);
 
@@ -33,6 +36,8 @@ const BLEND: Duration = Duration::from_millis(200);
 pub struct Stride {
     last: Vec3,
     still: f32,
+    /// Winding up a swing last frame, to start the swing on a new one.
+    winding: bool,
 }
 
 /// Seconds without moving before a person counts as standing (the 2D
@@ -46,6 +51,7 @@ pub struct Drawn {
     pub layers: Vec<String>,
     pub held: Option<String>,
     pub walking: bool,
+    pub swinging: bool,
 }
 
 /// Every NPC's body: their body's model under them, feet on the ground,
@@ -196,32 +202,45 @@ pub fn redress(
     }
 }
 
-/// Each body's model file, and once it has loaded, its animation graph
-/// with the idle and the walk.
+/// One body's animation graph: the idle, the walk, the swing, and the
+/// swing's length in seconds.
+#[derive(Clone)]
+struct Graph {
+    handle: Handle<AnimationGraph>,
+    idle: AnimationNodeIndex,
+    walk: AnimationNodeIndex,
+    swing: AnimationNodeIndex,
+    swing_secs: f32,
+}
+
+/// Each body's model file, and once it has loaded, its animation graph.
 #[derive(Resource, Default)]
 pub struct Animations {
     files: HashMap<String, Handle<Gltf>>,
-    graphs: HashMap<String, (Handle<AnimationGraph>, AnimationNodeIndex, AnimationNodeIndex)>,
+    graphs: HashMap<String, Graph>,
 }
 
 /// Every person's rig plays the idle standing and the walk moving,
-/// blending between them.
+/// blending between them, and the swing from a melee press over the
+/// weapon's delay, its wind-up before the hit (combat.md "Simple to use").
+#[allow(clippy::too_many_arguments)]
 pub fn animate(
     mut commands: Commands,
     time: Res<Time>,
     assets: Res<AssetServer>,
     gltfs: Res<Assets<Gltf>>,
+    clips: Res<Assets<AnimationClip>>,
     mut graphs: ResMut<Assets<AnimationGraph>>,
     mut animations: ResMut<Animations>,
     parents: Query<&ChildOf>,
-    mut people: Query<(&Look, &Transform, &mut Stride, &mut Drawn)>,
+    mut people: Query<(&Look, &Transform, Option<&crate::combat::Firing>, &mut Stride, &mut Drawn)>,
     mut rigs: Query<(Entity, &mut AnimationPlayer, Option<&mut AnimationTransitions>)>,
 ) {
     for (rig, mut player, transitions) in &mut rigs {
         let Some(person) = parents.iter_ancestors(rig).find(|a| people.contains(*a)) else {
             continue;
         };
-        let Ok((look, transform, mut stride, mut drawn)) = people.get_mut(person) else {
+        let Ok((look, transform, firing, mut stride, mut drawn)) = people.get_mut(person) else {
             continue;
         };
         let body = look.0.body.clone();
@@ -243,21 +262,49 @@ pub fn animate(
             let Some(gltf) = gltfs.get(&file) else {
                 continue;
             };
-            let (Some(idle), Some(walk)) = (gltf.named_animations.get(IDLE), gltf.named_animations.get(WALK)) else {
-                warn!("person {body} has no {IDLE} or {WALK}");
+            let (Some(idle), Some(walk), Some(swing)) = (
+                gltf.named_animations.get(IDLE),
+                gltf.named_animations.get(WALK),
+                gltf.named_animations.get(SWING),
+            ) else {
+                warn!("person {body} has no {IDLE}, {WALK} or {SWING}");
                 continue;
             };
-            let (graph, nodes) = AnimationGraph::from_clips([idle.clone(), walk.clone()]);
-            animations.graphs.insert(body.clone(), (graphs.add(graph), nodes[0], nodes[1]));
+            let Some(swing_secs) = clips.get(swing).map(|c| c.duration()) else {
+                continue;
+            };
+            let (graph, nodes) = AnimationGraph::from_clips([idle.clone(), walk.clone(), swing.clone()]);
+            animations.graphs.insert(
+                body.clone(),
+                Graph { handle: graphs.add(graph), idle: nodes[0], walk: nodes[1], swing: nodes[2], swing_secs },
+            );
         }
-        let (graph, idle, walk) = animations.graphs[&body].clone();
+        let graph = animations.graphs[&body].clone();
         let Some(mut transitions) = transitions else {
             let mut transitions = AnimationTransitions::new();
-            transitions.play(&mut player, idle, Duration::ZERO).repeat();
-            commands.entity(rig).insert((AnimationGraphHandle(graph), transitions));
+            transitions.play(&mut player, graph.idle, Duration::ZERO).repeat();
+            commands.entity(rig).insert((AnimationGraphHandle(graph.handle), transitions));
             continue;
         };
-        let wanted = if moving { walk } else { idle };
+        // A melee swing (not a block) under way: played over the swing's
+        // delay from its start, again for each new swing.
+        let swinging = firing
+            .map(|f| &f.0)
+            .filter(|t| t.committed() && t.swing != modforge::combat::Swing::Block && t.delay > 0.0);
+        drawn.swinging = swinging.is_some();
+        let winding = swinging.is_some_and(|t| t.winding);
+        if let Some(timer) = swinging {
+            // A new swing: its wind-up just started.
+            if winding && !stride.winding {
+                transitions
+                    .play(&mut player, graph.swing, Duration::ZERO)
+                    .set_speed(graph.swing_secs / timer.delay);
+            }
+            stride.winding = winding;
+            continue;
+        }
+        stride.winding = false;
+        let wanted = if moving { graph.walk } else { graph.idle };
         if !player.is_playing_animation(wanted) {
             transitions.play(&mut player, wanted, BLEND).repeat();
         }

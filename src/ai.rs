@@ -707,6 +707,19 @@ pub fn think(
         // Use opens a box, Transfer takes a stack out of the open box,
         // UseSlot eats or drinks, Cancel closes the box.
         let mut act = |action: Action| actions.0.push(tick.0, action);
+        // Fighting with the melee weapon put away to eat or drink (below):
+        // it comes back out of its hotbar slot (modforge hotbar_key).
+        if fighting && !crate::interact::melee_in_hand(&hotbar.0, &items.0) {
+            let armed = hotbar.0.slots.slots.iter().position(|s| {
+                s.as_ref()
+                    .and_then(|s| items.0.def(&s.item))
+                    .and_then(|d| d.combat.as_ref())
+                    .is_some_and(|c| c.ammo.is_none())
+            });
+            if let Some(index) = armed {
+                act(Action::Hotbar { index });
+            }
+        }
         let where_is = |e: Entity| containers.get(e).map_or(here, |(_, _, t, _, _)| t.translation);
         let mut keep_open = None;
         match do_now {

@@ -1745,7 +1745,7 @@ pub fn publish(
                     "map_tiles": map.map.tiles_seen(),
                     "map_tiles_told": map.told,
                     // What their model shows (only with a window).
-                    "drawn": drawn.map(|d| json!({"layers": d.layers, "held": d.held, "walking": d.walking})),
+                    "drawn": drawn.map(|d| json!({"layers": d.layers, "held": d.held, "walking": d.walking, "swinging": d.swinging})),
                     "did": did,
                     "ate_what": ate_what,
                     // Every death in their memory: when, of what, by whom.

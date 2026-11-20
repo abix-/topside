@@ -1898,8 +1898,8 @@ BODIES = {
 # https://quaternius.itch.io/universal-animation-library, made for this rig.
 ANIMATIONS = Path(__file__).resolve().parent / "quaternius-animations" / "UAL1_Standard.glb"
 # The animations a person plays (src/people.rs names them the same):
-# standing and walking.
-KEPT_ANIMATIONS = ["Idle_Loop", "Walk_Loop"]
+# standing, walking, and the melee swing.
+KEPT_ANIMATIONS = ["Idle_Loop", "Walk_Loop", "Sword_Attack"]
 
 
 def animations(rig):
