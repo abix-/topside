@@ -17,7 +17,7 @@ fn save() -> Json {
 }
 
 fn load() -> Json {
-    let loaded = op_with("load", json!({"name": NAME}));
+    let loaded = op_with("load", json!({"name": NAME, "full": true}));
     assert!(loaded["tick"].is_u64(), "the load op answered no moment: {loaded}");
     loaded
 }
@@ -111,7 +111,7 @@ fn a_save_loads_its_own_world_after_the_storm_shifted_the_game() {
         eprintln!("  {d}");
     }
     assert!(diff.is_empty(), "the load is not the save: {} differences", diff.len());
-    let after = op_with("step", json!({"ticks": 120}));
+    let after = op_with("step", json!({"ticks": 120, "full": true}));
     let twice = made_twice(&saved, &after);
     for t in twice.iter().take(20) {
         eprintln!("  made twice: {t}");
@@ -175,7 +175,7 @@ fn paused_save() -> (Unpause, Json) {
 
 /// Played `PLAYED` ticks from where the game stands: the moment there.
 fn play() -> Json {
-    op_with("step", json!({"ticks": PLAYED}))
+    op_with("step", json!({"ticks": PLAYED, "full": true}))
 }
 
 /// Prints where two runs ended apart, and answers whether they ended the

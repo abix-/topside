@@ -1066,6 +1066,31 @@ fn step_now(ticks: u64) -> Result<Json, String> {
     }
 }
 
+/// A moment (crate::save::Moment) as `step` and `load` answer it: every
+/// person and thing, and the mesh's every island, only when `full` is
+/// true; otherwise how many, so the
+/// answer fits in one MCP answer (the whole is hundreds of KB).
+fn short_unless_full(mut moment: Json, args: &Json) -> Json {
+    if args.get("full").and_then(Json::as_bool) == Some(true) {
+        return moment;
+    }
+    if let Some(map) = moment.as_object_mut() {
+        for key in ["people", "things"] {
+            let count = map.get(key).and_then(Json::as_array).map(Vec::len);
+            if let Some(n) = count {
+                map.insert(key.to_string(), json!(n));
+            }
+        }
+        if let Some(mesh) = map.get_mut("mesh").and_then(Json::as_object_mut) {
+            let count = mesh.get("islands").and_then(Json::as_array).map(Vec::len);
+            if let Some(n) = count {
+                mesh.insert("islands".to_string(), json!(n));
+            }
+        }
+    }
+    moment
+}
+
 /// A save or a load asked of the game and answered once done.
 fn save_or_load_now(name: &str, ask: fn(String) -> crate::save::Ask) -> Result<Json, String> {
     if name.is_empty() || !name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-') {
@@ -1884,9 +1909,9 @@ pub fn start(port: u16) {
     ));
     OP_REGISTRY.register(OpDef::new(
         "load",
-        "load saves/<name>.save into the running game in place of what is there; answers once loaded, with the tick it is at (the saved one)",
+        "load saves/<name>.save into the running game in place of what is there; answers once loaded, with the tick it is at (the saved one) and the moment without its people and things (their counts instead; `full` true for every one)",
         "{\"name\": \"the_tap_start\"}",
-        move |args| save_or_load(args, crate::save::Ask::Load),
+        move |args| save_or_load(args, crate::save::Ask::Load).map(|moment| short_unless_full(moment, args)),
     ));
     OP_REGISTRY.register(OpDef::new(
         "pause",
@@ -1899,11 +1924,11 @@ pub fn start(port: u16) {
     ));
     OP_REGISTRY.register(OpDef::new(
         "step",
-        "while paused, run exactly this many ticks, as the game always runs them; answers with the moment after them (the tick, the episode, every person and thing), as `save` does",
+        "while paused, run exactly this many ticks, as the game always runs them; answers with the moment after them (the tick, the episode, the cast), its people and things counted (`full` true for every one, as `save` answers)",
         "{\"ticks\": 600}",
         |args| {
             let ticks = args.get("ticks").and_then(Json::as_u64).filter(|t| (1..=36_000).contains(t)).ok_or_else(|| "ticks: 1 to 36000".to_string())?;
-            step_now(ticks)
+            step_now(ticks).map(|moment| short_unless_full(moment, args))
         },
     ));
     OP_REGISTRY.register(OpDef::new(
