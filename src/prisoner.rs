@@ -93,7 +93,7 @@ pub fn capture(
     mut commands: Commands,
     tick: Res<crate::SimTick>,
     world: Res<crate::terrain::WorldRes>,
-    mut captors: Query<(&mut ThisTick, &crate::talk::LookingAt, &Transform, Option<&Npc>, Option<&Home>, Has<crate::player::Player>, Option<&mut crate::actor::Memory>), (Without<Dead>, Without<Downed>)>,
+    mut captors: Query<(&mut ThisTick, &crate::talk::LookingAt, &Transform, Option<&Npc>, Option<&Home>, Has<crate::player::Player>, Option<&mut crate::actor::Persona>), (Without<Dead>, Without<Downed>)>,
     downed: Query<(Option<&Npc>, Has<crate::player::Player>, Option<&Name>), With<Downed>>,
 ) {
     for (mut this_tick, looking, at, npc, home, is_player, memory) in &mut captors {
@@ -122,7 +122,7 @@ pub fn capture(
         this_tick.0.retain(|s| s.action != Action::Use);
         if let Some(mut memory) = memory {
             let who = name.map_or("someone", |n| n.as_str());
-            memory.0.did(modforge::memory::Did::Done(format!("took {who} prisoner")), tick.0);
+            memory.0.memory.did(modforge::memory::Did::Done(format!("took {who} prisoner")), tick.0);
         }
     }
 }

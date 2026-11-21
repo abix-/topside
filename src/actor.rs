@@ -126,7 +126,16 @@ pub struct Npc {
     pub faction: Option<String>,
 }
 
-/// A person's seven axes, from the genome (modforge).
+/// Who a person is, whole (modforge `persona::Persona`): their name, what
+/// they remember, their needs, their personality, their skills and what
+/// their brain is doing. The one record of each, the same in every game
+/// that hosts them (topside todo Persona 1).
+#[derive(Component, Default, Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, Reflect)]
+#[reflect(opaque, Component, Serialize, Deserialize)]
+pub struct Persona(pub modforge::persona::Persona);
+
+/// A saved part from before the Persona: read only to load a save made
+/// then, folded into the person's Persona as it loads (`fold_old_parts`).
 #[derive(Component, Default, Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize, Reflect)]
 #[reflect(opaque, Component, Serialize, Deserialize)]
 pub struct Personality(pub modforge::actor::Personality);
@@ -141,8 +150,7 @@ pub struct Traits(pub modforge::actor::HostileTraits);
 /// the operator to change.
 pub const PACK_FRIENDS: usize = 2;
 
-/// What this person knows (modforge::memory). The brain reads only
-/// this.
+/// A saved part from before the Persona (`fold_old_parts`).
 #[derive(Component, Default, Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, Reflect)]
 #[reflect(opaque, Component, Serialize, Deserialize)]
 pub struct Memory(pub modforge::memory::Memory);
@@ -152,14 +160,14 @@ pub struct Memory(pub modforge::memory::Memory);
 /// faction's standing (every living member's feeling, `members`), else the
 /// faction table between `faction` and theirs.
 pub fn stands_toward<'a>(
-    (memory, faction): (&Memory, Option<&str>),
-    members: impl Iterator<Item = &'a Memory>,
+    (memory, faction): (&modforge::memory::Memory, Option<&str>),
+    members: impl Iterator<Item = &'a modforge::memory::Memory>,
     (them, their_faction): (ActorId, Option<&str>),
     factions: &modforge::faction::FactionRegistry,
     heard: impl Fn(&str) -> f32 + Copy,
 ) -> modforge::faction::Relation {
-    let own = modforge::relationship::feeling(&memory.0, them, heard);
-    let standing = modforge::relationship::standing(members.map(|m| modforge::relationship::feeling(&m.0, them, heard)));
+    let own = modforge::relationship::feeling(memory, them, heard);
+    let standing = modforge::relationship::standing(members.map(|m| modforge::relationship::feeling(m, them, heard)));
     modforge::relationship::stands(own, standing, factions.relation(faction, their_faction))
 }
 
@@ -199,7 +207,7 @@ pub struct SpawnedAt(pub Vec3);
 #[reflect(opaque, Component, Serialize, Deserialize)]
 pub struct Store(#[entities] pub Entity);
 
-/// A person's needs (modforge survival).
+/// A saved part from before the Persona (`fold_old_parts`).
 #[derive(Component, Default, Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize, Reflect)]
 #[reflect(opaque, Component, Serialize, Deserialize)]
 pub struct Survival(pub SurvivalStats);
@@ -210,11 +218,45 @@ pub struct Survival(pub SurvivalStats);
 #[reflect(opaque, Component, Serialize, Deserialize)]
 pub struct ActorCondition(pub Condition);
 
-/// What an NPC is doing: their brain's StateTree record, the one record
-/// of it, kept between thinks (modforge docs/statetree.md).
+/// A saved part from before the Persona (`fold_old_parts`).
 #[derive(Component, Default, Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize, Reflect)]
 #[reflect(opaque, Component, Serialize, Deserialize)]
 pub struct ActorRecord(pub Record);
+
+/// A save made before the Persona holds each person's memory, needs,
+/// personality, brain record and skills as their own parts: fold them
+/// into the person's Persona as the save loads, its name from their
+/// `Name`, so a save never stops loading (authority.md "Running tests").
+pub fn fold_old_parts(world: &mut World) {
+    let mut old = world.query_filtered::<Entity, (
+        With<Actor>,
+        Or<(With<Memory>, With<Survival>, With<Personality>, With<ActorRecord>, With<crate::skills::Skills>)>,
+    )>();
+    let people: Vec<Entity> = old.iter(world).collect();
+    for entity in people {
+        let mut person = world.entity_mut(entity);
+        let mut persona = person.take::<Persona>().map(|p| p.0).unwrap_or_default();
+        if let Some(Memory(memory)) = person.take::<Memory>() {
+            persona.memory = memory;
+        }
+        if let Some(Survival(needs)) = person.take::<Survival>() {
+            persona.needs = needs;
+        }
+        if let Some(Personality(personality)) = person.take::<Personality>() {
+            persona.personality = personality;
+        }
+        if let Some(ActorRecord(doing)) = person.take::<ActorRecord>() {
+            persona.doing = doing;
+        }
+        if let Some(crate::skills::Skills(skills)) = person.take::<crate::skills::Skills>() {
+            persona.skills = skills;
+        }
+        if let Some(name) = person.get::<Name>() {
+            persona.profile.name = name.as_str().to_string();
+        }
+        person.insert(Persona(persona));
+    }
+}
 
 /// What the one spawn path needs from the world.
 #[derive(bevy::ecs::system::SystemParam)]
@@ -292,13 +334,7 @@ pub fn spawn_person(
                 Rolling::default(),
                 crate::player::Fall::default(),
             ),
-            (
-                Survival::default(),
-                ActorCondition::default(),
-                Memory::default(),
-                Map::default(),
-                ActorRecord::default(),
-            ),
+            (ActorCondition::default(), Map::default()),
             (Hud::default(), OpenContainer::default(), OpenStation::default()),
             Protection(def.protection.clone()),
             Actions::default(),
@@ -318,11 +354,18 @@ pub fn spawn_person(
         look.pieces.clear();
         look.skin = [1.0, 1.0, 1.0];
     }
-    spawn.commands.entity(entity).insert(Look(look));
-    // Everybody has a name (operator, 2026-09-27), Bevy's `Name` on the
-    // person, rolled from who they are.
+    // Everybody has a name (operator, 2026-09-27), rolled from who they
+    // are: their Persona's, with Bevy's `Name` the entity's label for
+    // Bevy's own tools.
     let name = modforge::actor::roll_name(&crate::content::PERSON_NAMES, id, spawn.seed.0);
-    spawn.commands.entity(entity).insert(Name::new(name));
+    spawn.commands.entity(entity).insert(Name::new(name.clone()));
+    // Who they are: the one Persona, its appearance their body (Claude's).
+    let persona = modforge::persona::Persona {
+        profile: modforge::persona::Profile { name, appearance: look.body.clone() },
+        personality,
+        ..Default::default()
+    };
+    spawn.commands.entity(entity).insert((Look(look), Persona(persona)));
     let mut health = def.health();
     health.max *= personality.health_mult();
     health.current = health.max;
@@ -348,7 +391,6 @@ pub fn spawn_person(
     }
     spawn.commands.entity(entity).insert((
         Actor(id),
-        Personality(personality),
         Health(health),
         NextThink(first_think),
         SpawnedAt(at),
@@ -450,7 +492,7 @@ pub fn populate_topside_people(
         monuments: &monuments.monuments,
         buildings: &monuments.buildings,
     };
-    let known = Memory(modforge::memory::Memory::default());
+    let known = modforge::memory::Memory::default();
     let people = world.world.topside_people(r);
     for (k, (name, at)) in people.into_iter().enumerate() {
         // Who stands here is the biome's (todo 32).
@@ -483,7 +525,7 @@ pub fn home_knowledge(
     kind: &str,
     boxes: &Query<(&ThingId, &Transform, &WorldItem), With<Container>>,
     now: u64,
-) -> Memory {
+) -> modforge::memory::Memory {
     let mut known = modforge::memory::Memory::default();
     known.see(site_key(at), kind, on_ground(at, 0.0), now);
     for (id, t, item) in boxes {
@@ -492,7 +534,7 @@ pub fn home_knowledge(
             known.see(id.0, &item.stack.item, t.translation, now);
         }
     }
-    Memory(known)
+    known
 }
 
 /// What a person sees inside a box: each kind with how many.
@@ -510,9 +552,14 @@ pub fn held_in(contents: &item::Inventory) -> Vec<(String, u32)> {
 /// A topside person standing at `stand` (their feet, its height included)
 /// knowing `known`: through the one spawn path, with that memory and no
 /// home.
-pub fn settle(spawn: &mut SpawnActor, def: &ActorDef, stand: Vec3, known: &Memory) -> Option<Entity> {
+pub fn settle(spawn: &mut SpawnActor, def: &ActorDef, stand: Vec3, known: &modforge::memory::Memory) -> Option<Entity> {
     let npc = spawn_actor(spawn, def, stand, None)?;
-    spawn.commands.entity(npc).insert(known.clone());
+    let known = known.clone();
+    spawn.commands.entity(npc).queue(move |mut person: EntityWorldMut| {
+        if let Some(mut persona) = person.get_mut::<Persona>() {
+            persona.0.memory = known;
+        }
+    });
     Some(npc)
 }
 
@@ -562,8 +609,9 @@ pub fn populate_bunkers(
                 if let Some((name, fear)) = name {
                     spawn.commands.entity(npc).insert(Name::new(name));
                     spawn.commands.entity(npc).queue(move |mut person: EntityWorldMut| {
-                        if let Some(mut personality) = person.get_mut::<Personality>() {
-                            personality.0.axes[modforge::actor::Axis::Fear as usize] = fear;
+                        if let Some(mut persona) = person.get_mut::<Persona>() {
+                            persona.0.profile.name = name.to_string();
+                            persona.0.personality.axes[modforge::actor::Axis::Fear as usize] = fear;
                         }
                     });
                 }

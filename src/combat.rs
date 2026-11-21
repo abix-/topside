@@ -16,7 +16,7 @@ use modforge::memory::Did;
 use modforge::actor::ActorId;
 use modforge::item::numbers_of;
 
-use crate::actor::{Actor, ActorMapRes, Dead, Facing, Home, Hotbar, Inventory, Memory, Personality};
+use crate::actor::{Actor, ActorMapRes, Dead, Facing, Home, Hotbar, Inventory, Persona};
 use crate::{Ground, on_ground};
 use crate::content::{DamageRegistryRes, ItemRegistryRes, LayerRegistryRes};
 use crate::input::{Action, ActionQueue, ThisTick};
@@ -62,7 +62,7 @@ pub fn hit_actor(
     layers: &modforge::item::LayerRegistry,
     area: BodyArea,
     health: &mut Health,
-    memory: Option<&mut Memory>,
+    memory: Option<&mut Persona>,
     by: Option<ActorId>,
     now: u64,
 ) -> (HitResult, bool) {
@@ -72,13 +72,13 @@ pub fn hit_actor(
     let killed = alive && health.0.current <= 0.0;
     if let Some(memory) = memory {
         if by.is_some() {
-            memory.0.did(Did::WasHit(by, result.damage_dealt), now);
+            memory.0.memory.did(Did::WasHit(by, result.damage_dealt), now);
         }
         if killed {
-            memory.0.did(Did::Died(by, hit.def.name.clone()), now);
+            memory.0.memory.did(Did::Died(by, hit.def.name.clone()), now);
             // The biggest blame, for what led here (life.md "Learning to
             // stay alive").
-            memory.0.learned.died(now);
+            memory.0.memory.learned.died(now);
         }
     }
     (result, killed)
@@ -287,7 +287,7 @@ pub fn melee(
             &Facing,
             &Hotbar,
             &Health,
-            Option<&Personality>,
+            Option<&Persona>,
             &Collider,
             Option<&Rolling>,
             Option<&Actor>,
@@ -303,14 +303,14 @@ pub fn melee(
                 &Protection,
                 &Equipment,
                 &mut Health,
-                Option<&mut Memory>,
+                Option<&mut Persona>,
                 Option<&Actor>,
             ),
             Without<Dead>,
         >,
     )>,
     tick: Res<crate::SimTick>,
-    mut practice: (Query<&crate::skills::Skills>, ResMut<crate::skills::Practised>),
+    mut practice: ResMut<crate::skills::Practised>,
 ) {
     let dt = time.delta_secs();
     // Every swing that goes this tick: who, from where, which way,
@@ -338,7 +338,9 @@ pub fn melee(
         // Its affixes too, all together.
         let quality = modforge::quality::power(held.and_then(|s| s.quality).map(|q| q.tier), &crate::content::QUALITY)
             * held.map_or(1.0, |s| modforge::affix::power(&s.affixes));
-        let personality = personality.map(|p| p.0).unwrap_or_default();
+        // A practised fighter hits harder (todo 31).
+        let skill = crate::skills::hit_scale(personality);
+        let personality = personality.map(|p| p.0.personality).unwrap_or_default();
         // The swing pressed earlier lands once its wind-up has passed
         // (combat.md "Simple to use": every attack shows a wind-up before
         // it lands), with what is in the hands then.
@@ -391,7 +393,7 @@ pub fn melee(
             facing.direction(),
             swing,
             weapon.reach * personality.range_mult(),
-            personality.damage_mult(health.0.fraction()) * quality,
+            personality.damage_mult(health.0.fraction()) * quality * skill,
             weapon.damage.clone(),
         ));
     }
@@ -424,13 +426,11 @@ pub fn melee(
             // the body.
             let y = lines.get(&attacker).map_or(at.translation.y, |(eye, rise)| eye + rise * offset.length());
             let area = area_hit(y, at);
-            // A practised fighter hits harder (todo 31).
-            let skill = crate::skills::hit_scale(practice.0.get(attacker).ok());
             let hit = Hit {
                 def,
                 self_inflicted: false,
                 distance: offset.length(),
-                location_scale: scale * area.scale() * skill,
+                location_scale: scale * area.scale(),
             };
             let (result, killed) = hit_actor(
                 &hit,
@@ -446,7 +446,7 @@ pub fn melee(
             );
             feel_hit(&mut commands, target, here, at.translation.ground(), &result);
             struck(memory, attacker_id, here, result.damage_dealt, tick.0);
-            practice.1.0.push((attacker, crate::skills::COMBAT, (result.damage_dealt * crate::skills::DAMAGE_XP).round() as u64));
+            practice.0.push((attacker, crate::skills::COMBAT, (result.damage_dealt * crate::skills::DAMAGE_XP).round() as u64));
             if let Some(whom) = target_id {
                 gave.push((attacker, whom.0, result.damage_dealt, killed));
             }
@@ -462,20 +462,20 @@ pub fn melee(
 
 /// What a person who landed a hit remembers: whom they hit, and whom
 /// they killed.
-fn gave_hit(memory: &mut Memory, whom: ActorId, amount: f32, killed: bool, now: u64) {
-    memory.0.did(Did::Hit(whom, amount), now);
+fn gave_hit(memory: &mut Persona, whom: ActorId, amount: f32, killed: bool, now: u64) {
+    memory.0.memory.did(Did::Hit(whom, amount), now);
     if killed {
-        memory.0.did(Did::Killed(whom), now);
+        memory.0.memory.did(Did::Killed(whom), now);
     }
 }
 
 /// Someone who takes a hit knows who gave it and where they stood
 /// (life.md "Perception with belief": an NPC hears a hit on itself and
 /// turns on a striker it never saw).
-fn struck(memory: Option<Mut<Memory>>, by: ActorId, from: Vec2, amount: f32, now: u64) {
+fn struck(memory: Option<Mut<Persona>>, by: ActorId, from: Vec2, amount: f32, now: u64) {
     if let Some(mut memory) = memory {
-        memory.0.hurt(by, amount);
-        memory.0.threat(by, Vec3::new(from.x, 0.0, from.y), now);
+        memory.0.memory.hurt(by, amount);
+        memory.0.memory.threat(by, Vec3::new(from.x, 0.0, from.y), now);
     }
 }
 
@@ -613,10 +613,10 @@ pub fn fly(
     shooters: Query<(&Transform, Option<&Actor>), Without<Bullet>>,
     mut bullets: Query<(Entity, &mut Bullet, &mut Transform)>,
     mut targets: Query<
-        (&Transform, &Protection, &Equipment, &mut Health, Option<&mut Memory>, Option<&Actor>),
+        (&Transform, &Protection, &Equipment, &mut Health, Option<&mut Persona>, Option<&Actor>),
         (Without<Dead>, Without<Bullet>),
     >,
-    mut practice: (Query<&crate::skills::Skills>, ResMut<crate::skills::Practised>),
+    mut practice: ResMut<crate::skills::Practised>,
 ) {
     let step = BULLET_SPEED * time.delta_secs();
     // (shooter, damage def, pellets summed per target, quality power) this
@@ -685,13 +685,13 @@ pub fn fly(
         let hits: Vec<(Entity, u32, f32)> = multi.drain().into_iter().collect();
         let order = crate::actor::in_actor_order(hits.iter().map(|(t, ..)| (targets.get(*t).ok().and_then(|(.., a)| a.map(|a| a.0)), *t)));
         for (target, pellets, distance) in order.into_iter().filter_map(|t| hits.iter().find(|(h, ..)| *h == t).copied()) {
+            // A practised shooter hits harder (todo 31).
+            let skill = crate::skills::hit_scale(targets.get(shooter).ok().and_then(|(.., person, _)| person));
             let Ok((at, own, worn, mut health, mut memory, target_id)) = targets.get_mut(target) else {
                 continue;
             };
             let to = at.translation.ground();
             let area = areas.iter().find(|(e, _)| *e == target).map_or(BodyArea::default(), |(_, a)| *a);
-            // A practised shooter hits harder (todo 31).
-            let skill = crate::skills::hit_scale(practice.0.get(shooter).ok());
             let hit = Hit {
                 def,
                 self_inflicted: false,
@@ -702,7 +702,7 @@ pub fn fly(
                 hit_actor(&hit, own, worn, &items.0, &layers.0, area, &mut health, memory.as_deref_mut(), Some(by), tick.0);
             feel_hit(&mut commands, target, from, to, &result);
             struck(memory, by, from, result.damage_dealt, tick.0);
-            practice.1.0.push((shooter, crate::skills::COMBAT, (result.damage_dealt * crate::skills::DAMAGE_XP).round() as u64));
+            practice.0.push((shooter, crate::skills::COMBAT, (result.damage_dealt * crate::skills::DAMAGE_XP).round() as u64));
             let whom = target_id.map(|a| a.0);
             if let (Some(whom), Ok((.., Some(mut memory), _))) = (whom, targets.get_mut(shooter)) {
                 gave_hit(&mut memory, whom, result.damage_dealt, killed, tick.0);

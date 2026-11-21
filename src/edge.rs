@@ -88,8 +88,8 @@ pub fn newcomers(
             // They know the place they heard of, and go to it.
             let (key, kind, now) = (word.key, word.kind.clone(), tick.0);
             spawn.commands.entity(person).insert((Asked(place), CameFor(key))).queue(move |mut e: EntityWorldMut| {
-                if let Some(mut memory) = e.get_mut::<crate::actor::Memory>() {
-                    memory.0.see(key, &kind, place, now);
+                if let Some(mut person) = e.get_mut::<crate::actor::Persona>() {
+                    person.0.memory.see(key, &kind, place, now);
                 }
             });
         }

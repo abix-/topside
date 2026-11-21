@@ -13,7 +13,7 @@ use modforge::memory::Did;
 
 use modforge::walk::centre;
 
-use crate::actor::{Dead, Facing, Inventory, Memory, Survival};
+use crate::actor::{Dead, Facing, Inventory, Persona};
 use crate::model::Model;
 use crate::{Ground, on_ground};
 use crate::combat::Health;
@@ -287,13 +287,13 @@ pub fn knock(
     tick: Res<crate::SimTick>,
     called: (Res<crate::episode::Episode>, Res<crate::talk::Lines>, Res<crate::terrain::WorldRes>, Res<crate::WorldSeed>, Res<crate::content::ItemRegistryRes>),
     doors: Query<(&Door, &Transform)>,
-    knockers: Query<(Entity, &crate::actor::Actor, &Transform, &ThisTick, Option<&crate::actor::Survival>), Without<Dead>>,
-    mut people: Query<(Entity, &crate::actor::Actor, &Transform, &mut Memory, Has<crate::player::Player>), Without<Dead>>,
+    knockers: Query<(Entity, &crate::actor::Actor, &Transform, &ThisTick), Without<Dead>>,
+    mut people: Query<(Entity, &crate::actor::Actor, &Transform, &mut Persona, Has<crate::player::Player>), Without<Dead>>,
 ) {
     // In ActorId order (authority.md rule 5): of two knocking in one tick,
     // whom the player ends up talking to is the same after a load.
     let order = crate::actor::in_actor_order(knockers.iter().map(|(entity, actor, ..)| (Some(actor.0), entity)));
-    for (knocker, id, at, this_tick, survival) in order.into_iter().filter_map(|e| knockers.get(e).ok()) {
+    for (knocker, id, at, this_tick) in order.into_iter().filter_map(|e| knockers.get(e).ok()) {
         if !ActionQueue::has(&this_tick.0, Action::Knock) {
             continue;
         }
@@ -314,23 +314,23 @@ pub fn knock(
         // through a shut door, it starts once the two are within talking
         // reach.
         let player_behind = people.iter().find(|(e, _, there, _, is_player)| *e != knocker && *is_player && hears(there)).map(|(_, a, ..)| a.0);        let line = player_behind.and_then(|player| {
-            let (_, _, _, memory, _) = people.get(knocker).ok()?;
-            crate::talk::called_line((&called.0, &called.1, called.2.bunker, called.3.0, &called.4.0), (id.0, memory, feet, survival), (player, true), crate::talk::Call::Knocking, tick.0)
+            let (_, _, _, person, _) = people.get(knocker).ok()?;
+            crate::talk::called_line((&called.0, &called.1, called.2.bunker, called.3.0, &called.4.0), (id.0, person, feet), (player, true), crate::talk::Call::Knocking, tick.0)
         });
         for (hearer, _, there, mut memory, _) in &mut people {
             if hearer == knocker {
-                memory.0.did(modforge::memory::Did::Knocked, tick.0);
+                memory.0.memory.did(modforge::memory::Did::Knocked, tick.0);
                 if let (Some(line), Some(player)) = (&line, player_behind) {
-                    memory.0.did(modforge::memory::Did::Talked(player, line.clone()), tick.0);
+                    memory.0.memory.did(modforge::memory::Did::Talked(player, line.clone()), tick.0);
                 }
                 continue;
             }
             if !hears(there) {
                 continue;
             }
-            memory.0.did(modforge::memory::Did::HeardKnocking(id.0), tick.0);
+            memory.0.memory.did(modforge::memory::Did::HeardKnocking(id.0), tick.0);
             if let Some(line) = &line {
-                memory.0.did(modforge::memory::Did::Heard(id.0, line.clone()), tick.0);
+                memory.0.memory.did(modforge::memory::Did::Heard(id.0, line.clone()), tick.0);
             }
         }
     }
@@ -450,15 +450,14 @@ pub fn slot_stack<'a>(inventory: &'a mut Inventory, hotbar: Option<&'a mut crate
 fn eat_from_source(
     name: &str,
     registry: &ItemRegistryRes,
-    needs: &mut Survival,
+    person: &mut Persona,
     health: &mut Health,
-    memory: Option<&mut Memory>,
     now: u64,
 ) {
     if let Some(def) = registry.0.def(name)
-        && let Ok(heal) = needs.0.eat(def)
+        && let Ok(heal) = person.0.needs.eat(def)
     {
-        crate::hud::used(name, heal, registry, health, memory, now);
+        crate::hud::used(name, heal, registry, health, Some(person), now);
     }
 }
 
@@ -592,7 +591,7 @@ pub fn interact_on_use(
     mut people: Query<
         (
             (Entity, &Transform, &ThisTick, &mut Inventory, &mut Hud, &mut OpenContainer, &mut OpenStation),
-            (&mut Survival, &mut Health, Option<&mut Memory>, &Facing, Option<&crate::talk::LookingAt>, Option<&crate::actor::Actor>, Option<&mut crate::actor::Hotbar>),
+            (&mut Persona, &mut Health, &Facing, Option<&crate::talk::LookingAt>, Option<&crate::actor::Actor>, Option<&mut crate::actor::Hotbar>),
         ),
         Without<Dead>,
     >,
@@ -607,7 +606,7 @@ pub fn interact_on_use(
     // in one tick, who gets it is the same after a load.
     let order = crate::actor::in_actor_order(people.iter().map(|((me, ..), (.., actor, _))| (actor.map(|a| a.0), me)));
     for entity in order {
-        let Ok(((me, person, this_tick, mut inventory, mut hud, mut open, mut station), (mut needs, mut health, mut memory, facing, looking, _, mut hotbar))) =
+        let Ok(((me, person, this_tick, mut inventory, mut hud, mut open, mut station), (mut mind, mut health, facing, looking, _, mut hotbar))) =
             people.get_mut(entity)
         else {
             continue;
@@ -649,7 +648,7 @@ pub fn interact_on_use(
             // or a container filled from it.
             if in_reach(feet, on_ground(at, 0.0)) && chunks.as_ref().is_some_and(|c| nearest_water(c, at, pointed).is_some()) {
                 if fills.is_empty() {
-                    eat_from_source(RIVER, &registry, &mut needs, &mut health, memory.as_deref_mut(), tick.0);
+                    eat_from_source(RIVER, &registry, &mut mind, &mut health, tick.0);
                 }
                 for &slot in &fills {
                     if let Some(to) = slot_stack(&mut *inventory, hotbar.as_deref_mut(), slot) {
@@ -657,10 +656,10 @@ pub fn interact_on_use(
                         modforge::fluid::fill(to, &mut river, &registry.0);
                     }
                 }
-            } else if let Some(memory) = memory.as_deref_mut() {
+            } else {
                 // Every act's result is remembered, a failed one with why
                 // (todo: write every act's result into memory, 2026-11-19).
-                memory.0.did(Did::Failed("use".to_string(), "nothing in reach".to_string()), tick.0);
+                mind.0.memory.did(Did::Failed("use".to_string(), "nothing in reach".to_string()), tick.0);
             }
             continue;
         };
@@ -676,9 +675,7 @@ pub fn interact_on_use(
                 let breaks = registry.0.def(&item.stack.item).is_some_and(|d| d.breaks_when_struck);
                 if breaks && fills.is_empty() && hotbar.as_ref().is_some_and(|h| melee_in_hand(&h.0, &registry.0)) {
                     commands.entity(entity).despawn();
-                    if let Some(memory) = memory.as_deref_mut() {
-                        memory.0.did(Did::Done(format!("broke the {}", item.stack.item)), tick.0);
-                    }
+                    mind.0.memory.did(Did::Done(format!("broke the {}", item.stack.item)), tick.0);
                     continue;
                 }
                 // Water drawn from a store comes out of the store's water
@@ -704,12 +701,10 @@ pub fn interact_on_use(
                     if let Some(store) = store.as_mut()
                         && modforge::fluid::take_from(&mut store.0, modforge::fluid::MOUTHFUL) <= 0.0
                     {
-                        if let Some(memory) = memory.as_deref_mut() {
-                            memory.0.did(Did::Failed(format!("drink at the {}", item.stack.item), "its store is empty".to_string()), tick.0);
-                        }
+                        mind.0.memory.did(Did::Failed(format!("drink at the {}", item.stack.item), "its store is empty".to_string()), tick.0);
                         continue;
                     }
-                    eat_from_source(&item.stack.item, &registry, &mut needs, &mut health, memory.as_deref_mut(), tick.0);
+                    eat_from_source(&item.stack.item, &registry, &mut mind, &mut health, tick.0);
                 }
             }
             continue;
@@ -728,8 +723,8 @@ pub fn interact_on_use(
         );
         // What the use came to is remembered, as anything done is (an
         // episode's cue may wait on a note read).
-        if let (Some(did), Some(memory)) = (did, memory.as_deref_mut()) {
-            memory.0.did(did, tick.0);
+        if let Some(did) = did {
+            mind.0.memory.did(did, tick.0);
         }
     }
 }

@@ -7,7 +7,7 @@
 use avian3d::prelude::*;
 use bevy::prelude::*;
 
-use crate::actor::{Dead, Facing, Home, Hotbar, Inventory, Personality, SpawnActor, Survival, spawn_person};
+use crate::actor::{Dead, Facing, Home, Hotbar, Inventory, Persona, SpawnActor, spawn_person};
 use crate::combat::{Equipment, Firing, Health, Protection, Rolling};
 use crate::content::ActorRegistryRes;
 use crate::input::{Action, ActionQueue, Actions, ThisTick};
@@ -52,7 +52,6 @@ pub fn makes_no_contacts() -> CollisionLayers {
     ThisTick,
     Inventory,
     Hotbar,
-    Survival,
     Facing,
     Health,
     Protection,
@@ -191,7 +190,7 @@ pub fn movement(
             Entity,
             &ThisTick,
             &Collider,
-            Option<&Personality>,
+            Option<&Persona>,
             Option<&Firing>,
             Option<&Rolling>,
             &mut Transform,
@@ -207,7 +206,7 @@ pub fn movement(
         // Swift people walk faster, slow ones slower; a vehicle goes at
         // its own speed (todo 57).
         let kind = if vehicle { crate::content::CAR_DEF.speed } else { 1.0 };
-        let speed = WALK_SPEED * personality.map_or(1.0, |p| p.0.speed_mult()) * kind;
+        let speed = WALK_SPEED * personality.map_or(1.0, |p| p.0.personality.speed_mult()) * kind;
         // Mid roll: faster, along the direction it started with. Committed
         // to a swing: no walking until it ends.
         let velocity = if firing.is_some_and(|f| f.0.committed()) {
@@ -281,20 +280,18 @@ pub fn respawn(
     mut dead: Query<
         (
             (Entity, &ThisTick, &mut Transform, Option<&Home>, Option<&crate::actor::SpawnedAt>),
-            (Option<&mut crate::actor::Memory>, &mut Health, &mut Survival, Has<crate::actor::Npc>),
+            (&mut crate::actor::Persona, &mut Health, Has<crate::actor::Npc>),
         ),
         With<Dead>,
     >,
 ) {
-    for ((entity, this_tick, mut transform, home, spawned), (memory, mut health, mut needs, npc)) in &mut dead {
+    for ((entity, this_tick, mut transform, home, spawned), (mut person, mut health, npc)) in &mut dead {
         if !this_tick.0.iter().any(|s| matches!(s.action, Action::Respawn)) {
             continue;
         }
         // What they come back with: modforge's rule.
-        modforge::survival::respawn(&mut health.0, &mut needs.0);
-        if let Some(mut memory) = memory {
-            memory.0.did(modforge::memory::Did::Respawned, tick.0);
-        }
+        modforge::survival::respawn(&mut health.0, &mut person.0.needs);
+        person.0.memory.did(modforge::memory::Did::Respawned, tick.0);
         // Home if they have one; a topside person where they were spawned
         // (they come back only where death does not stick); the player
         // wakes in their bunker.

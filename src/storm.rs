@@ -15,7 +15,7 @@ use modforge::combat::Hit;
 use modforge::storm::StormPhase;
 
 use crate::Ground;
-use crate::actor::{Actor, ActorMapRes, Dead, Gone, Home, Memory, Npc};
+use crate::actor::{Actor, ActorMapRes, Dead, Gone, Home, Npc, Persona};
 use crate::combat::leave;
 use crate::combat::{Equipment, Health, Protection, hit_actor};
 use crate::content::{DamageRegistryRes, EpisodeRegistryRes, ItemRegistryRes, LayerRegistryRes, RealityRegistryRes};
@@ -74,7 +74,7 @@ pub fn storm(
     mut state: ResMut<StormRes>,
     (episode, episodes, seed): (Res<Episode>, Res<EpisodeRegistryRes>, Res<WorldSeed>),
     shelters: Query<&Shelter>,
-    mut actors: Query<(&Transform, &Protection, &Equipment, &mut Health, Option<&mut Memory>), Without<Dead>>,
+    mut actors: Query<(&Transform, &Protection, &Equipment, &mut Health, Option<&mut Persona>), Without<Dead>>,
 ) {
     let secs = Day::secs(&tick);
     if state.at.is_none() {
@@ -121,7 +121,7 @@ pub fn shift_world(
     pieces: Query<Entity, With<WorldPiece>>,
     lying: Query<(Entity, &Transform), With<WorldItem>>,
     bunker: Query<&Shelter, Without<WorldPiece>>,
-    mut topside_people: Query<(Entity, Option<&Actor>, Option<&mut Memory>), (With<Npc>, Without<Home>, Without<Gone>)>,
+    mut topside_people: Query<(Entity, Option<&Actor>, Option<&mut Persona>), (With<Npc>, Without<Home>, Without<Gone>)>,
     mut map: ResMut<ActorMapRes>,
     tick: Res<SimTick>,
     realities: Res<RealityRegistryRes>,
@@ -154,8 +154,8 @@ pub fn shift_world(
     // other; they stay, gone for good, to query.
     for (entity, actor, memory) in &mut topside_people {
         if let Some(mut memory) = memory {
-            memory.0.did(modforge::memory::Did::Died(None, "storm".to_string()), tick.0);
-            memory.0.learned.died(tick.0);
+            memory.0.memory.did(modforge::memory::Did::Died(None, "storm".to_string()), tick.0);
+            memory.0.memory.learned.died(tick.0);
         }
         leave(&mut commands, &mut map, entity, actor);
     }

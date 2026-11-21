@@ -10,7 +10,7 @@ use modforge::hud::{
 };
 use modforge::item::EQUIPMENT_SLOTS;
 
-use crate::actor::{Dead, Hotbar, Inventory, INVENTORY_SLOTS, Survival};
+use crate::actor::{Dead, Hotbar, Inventory, INVENTORY_SLOTS};
 use modforge::memory::Did;
 use crate::combat::Equipment;
 use modforge::crafting::{can_craft, craft};
@@ -26,9 +26,9 @@ use crate::player::Player;
 /// it), on the prompt line for as long as its words take to read (modforge
 /// `talk::reading_secs`, the one reading rule): "drank at the tap", "could
 /// not open the gate: locked". Runs after `talk::look_at` writes the prompt.
-pub fn show_act_result(tick: Res<crate::SimTick>, registry: Res<ItemRegistryRes>, mut players: Query<(&mut Hud, &crate::actor::Memory), With<Player>>) {
+pub fn show_act_result(tick: Res<crate::SimTick>, registry: Res<ItemRegistryRes>, mut players: Query<(&mut Hud, &crate::actor::Persona), With<Player>>) {
     let Ok((mut hud, memory)) = players.single_mut() else { return };
-    let last = memory.0.done.iter().rev().find(|(_, d)| matches!(d, Did::Done(_) | Did::Failed(..) | Did::Ate(_)));
+    let last = memory.0.memory.done.iter().rev().find(|(_, d)| matches!(d, Did::Done(_) | Did::Failed(..) | Did::Ate(_)));
     let Some((at, did)) = last else { return };
     let words = act_words(did, &registry);
     if tick.0 < at + crate::talk::ticks_of(modforge::talk::reading_secs(&words)) {
@@ -55,10 +55,10 @@ pub fn act_words(did: &Did, registry: &ItemRegistryRes) -> String {
 /// (the `Did::Read` in the reader's memory) as its words take, by the one
 /// reading rule talk lines use (modforge `talk::reading_secs`; todo: close a
 /// read note by the reading rule, 2026-11-19).
-pub fn close_read_notes(tick: Res<crate::SimTick>, mut readers: Query<(&mut Hud, &crate::actor::Memory)>) {
+pub fn close_read_notes(tick: Res<crate::SimTick>, mut readers: Query<(&mut Hud, &crate::actor::Persona)>) {
     for (mut hud, memory) in &mut readers {
         let Some(note) = hud.0.reading.as_ref().filter(|_| hud.0.open_panel == OpenPanel::Note) else { continue };
-        let Some(read_at) = memory.0.done.iter().rev().find_map(|(t, d)| matches!(d, Did::Read(_)).then_some(*t)) else { continue };
+        let Some(read_at) = memory.0.memory.done.iter().rev().find_map(|(t, d)| matches!(d, Did::Read(_)).then_some(*t)) else { continue };
         if tick.0 >= read_at + crate::talk::ticks_of(modforge::talk::reading_secs(&note.text)) {
             toggle_panel(&mut hud.0, OpenPanel::Note);
             hud.0.reading = None;
@@ -894,7 +894,7 @@ pub fn render_vitals(
     day: Res<crate::survival::Day>,
     storms: Res<crate::storm::StormRes>,
     reality: Res<crate::Reality>,
-    players: Query<(&crate::combat::Health, &Survival, Option<&crate::exposure::Exposure>, &Transform), With<Player>>,
+    players: Query<(&crate::combat::Health, &crate::actor::Persona, Option<&crate::exposure::Exposure>, &Transform), With<Player>>,
     world: Option<Res<crate::terrain::WorldRes>>,
     biomes: Res<crate::content::BiomeRegistryRes>,
     mut texts: Query<&mut Text, With<VitalsText>>,
@@ -915,7 +915,7 @@ pub fn render_vitals(
     let weather = world.as_deref().map_or("", |w| crate::weather::at(w, &biomes, tick.0, *day, crate::Ground::ground(at.translation)).name());
     text.0 = format!(
         "Health {:.0}   Hunger {:.0}   Thirst {:.0}   Temp {:.1}C   Rad {:.0}   {time}   {weather}",
-        health.0.current, needs.0.hunger, needs.0.thirst, exposure.warmth, exposure.dose
+        health.0.current, needs.0.needs.hunger, needs.0.needs.thirst, exposure.warmth, exposure.dose
     );
 }
 
@@ -1014,14 +1014,14 @@ pub(crate) fn used(
     heal: f32,
     registry: &ItemRegistryRes,
     health: &mut crate::combat::Health,
-    memory: Option<&mut crate::actor::Memory>,
+    memory: Option<&mut crate::actor::Persona>,
     now: u64,
 ) {
     heal_by(health, heal);
     if registry.0.def(item).is_some_and(|d| d.food.is_some())
         && let Some(memory) = memory
     {
-        memory.0.did(Did::Ate(item.to_string()), now);
+        memory.0.memory.did(Did::Ate(item.to_string()), now);
     }
 }
 
@@ -1146,14 +1146,13 @@ pub fn hud_keys(
     stations: Query<(&crate::interact::Interactable, &Transform, Option<&crate::power::Powered>)>,
     mut people: Query<
         (
-            (Entity, Option<&crate::actor::Actor>, &ThisTick, &Transform, Has<Player>, Option<&crate::actor::Npc>, Option<&crate::skills::Skills>),
+            (Entity, Option<&crate::actor::Actor>, &ThisTick, &Transform, Has<Player>, Option<&crate::actor::Npc>),
             (&mut Hud, &mut OpenContainer, &mut OpenStation),
-            &mut Survival,
+            &mut crate::actor::Persona,
             &mut Hotbar,
             &mut Equipment,
             &mut Inventory,
             &mut crate::combat::Health,
-            Option<&mut crate::actor::Memory>,
         ),
         Without<Dead>,
     >,
@@ -1166,14 +1165,13 @@ pub fn hud_keys(
     let order = crate::actor::in_actor_order(people.iter().map(|((entity, actor, ..), ..)| (actor.map(|a| a.0), entity)));
     for entity in order {
         let Ok((
-            (_, _, this_tick, at, is_player, npc, skills),
+            (_, _, this_tick, at, is_player, npc),
             (mut hud, mut open, mut station),
-            mut needs,
+            mut person,
             mut hotbar,
             mut worn,
             mut inventory,
             mut health,
-            mut memory,
         )) = people.get_mut(entity)
         else {
             continue;
@@ -1188,10 +1186,10 @@ pub fn hud_keys(
                 }
                 Action::Hotbar { index } => {
                     let item = hotbar.0.slots.slots.get(index).and_then(|s| s.as_ref()).map(|s| s.item.clone());
-                    if let Ok(heal) = hotbar_key(&mut needs.0, &mut hotbar.0, index, &registry.0, &mut worn.0)
+                    if let Ok(heal) = hotbar_key(&mut person.0.needs, &mut hotbar.0, index, &registry.0, &mut worn.0)
                         && let Some(item) = item
                     {
-                        used(&item, heal, &registry, &mut health, memory.as_deref_mut(), tick.0);
+                        used(&item, heal, &registry, &mut health, Some(&mut *person), tick.0);
                     }
                 }
                 Action::Transfer { half, slot: Some(slot) } => {
@@ -1211,11 +1209,9 @@ pub fn hud_keys(
                         let moved = count.saturating_sub(left);
                         // What they did goes into their memory (life.md
                         // "What a person did").
-                        if moved > 0
-                            && let Some(memory) = memory.as_mut()
-                        {
+                        if moved > 0 {
                             let what = if slot.holder == Holder::Container { Did::Took(item, moved) } else { Did::Stocked(item, moved) };
-                            memory.0.did(what, tick.0);
+                            person.0.memory.did(what, tick.0);
                         }
                     }
                 }
@@ -1250,10 +1246,10 @@ pub fn hud_keys(
                         Holder::Equipment | Holder::Theirs => continue,
                     };
                     let item = holder.slots.get(slot.index).and_then(|s| s.as_ref()).map(|s| s.item.clone());
-                    if let Ok(heal) = use_slot(&mut needs.0, holder, slot.index, &registry.0, &mut worn.0)
+                    if let Ok(heal) = use_slot(&mut person.0.needs, holder, slot.index, &registry.0, &mut worn.0)
                         && let Some(item) = item
                     {
-                        used(&item, heal, &registry, &mut health, memory.as_deref_mut(), tick.0);
+                        used(&item, heal, &registry, &mut health, Some(&mut *person), tick.0);
                     }
                 }
                 // A container poured (modforge fluid): from the bags into
@@ -1308,7 +1304,7 @@ pub fn hud_keys(
                                 continue;
                             }
                             // A practised researcher's topic takes less (todo 31).
-                            let cost = crate::skills::research_cost(tree.0.cost(topic, &known), skills);
+                            let cost = crate::skills::research_cost(tree.0.cost(topic, &known), Some(&*person));
                             if crate::research::pay(&mut inventory.0, &cost) {
                                 let name = topic.name.clone();
                                 tree.0.research(&name, researched.0.entry(group).or_default());
@@ -1324,7 +1320,7 @@ pub fn hud_keys(
                     // quality (todo 31).
                     let odds = modforge::practice::lean_odds(
                         &modforge::quality::odds(&crate::content::QUALITY, 0),
-                        crate::skills::mastery(skills, crate::skills::CRAFTING),
+                        crate::skills::mastery(Some(&*person), crate::skills::CRAFTING),
                         crate::skills::CRAFT_LEAN,
                     );
                     let Some(made) = craft(recipe, &mut inventory.0, &registry.0, &layers.0, &odds, tick.0 as f32, tick.0) else {
@@ -1414,7 +1410,7 @@ pub fn render_station(
     recipes: Res<RecipeRegistryRes>,
     research: (Res<crate::research::TechTreeRes>, Res<crate::research::Researched>),
     stations: Query<(&crate::interact::Interactable, &Transform, Option<&crate::power::Powered>)>,
-    players: Query<(&Inventory, &OpenStation, &Transform, Option<&crate::skills::Skills>), With<Player>>,
+    players: Query<(&Inventory, &OpenStation, &Transform, Option<&crate::actor::Persona>), With<Player>>,
     mut panels: Query<(&mut Visibility, &Children), (With<StationPanel>, Without<RecipeRow>)>,
     mut rows: Query<(&mut RecipeRow, &Children, &mut BackgroundColor, &mut Node)>,
     mut texts: Query<&mut Text>,

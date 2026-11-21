@@ -11,7 +11,7 @@ use bevy::prelude::*;
 use modforge::combat::Hit;
 use modforge::exposure::Harm;
 
-use crate::actor::{Dead, Memory};
+use crate::actor::{Dead, Persona};
 use crate::combat::{Equipment, Health, Protection, hit_actor};
 use crate::content::{DamageRegistryRes, ItemRegistryRes};
 use crate::structure::{Shelter, sheltered};
@@ -42,7 +42,7 @@ pub fn expose(
     harm: (Res<ItemRegistryRes>, Res<crate::content::LayerRegistryRes>, Res<DamageRegistryRes>),
     shelters: Query<&Shelter>,
     world: (Option<Res<crate::terrain::WorldRes>>, Res<crate::content::BiomeRegistryRes>),
-    mut people: Query<(Entity, &Transform, Option<&mut Exposure>, &Protection, &Equipment, &mut Health, Option<&mut Memory>), (With<crate::actor::Actor>, Without<Dead>, Without<crate::vehicle::Vehicle>)>,
+    mut people: Query<(Entity, &Transform, Option<&mut Exposure>, &Protection, &Equipment, &mut Health, Option<&mut Persona>), (With<crate::actor::Actor>, Without<Dead>, Without<crate::vehicle::Vehicle>)>,
 ) {
     let (items, layers, damage) = harm;
     let (world, biomes) = world;

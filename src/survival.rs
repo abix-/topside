@@ -8,7 +8,7 @@ use modforge::combat::Hit;
 use modforge::storm::StormDef;
 
 use crate::SimTick;
-use crate::actor::{ActorCondition, Dead, Memory, Survival};
+use crate::actor::{ActorCondition, Dead, Persona};
 use crate::combat::{Equipment, Health, Protection, hit_actor};
 use crate::content::{DamageRegistryRes, GAME_DAY_SECS, ItemRegistryRes, STORM};
 
@@ -64,13 +64,14 @@ pub fn waste(
     items: Res<ItemRegistryRes>,
     layers: Res<crate::content::LayerRegistryRes>,
     damage: Res<DamageRegistryRes>,
-    mut actors: Query<(&Survival, &Protection, &Equipment, &mut Health, Option<&mut Memory>), Without<Dead>>,
+    mut actors: Query<(&Protection, &Equipment, &mut Health, &mut Persona), Without<Dead>>,
 ) {
     if tick.0 % 60 != 0 {
         return;
     }
-    for (needs, own, worn, mut health, mut memory) in &mut actors {
-        for (empty, name) in [(needs.0.starving(), "starvation"), (needs.0.dehydrated(), "dehydration")] {
+    for (own, worn, mut health, mut person) in &mut actors {
+        let needs = person.0.needs;
+        for (empty, name) in [(needs.starving(), "starvation"), (needs.dehydrated(), "dehydration")] {
             if !empty {
                 continue;
             }
@@ -83,7 +84,7 @@ pub fn waste(
                 distance: 0.0,
                 location_scale: 1.0,
             };
-            hit_actor(&hit, own, worn, &items.0, &layers.0, Default::default(), &mut health, memory.as_deref_mut(), None, tick.0);
+            hit_actor(&hit, own, worn, &items.0, &layers.0, Default::default(), &mut health, Some(&mut person), None, tick.0);
         }
     }
 }
@@ -148,13 +149,13 @@ pub fn survival_tick(
     day: Res<Day>,
     reality: Res<crate::Reality>,
     // A vehicle has fuel in place of needs (todo 57).
-    mut actors: Query<(&mut Survival, Option<&ActorCondition>), (Without<Dead>, Without<crate::vehicle::Vehicle>)>,
+    mut actors: Query<(&mut Persona, Option<&ActorCondition>), (Without<Dead>, Without<crate::vehicle::Vehicle>)>,
 ) {
     let night = night(&tick, *day, &reality);
     let rates = day.rates();
-    for (mut survival, condition) in &mut actors {
+    for (mut person, condition) in &mut actors {
         let mut condition = condition.map_or_else(Condition::default, |c| c.0);
         condition.night = night;
-        survival.0.tick(rates, condition, time.delta_secs());
+        person.0.needs.tick(rates, condition, time.delta_secs());
     }
 }

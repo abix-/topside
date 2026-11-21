@@ -11,7 +11,7 @@ use bevy::prelude::*;
 use modforge::actions::{Action, Said};
 use modforge::hud::{Holder, OpenPanel, Trading};
 
-use crate::actor::{Actor, Dead, Inventory, Memory, Npc};
+use crate::actor::{Actor, Dead, Inventory, Npc, Persona};
 use crate::content::{EpisodeRegistryRes, FactionRegistryRes, ItemRegistryRes, ItemValuesRes, PLAYER_FACTION};
 use crate::input::ThisTick;
 use crate::interact::Hud;
@@ -39,7 +39,7 @@ pub fn between_people(
     values: Res<ItemValuesRes>,
     factions: Res<FactionRegistryRes>,
     episodes: Res<EpisodeRegistryRes>,
-    mut people: Query<(Entity, &Actor, &Transform, &mut Inventory, &mut Memory, Option<&Npc>), Without<Dead>>,
+    mut people: Query<(Entity, &Actor, &Transform, &mut Inventory, &mut Persona, Option<&Npc>), Without<Dead>>,
 ) {
     use modforge::memory::Did;
     let heard = |words: &str| episodes.felt(words);
@@ -54,9 +54,9 @@ pub fn between_people(
                 continue;
             };
             let faction = s.5.and_then(|n| n.faction.clone());
-            let members: Vec<&Memory> = people.iter().filter(|p| faction.is_some() && p.5.and_then(|n| n.faction.as_ref()) == faction.as_ref()).map(|p| p.4).collect();
+            let members: Vec<&modforge::memory::Memory> = people.iter().filter(|p| faction.is_some() && p.5.and_then(|n| n.faction.as_ref()) == faction.as_ref()).map(|p| &p.4.0.memory).collect();
             let buyer_faction = b.5.and_then(|n| n.faction.clone());
-            modforge::trade::terms(crate::actor::stands_toward((s.4, faction.as_deref()), members.into_iter(), (b.1.0, buyer_faction.as_deref()), &factions.0, heard))
+            modforge::trade::terms(crate::actor::stands_toward((&s.4.0.memory, faction.as_deref()), members.into_iter(), (b.1.0, buyer_faction.as_deref()), &factions.0, heard))
         };
         let Ok([mut b, mut s]) = people.get_many_mut([buyer, seller]) else {
             continue;
@@ -87,10 +87,10 @@ pub fn between_people(
         let words = |stacks: &[modforge::item::ItemStack]| stacks.iter().map(|st| format!("{} x{}", st.item, st.count)).collect::<Vec<_>>().join(", ");
         match made {
             Some(gave) => {
-                b.4.0.did(Did::Traded(seller_id, words(&gave), words(&wanted)), tick.0);
-                s.4.0.did(Did::Traded(b.1.0, words(&wanted), words(&gave)), tick.0);
+                b.4.0.memory.did(Did::Traded(seller_id, words(&gave), words(&wanted)), tick.0);
+                s.4.0.memory.did(Did::Traded(b.1.0, words(&wanted), words(&gave)), tick.0);
             }
-            None => b.4.0.did(Did::TradeRefused(seller_id), tick.0),
+            None => b.4.0.memory.did(Did::TradeRefused(seller_id), tick.0),
         }
     }
 }
@@ -110,7 +110,7 @@ pub fn trade(
     episodes: Res<EpisodeRegistryRes>,
     mut players: Query<(Entity, &Actor, &Transform, &ThisTick, &mut Hud, &mut Inventory), With<Player>>,
     mut people: Query<(Entity, &Actor, &Name, &Transform, &mut Inventory, Option<&Npc>), (Without<Player>, Without<Dead>)>,
-    memories: Query<(&Actor, &Memory, Option<&Npc>), Without<Dead>>,
+    memories: Query<(&Actor, &Persona, Option<&Npc>), Without<Dead>>,
     mut trading_with: Local<Option<Entity>>,
 ) {
     let Ok((player, me, here, this_tick, mut hud, mut mine)) = players.single_mut() else {
@@ -120,8 +120,8 @@ pub fn trade(
     // How someone stands toward the player, by the one rule, and so their
     // prices; None: they will not trade.
     let terms_of = |them: modforge::actor::ActorId, faction: Option<&str>| {
-        let memory = memories.iter().find(|(a, ..)| a.0 == them).map(|(_, m, _)| m)?;
-        let members = memories.iter().filter(|(_, _, n)| faction.is_some() && n.and_then(|n| n.faction.as_deref()) == faction).map(|(_, m, _)| m);
+        let memory = memories.iter().find(|(a, ..)| a.0 == them).map(|(_, m, _)| &m.0.memory)?;
+        let members = memories.iter().filter(|(_, _, n)| faction.is_some() && n.and_then(|n| n.faction.as_deref()) == faction).map(|(_, m, _)| &m.0.memory);
         modforge::trade::terms(crate::actor::stands_toward((memory, faction), members, (me.0, Some(PLAYER_FACTION)), &factions.0, heard))
     };
     for said in this_tick.0.iter().filter_map(|s| match s.action {

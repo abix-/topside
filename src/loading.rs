@@ -100,19 +100,19 @@ fn run_history(world: &mut World) {
     let ticks = (crate::content::HISTORY_SECS / step.as_secs_f32()).round() as u64;
     // The player has not woken: they wake with the needs they lay down
     // with (Claude's, for the operator to change).
-    let mut player = world.query_filtered::<&crate::actor::Survival, With<crate::player::Player>>();
-    let slept = player.iter(world).next().cloned();
+    let mut player = world.query_filtered::<&crate::actor::Persona, With<crate::player::Player>>();
+    let slept = player.iter(world).next().map(|p| p.0.needs);
     world.insert_resource(History);
     // Every tick, or days of thirst kill them before they wake.
-    let mut player = world.query_filtered::<&mut crate::actor::Survival, With<crate::player::Player>>();
+    let mut player = world.query_filtered::<&mut crate::actor::Persona, With<crate::player::Player>>();
     let _ = world.try_schedule_scope(bevy::app::FixedMain, |world, schedule| {
         for _ in 0..ticks {
             world.resource_mut::<Time<Fixed>>().advance_by(step);
             *world.resource_mut::<Time>() = world.resource::<Time<Fixed>>().as_generic();
             schedule.run(world);
             if let Some(slept) = &slept {
-                for mut survival in player.iter_mut(world) {
-                    *survival = slept.clone();
+                for mut person in player.iter_mut(world) {
+                    person.0.needs = *slept;
                 }
             }
         }

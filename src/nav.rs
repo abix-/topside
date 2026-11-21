@@ -147,14 +147,14 @@ pub fn doorways(
     tick: Res<SimTick>,
     index: Res<DoorIndex>,
     doors: Query<(&Door, &Transform)>,
-    mut people: Query<(Entity, &Transform, &mut crate::actor::Memory), Without<Dead>>,
+    mut people: Query<(Entity, &Transform, &mut crate::actor::Persona), Without<Dead>>,
     mut inside: Local<std::collections::HashMap<Entity, Entity>>,
 ) {
     for (person, at, mut memory) in &mut people {
         match doorway_at(&index, &doors, crate::interact::feet_of(at), IN_DOORWAY) {
             Some(door) => {
                 if inside.insert(person, door) != Some(door) {
-                    memory.0.did(modforge::memory::Did::Doorway, tick.0);
+                    memory.0.memory.did(modforge::memory::Did::Doorway, tick.0);
                 }
             }
             None => {

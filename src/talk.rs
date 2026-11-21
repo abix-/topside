@@ -18,7 +18,7 @@ use modforge::memory::Memory as Mind;
 use modforge::storyteller::{LineDef, When};
 
 use crate::Ground;
-use crate::actor::{Actor, ActorMapRes, Dead, Inventory, Memory, Survival};
+use crate::actor::{Actor, ActorMapRes, Dead, Inventory, Persona};
 use crate::content::EpisodeRegistryRes;
 use crate::episode::Episode;
 use crate::input::{Action, ThisTick};
@@ -104,13 +104,14 @@ pub enum Call {
 /// say it now.
 pub fn called_line(
     (episode, lines, bunker, seed, items): (&Episode, &Lines, Vec2, u64, &modforge::item::ItemRegistry),
-    (caller, memory, at, survival): (ActorId, &Memory, Vec3, Option<&Survival>),
+    (caller, person, at): (ActorId, &Persona, Vec3),
     to: (ActorId, bool),
     call: Call,
     tick: u64,
 ) -> Option<modforge::memory::Line> {
-    let moment = Moment::of(episode, (caller, false), to, at, survival);
-    let mut speaking = moment.speaking(to.0, &memory.0, tick, false);
+    let memory = &person.0.memory;
+    let moment = Moment::of(episode, (caller, false), to, at, Some(&person.0.needs));
+    let mut speaking = moment.speaking(to.0, memory, tick, false);
     speaking.knocking = call == Call::Knocking;
     speaking.warning = call == Call::Warning;
     // Only a line written for this call is called (When::Knocking or
@@ -121,7 +122,7 @@ pub fn called_line(
     let candidates: Vec<LineDef> = called.iter().map(|&i| lines.0[i].clone()).collect();
     let line = called[modforge::talk::pick(&candidates, &speaking, seed ^ tick)?];
     // A call is made where they stand: what they know is reckoned from there.
-    let (words, _) = words_of(&lines.0[line], line, (caller, &memory.0, at), tick, (episode, items), bunker, seed)?;
+    let (words, _) = words_of(&lines.0[line], line, (caller, memory, at), tick, (episode, items), bunker, seed)?;
     Some(modforge::memory::Line { name: lines.0[line].name.clone(), words })
 }
 
@@ -179,14 +180,14 @@ struct Moment {
 }
 
 impl Moment {
-    fn of(episode: &Episode, (who, is_player): (ActorId, bool), (to, to_is_player): (ActorId, bool), at: Vec3, survival: Option<&Survival>) -> Self {
+    fn of(episode: &Episode, (who, is_player): (ActorId, bool), (to, to_is_player): (ActorId, bool), at: Vec3, survival: Option<&modforge::survival::SurvivalStats>) -> Self {
         let part = |id: ActorId, player: bool| if player { "player".to_string() } else { episode.part_of(id).unwrap_or("").to_string() };
         Self {
             part: part(who, is_player),
             to_part: part(to, to_is_player),
             reached: episode.reached_names(),
             near: episode.things.iter().map(|(name, there, _)| (name.clone(), there.distance(at))).collect(),
-            needs: survival.map_or_else(Vec::new, |s| vec![("hunger".to_string(), s.0.hunger), ("thirst".to_string(), s.0.thirst)]),
+            needs: survival.map_or_else(Vec::new, |s| vec![("hunger".to_string(), s.hunger), ("thirst".to_string(), s.thirst)]),
             feels: 0.0,
         }
     }
@@ -366,8 +367,8 @@ pub fn talk(
     lines: Res<Lines>,
     world: Res<crate::terrain::WorldRes>,
     seed: Res<crate::WorldSeed>,
-    speakers: Query<(Entity, &Actor, &ThisTick, &Name, Has<crate::actor::Asked>, Option<&crate::actor::Home>), Without<Dead>>,
-    mut people: Query<(&Transform, &mut Memory, &mut Inventory, &mut Hud, Has<Player>, Option<&Conversation>, Option<&crate::actor::Npc>), Without<Dead>>,
+    speakers: Query<(Entity, &Actor, &ThisTick, Has<crate::actor::Asked>, Option<&crate::actor::Home>), Without<Dead>>,
+    mut people: Query<(&Transform, &mut Persona, &mut Inventory, &mut Hud, Has<Player>, Option<&Conversation>, Option<&crate::actor::Npc>), Without<Dead>>,
     mut joins: ResMut<crate::joining::Joins>,
     mut to_edge: ResMut<crate::edge::WordToEdge>,
     items: Res<crate::content::ItemRegistryRes>,
@@ -376,7 +377,7 @@ pub fn talk(
     // in one tick, whom the player ends up talking to is the same after a
     // load.
     let order = crate::actor::in_actor_order(speakers.iter().map(|(entity, actor, ..)| (Some(actor.0), entity)));
-    for (speaker, id, this_tick, name, asked, home) in order.into_iter().filter_map(|e| speakers.get(e).ok()) {
+    for (speaker, id, this_tick, asked, home) in order.into_iter().filter_map(|e| speakers.get(e).ok()) {
         for said in this_tick.0.iter().filter_map(|s| match s.action {
             Action::Talk { to, said } => Some((to, said)),
             _ => None,
@@ -385,11 +386,14 @@ pub fn talk(
             let Some(listener) = map.0.handle_of(ActorId(to)) else {
                 continue;
             };
-            let Ok([(from, mut speaker_memory, mut inventory, _, speaker_is_player, speaker_talking, speaker_npc), (at, mut listener_memory, mut listener_inventory, mut hud, is_player, listener_talking, listener_npc)]) =
+            let Ok([(from, mut speaker_persona, mut inventory, _, speaker_is_player, speaker_talking, speaker_npc), (at, mut listener_persona, mut listener_inventory, mut hud, is_player, listener_talking, listener_npc)]) =
                 people.get_many_mut([speaker, listener])
             else {
                 continue;
             };
+            let name = speaker_persona.0.profile.name.clone();
+            let speaker_memory = &mut speaker_persona.0.memory;
+            let listener_memory = &mut listener_persona.0.memory;
             if !within(from.translation, at.translation, TALK_REACH) {
                 continue;
             }
@@ -405,7 +409,7 @@ pub fn talk(
                         continue;
                     };
                     let home = home_of(home, speaker_is_player, crate::interact::feet_of(from), world.bunker);
-                    let Some((words, told)) = words_of(def, index, (id.0, &speaker_memory.0, home), since, (&episode, &items.0), world.bunker, seed.0) else {
+                    let Some((words, told)) = words_of(def, index, (id.0, &*speaker_memory, home), since, (&episode, &items.0), world.bunker, seed.0) else {
                         continue;
                     };
                     let key = if key != 0 { key } else { told };
@@ -415,8 +419,8 @@ pub fn talk(
             };
             let answer = modforge::talk::talk(
                 said,
-                (id.0, &mut speaker_memory.0),
-                (ActorId(to), &mut listener_memory.0),
+                (id.0, &mut *speaker_memory),
+                (ActorId(to), &mut *listener_memory),
                 (offered.as_deref(), words.as_ref().map(|(n, w)| (n.as_str(), w.as_str()))),
                 tick.0,
             );
@@ -445,7 +449,7 @@ pub fn talk(
             // for the edge (todo 11i).
             if let modforge::talk::Answer::Learned(key) = answer
                 && group(speaker_is_player, speaker_npc) != group(is_player, listener_npc)
-                && let Some((kind, place)) = speaker_memory.0.known.iter().find(|k| k.key == key).map(|k| (k.kind.clone(), k.position))
+                && let Some((kind, place)) = speaker_memory.known.iter().find(|k| k.key == key).map(|k| (k.kind.clone(), k.position))
             {
                 to_edge.0.push((key, kind, place, from.translation.ground()));
             }
@@ -544,17 +548,18 @@ pub fn conversations(
     episode: Res<Episode>,
     lines: Res<Lines>,
     world: Res<crate::terrain::WorldRes>,
-    mut players: Query<(&Actor, &Transform, &Memory, &Survival, &mut Conversation, &mut Hud, &mut crate::input::Actions), With<Player>>,
-    mut people: Query<(Entity, &Actor, &Transform, &Memory, Option<&Survival>, &mut crate::input::Actions, Has<crate::actor::Asked>, Option<&crate::actor::Npc>), Without<Player>>,
+    mut players: Query<(&Actor, &Transform, &Persona, &mut Conversation, &mut Hud, &mut crate::input::Actions), With<Player>>,
+    mut people: Query<(Entity, &Actor, &Transform, &Persona, &mut crate::input::Actions, Has<crate::actor::Asked>, Option<&crate::actor::Npc>), Without<Player>>,
     episodes: Res<EpisodeRegistryRes>,
     items: Res<crate::content::ItemRegistryRes>,
 ) {
     if tick.0 % 15 != 0 {
         return;
     }
-    let Ok((player, here, memory, survival, mut talking, mut hud, mut mine_to_push)) = players.single_mut() else {
+    let Ok((player, here, me, mut talking, mut hud, mut mine_to_push)) = players.single_mut() else {
         return;
     };
+    let (memory, survival) = (&me.0.memory, &me.0.needs);
     let Some(shown) = hud.0.talking.as_mut() else {
         return;
     };
@@ -564,7 +569,7 @@ pub fn conversations(
     // theirs, by whom, its words; and when it has been read (modforge
     // `talk::reading_secs`, the one rule for every wait here).
     let their_name = shown.name.clone();
-    let last = memory.0.done.iter().rev().find_map(|(t, d)| match d {
+    let last = memory.done.iter().rev().find_map(|(t, d)| match d {
         modforge::memory::Did::Talked(to, l) if *t >= talking.started && *to == with => Some((*t, false, "You".to_string(), l.words.clone())),
         modforge::memory::Did::Heard(by, l) if *t >= talking.started && *by == with => Some((*t, true, their_name.clone(), l.words.clone())),
         _ => None,
@@ -579,7 +584,7 @@ pub fn conversations(
     // player read their own choice as they chose it).
     // So is one heard from them just before it began (called through the
     // shut door with a knock), while it is still being read.
-    let called_still_read = last.is_none() && still_reading(&memory.0, with, now);
+    let called_still_read = last.is_none() && still_reading(memory, with, now);
     let reading_theirs = (last.as_ref().is_some_and(|(_, theirs, ..)| *theirs) && now < read_by) || called_still_read;
     shown.line = last.map(|(_, _, who, words)| (who, words));
     // Ending: nothing more to say, but anyone can still be asked to trade
@@ -588,7 +593,7 @@ pub fn conversations(
         shown.choices.retain(|c| matches!(c.said, Said::Trade));
         return;
     }
-    let Some((them, _, there, their_memory, their_survival, mut actions, asked, their_npc)) = people.iter_mut().find(|(_, a, ..)| a.0 == with) else {
+    let Some((them, _, there, their_persona, mut actions, asked, their_npc)) = people.iter_mut().find(|(_, a, ..)| a.0 == with) else {
         // They are gone: it ends now.
         talking.ends_at = Some(now);
         return;
@@ -618,17 +623,17 @@ pub fn conversations(
     // started, if they have anything to say (modforge `talk::choices`).
     let stranger = their_npc.is_some_and(|n| n.faction.is_none());
     let mine = Moment::of(&episode, (player.0, true), (with, false), here, Some(survival)).to_a_stranger(stranger);
-    let open = modforge::talk::choices(&lines.0, &mine.speaking(with, &memory.0, talking.started, !talking.opened));
-    let nothing_said = !memory.0.done.iter().any(|(t, d)| {
+    let open = modforge::talk::choices(&lines.0, &mine.speaking(with, memory, talking.started, !talking.opened));
+    let nothing_said = !memory.done.iter().any(|(t, d)| {
         *t >= talking.started
             && matches!(d, modforge::memory::Did::Talked(to, _) | modforge::memory::Did::Heard(to, _) if *to == with)
     });
     let player_first = talking.opened && nothing_said && !open.is_empty();
     // Their turn: the line modforge picks for them.
-    let feels = modforge::relationship::feeling(&their_memory.0, player.0, |line| episodes.felt(line)).unwrap_or(0.0);
-    let theirs = Moment::of(&episode, (with, false), (player.0, true), their_at, their_survival).feeling(feels).from_a_stranger(stranger);
+    let feels = modforge::relationship::feeling(&their_persona.0.memory, player.0, |line| episodes.felt(line)).unwrap_or(0.0);
+    let theirs = Moment::of(&episode, (with, false), (player.0, true), their_at, Some(&their_persona.0.needs)).feeling(feels).from_a_stranger(stranger);
     if !player_first
-        && let Some(line) = modforge::talk::pick(&lines.0, &theirs.speaking(player.0, &their_memory.0, talking.started, talking.opened), seed.0 ^ tick.0)
+        && let Some(line) = modforge::talk::pick(&lines.0, &theirs.speaking(player.0, &their_persona.0.memory, talking.started, talking.opened), seed.0 ^ tick.0)
     {
         actions.0.push(tick.0, Action::Talk { to: player.0.0, said: Said::Line { line: lines.0[line].id(), key: 0 } });
         shown.choices.clear();
@@ -644,7 +649,7 @@ pub fn conversations(
         .into_iter()
         .filter_map(|i| {
             let home = home_of(None, true, here, world.bunker);
-            let (words, _) = words_of(&lines.0[i], i, (player.0, &memory.0, home), talking.started, (&episode, &items.0), world.bunker, seed.0)?;
+            let (words, _) = words_of(&lines.0[i], i, (player.0, memory, home), talking.started, (&episode, &items.0), world.bunker, seed.0)?;
             Some(modforge::hud::Choice {
                 said: Said::Line { line: lines.0[i].id(), key: 0 },
                 words,
@@ -687,8 +692,8 @@ pub fn speak_up(
     seed: Res<crate::WorldSeed>,
     episode: Res<Episode>,
     lines: Res<Lines>,
-    players: Query<(&Actor, &Transform, &Memory), (With<Player>, Without<Conversation>, Without<Dead>)>,
-    mut people: Query<(&Actor, &Transform, &Memory, Option<&Survival>, &mut crate::input::Actions), (Without<Player>, Without<Dead>)>,
+    players: Query<(&Actor, &Transform, &Persona), (With<Player>, Without<Conversation>, Without<Dead>)>,
+    mut people: Query<(&Actor, &Transform, &Persona, &mut crate::input::Actions), (Without<Player>, Without<Dead>)>,
 ) {
     if tick.0 % 60 != 0 {
         return;
@@ -697,16 +702,16 @@ pub fn speak_up(
         return;
     };
     let here = here.translation;
-    for (actor, there, memory, survival, mut actions) in &mut people {
+    for (actor, there, person, mut actions) in &mut people {
         let at = crate::interact::feet_of(there);
         // Not while a line of theirs the player heard (called through a
         // shut door) is still being read.
-        if !within(there.translation, here, TALK_REACH) || still_reading(&player_memory.0, actor.0, tick.0) {
+        if !within(there.translation, here, TALK_REACH) || still_reading(&player_memory.0.memory, actor.0, tick.0) {
             continue;
         }
-        let moment = Moment::of(&episode, (actor.0, false), (player.0, true), at, survival);
+        let moment = Moment::of(&episode, (actor.0, false), (player.0, true), at, Some(&person.0.needs));
         // Nothing of this conversation said yet: it starts now.
-        if let Some(line) = modforge::talk::pick(&lines.0, &moment.speaking(player.0, &memory.0, tick.0, false), seed.0 ^ tick.0) {            actions.0.push(tick.0, Action::Talk { to: player.0.0, said: Said::Line { line: lines.0[line].id(), key: 0 } });
+        if let Some(line) = modforge::talk::pick(&lines.0, &moment.speaking(player.0, &person.0.memory, tick.0, false), seed.0 ^ tick.0) {            actions.0.push(tick.0, Action::Talk { to: player.0.0, said: Said::Line { line: lines.0[line].id(), key: 0 } });
             return;
         }
     }
@@ -719,7 +724,7 @@ pub fn end_conversations(
     mut commands: Commands,
     tick: Res<crate::SimTick>,
     map: Res<ActorMapRes>,
-    mut players: Query<(Entity, &mut Hud, &Conversation, Has<Dead>, &mut crate::actor::Memory), With<Player>>,
+    mut players: Query<(Entity, &mut Hud, &Conversation, Has<Dead>, &mut Persona), With<Player>>,
     held: Query<(), With<HeldToTalk>>,
 ) {
     let Ok((player, mut hud, talking, dead, mut memory)) = players.single_mut() else {
@@ -730,7 +735,7 @@ pub fn end_conversations(
         hud.0.talking = None;
         // Ended, as anything done is remembered (an episode's deed may
         // read it: a question left with no answer).
-        memory.0.did(modforge::memory::Did::TalkEnded(ActorId(talking.with)), tick.0);
+        memory.0.memory.did(modforge::memory::Did::TalkEnded(ActorId(talking.with)), tick.0);
         commands.entity(player).remove::<Conversation>();
         if let Some(them) = map.0.handle_of(ActorId(talking.with))
             && held.contains(them)
@@ -748,7 +753,7 @@ pub fn end_conversations(
 pub fn word_spreads(
     tick: Res<crate::SimTick>,
     episodes: Res<crate::content::EpisodeRegistryRes>,
-    mut people: Query<(Entity, &Actor, &crate::actor::Npc, &Transform, &mut Memory), (Without<Player>, Without<Dead>)>,
+    mut people: Query<(Entity, &Actor, &crate::actor::Npc, &Transform, &mut Persona), (Without<Player>, Without<Dead>)>,
 ) {
     if tick.0 % 60 != 0 {
         return;
@@ -766,8 +771,8 @@ pub fn word_spreads(
                 continue;
             };
             let heard = |line: &str| episodes.felt(line);
-            modforge::talk::share((*a_id, &a_memory.0), (*b_id, &mut b_memory.0), heard, tick.0);
-            modforge::talk::share((*b_id, &b_memory.0), (*a_id, &mut a_memory.0), heard, tick.0);
+            modforge::talk::share((*a_id, &a_memory.0.memory), (*b_id, &mut b_memory.0.memory), heard, tick.0);
+            modforge::talk::share((*b_id, &b_memory.0.memory), (*a_id, &mut a_memory.0.memory), heard, tick.0);
         }
     }
 }

@@ -203,7 +203,7 @@ pub struct Walking {
 pub fn stand_ins(
     mut commands: Commands,
     nav: Option<Res<Nav>>,
-    people: Query<(Entity, &Walking, Option<&crate::actor::Actor>, Option<&crate::actor::Personality>), (Without<Walker>, Without<crate::actor::Dead>)>,
+    people: Query<(Entity, &Walking, Option<&crate::actor::Actor>, Option<&crate::actor::Persona>), (Without<Walker>, Without<crate::actor::Dead>)>,
 ) {
     let Some(nav) = nav else {
         return;
@@ -223,7 +223,7 @@ pub fn stand_ins(
         ));
         match walking.to {
             Some(to) => {
-                let speed = crate::player::WALK_SPEED * personality.map_or(1.0, |p| p.0.speed_mult());
+                let speed = crate::player::WALK_SPEED * personality.map_or(1.0, |p| p.0.personality.speed_mult());
                 stand_in.insert((agent(nav.archipelago, speed), AgentTarget3d::Point(to)));
             }
             None => {
@@ -534,7 +534,7 @@ pub fn walk(
     door_index: Res<crate::nav::DoorIndex>,
     doors: Query<(&crate::interact::Door, &Transform)>,
     mut people: Query<
-        (Entity, &Transform, &mut crate::input::ThisTick, Option<&crate::actor::Personality>, Option<&Walker>, (Has<crate::player::Player>, Has<crate::talk::HeldToTalk>), &mut Walking),
+        (Entity, &Transform, &mut crate::input::ThisTick, Option<&crate::actor::Persona>, Option<&Walker>, (Has<crate::player::Player>, Has<crate::talk::HeldToTalk>), &mut Walking),
         Without<crate::actor::Dead>,
     >,
     mut velocities: Query<&mut Velocity3d>,
@@ -571,7 +571,7 @@ pub fn walk(
         let Ok((entity, at, mut this_tick, personality, walker, (is_player, held_to_talk), mut walk)) = people.get_mut(*entity) else {
             continue;
         };
-        let speed = crate::player::WALK_SPEED * personality.map_or(1.0, |p| p.0.speed_mult());
+        let speed = crate::player::WALK_SPEED * personality.map_or(1.0, |p| p.0.personality.speed_mult());
         // Everyone living has a landmass stand-in at their feet (made by
         // `stand_ins`): a character while they stand (walkers steer round
         // them), an agent while they walk (the way found and steered). Only

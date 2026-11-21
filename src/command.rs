@@ -14,7 +14,7 @@ use modforge::actor::ActorId;
 use modforge::command::{Act, Command, Done, Given, Replay, Step};
 use modforge::memory::Did;
 
-use crate::actor::{Actor, Dead, Memory, Npc};
+use crate::actor::{Actor, Dead, Npc, Persona};
 use crate::ai::{Following, Leading};
 use crate::content::{ActorRegistryRes, EpisodeRegistryRes, FactionRegistryRes, PLAYER_FACTION};
 use crate::input::{Action, ThisTick};
@@ -227,7 +227,7 @@ pub fn carry_out(
             Has<crate::player::Player>,
         ),
     )>,
-    everyone: Query<(Entity, &Actor, &Transform, Option<&Npc>, &Memory, Has<Dead>, Has<Player>)>,
+    everyone: Query<(Entity, &Actor, &Transform, Option<&Npc>, &Persona, Has<Dead>, Has<Player>)>,
     eyes: Query<&Eyes>,
     doors: Query<(&crate::interact::Door, &Transform)>,
     nav: Res<crate::navmesh::Nav>,
@@ -292,7 +292,11 @@ pub fn carry_out(
                         // hold at its next decision.
                         this_tick.0.retain(|s| !matches!(s.action, Action::Go { .. } | Action::Move { .. } | Action::Aim { .. }));
                         this_tick.0.push(Stamped { tick: tick.0, action: Action::Move { x: 0.0, y: 0.0 } });
-                        commands.entity(entity).insert(crate::actor::ActorRecord(Default::default()));
+                        commands.entity(entity).queue(|mut person: EntityWorldMut| {
+                            if let Some(mut persona) = person.get_mut::<Persona>() {
+                                persona.0.doing = Default::default();
+                            }
+                        });
                         commanded.started = true;
                     } else if !holding {
                         commanded.next();
@@ -418,8 +422,8 @@ pub fn carry_out(
 /// memory while it runs).
 fn remember(commands: &mut Commands, who: Entity, did: Did, tick: u64) {
     commands.entity(who).queue(move |mut person: EntityWorldMut| {
-        if let Some(mut memory) = person.get_mut::<Memory>() {
-            memory.0.did(did, tick);
+        if let Some(mut memory) = person.get_mut::<Persona>() {
+            memory.0.memory.did(did, tick);
         }
     });
 }
@@ -445,7 +449,7 @@ fn nearest_enemy(
     me: Entity,
     my_id: ActorId,
     here: Vec3,
-    everyone: &Query<(Entity, &Actor, &Transform, Option<&Npc>, &Memory, Has<Dead>, Has<Player>)>,
+    everyone: &Query<(Entity, &Actor, &Transform, Option<&Npc>, &Persona, Has<Dead>, Has<Player>)>,
     registry: &ActorRegistryRes,
     factions: &FactionRegistryRes,
     heard: impl Fn(&str) -> f32 + Copy,
@@ -460,8 +464,8 @@ fn nearest_enemy(
             if *e == me || *d || a.0 == my_id || crate::interact::feet_of(t).distance(here) > def.sight {
                 return false;
             }
-            let members = everyone.iter().filter(|m| !m.5 && faction_of(m.3, m.6).is_some() && faction_of(m.3, m.6) == mine).map(|m| m.4);
-            crate::actor::stands_toward((memory, mine.as_deref()), members, (a.0, faction_of(*them, *p).as_deref()), &factions.0, heard)
+            let members = everyone.iter().filter(|m| !m.5 && faction_of(m.3, m.6).is_some() && faction_of(m.3, m.6) == mine).map(|m| &m.4.0.memory);
+            crate::actor::stands_toward((&memory.0.memory, mine.as_deref()), members, (a.0, faction_of(*them, *p).as_deref()), &factions.0, heard)
                 == modforge::faction::Relation::Hostile
         })
         .min_by(|a, b| crate::interact::feet_of(a.2).distance(here).total_cmp(&crate::interact::feet_of(b.2).distance(here)))

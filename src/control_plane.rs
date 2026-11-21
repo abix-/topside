@@ -15,7 +15,7 @@ use modforge::ops::{OP_REGISTRY, OpDef};
 use serde_json::{Value as Json, json};
 
 use crate::Ground;
-use crate::actor::{Actor, ActorMapRes, Npc, Personality, Survival};
+use crate::actor::{Actor, ActorMapRes, Npc, Persona};
 use crate::combat::Health;
 use crate::input::ThisTick;
 use crate::player::Player;
@@ -66,14 +66,14 @@ static ACT_TOKEN: AtomicU64 = AtomicU64::new(0);
 /// what anyone did (todo: write every act's result into memory,
 /// 2026-11-19): every watched act done at least two ticks ago (its Use runs
 /// the tick after it is done) is answered with what that person did since.
-pub fn answer_act_results(tick: Res<crate::SimTick>, registry: Res<crate::content::ItemRegistryRes>, people: Query<(&Actor, &crate::actor::Memory)>) {
+pub fn answer_act_results(tick: Res<crate::SimTick>, registry: Res<crate::content::ItemRegistryRes>, people: Query<(&Actor, &Persona)>) {
     let Ok(mut watches) = ACT_WATCH.lock() else { return };
     for watch in watches.iter_mut().filter(|w| w.answer.is_none()) {
         let Some(since) = watch.since.filter(|s| tick.0 >= s + 2) else { continue };
         let memory = people.iter().find(|(a, _)| a.0.0 == watch.who).map(|(_, m)| m);
         watch.answer = Some(
             memory
-                .map(|m| m.0.done.iter().filter(|(t, d)| *t > since && !matches!(d, modforge::memory::Did::Saw(_))).map(|(_, d)| crate::hud::act_words(d, &registry)).collect())
+                .map(|m| m.0.memory.done.iter().filter(|(t, d)| *t > since && !matches!(d, modforge::memory::Did::Saw(_))).map(|(_, d)| crate::hud::act_words(d, &registry)).collect())
                 .unwrap_or_default(),
         );
     }
@@ -82,23 +82,23 @@ pub fn answer_act_results(tick: Res<crate::SimTick>, registry: Res<crate::conten
 /// The `needs` and `forget` ops' requests, on the game's next step: a
 /// person's hunger and thirst set; every thing a person knows, and all they
 /// learned, forgotten (so a test sets up what someone needs and knows).
-pub fn answer_needs(mut people: Query<(&Actor, &mut crate::actor::Survival, &mut crate::actor::Memory)>) {
+pub fn answer_needs(mut people: Query<(&Actor, &mut Persona)>) {
     let needs: Vec<(u64, Option<f32>, Option<f32>)> = NEEDS_ASK.lock().map(|mut ask| ask.drain(..).collect()).unwrap_or_default();
     for (id, hunger, thirst) in needs {
-        if let Some((_, mut survival, _)) = people.iter_mut().find(|(a, ..)| a.0.0 == id) {
+        if let Some((_, mut person)) = people.iter_mut().find(|(a, ..)| a.0.0 == id) {
             if let Some(h) = hunger {
-                survival.0.hunger = h;
+                person.0.needs.hunger = h;
             }
             if let Some(t) = thirst {
-                survival.0.thirst = t;
+                person.0.needs.thirst = t;
             }
         }
     }
     let forget: Vec<u64> = FORGET_ASK.lock().map(|mut ask| ask.drain(..).collect()).unwrap_or_default();
     for id in forget {
-        if let Some((_, _, mut memory)) = people.iter_mut().find(|(a, ..)| a.0.0 == id) {
-            memory.0.known.clear();
-            memory.0.learned = Default::default();
+        if let Some((_, mut person)) = people.iter_mut().find(|(a, ..)| a.0.0 == id) {
+            person.0.memory.known.clear();
+            person.0.memory.learned = Default::default();
         }
     }
 }
@@ -295,10 +295,8 @@ pub struct PersonView<'w, 's> {
         'w,
         's,
         (
-            (&'static Actor, &'static Npc, &'static Transform, &'static Health, &'static Survival),
+            (&'static Actor, &'static Npc, &'static Transform, &'static Health, &'static Persona),
             (
-                &'static crate::actor::ActorRecord,
-                &'static crate::actor::Memory,
                 &'static crate::actor::Inventory,
                 &'static crate::actor::Hotbar,
             ),
@@ -342,7 +340,7 @@ pub fn answer_kill(
     layers: Res<crate::content::LayerRegistryRes>,
     damage: Res<crate::content::DamageRegistryRes>,
     mut people: Query<
-        (&Actor, &crate::combat::Protection, &crate::combat::Equipment, &mut Health, Option<&mut crate::actor::Memory>),
+        (&Actor, &crate::combat::Protection, &crate::combat::Equipment, &mut Health, Option<&mut Persona>),
         Without<crate::actor::Dead>,
     >,
 ) {
@@ -458,7 +456,8 @@ pub fn answer_npc(
     let found = view.people.iter().find(|((actor, ..), _, _)| actor.0.0 == id);
     let answer = match found {
         None => json!({"id": id, "error": "no NPC with that id"}),
-        Some(((_, npc, at, health, needs), (record, memory, inventory, hotbar), (walker, home, store, dead, spawned, condition))) => {
+        Some(((_, npc, at, health, person), (inventory, hotbar), (walker, home, store, dead, spawned, condition))) => {
+            let (needs, memory, record) = (&person.0.needs, &person.0.memory, &person.0.doing);
             let way = crate::navmesh::way_of(walker, &view.ways);
             let (walking, going_to) = (way.map(|w| w.0), way.map(|w| w.1));
             let here = at.translation.ground();
@@ -476,7 +475,7 @@ pub fn answer_npc(
                     "tiles": p.rows,
                 })
             };
-            let mut values: Vec<_> = memory.0.learned.values.iter().collect();
+            let mut values: Vec<_> = memory.learned.values.iter().collect();
             values.sort_by(|a, b| b.1.total_cmp(a.1));
             let learned: Vec<Json> = values
                 .into_iter()
@@ -519,15 +518,15 @@ pub fn answer_npc(
                 "this_tick": acting,
                 "commands": commands_left,
                 "health": health.0.current,
-                "needs": {"hunger": needs.0.hunger, "thirst": needs.0.thirst, "rest": needs.0.rest, "safety": needs.0.safety},
-                "doing": doing_name(&tree, &record.0),
-                "about": format!("{:?}", record.0.target),
+                "needs": {"hunger": needs.hunger, "thirst": needs.thirst, "rest": needs.rest, "safety": needs.safety},
+                "doing": doing_name(&tree, record),
+                "about": format!("{:?}", record.target),
                 "asleep": condition.is_some_and(|c| c.0.asleep),
                 "home": home.map(|h| [h.0.x, h.0.z]),
                 "store": store.and_then(|s| view.thing_ids.get(s.0).ok()).map(|id| id.0),
                 "carrying": stacks(&inventory.0),
                 "hotbar": stacks(&hotbar.0.slots),
-                "knows": memory.0.known.iter().map(|k| json!({
+                "knows": memory.known.iter().map(|k| json!({
                     "key": k.key,
                     "kind": k.kind,
                     "at": [k.position.x, k.position.z],
@@ -536,7 +535,7 @@ pub fn answer_npc(
                     "held": k.held,
                     "told_by": k.told_by.map(|a| a.0),
                 })).collect::<Vec<_>>(),
-                "quiet": memory.0.quiet,
+                "quiet": memory.quiet,
                 // Who they lead, to where, and where they wait for them.
                 "leading": leaders.iter().find(|(a, _)| a.0.0 == id).map(|(_, l)| json!({
                     "who": l.who.0,
@@ -552,21 +551,21 @@ pub fn answer_npc(
                     "wanted": crate::navmesh::wanted_velocity(walker, &view.ways).map(|v| [v.x, v.y, v.z]),
                 },
                 "chunk": picture,
-                "did": memory.0.done.iter().map(|(t, d)| json!({"tick": t, "did": d.words()})).collect::<Vec<_>>(),
+                "did": memory.done.iter().map(|(t, d)| json!({"tick": t, "did": d.words()})).collect::<Vec<_>>(),
                 // How they feel toward each person in their memory (life.md
                 // "How a person feels about others"), -1 to 1, and the
                 // last hostile they saw.
-                "feelings": modforge::relationship::feelings(&memory.0, |w| episodes.felt(w))
+                "feelings": modforge::relationship::feelings(memory, |w| episodes.felt(w))
                     .into_iter()
                     .map(|(who, felt)| json!({"toward": who.0, "feeling": felt, "relation": format!("{:?}", modforge::relationship::relation_of(felt))}))
                     .collect::<Vec<_>>(),
-                "last_threat": memory.0.last_threat.map(|(who, _, when)| json!({"who": who.0, "tick": when})),
+                "last_threat": memory.last_threat.map(|(who, _, when)| json!({"who": who.0, "tick": when})),
                 // What they learned (life.md "Learning to stay alive"): how
                 // long they could stay alive at their last think, how long
                 // each life lasted, and each choice's value in each
                 // situation, best first.
-                "alive_for": memory.0.learned.last.map(|(_, secs)| secs),
-                "lives": lives(&memory.0),
+                "alive_for": memory.learned.last.map(|(_, secs)| secs),
+                "lives": lives(memory),
                 "learned": learned,
             })
         }
@@ -1296,14 +1295,9 @@ pub fn publish_world(
     storms: Res<crate::storm::StormRes>,
     items: Res<crate::content::ItemRegistryRes>,
     episodes: Res<crate::content::EpisodeRegistryRes>,
-    memories: Query<(&crate::actor::Memory, &Actor, Option<&Npc>)>,
+    memories: Query<(&Persona, &Actor, Option<&Npc>)>,
     stores: Query<(&crate::interact::Container, &Transform, Option<&crate::interact::Drawn>)>,
-    people: Query<
-        (
-            (&crate::actor::Store, &Npc, Has<crate::actor::Dead>, &Survival),
-            (&crate::actor::Home, &Transform, &crate::actor::ActorCondition, &crate::actor::Memory),
-        ),
-    >,
+    people: Query<(&crate::actor::Store, &Npc, Has<crate::actor::Dead>, &Persona, &crate::actor::Home, &Transform, &crate::actor::ActorCondition)>,
     (chunks, everyone): (
         Option<Res<crate::terrain::Chunks>>,
         Query<(&Transform, Has<crate::player::Player>), (Or<(With<Npc>, With<crate::player::Player>)>, Without<crate::actor::Dead>)>,
@@ -1421,12 +1415,13 @@ pub fn publish_world(
     // Each bunker's living people, the player in the player's bunker.
     let mut living: std::collections::BTreeMap<String, u32> = Default::default();
     living.insert(crate::content::PLAYER_FACTION.to_string(), 1);
-    for ((_, npc, dead, _), _) in &people {
+    for (_, npc, dead, ..) in &people {
         if !dead {
             *living.entry(npc.faction.clone().unwrap_or_default()).or_default() += 1;
         }
     }
-    for ((store, npc, dead, needs), (home, at, condition, memory)) in &people {
+    for (store, npc, dead, person, home, at, condition) in &people {
+        let (needs, memory) = (&person.0.needs, &person.0.memory);
         let name = npc.faction.clone().unwrap_or_default();
         let people_there = living.get(&name).copied().unwrap_or(1);
         let entry = bunkers.entry(name).or_insert_with(|| {
@@ -1464,18 +1459,18 @@ pub fn publish_world(
                 add(entry, "asleep", 1);
             }
         }
-        if needs.0.starving() || needs.0.dehydrated() {
+        if needs.starving() || needs.dehydrated() {
             add(entry, "starving", 1);
         }
         // Times they put something into the store, from their memory.
-        let stocked = memory.0.done.iter().filter(|(_, d)| matches!(d, modforge::memory::Did::Stocked(..))).count();
+        let stocked = memory.done.iter().filter(|(_, d)| matches!(d, modforge::memory::Did::Stocked(..))).count();
         add(entry, "stocked", stocked as u64);
     }
     // What everyone did, alive and dead, each kind counted, read from
     // their memories (life.md: memory is the one record).
     let mut did = serde_json::Map::new();
-    for (memory, ..) in &memories {
-        for (_, d) in &memory.0.done {
+    for (person, ..) in &memories {
+        for (_, d) in &person.0.memory.done {
             let n = did.get(d.kind()).and_then(Json::as_u64).unwrap_or(0);
             did.insert(d.kind().to_string(), json!(n + 1));
         }
@@ -1498,7 +1493,7 @@ pub fn publish_world(
         let members: Vec<Vec<(modforge::actor::ActorId, f32)>> = memories
             .iter()
             .filter(|(_, actor, _)| faction_of.get(&actor.0.0) == Some(*from))
-            .map(|(memory, ..)| modforge::relationship::feelings(&memory.0, |w| episodes.felt(w)))
+            .map(|(person, ..)| modforge::relationship::feelings(&person.0.memory, |w| episodes.felt(w)))
             .collect();
         for to in &names {
             let toward = members.iter().map(|felt| {
@@ -1578,13 +1573,13 @@ pub fn publish(
     layers: Res<crate::content::LayerRegistryRes>,
     tree: Res<crate::content::brain::BrainTreeRes>,
     players: Query<
-        (&Transform, &Health, &Survival, &Actor, &crate::actor::Memory, Has<crate::actor::Dead>, Option<&crate::ai::Following>, &crate::actor::Inventory),
+        (&Transform, &Health, &Persona, &Actor, Has<crate::actor::Dead>, Option<&crate::ai::Following>, &crate::actor::Inventory),
         With<Player>,
     >,
     player_walk: (Query<(Option<&crate::navmesh::Walker>, &ThisTick, Option<&crate::command::Commanded>), With<Player>>, crate::navmesh::Ways),
     npcs: Query<(
-        (&Actor, &Npc, &Transform, &Health, &Survival, &Personality, &ThisTick, Option<&Name>),
-        (&crate::actor::Memory, &crate::actor::ActorRecord, Has<crate::actor::Dead>, &crate::actor::Hotbar, &crate::actor::Facing, Option<&crate::people::Drawn>, &crate::actor::Map, &crate::combat::Equipment, Option<&crate::ai::Holding>, Option<&crate::actor::Traits>),
+        (&Actor, &Npc, &Transform, &Health, &Persona, &ThisTick),
+        (Has<crate::actor::Dead>, &crate::actor::Hotbar, &crate::actor::Facing, Option<&crate::people::Drawn>, &crate::actor::Map, &crate::combat::Equipment, Option<&crate::ai::Holding>, Option<&crate::actor::Traits>),
     )>,
 ) {
     TICK.store(tick.0, Ordering::Relaxed);
@@ -1604,7 +1599,8 @@ pub fn publish(
         }
         *last_second = Some((tick.0, now));
     }
-    if let Ok((at, health, needs, actor, memory, dead, following, inventory)) = players.single() {
+    if let Ok((at, health, person, actor, dead, following, inventory)) = players.single() {
+        let (needs, memory) = (&person.0.needs, &person.0.memory);
         // Who the player is and what they know, once a second, for the
         // `player` op: every thing known (and who told them, if told), and
         // everything they heard said.
@@ -1627,30 +1623,30 @@ pub fn publish(
                 "commands": player_walk.0.single().ok().and_then(|(.., c)| c).map(|c| c.left.iter().map(|c| format!("{c:?}")).collect::<Vec<_>>()),
                 "this_tick": player_walk.0.single().ok().map(|(_, t, _)| t.0.iter().map(|s| format!("{:?}", s.action)).collect::<Vec<_>>()),
                 // Who killed them last, and of what, from their memory.
-                "killed_by": memory.0.killed_by().map(|(by, of)| json!({"by": by.map(|a| a.0), "of": of})),
-                "knows": memory.0.known.iter().map(|k| json!({"key": k.key, "kind": k.kind, "told_by": k.told_by.map(|a| a.0)})).collect::<Vec<_>>(),
-                "heard": memory.0.done.iter().filter_map(|(t, d)| match d {
+                "killed_by": memory.killed_by().map(|(by, of)| json!({"by": by.map(|a| a.0), "of": of})),
+                "knows": memory.known.iter().map(|k| json!({"key": k.key, "kind": k.kind, "told_by": k.told_by.map(|a| a.0)})).collect::<Vec<_>>(),
+                "heard": memory.done.iter().filter_map(|(t, d)| match d {
                     modforge::memory::Did::Heard(by, said) => Some(json!({"tick": t, "by": by.0, "said": said.words, "line": said.name})),
                     _ => None,
                 }).collect::<Vec<_>>(),
                 // Who they heard knock on a door, and when.
-                "heard_knocking": memory.0.done.iter().filter_map(|(t, d)| match d {
+                "heard_knocking": memory.done.iter().filter_map(|(t, d)| match d {
                     modforge::memory::Did::HeardKnocking(by) => Some(json!({"tick": t, "by": by.0})),
                     _ => None,
                 }).collect::<Vec<_>>(),
-                "said": memory.0.done.iter().filter_map(|(t, d)| match d {
+                "said": memory.done.iter().filter_map(|(t, d)| match d {
                     modforge::memory::Did::Talked(to, said) => Some(json!({"tick": t, "to": to.0, "said": said.words, "line": said.name})),
                     _ => None,
                 }).collect::<Vec<_>>(),
                 // What their acts came to, done or failed and why, the last
                 // ten, as the npc op's "did" (todo: write every act's result
                 // into memory, 2026-11-19).
-                "did": memory.0.done.iter().filter(|(_, d)| matches!(d, modforge::memory::Did::Done(_) | modforge::memory::Did::Failed(..))).rev().take(10).map(|(t, d)| json!({"tick": t, "did": d.words()})).collect::<Vec<_>>(),
+                "did": memory.done.iter().filter(|(_, d)| matches!(d, modforge::memory::Did::Done(_) | modforge::memory::Did::Failed(..))).rev().take(10).map(|(t, d)| json!({"tick": t, "did": d.words()})).collect::<Vec<_>>(),
             });
         }
         HEALTH_BITS.store(health.0.current.to_bits(), Ordering::Relaxed);
-        HUNGER_BITS.store(needs.0.hunger.to_bits(), Ordering::Relaxed);
-        THIRST_BITS.store(needs.0.thirst.to_bits(), Ordering::Relaxed);
+        HUNGER_BITS.store(needs.hunger.to_bits(), Ordering::Relaxed);
+        THIRST_BITS.store(needs.thirst.to_bits(), Ordering::Relaxed);
         // The ground point, and how high the player's feet are.
         X_BITS.store(at.translation.x.to_bits(), Ordering::Relaxed);
         Y_BITS.store(at.translation.z.to_bits(), Ordering::Relaxed);
@@ -1692,7 +1688,8 @@ pub fn publish(
         in_order.sort_by_key(|((actor, ..), _)| actor.0);
         let list: Vec<Json> = in_order
             .into_iter()
-            .map(|((actor, npc, at, health, needs, personality, this_tick, name), (memory, record, dead, hotbar, facing, drawn, map, worn, holding, traits))| {
+            .map(|((actor, npc, at, health, person, this_tick), (dead, hotbar, facing, drawn, map, worn, holding, traits))| {
+                let (needs, memory, record, personality, name) = (&person.0.needs, &person.0.memory, &person.0.doing, &person.0.personality, &person.0.profile.name);
                 // What is in their hands, its layers, and the damage its
                 // hits land, worked out by the one place a hit reads it.
                 let weapon = hotbar.0.held_stack().map(|stack| {
@@ -1708,7 +1705,7 @@ pub fn publish(
                 let mut did = serde_json::Map::new();
                 // What they ate and drank, by what: a can, a well, water.
                 let mut ate_what = serde_json::Map::new();
-                for (_, d) in &memory.0.done {
+                for (_, d) in &memory.done {
                     let n = did.get(d.kind()).and_then(Json::as_u64).unwrap_or(0);
                     did.insert(d.kind().to_string(), json!(n + 1));
                     if let modforge::memory::Did::Ate(what) = d {
@@ -1718,7 +1715,7 @@ pub fn publish(
                 }
                 json!({
                     "id": actor.0.0,
-                    "name": name.map(|n| n.as_str()),
+                    "name": name,
                     "def": npc.def,
                     "faction": npc.faction,
                     "dead": dead,
@@ -1726,10 +1723,10 @@ pub fn publish(
                     // How high their feet stand (0 the ground).
                     "feet": crate::interact::feet_of(at).y,
                     "health": health.0.current,
-                    "hunger": needs.0.hunger,
-                    "thirst": needs.0.thirst,
-                    "rest": needs.0.rest,
-                    "doing": doing_name(&tree, &record.0),
+                    "hunger": needs.hunger,
+                    "thirst": needs.thirst,
+                    "rest": needs.rest,
+                    "doing": doing_name(&tree, record),
                     // The place they hold (todo 11z, ai::Holding), [x,
                     // height, z], or null.
                     "holding": holding.map(|h| [h.at.x, h.at.y, h.at.z]),
@@ -1751,17 +1748,17 @@ pub fn publish(
                     "did": did,
                     "ate_what": ate_what,
                     // Every death in their memory: when, of what, by whom.
-                    "deaths": memory.0.done.iter().filter_map(|(t, d)| match d {
+                    "deaths": memory.done.iter().filter_map(|(t, d)| match d {
                         modforge::memory::Did::Died(by, of) => Some(json!({"tick": t, "of": of, "by": by.map(|a| a.0)})),
                         _ => None,
                     }).collect::<Vec<_>>(),
-                    "last_did": memory.0.done.last().map(|(t, d)| json!({"tick": t, "did": d.words()})),
-                    "killed_by": memory.0.killed_by().map(|(by, of)| json!({"by": by.map(|a| a.0), "of": of})),
-                    "alive_for": memory.0.learned.last.map(|(_, secs)| secs),
-                    "lives": lives(&memory.0),
-                    "learned": memory.0.learned.values.len(),
-                    "axes": personality.0.axes,
-                    "traits": modforge::actor::Axis::NAMES.iter().zip(personality.0.axes).map(|(n, v)| (n.to_string(), json!(v))).collect::<serde_json::Map<_, _>>(),
+                    "last_did": memory.done.last().map(|(t, d)| json!({"tick": t, "did": d.words()})),
+                    "killed_by": memory.killed_by().map(|(by, of)| json!({"by": by.map(|a| a.0), "of": of})),
+                    "alive_for": memory.learned.last.map(|(_, secs)| secs),
+                    "lives": lives(memory),
+                    "learned": memory.learned.values.len(),
+                    "axes": personality.axes,
+                    "traits": modforge::actor::Axis::NAMES.iter().zip(personality.axes).map(|(n, v)| (n.to_string(), json!(v))).collect::<serde_json::Map<_, _>>(),
                     "actions": this_tick.0.iter().map(|s| format!("{:?}", s.action)).collect::<Vec<_>>(),
                 })
             })

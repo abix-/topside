@@ -9,7 +9,7 @@ use modforge::item;
 use modforge::memory::Did;
 
 use crate::Ground;
-use crate::actor::{Actor, Dead, Home, Memory, Npc, Store, site_key};
+use crate::actor::{Actor, Dead, Home, Npc, Persona, Store, site_key};
 use crate::content::{BUNKER_AT, EpisodeRegistryRes, ItemRegistryRes, PLAYER_FACTION};
 use crate::interact::{DrawsFrom, spawn_item};
 
@@ -62,11 +62,11 @@ pub struct Episode {
 
 /// Each step: the name each cast part's person goes by, into the episode,
 /// when it changed.
-pub fn name_the_cast(mut episode: ResMut<Episode>, people: Query<(&Actor, &Name)>) {
+pub fn name_the_cast(mut episode: ResMut<Episode>, people: Query<(&Actor, &Persona)>) {
     let names: Vec<(String, String)> = episode
         .cast
         .iter()
-        .filter_map(|(part, id)| people.iter().find(|(a, _)| a.0 == *id).map(|(_, n)| (part.clone(), n.as_str().to_string())))
+        .filter_map(|(part, id)| people.iter().find(|(a, _)| a.0 == *id).map(|(_, p)| (part.clone(), p.0.profile.name.clone())))
         .collect();
     if episode.cast_names != names {
         episode.cast_names = names;
@@ -154,7 +154,7 @@ pub fn cast_episode(
     episodes: Res<EpisodeRegistryRes>,
     seed: Res<crate::WorldSeed>,
     people: Query<(&Actor, &Npc, &Home), Without<Dead>>,
-    (memories, player): (Query<(&Actor, &Memory)>, Query<&Actor, With<crate::player::Player>>),
+    (memories, player): (Query<(&Actor, &Persona)>, Query<&Actor, With<crate::player::Player>>),
 ) {
     if episode.cast_done {
         return;
@@ -196,7 +196,7 @@ pub fn cast_episode(
     let me = player.single().ok().map(|a| a.0);
     let feels = |id: ActorId| {
         let memory = memories.iter().find(|(a, _)| a.0 == id).map(|(_, m)| m)?;
-        modforge::relationship::feeling(&memory.0, me?, |line| episodes.felt(line))
+        modforge::relationship::feeling(&memory.0.memory, me?, |line| episodes.felt(line))
     };
     let before = episode.cast_before.clone();
     episode.cast = cast(&parts, &bunkers, &before, feels, seed.0);
@@ -233,7 +233,7 @@ pub fn place_things(
     mut world: ResMut<crate::terrain::WorldRes>,
     registries: (Res<crate::content::BiomeRegistryRes>, Res<crate::content::MonumentRegistryRes>),
     people: Query<(&Actor, &Home, &Store)>,
-    mut memories: Query<(&Actor, &mut Memory)>,
+    mut memories: Query<(&Actor, &mut Persona)>,
     mut ids: ResMut<crate::interact::ThingIssuer>,
     stores: Query<&crate::interact::Container>,
 ) {
@@ -301,15 +301,15 @@ pub fn place_things(
             // to look at (the brain's look walked the one who found it out
             // to it before the episode opened, the operator's playtest
             // 2026-10-03).
-            memory.0.see(key, &thing.item, thing_at, tick.0);
-            memory.0.visited(key, tick.0);
+            memory.0.memory.see(key, &thing.item, thing_at, tick.0);
+            memory.0.memory.visited(key, tick.0);
             if thing.kept_quiet {
-                memory.0.keep_quiet(key);
+                memory.0.memory.keep_quiet(key);
             }
             // The site it stands in: been there too. The sites on the way
             // are what they saw walking before the player woke (todo 4b).
-            memory.0.see(site_key(site.position), &site.monument, ground(site.position), tick.0);
-            memory.0.visited(site_key(site.position), tick.0);
+            memory.0.memory.see(site_key(site.position), &site.monument, ground(site.position), tick.0);
+            memory.0.memory.visited(site_key(site.position), tick.0);
         }
         episode.things.push((thing.name.clone(), thing_at, key));
         episode.things.push((format!("{} site", thing.name), ground(site.position), site_key(site.position)));
@@ -510,7 +510,7 @@ pub struct EpisodeWorld<'w, 's> {
         'w,
         's,
         (
-            (Entity, &'static Actor, &'static Transform, &'static Memory, Option<&'static Npc>, Has<Dead>, Has<crate::player::Player>),
+            (Entity, &'static Actor, &'static Transform, &'static Persona, Option<&'static Npc>, Has<Dead>, Has<crate::player::Player>),
             (
                 Option<&'static crate::ai::Following>,
                 Option<&'static crate::ai::Leading>,
@@ -561,7 +561,7 @@ impl EpisodeWorld<'_, '_> {
                     entity: *entity,
                     alive: !dead,
                     feet: crate::interact::feet_of(at),
-                    memory: Some(&memory.0),
+                    memory: Some(&memory.0.memory),
                     faction,
                     player: *is_player,
                     came_for: came_for.map(|c| c.0),
@@ -596,7 +596,7 @@ pub fn cues(
     tick: Res<crate::SimTick>,
     mut episode: ResMut<Episode>,
     episodes: Res<EpisodeRegistryRes>,
-    players: Query<(&Actor, &Memory), With<crate::player::Player>>,
+    players: Query<(&Actor, &Persona), With<crate::player::Player>>,
     mut people: Query<(Entity, &Actor, Option<&mut crate::command::Commanded>)>,
 ) {
     let Some(def) = episode.name.as_ref().and_then(|name| episodes.0.def(name)) else {
@@ -606,7 +606,7 @@ pub fn cues(
         return;
     };
     let reached: Vec<&str> = episode.reached.iter().map(|(name, ..)| name.as_str()).collect();
-    let due: Vec<modforge::storyteller::CueDef> = modforge::storyteller::cues_due(def, &memory.0.done, episode.started, &reached).into_iter().cloned().collect();
+    let due: Vec<modforge::storyteller::CueDef> = modforge::storyteller::cues_due(def, &memory.0.memory.done, episode.started, &reached).into_iter().cloned().collect();
     let mut new = std::collections::HashMap::new();
     for cue in due {
         let Some(who) = episode.cast_as(&cue.part) else {
@@ -644,7 +644,7 @@ pub fn pivots_said(
     tick: Res<crate::SimTick>,
     mut episode: ResMut<Episode>,
     episodes: Res<EpisodeRegistryRes>,
-    people: Query<(&Actor, &Memory)>,
+    people: Query<(&Actor, &Persona)>,
 ) {
     if tick.0 % 60 != 0 {
         return;
@@ -655,7 +655,7 @@ pub fn pivots_said(
     let since = episode.started;
     let mut said: Vec<(String, ActorId, u64)> = Vec::new();
     for (actor, memory) in &people {
-        for (t, did) in &memory.0.done {
+        for (t, did) in &memory.0.memory.done {
             if let Did::Talked(_, line) = did
                 && *t >= since
                 && def.lines.iter().any(|l| l.name == line.name)

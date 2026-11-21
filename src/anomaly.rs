@@ -8,7 +8,7 @@ use bevy::prelude::*;
 use modforge::combat::Hit;
 use modforge::world2d::Registries;
 
-use crate::actor::{Dead, Memory};
+use crate::actor::{Dead, Persona};
 use crate::combat::{Equipment, Health, Protection, hit_actor};
 use crate::content::{
     ANOMALY, ANOMALY_FROM_SITE, ANOMALY_RADIUS, BOLT, BOLT_REACH, BOLT_SPEED, BiomeRegistryRes, DamageRegistryRes, GOES_OFF_SECS,
@@ -178,7 +178,7 @@ pub fn burn(
     layers: Res<crate::content::LayerRegistryRes>,
     damage: Res<DamageRegistryRes>,
     anomalies: Query<&Transform, With<Anomaly>>,
-    mut actors: Query<(&Transform, &Protection, &Equipment, &mut Health, Option<&mut Memory>), (Without<Dead>, Without<Anomaly>)>,
+    mut actors: Query<(&Transform, &Protection, &Equipment, &mut Health, Option<&mut Persona>), (Without<Dead>, Without<Anomaly>)>,
 ) {
     let Some(def) = damage.0.def(ANOMALY) else {
         return;

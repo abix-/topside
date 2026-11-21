@@ -80,17 +80,14 @@ saved! {
         crate::actor::NextThink,
         crate::actor::Inventory,
         crate::actor::Hotbar,
-        crate::actor::Personality,
+        crate::actor::Persona,
         crate::actor::Traits,
-        crate::actor::Memory,
         crate::actor::Map,
         crate::actor::Home,
         crate::actor::Asked,
         crate::actor::SpawnedAt,
         crate::actor::Store,
-        crate::actor::Survival,
         crate::actor::ActorCondition,
-        crate::actor::ActorRecord,
         crate::ai::Leading,
         crate::ai::Following,
         crate::ai::Holding,
@@ -103,7 +100,6 @@ saved! {
         crate::turret::Turret,
         crate::exposure::Exposure,
         crate::power::Generator,
-        crate::skills::Skills,
         crate::vehicle::Vehicle,
         crate::vehicle::Riding,
         crate::combat::Health,
@@ -166,6 +162,13 @@ saved! {
 /// observers, and ours.
 pub fn plugin(app: &mut App) {
     register(app);
+    // A save from before the Persona holds these; read to load it, never
+    // saved again (actor::fold_old_parts).
+    app.register_type::<crate::actor::Personality>()
+        .register_type::<crate::actor::Memory>()
+        .register_type::<crate::actor::Survival>()
+        .register_type::<crate::actor::ActorRecord>()
+        .register_type::<crate::skills::Skills>();
     app.add_observer(save_on_default_event);
     app.add_observer(load_on_default_event);
     app.add_observer(saved);
@@ -450,8 +453,7 @@ pub struct Moment<'w, 's> {
             &'static crate::actor::Actor,
             &'static Transform,
             &'static crate::combat::Health,
-            &'static crate::actor::Survival,
-            Option<&'static crate::actor::ActorRecord>,
+            &'static crate::actor::Persona,
         ),
     >,
     things: Query<'w, 's, (&'static crate::interact::ThingId, &'static Transform, Option<&'static crate::interact::WorldItem>, Option<&'static crate::interact::Door>)>,
@@ -462,14 +464,15 @@ impl Moment<'_, '_> {
         let mut people: Vec<_> = self
             .people
             .iter()
-            .map(|(a, t, h, s, r)| {
+            .map(|(a, t, h, p)| {
                 let feet = crate::interact::feet_of(t);
+                let s = &p.0.needs;
                 serde_json::json!({
                     "id": a.0.0,
                     "feet": [feet.x, feet.y, feet.z],
                     "health": h.0.current,
-                    "needs": [s.0.hunger, s.0.thirst, s.0.rest, s.0.safety],
-                    "doing": r.map(|r| format!("{:?}", r.0)),
+                    "needs": [s.hunger, s.thirst, s.rest, s.safety],
+                    "doing": format!("{:?}", p.0.doing),
                 })
             })
             .collect();
@@ -533,6 +536,7 @@ fn loaded(loaded: On<Loaded>, mut actors: ResMut<crate::actor::ActorMapRes>, mut
     actors.0.map_handles(|e| loaded.entity_map.get(&e).copied());
     commands.queue(move |world: &mut World| {
         let (rolled, start) = world.remove_resource::<LoadRolled>().map_or((false, std::time::Instant::now()), |r| (r.0, r.1));
+        crate::actor::fold_old_parts(world);
         // Every person a new entity: the chunks asked round them forgotten,
         // so the first step asks for everything (terrain::Asked).
         crate::terrain::forget_asked(world);

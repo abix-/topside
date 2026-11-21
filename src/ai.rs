@@ -18,8 +18,8 @@ use modforge::survival::Need;
 
 use crate::{Ground, SimTick};
 use crate::actor::{
-    Actor, ActorCondition, ActorRecord, Dead, Facing, Home, Hotbar, Inventory, Memory, NextThink,
-    Npc, PLACE_KEY, Personality, Store, Survival, held_in, site_key,
+    Actor, ActorCondition, Dead, Facing, Home, Hotbar, Inventory, NextThink,
+    Npc, PLACE_KEY, Persona, Store, held_in, site_key,
 };
 use crate::combat::Health;
 use crate::content::{
@@ -57,11 +57,8 @@ pub struct Thinkers<'w, 's> {
             &'static Transform,
             &'static Facing,
             &'static Health,
-            &'static Survival,
-            &'static Personality,
             Option<&'static Home>,
-            &'static mut Memory,
-            &'static mut ActorRecord,
+            &'static mut Persona,
             &'static mut ActorCondition,
             (
                 &'static mut Actions,
@@ -136,29 +133,29 @@ pub fn warn_off(
     world: Res<crate::terrain::WorldRes>,
     seed: Res<crate::WorldSeed>,
     mut warnings: ResMut<Warnings>,
-    mut people: Query<(&Actor, &Transform, &mut Memory, Option<&Survival>, Has<crate::player::Player>)>,
+    mut people: Query<(&Actor, &Transform, &mut Persona, Has<crate::player::Player>)>,
     items: Res<crate::content::ItemRegistryRes>,
 ) {
     for (holder, to) in std::mem::take(&mut warnings.0) {
         let Some(warned) = map.0.handle_of(to) else {
             continue;
         };
-        let is_player = people.get(warned).is_ok_and(|p| p.4);
-        let Ok([(by, at, mut holder_memory, survival, _), (_, _, mut warned_memory, _, _)]) = people.get_many_mut([holder, warned]) else {
+        let is_player = people.get(warned).is_ok_and(|p| p.3);
+        let Ok([(by, at, mut holder_is, _), (_, _, mut warned_is, _)]) = people.get_many_mut([holder, warned]) else {
             continue;
         };
         let feet = crate::interact::feet_of(at);
         let Some(line) = crate::talk::called_line(
             (&episode, &lines, world.bunker, seed.0, &items.0),
-            (by.0, &holder_memory, feet, survival),
+            (by.0, &holder_is, feet),
             (to, is_player),
             crate::talk::Call::Warning,
             tick.0,
         ) else {
             continue;
         };
-        holder_memory.0.did(Did::Talked(to, line.clone()), tick.0);
-        warned_memory.0.did(Did::Heard(by.0, line), tick.0);
+        holder_is.0.memory.did(Did::Talked(to, line.clone()), tick.0);
+        warned_is.0.memory.did(Did::Heard(by.0, line), tick.0);
     }
 }
 
@@ -419,7 +416,7 @@ pub fn think(
                 .npcs
                 .iter()
                 .filter(|member| member.2.faction.as_ref() == Some(&faction))
-                .map(|member| modforge::relationship::feeling(&member.9.0, toward, heard));
+                .map(|member| modforge::relationship::feeling(&member.7.0.memory, toward, heard));
             let standing = modforge::relationship::standing(feelings);
             (faction, toward, standing)
         })
@@ -447,17 +444,18 @@ pub fn think(
             transform,
             facing,
             health,
-            needs,
-            personality,
             home,
-            mut memory,
-            mut record,
+            mut person,
             mut condition,
             (mut actions, inventory, hotbar, open, mut next_think, dead, store, way, map, asked, mut holding, prisoner),
         )) = thinkers.npcs.get_mut(entity)
         else {
             continue;
         };
+        // Who they are, their Persona: their needs and personality read
+        // as they are now; their memory and what they are doing changed in
+        // it, and it thinks.
+        let (needs, personality) = (person.0.needs, person.0.personality);
         // Not their moment yet: they keep doing what they decided.
         if tick.0 < next_think.0 {
             continue;
@@ -479,7 +477,7 @@ pub fn think(
         // the def's sight, inside the cone ahead, with nothing blocking
         // the view (sight.rs).
         let stands_hostile = |id: ActorId, faction: Option<&str>| {
-            let own = modforge::relationship::feeling(&memory.0, id, heard);
+            let own = modforge::relationship::feeling(&person.0.memory, id, heard);
             let standing = npc
                 .faction
                 .as_ref()
@@ -543,21 +541,21 @@ pub fn think(
         condition.0.threat_in_sight = hostile.is_some();
         condition.0.at_home = at_home;
         if let Some((who, at)) = hostile {
-            memory.0.threat(who, at, tick.0);
+            person.0.memory.threat(who, at, tick.0);
         }
         // Everyone in sight, as the hostile and the not hostile above are
         // seen, is remembered seen (modforge `Memory::saw`: once a
         // `SAW_AGAIN`, not once a think).
         for (e, id, at, _) in &everyone {
             if *e != entity && at.distance(here) <= def.sight && in_cone(facing, here, *at) && sight.clear(here, *at) {
-                memory.0.saw(*id, tick.0, SAW_AGAIN);
+                person.0.memory.saw(*id, tick.0, SAW_AGAIN);
             }
         }
         // Looking round as they think: every box in the cone with a clear
         // line goes into memory (seen, not yet looked inside).
         for (key, at, kind) in boxes.iter().chain(&sources_at) {
             if at.distance(here) <= def.sight && in_cone(facing, here, *at) && sight.clear(here, *at) {
-                memory.0.see(*key, kind, *at, tick.0);
+                person.0.memory.see(*key, kind, *at, tick.0);
             }
         }
         // A site seen (todo 4b): any of its buildings or props in the cone
@@ -565,7 +563,7 @@ pub fn think(
         // stands in the way (Claude's, for the operator to change).
         for (key, kind, at, parts) in &sites {
             if parts.iter().any(|p| p.distance(here) <= def.sight && in_cone(facing, here, *p)) {
-                memory.0.see(*key, kind, *at, tick.0);
+                person.0.memory.see(*key, kind, *at, tick.0);
             }
         }
         // A river seen: the nearest shore in sight, one memory per chunk,
@@ -582,22 +580,22 @@ pub fn think(
                 .min_by(|a, b| a.distance(here).total_cmp(&b.distance(here)));
             if let Some(shore) = seen.filter(|p| sight.clear(here, *p)) {
                 let key = water_key(crate::terrain::chunk_of(shore.ground()));
-                memory.0.see(key, crate::interact::RIVER, shore, tick.0);
+                person.0.memory.see(key, crate::interact::RIVER, shore, tick.0);
             }
         }
         // A box they have open, they see into, as the player sees the
         // open box's panel.
         if let Some((key, container)) = open.0.and_then(|e| containers.get(e).ok().map(|(_, c, _, _, id)| (id.0, c))) {
-            memory.0.checked(key, held_in(&container.0), modforge::fluid::litres_in(&container.0), tick.0);
+            person.0.memory.checked(key, held_in(&container.0), modforge::fluid::litres_in(&container.0), tick.0);
         }
-        memory.0.forget_old(tick.0);
+        person.0.memory.forget_old(tick.0);
         let carried = carried_slot(inventory, hotbar, &items.0, Need::Hunger);
         let carries_drink = carried_slot(inventory, hotbar, &items.0, Need::Thirst).is_some();
         // Their bunker: the store where they last saw it, and what the
         // bunker is short of by what they remember in it plus what they
         // carry home (design.md "Taking loot").
         let store_key = store.and_then(|s| containers.get(s.0).ok()).map(|c| c.4.0);
-        let store_at = store_key.and_then(|key| memory.0.known.iter().find(|k| k.key == key).map(|k| (key, k.position)));
+        let store_at = store_key.and_then(|key| person.0.memory.known.iter().find(|k| k.key == key).map(|k| (key, k.position)));
         let bags = held_in(&inventory.0);
         // Food they carry belongs in the store; their water is poured into
         // its water (modforge fluid), counted in litres.
@@ -606,14 +604,14 @@ pub fn think(
         let water_room = modforge::fluid::room_in(&inventory.0, &items.0) + modforge::fluid::room_in(&hotbar.0.slots, &items.0);
         let bunker_short = store_at
             .map(|(key, _)| {
-                let known = memory.0.known.iter().find(|k| k.key == key);
+                let known = person.0.memory.known.iter().find(|k| k.key == key);
                 let in_store = known.and_then(|k| k.held.clone()).unwrap_or_default();
                 let litres = known.map_or(0.0, |k| k.litres) + carried_litres;
                 let per_day = day.per_day();
                 let supplies = in_store.iter().chain(&bags).map(|(k, n)| (k.as_str(), *n));
                 // What they stock to: what is needed, and past it by their
                 // fear of not having enough, up to twice it (todo 11ag).
-                let fear = 1.0 + personality.0.get(modforge::actor::Axis::Fear).clamp(0.0, 1.0);
+                let fear = 1.0 + personality.get(modforge::actor::Axis::Fear).clamp(0.0, 1.0);
                 // The bunker's drinking is its living people's (the player
                 // in the player's bunker), not a set number (orchestrator,
                 // 2026-10-03).
@@ -628,20 +626,20 @@ pub fn think(
         let mut carrying = bags.clone();
         carrying.extend(held_in(&hotbar.0.slots));
         let alive = alive_for(
-            &needs.0,
+            &needs,
             day.rates(),
             health.0.fraction(),
             &carrying,
             store_key,
-            &memory.0,
+            &person.0.memory,
             &items.0,
         );
-        memory.0.learned.score(tick.0, alive);
+        person.0.memory.learned.score(tick.0, alive);
         // A trip the navigation mesh has no way for (pathing.md) is
         // dropped: they pick again from the root. A thing they could not
         // reach counts as looked at, so the same one is not picked again
         // at once.
-        let unreached = match record.0.target {
+        let unreached = match person.0.doing.target {
             modforge::statetree::Target::Point(_) => Some(None),
             modforge::statetree::Target::Thing { key, .. } => Some(Some(key)),
             _ => None,
@@ -652,11 +650,11 @@ pub fn think(
             && no_way
         {
             match thing {
-                Some(key) if key & PLACE_KEY != 0 || source_at(key).is_some() => memory.0.visited(key, tick.0),
-                Some(key) => memory.0.checked(key, Vec::new(), 0.0, tick.0),
+                Some(key) if key & PLACE_KEY != 0 || source_at(key).is_some() => person.0.memory.visited(key, tick.0),
+                Some(key) => person.0.memory.checked(key, Vec::new(), 0.0, tick.0),
                 None => {}
             }
-            record.0 = Default::default();
+            person.0.doing = Default::default();
         }
         let standable = |at: Vec3| can_go(at);
         // Places to stroll to: points round them every 3 m, 15 m each way,
@@ -674,9 +672,9 @@ pub fn think(
         // more than they need of what answers a need of theirs under the
         // need line that they carry nothing for.
         let refused_lately = |id: ActorId| {
-            memory.0.done.iter().rev().take_while(|(t, _)| tick.0.saturating_sub(*t) < TRADE_AGAIN).any(|(_, d)| matches!(d, Did::TradeRefused(by) if *by == id))
+            person.0.memory.done.iter().rev().take_while(|(t, _)| tick.0.saturating_sub(*t) < TRADE_AGAIN).any(|(_, d)| matches!(d, Did::TradeRefused(by) if *by == id))
         };
-        let short: Vec<Need> = [(Need::Thirst, needs.0.thirst, carries_drink), (Need::Hunger, needs.0.hunger, carried.is_some())]
+        let short: Vec<Need> = [(Need::Thirst, needs.thirst, carries_drink), (Need::Hunger, needs.hunger, carried.is_some())]
             .into_iter()
             .filter(|(_, value, carries)| *value < NEED_LINE && !carries)
             .map(|(need, ..)| need)
@@ -707,7 +705,7 @@ pub fn think(
             position: here,
             yaw: facing.0,
             health_fraction: health.0.fraction(),
-            needs: needs.0,
+            needs,
             home: home_at,
             behaviour: if holding.is_some() { modforge::actor::Behaviour::Guard } else { def.behaviour },
             at_home,
@@ -719,7 +717,7 @@ pub fn think(
             carries_drink,
             bags_full,
             memory: &blank,
-            personality: &personality.0,
+            personality: &personality,
             worth: &worth,
             standable: &standable,
             reachable: &reachable,
@@ -730,28 +728,17 @@ pub fn think(
             trader,
         };
 
-        // Decide through the one tree, as a modforge Persona through
-        // topside's binder: seeded by the tick and the person, so a replay
+        // Decide through the one tree: their own Persona thinks through
+        // topside's binder, seeded by the tick and the person, so a replay
         // decides the same; what they chose goes to what they learn from.
-        // Their memory and what they are doing are lent to the persona for
-        // the think and handed back.
         let mut roll = Roll::new(tick.0 ^ actor.0.0.wrapping_mul(0x9E37_79B9_7F4A_7C15));
-        let mut persona = modforge::persona::Persona {
-            memory: std::mem::take(&mut memory.0),
-            needs: needs.0,
-            personality: personality.0,
-            doing: record.0,
-            ..Default::default()
-        };
         let mut binder = TopsideBinder { sensed, worth: &worth, decided: Vec::new(), do_now: None };
-        modforge::persona::think(&mut binder, &mut persona, &tree.0, &mut roll);
-        memory.0 = persona.memory;
-        record.0 = persona.doing;
+        modforge::persona::think(&mut binder, &mut person.0, &tree.0, &mut roll);
         let TopsideBinder { decided, do_now, .. } = binder;
 
         // Act. Their next decision comes at their reaction time.
-        let fighting = crate::content::brain::fighting(&record.0);
-        next_think.0 = tick.0 + reaction_ticks(condition.0.asleep, fighting, needs.0.rest, &personality.0, 60.0);
+        let fighting = crate::content::brain::fighting(&person.0.doing);
+        next_think.0 = tick.0 + reaction_ticks(condition.0.asleep, fighting, needs.rest, &personality, 60.0);
         for action in decided {
             actions.0.push(tick.0, action);
         }
@@ -778,7 +765,7 @@ pub fn think(
             None => {}
             Some(Do::Sleep) => {
                 condition.0.asleep = true;
-                memory.0.did(Did::Slept, tick.0);
+                person.0.memory.did(Did::Slept, tick.0);
             }
             Some(Do::Wake) => condition.0.asleep = false,
             // A trade moves things between two people: made after, from
@@ -789,13 +776,13 @@ pub fn think(
             // above at the next think); a box that is gone is forgotten.
             // A place, a river's water, or a source (a well, a bush) is
             // visited: there is no inside to look into.
-            Some(Do::Check { key }) if key & PLACE_KEY != 0 || source_at(key).is_some() => memory.0.visited(key, tick.0),
+            Some(Do::Check { key }) if key & PLACE_KEY != 0 || source_at(key).is_some() => person.0.memory.visited(key, tick.0),
             Some(Do::Check { key }) => match the_box(key) {
                 Some(found) => {
                     keep_open = Some(found);
                     open_box(&mut act, open, found, where_is(found));
                 }
-                None => memory.0.gone(key),
+                None => person.0.memory.gone(key),
             },
             Some(Do::EatCarried { need }) => {
                 if let Some(slot) = carried_slot(inventory, hotbar, &items.0, need) {
@@ -811,7 +798,7 @@ pub fn think(
                         act(Action::Aim { x: water.x, y: water.y });
                         act(Action::Use);
                     }
-                    None => memory.0.gone(key),
+                    None => person.0.memory.gone(key),
                 }
             }
             // At a source (a well, a berry bush): use it where it stands,
@@ -833,7 +820,7 @@ pub fn think(
             // You eat what you need; nothing is carried off.
             Some(Do::Eat { key, need }) => {
                 let Some(found) = the_box(key) else {
-                    memory.0.gone(key);
+                    person.0.memory.gone(key);
                     continue;
                 };
                 keep_open = Some(found);
@@ -857,7 +844,7 @@ pub fn think(
             // bags hold (design.md "Taking loot").
             Some(Do::Take { key }) => {
                 let Some(found) = the_box(key) else {
-                    memory.0.gone(key);
+                    person.0.memory.gone(key);
                     continue;
                 };
                 keep_open = Some(found);
@@ -868,8 +855,8 @@ pub fn think(
                 let needed = |stack: &modforge::item::ItemStack| {
                     [Need::Hunger, Need::Thirst].into_iter().any(|n| {
                         let own = match n {
-                            Need::Hunger => needs.0.hunger,
-                            _ => needs.0.thirst,
+                            Need::Hunger => needs.hunger,
+                            _ => needs.thirst,
                         };
                         (bunker_short.contains(&n) || own < NEED_LINE) && answers(&items.0, stack, n)
                     })
@@ -889,7 +876,7 @@ pub fn think(
             // they carry.
             Some(Do::Stock { key }) => {
                 let Some(found) = the_box(key) else {
-                    memory.0.gone(key);
+                    person.0.memory.gone(key);
                     continue;
                 };
                 keep_open = Some(found);
@@ -911,7 +898,7 @@ pub fn think(
             // into its water (Action::Pour, the player's own).
             Some(Do::Pour { key }) => {
                 let Some(found) = the_box(key) else {
-                    memory.0.gone(key);
+                    person.0.memory.gone(key);
                     continue;
                 };
                 keep_open = Some(found);
@@ -933,7 +920,7 @@ pub fn think(
                     source_at(key)
                 };
                 let Some(at) = at else {
-                    memory.0.gone(key);
+                    person.0.memory.gone(key);
                     continue;
                 };
                 if let Some(index) = hotbar.0.held.filter(|_| crate::interact::melee_in_hand(&hotbar.0, &items.0)) {

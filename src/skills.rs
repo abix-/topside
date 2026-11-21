@@ -8,7 +8,10 @@
 
 use bevy::prelude::*;
 
-/// One person's skills (saved).
+use crate::actor::Persona;
+
+/// A saved part from before the Persona, whose skills are now the
+/// person's (actor::fold_old_parts).
 #[derive(Component, Default, Clone, serde::Serialize, serde::Deserialize, Reflect)]
 #[reflect(opaque, Component, Serialize, Deserialize)]
 pub struct Skills(pub modforge::practice::Skills);
@@ -32,32 +35,26 @@ pub const RESEARCH_XP: u64 = 20;
 pub const DAMAGE_XP: f32 = 1.0;
 
 /// A person's mastery of a skill, 0 with none.
-pub fn mastery(skills: Option<&Skills>, skill: &str) -> f32 {
-    skills.map_or(0.0, |s| s.0.mastery(skill))
+pub fn mastery(person: Option<&Persona>, skill: &str) -> f32 {
+    person.map_or(0.0, |p| p.0.skills.mastery(skill))
 }
 
 /// What a hit lands at for a fighter of that skill.
-pub fn hit_scale(skills: Option<&Skills>) -> f32 {
-    1.0 + mastery(skills, COMBAT) * COMBAT_BONUS
+pub fn hit_scale(person: Option<&Persona>) -> f32 {
+    1.0 + mastery(person, COMBAT) * COMBAT_BONUS
 }
 
 /// A research cost lessened by the researcher's skill, never below one.
-pub fn research_cost(cost: Vec<(String, u32)>, skills: Option<&Skills>) -> Vec<(String, u32)> {
-    let keep = 1.0 - mastery(skills, RESEARCH) * RESEARCH_SAVING;
+pub fn research_cost(cost: Vec<(String, u32)>, person: Option<&Persona>) -> Vec<(String, u32)> {
+    let keep = 1.0 - mastery(person, RESEARCH) * RESEARCH_SAVING;
     cost.into_iter().map(|(item, n)| (item, ((n as f32 * keep).ceil() as u32).max(1))).collect()
 }
 
-/// Every step: each person given what they practised; everyone without
-/// skills given theirs.
-pub fn learn(mut commands: Commands, mut practised: ResMut<Practised>, mut people: Query<(Entity, Option<&mut Skills>), With<crate::actor::Actor>>) {
-    for (entity, skills) in &mut people {
-        if skills.is_none() {
-            commands.entity(entity).insert(Skills::default());
-        }
-    }
+/// Every step: each person given what they practised, in their Persona.
+pub fn learn(mut practised: ResMut<Practised>, mut people: Query<&mut Persona>) {
     for (entity, skill, xp) in practised.0.drain(..) {
-        if let Ok((_, Some(mut skills))) = people.get_mut(entity) {
-            skills.0.practise(skill, xp);
+        if let Ok(mut person) = people.get_mut(entity) {
+            person.0.skills.practise(skill, xp);
         }
     }
 }

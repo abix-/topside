@@ -13,7 +13,7 @@ use bevy::prelude::*;
 use modforge::acts::{Act, vote};
 use modforge::command::Command;
 
-use crate::actor::{Actor, Dead, Home, Npc, Personality};
+use crate::actor::{Actor, Dead, Home, Npc, Persona};
 use crate::command::Commanded;
 use crate::content::PLAYER_FACTION;
 
@@ -33,7 +33,7 @@ pub fn vote_and_raid(
     world: Res<crate::terrain::WorldRes>,
     mut raids: ResMut<Raids>,
     player: Query<&Actor, (With<crate::player::Player>, Without<Dead>)>,
-    people: Query<(Entity, &Actor, &Npc, &Personality, &Home, &Transform, Has<Commanded>), (Without<Dead>, Without<crate::prisoner::Prisoner>)>,
+    people: Query<(Entity, &Actor, &Npc, &Persona, &Home, &Transform, Has<Commanded>), (Without<Dead>, Without<crate::prisoner::Prisoner>)>,
 ) {
     let day_ticks = (day.0 * 60.0).round().max(1.0) as u64;
     let hour = (day_ticks / 24).max(1);
@@ -52,7 +52,7 @@ pub fn vote_and_raid(
         if commanded || at.translation.distance(home.0) > 6.0 {
             continue;
         }
-        factions.entry(faction.to_string()).or_default().push((actor.0.0 as i64, entity, personality.0));
+        factions.entry(faction.to_string()).or_default().push((actor.0.0 as i64, entity, personality.0.personality));
     }
     let bunker = Vec3::new(world.bunker.x, 0.0, world.bunker.y);
     for (faction, mut members) in factions {

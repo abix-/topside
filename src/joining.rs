@@ -10,7 +10,7 @@
 use bevy::prelude::*;
 use modforge::actor::ActorId;
 
-use crate::actor::{Actor, Dead, Home, Memory, Npc, Store};
+use crate::actor::{Actor, Dead, Home, Npc, Persona, Store};
 use crate::content::{EpisodeRegistryRes, PLAYER_FACTION};
 
 /// The joins decided this step: who, and the group they join. Made after
@@ -53,7 +53,7 @@ pub fn leave_for_better(
     episodes: Res<EpisodeRegistryRes>,
     mut joins: ResMut<Joins>,
     // A prisoner never leaves on their own (todo 11u).
-    people: Query<(Entity, &Actor, Option<&Npc>, &Memory, Has<crate::player::Player>, Has<Home>), (Without<Dead>, Without<crate::prisoner::Prisoner>)>,
+    people: Query<(Entity, &Actor, Option<&Npc>, &Persona, Has<crate::player::Player>, Has<Home>), (Without<Dead>, Without<crate::prisoner::Prisoner>)>,
 ) {
     if tick.0 % 60 != 0 {
         return;
@@ -79,7 +79,7 @@ pub fn leave_for_better(
         // Their feeling toward each group, averaged over the members they
         // remember.
         let mut felt: std::collections::BTreeMap<&str, (f32, u32)> = Default::default();
-        for (who, feeling) in modforge::relationship::feelings(&memory.0, |line| episodes.felt(line)) {
+        for (who, feeling) in modforge::relationship::feelings(&memory.0.memory, |line| episodes.felt(line)) {
             if who == actor.0 {
                 continue;
             }
