@@ -8,7 +8,7 @@
 
 use bevy::prelude::*;
 use modforge::actor::ActorId;
-use modforge::brain::{Do, NEED_LINE, Perception, Think, reaction_ticks, situation};
+use modforge::brain::{Do, NEED_LINE, Perception, reaction_ticks};
 use modforge::learn::alive_for;
 use modforge::hud::{Holder, SlotRef};
 use modforge::item::ItemRegistry;
@@ -265,6 +265,41 @@ const HALF_CONE: f32 = std::f32::consts::FRAC_PI_3;
 fn in_cone(facing: &Facing, here: Vec3, at: Vec3) -> bool {
     let to = at.ground() - here.ground();
     to.length() < 1e-3 || facing.direction().angle_to(to).abs() <= HALF_CONE
+}
+
+/// Topside's PersonaBinder (modforge persona): what a person senses in
+/// topside's world, worked out by `think` from their components, and what
+/// the brain decided, carried out by `think` with their own actions.
+struct TopsideBinder<'w> {
+    sensed: Perception<'w>,
+    worth: &'w dyn Fn(&Known, Need) -> f32,
+    decided: Vec<Action>,
+    do_now: Option<Do>,
+}
+
+impl modforge::persona::PersonaBinder for TopsideBinder<'_> {
+    fn perceive<'a>(
+        &'a self,
+        persona: &'a modforge::persona::Persona,
+        worth: &'a dyn Fn(&Known, Need) -> f32,
+    ) -> Perception<'a> {
+        Perception {
+            needs: persona.needs,
+            memory: &persona.memory,
+            personality: &persona.personality,
+            worth,
+            ..self.sensed.clone()
+        }
+    }
+
+    fn worth(&self, known: &Known, need: Need) -> f32 {
+        (self.worth)(known, need)
+    }
+
+    fn act(&mut self, actions: Vec<Action>, do_now: Option<Do>) {
+        self.decided = actions;
+        self.do_now = do_now;
+    }
 }
 
 /// Every fixed step: sense, decide, act, for every NPC.
@@ -664,7 +699,10 @@ pub fn think(
             carried_litres,
             water_room,
         };
-        let perception = Perception {
+        // What they sense, but for what the persona brings (their needs,
+        // memory, personality): the binder puts those in each think.
+        let blank = modforge::memory::Memory::default();
+        let sensed = Perception {
             now: tick.0,
             position: here,
             yaw: facing.0,
@@ -680,7 +718,7 @@ pub fn think(
             carries_food: carried.is_some(),
             carries_drink,
             bags_full,
-            memory: &memory.0,
+            memory: &blank,
             personality: &personality.0,
             worth: &worth,
             standable: &standable,
@@ -692,21 +730,24 @@ pub fn think(
             trader,
         };
 
-        // Decide through the one tree: seeded by the tick and the person,
-        // so a replay decides the same. Each learned choice made goes to
-        // what they learn from.
+        // Decide through the one tree, as a modforge Persona through
+        // topside's binder: seeded by the tick and the person, so a replay
+        // decides the same; what they chose goes to what they learn from.
+        // Their memory and what they are doing are lent to the persona for
+        // the think and handed back.
         let mut roll = Roll::new(tick.0 ^ actor.0.0.wrapping_mul(0x9E37_79B9_7F4A_7C15));
-        let situation = situation(&perception);
-        let mut thought = Think::new(&perception, &mut roll);
-        let chose = tree.0.think(&mut thought, &mut record.0);
-        let Think {
-            actions: decided,
-            do_now,
-            ..
-        } = thought;
-        for choice in chose {
-            memory.0.learned.chose(situation, choice);
-        }
+        let mut persona = modforge::persona::Persona {
+            memory: std::mem::take(&mut memory.0),
+            needs: needs.0,
+            personality: personality.0,
+            doing: record.0,
+            ..Default::default()
+        };
+        let mut binder = TopsideBinder { sensed, worth: &worth, decided: Vec::new(), do_now: None };
+        modforge::persona::think(&mut binder, &mut persona, &tree.0, &mut roll);
+        memory.0 = persona.memory;
+        record.0 = persona.doing;
+        let TopsideBinder { decided, do_now, .. } = binder;
 
         // Act. Their next decision comes at their reaction time.
         let fighting = crate::content::brain::fighting(&record.0);
