@@ -901,7 +901,14 @@ pub fn the_ending(
     mut players: Query<&mut crate::interact::Hud, With<crate::player::Player>>,
     people: Query<(&Actor, Has<Dead>)>,
 ) {
+    // Out of the storm no ending shows: it goes when the storm ends, and a
+    // load from before it has none.
     if crate::storm::phase(&tick, *day, &storms) != modforge::storm::StormPhase::Storm {
+        if let Ok(mut hud) = players.single_mut()
+            && hud.0.ending.is_some()
+        {
+            hud.0.ending = None;
+        }
         return;
     }
     let (Ok(mut hud), Some(def)) = (players.single_mut(), episode.name.as_deref().and_then(|n| episodes.0.def(n))) else {
