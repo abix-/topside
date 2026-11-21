@@ -655,6 +655,15 @@ pub fn think(
                 Some((*id, *at, need))
             })
             .min_by(|a, b| a.1.distance(here).total_cmp(&b.1.distance(here)));
+        // Topside's own facts: the storm, the bunker, the water carried.
+        let facts = crate::content::brain::TopsideFacts {
+            storm_coming,
+            store: store_at,
+            bunker_short: bunker_short.clone(),
+            carries_for_bunker,
+            carried_litres,
+            water_room,
+        };
         let perception = Perception {
             now: tick.0,
             position: here,
@@ -666,16 +675,11 @@ pub fn think(
             at_home,
             asleep: condition.0.asleep,
             hostile,
-            storm_coming,
+            game: &facts,
             night,
             carries_food: carried.is_some(),
             carries_drink,
-            store: store_at,
-            bunker_short: bunker_short.clone(),
-            carries_for_bunker,
             bags_full,
-            carried_litres,
-            water_room,
             memory: &memory.0,
             personality: &personality.0,
             worth: &worth,

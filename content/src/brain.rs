@@ -190,6 +190,47 @@ impl Default for BrainTreeRes {
     }
 }
 
+/// What topside tells the brain that not every game has (modforge
+/// `brain::GameFacts`): the storm (design.md "The storm"), their bunker's
+/// store and what it is short of, and the water they carry (design.md
+/// "Taking loot"). Built by `ai::think` each think.
+#[derive(Clone, Debug, Default)]
+pub struct TopsideFacts {
+    /// The storm is coming or here: hide or die.
+    pub storm_coming: bool,
+    /// Their bunker's store, if they have one: its key and where.
+    pub store: Option<(u64, bevy::math::Vec3)>,
+    /// What their bunker is short of, the shortest first.
+    pub bunker_short: Vec<modforge::survival::Need>,
+    /// They carry food that belongs in the store.
+    pub carries_for_bunker: bool,
+    /// The water in the containers they carry, and the room left in them,
+    /// in litres.
+    pub carried_litres: f32,
+    pub water_room: f32,
+}
+
+impl brain::GameFacts for TopsideFacts {
+    fn storm_coming(&self) -> bool {
+        self.storm_coming
+    }
+    fn store(&self) -> Option<(u64, bevy::math::Vec3)> {
+        self.store
+    }
+    fn bunker_short(&self) -> &[modforge::survival::Need] {
+        &self.bunker_short
+    }
+    fn carries_for_bunker(&self) -> bool {
+        self.carries_for_bunker
+    }
+    fn carried_litres(&self) -> f32 {
+        self.carried_litres
+    }
+    fn water_room(&self) -> f32 {
+        self.water_room
+    }
+}
+
 /// Whether they are fleeing, breaking off, or fighting: they react at the
 /// combat rate.
 pub fn fighting(record: &modforge::statetree::Record) -> bool {
@@ -231,16 +272,11 @@ mod tests {
             at_home: true,
             asleep: false,
             hostile: None,
-            storm_coming: false,
+            game: &(),
             night: false,
             carries_food: false,
             carries_drink: false,
-            store: None,
-            bunker_short: Vec::new(),
-            carries_for_bunker: false,
             bags_full: false,
-            carried_litres: 0.0,
-            water_room: 0.0,
             memory,
             personality,
             worth: &worth,
@@ -276,6 +312,11 @@ mod tests {
         (t.actions, t.do_now)
     }
 
+    /// One think with topside's own facts (the storm, the bunker, water).
+    fn think_in(p: &Perception, facts: &TopsideFacts, record: &mut Record, roll: &mut Roll) -> (Vec<Action>, Option<Do>) {
+        think(&Perception { game: facts, ..p.clone() }, record, roll)
+    }
+
     /// Sent somewhere: the brain's way of walking, by the way there.
     fn has_move(actions: &[Action]) -> bool {
         actions.iter().any(|a| matches!(a, Action::Go { .. }))
@@ -304,24 +345,22 @@ mod tests {
         let memory = Memory::default();
         let personality = Personality::default();
         let mut p = perception(&memory, &personality);
-        p.store = Some((1, Vec3::ZERO));
-        p.bunker_short = vec![Need::Hunger];
-        let to = |p: &Perception, seed: u64| {
+        let mut facts = TopsideFacts { store: Some((1, Vec3::ZERO)), bunker_short: vec![Need::Hunger], ..TopsideFacts::default() };
+        let to = |p: &Perception, facts: &TopsideFacts, seed: u64| {
             let mut record = Record::default();
-            think(p, &mut record, &mut Roll::new(seed));
+            think_in(p, facts, &mut record, &mut Roll::new(seed));
             match record.target {
                 Target::Point(to) => to,
                 other => panic!("expected to head out, got {:?} {other:?}", record.state),
             }
         };
-        let a = to(&p, 1);
+        let a = to(&p, &facts, 1);
         assert!(a.distance(Vec3::ZERO) >= 100.0, "out past the home ground: {a}");
-        assert_ne!(a, to(&p, 2), "different ways for different rolls");
+        assert_ne!(a, to(&p, &facts, 2), "different ways for different rolls");
         // Hungry themselves with nothing known: the same.
-        p.store = None;
-        p.bunker_short = vec![];
+        facts = TopsideFacts::default();
         p.needs.hunger = 20.0;
-        assert!(to(&p, 3).distance(Vec3::ZERO) >= 100.0);
+        assert!(to(&p, &facts, 3).distance(Vec3::ZERO) >= 100.0);
     }
 
     /// The bunker's needs (design.md "Taking loot"): short of food, a
@@ -337,37 +376,40 @@ mod tests {
         memory.checked(7, vec![("canned food".to_string(), 6)], 0.0, 1);
         let personality = Personality::default();
         let mut p = perception(&memory, &personality);
-        p.store = Some((1, Vec3::new(2.0, 0.0, 0.0)));
         // Short of water too, with no water known: the food still sends it.
-        p.bunker_short = vec![Need::Thirst, Need::Hunger];
+        let mut facts = TopsideFacts {
+            store: Some((1, Vec3::new(2.0, 0.0, 0.0))),
+            bunker_short: vec![Need::Thirst, Need::Hunger],
+            ..TopsideFacts::default()
+        };
         let mut roll = Roll::new(1);
         let mut record = Record::default();
-        think(&p, &mut record, &mut roll);
+        think_in(&p, &facts, &mut record, &mut roll);
         assert_eq!(record.state, Some(FETCH_GOING));
         assert!(matches!(record.target, Target::Thing { key: 7, need: Some(Need::Hunger), .. }), "{record:?}");
         // There: take.
         p.position = Vec3::new(40.0, 0.0, 0.0);
-        let (_, do_now) = think(&p, &mut record, &mut roll);
+        let (_, do_now) = think_in(&p, &facts, &mut record, &mut roll);
         assert_eq!(do_now, Some(Do::Take { key: 7 }));
         // Carrying it, the bunker covered: home to the store.
-        p.carries_for_bunker = true;
-        p.bunker_short = vec![];
+        facts.carries_for_bunker = true;
+        facts.bunker_short = vec![];
         let mut record = Record::default();
-        think(&p, &mut record, &mut roll);
+        think_in(&p, &facts, &mut record, &mut roll);
         assert_eq!(record.state, Some(HAUL_GOING));
         assert!(matches!(record.target, Target::Thing { key: 1, .. }));
         // Still short but the bags are full: home too.
-        p.bunker_short = vec![Need::Hunger];
+        facts.bunker_short = vec![Need::Hunger];
         p.bags_full = true;
         let mut record = Record::default();
-        think(&p, &mut record, &mut roll);
+        think_in(&p, &facts, &mut record, &mut roll);
         assert_eq!(record.state, Some(HAUL_GOING));
         // At the store: stock it until nothing is carried.
         p.position = Vec3::new(2.0, 0.0, 0.0);
-        let (_, do_now) = think(&p, &mut record, &mut roll);
+        let (_, do_now) = think_in(&p, &facts, &mut record, &mut roll);
         assert_eq!(do_now, Some(Do::Stock { key: 1 }));
-        p.carries_for_bunker = false;
-        think(&p, &mut record, &mut roll);
+        facts.carries_for_bunker = false;
+        think_in(&p, &facts, &mut record, &mut roll);
         assert_eq!(record.state, None, "stocked: they choose again at the next think");
     }
 
@@ -382,11 +424,10 @@ mod tests {
         memory.see(9, "well", Vec3::new(30.0, 0.0, 0.0), 1);
         memory.visited(9, 1);
         let personality = Personality::default();
-        let mut p = perception(&memory, &personality);
-        p.store = Some((1, Vec3::new(2.0, 0.0, 0.0)));
-        p.bunker_short = vec![Need::Thirst];
+        let p = perception(&memory, &personality);
+        let facts = TopsideFacts { store: Some((1, Vec3::new(2.0, 0.0, 0.0))), bunker_short: vec![Need::Thirst], ..TopsideFacts::default() };
         let mut record = Record::default();
-        think(&p, &mut record, &mut Roll::new(1));
+        think_in(&p, &facts, &mut record, &mut Roll::new(1));
         assert_ne!(record.state, Some(FETCH_GOING), "not to the well: {record:?}");
     }
 
@@ -439,9 +480,9 @@ mod tests {
         p.home = Some(Vec3::new(0.0, 0.0, 30.0));
         p.at_home = false;
         p.hostile = Some((ActorId(4), Vec3::new(2.0, 0.0, 0.0)));
-        p.storm_coming = true;
+        let storm = TopsideFacts { storm_coming: true, ..TopsideFacts::default() };
         let mut record = Record::default();
-        let (actions, _) = think(&p, &mut record, &mut Roll::new(1));
+        let (actions, _) = think_in(&p, &storm, &mut record, &mut Roll::new(1));
         assert_eq!(record.state, Some(HIDE), "no fighting in a storm");
         assert!(actions.contains(&Action::Go { x: 0.0, y: 0.0, z: 30.0 }), "heading home");
     }
@@ -453,9 +494,10 @@ mod tests {
     #[test]
     fn what_they_learned_can_overturn_even_the_storm() {
         let personality = Personality::default();
+        let coming = TopsideFacts { storm_coming: true, ..TopsideFacts::default() };
         let storm = |memory: &Memory| {
             let mut p = perception(memory, &personality);
-            p.storm_coming = true;
+            p.game = &coming;
             p.home = Some(Vec3::new(0.0, 0.0, 30.0));
             p.at_home = false;
             let mut record = Record::default();
@@ -481,10 +523,10 @@ mod tests {
         let mut record = Record::default();
         think(&p, &mut record, &mut Roll::new(1));
         assert_eq!(record.state, Some(NEED_GOING), "to the well");
-        p.storm_coming = true;
+        let storm = TopsideFacts { storm_coming: true, ..TopsideFacts::default() };
         p.home = Some(Vec3::new(0.0, 0.0, 30.0));
         p.at_home = false;
-        let (actions, _) = think(&p, &mut record, &mut Roll::new(1));
+        let (actions, _) = think_in(&p, &storm, &mut record, &mut Roll::new(1));
         assert_eq!(record.state, Some(HIDE));
         assert!(actions.contains(&Action::Go { x: 0.0, y: 0.0, z: 30.0 }), "home, in the same think");
     }
