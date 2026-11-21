@@ -14,9 +14,9 @@
 //! The storm or a threat takes a person out of any errand to choose again.
 
 use bevy::prelude::Resource;
-use modforge::brain::{self, Brain};
+use modforge::brain::{self, Brain, choice, errand, state, when};
 use modforge::learn::Choice;
-use modforge::statetree::{Enter, Holds, ROOT, Select, StateDef, StateId, StateTree, Task, Transition, When};
+use modforge::statetree::{ROOT, StateId, StateTree};
 
 pub const HIDE: StateId = 1;
 pub const FLEE: StateId = 2;
@@ -50,105 +50,25 @@ pub const LOOK_AT_CHECKING: StateId = 29;
 pub const LOOK_HEAD_OUT: StateId = 30;
 pub const WANDER: StateId = 31;
 
-fn state(
-    name: &'static str,
-    parent: Option<StateId>,
-    enter: Option<Enter<Brain>>,
-    task: Option<Task<Brain>>,
-) -> StateDef<Brain> {
-    StateDef {
-        name,
-        parent,
-        choice: None,
-        enter,
-        select: Select::InOrder,
-        task,
-        transitions: Vec::new(),
-    }
-}
-
-fn when(holds: Holds<Brain>, to: StateId) -> Transition<Brain> {
-    Transition {
-        when: When::<Brain>::Holds(holds),
-        to,
-    }
-}
-
-fn then(to: StateId) -> Transition<Brain> {
-    Transition {
-        when: When::Succeeded,
-        to,
-    }
-}
-
-/// An errand: a parent entered by `enter`, going there, then `doing`.
-fn errand(
-    states: &mut Vec<StateDef<Brain>>,
-    name: &'static str,
-    parent: StateId,
-    enter: Enter<Brain>,
-    doing_name: &'static str,
-    doing: Task<Brain>,
-) {
-    let at = states.len();
-    states.push(state(name, Some(parent), Some(enter), None));
-    let mut going = state("going", Some(at), None, Some(brain::going));
-    going.transitions.push(then(at + 2));
-    states.push(going);
-    states.push(state(doing_name, Some(at), None, Some(doing)));
-}
-
-/// A choice at the root: what it means to the learning.
-fn choice(mut state: StateDef<Brain>, choice: Choice) -> StateDef<Brain> {
-    state.choice = Some(choice);
-    state
-}
-
+/// Topside's tree: modforge's states every game shares (modforge brain
+/// "The states every game shares"), with topside's own: hiding from the
+/// storm first, and supplying the bunker after what was asked.
 pub fn brain_tree() -> StateTree<Brain> {
-    let mut root = state("root", None, None, None);
-    root.select = Select::<Brain>::Learned(brain::learned);
-    let mut s = vec![root];
+    let mut s = vec![brain::root()];
 
     let mut hide = choice(state("hide", Some(ROOT), Some(brain::enter_hide), Some(brain::hide)), Choice::Hide);
     hide.transitions.push(when(brain::storm_over, ROOT));
     s.push(hide);
 
-    s.push(choice(state("flee", Some(ROOT), Some(brain::enter_flee), Some(brain::flee)), Choice::Flee));
-    s.push(choice(
-        state("break off", Some(ROOT), Some(brain::enter_break_off), Some(brain::break_off)),
-        Choice::BreakOff,
-    ));
-    let mut fight = choice(state("fight", Some(ROOT), Some(brain::enter_combat), Some(brain::fight)), Choice::Fight);
-    fight.transitions.push(when(brain::hurt, ROOT));
-    fight.transitions.push(when(brain::past_leash, ROOT));
-    s.push(fight);
-
-    s.push(choice(
-        state("eat what they carry", Some(ROOT), Some(brain::enter_eat_carried), Some(brain::eat_carried)),
-        Choice::EatCarried,
-    ));
-
-    errand(&mut s, "go to a need", ROOT, brain::enter_need, "using it", brain::use_it);
-    s[NEED].choice = Some(Choice::GoToNeed);
-    s[NEED].transitions.push(when(brain::danger, ROOT));
-    s[NEED].transitions.push(when(brain::worse_need, ROOT));
-
+    brain::fighting_states(&mut s);
+    brain::eat_carried_state(&mut s);
+    brain::need_states(&mut s);
     // Trade for a need with someone carrying extra of it (design.md
     // "Trading"), after a source they know.
-    errand(&mut s, "trade for a need", ROOT, brain::enter_trade, "trading", brain::trade_with);
-    s[TRADE].choice = Some(Choice::Trade);
-    s[TRADE].transitions.push(when(brain::danger, ROOT));
-
+    brain::trade_states(&mut s);
     // Do what they were asked (an episode's errand): go there and wait,
     // after their own needs, before their bunker's.
-    errand(&mut s, "do what was asked", ROOT, brain::enter_asked, "waiting", brain::wait);
-    s[ASKED].choice = Some(Choice::Asked);
-    s[ASKED].transitions.push(when(brain::danger, ROOT));
-    s[ASKED].transitions.push(when(brain::worse_need, ROOT));
-    // A critical need they can answer takes them off it (modforge
-    // NEED_CRITICAL); met, they choose what was asked again.
-    s[ASKED].transitions.push(when(brain::critical_need, ROOT));
-    s[ASKED].transitions.push(when(brain::not_asked, ROOT));
+    brain::asked_states(&mut s);
 
     let mut supply = choice(state("supply the bunker", Some(ROOT), Some(brain::enter_supply), None), Choice::Supply);
     supply.transitions.push(when(brain::danger, ROOT));
@@ -161,20 +81,8 @@ pub fn brain_tree() -> StateTree<Brain> {
     head_out.transitions.push(when(brain::knows_better, ROOT));
     s.push(head_out);
 
-    let mut look = choice(state("look", Some(ROOT), Some(brain::enter_look), None), Choice::Look);
-    look.transitions.push(when(brain::danger, ROOT));
-    look.transitions.push(when(brain::asked_now, ROOT));
-    s.push(look);
-    errand(&mut s, "look at", LOOK, brain::enter_unchecked, "checking", brain::check);
-    let mut head_out = state("head out", Some(LOOK), Some(brain::enter_head_out_need), Some(brain::going));
-    head_out.transitions.push(when(brain::knows_better, ROOT));
-    s.push(head_out);
-
-    let mut wander = choice(state("wander", Some(ROOT), Some(brain::enter_wander), Some(brain::wander)), Choice::Wander);
-    wander.transitions.push(when(brain::danger, ROOT));
-    wander.transitions.push(when(brain::pressing, ROOT));
-    wander.transitions.push(when(brain::asked_now, ROOT));
-    s.push(wander);
+    brain::look_states(&mut s);
+    brain::wander_state(&mut s);
 
     debug_assert_eq!(s.len(), WANDER + 1, "the ids above name these states");
     StateTree { states: s }
