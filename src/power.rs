@@ -132,7 +132,11 @@ pub fn lock_front_doors(
     let Some(town) = world.as_ref().and_then(|w| w.world.town.as_ref()) else {
         return;
     };
-    if doors.is_empty() {
+    // A load brings every door back at once, each locked already: the
+    // houses' fronts are worked out only for a door being made (1.7 ms of
+    // the first step after a load, Perf 2).
+    let mut new: Vec<_> = doors.iter_mut().filter(|(door, id, _)| !door.lying && !things_made.locked.contains(&id.0)).collect();
+    if new.is_empty() {
         return;
     }
     let fronts: Vec<Vec2> = town.fixed_houses().map(|(_, l)| l).map(|l| l.at + modforge::house::front_door(l.front)).collect();
@@ -142,8 +146,8 @@ pub fn lock_front_doors(
     // A hidden room's door reads as wall, opened by its lot's hidden switch
     // (todo Secrets 1).
     let hidden = town.hidden_doors();
-    for (door, id, mut thing) in &mut doors {
-        if door.lying || !things_made.locked.insert(id.0) {
+    for (door, id, thing) in &mut new {
+        if !things_made.locked.insert(id.0) {
             continue;
         }
         if let Some(&(lot, _)) = hidden.iter().find(|(_, at)| at.distance(door.closed_center) < 1.0) {
