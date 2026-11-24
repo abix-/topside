@@ -665,6 +665,7 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind, port: u16
         // the frame, after the HUD has drawn what the player sees.
         app.add_systems(Last, control_plane::answer_at_stop);
         app.add_systems(Startup, (loading::spawn_screen, hud::setup_ending));
+        loading::watch_the_drawing(&mut app);
         app.add_systems(Update, (loading::show_screen.after(loading::ready_the_world), hud::render_ending));
         app.add_systems(
             Update,

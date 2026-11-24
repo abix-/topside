@@ -6,7 +6,7 @@
 //! built: the chunks round the people, every chunk's mesh, and landmass's
 //! archipelago holding them.
 
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 
 use bevy::prelude::*;
 
@@ -24,14 +24,67 @@ static LAUNCHED: AtomicBool = AtomicBool::new(false);
 pub struct Loading {
     on: bool,
     drawn: bool,
+    /// The world's own work done (`ready_the_world`): the drawing's frame
+    /// then, and when, while the screen waits for the drawing to settle.
+    made: Option<(u64, std::time::Instant)>,
 }
 
 impl Loading {
     /// It shows from now: the launch, or a saved game loaded.
     pub fn start() -> Self {
         LOADING.store(true, Ordering::Relaxed);
-        Self { on: true, drawn: false }
+        Self { on: true, drawn: false, made: None }
     }
+}
+
+/// Whether the game draws (a window, so a render world): without one the
+/// drawing has nothing to settle.
+static DRAWS: AtomicBool = AtomicBool::new(false);
+/// The drawing's frames so far, counted by the render world.
+static DRAWN_FRAMES: AtomicU64 = AtomicU64::new(0);
+/// The last drawn frame that still had a pipeline (a shader made for a
+/// mesh) waiting to be compiled.
+static LAST_COMPILING: AtomicU64 = AtomicU64::new(0);
+/// How many pipelines the drawing has made, for the log.
+static PIPELINES: AtomicU64 = AtomicU64::new(0);
+/// Frames in a row the drawing must have nothing waiting to compile before
+/// it counts as settled.
+const SETTLED_FRAMES: u64 = 10;
+/// The longest the screen waits for the drawing, so a pipeline that never
+/// compiles lands as a logged warning, never a hang (authority.md rule 5).
+const SETTLE_AT_MOST: std::time::Duration = std::time::Duration::from_secs(60);
+
+/// Counts, every drawn frame, whether any pipeline waits to be compiled:
+/// what `ready_the_world` waits on. Run in the render world.
+fn count_compiling(cache: Res<bevy::render::render_resource::PipelineCache>) {
+    let frame = DRAWN_FRAMES.fetch_add(1, Ordering::Relaxed) + 1;
+    PIPELINES.store(cache.pipelines().count() as u64, Ordering::Relaxed);
+    // Being compiled, not waiting on a shader that never loads (a pipeline
+    // whose shader is not loaded waits, and is retried, every frame).
+    if cache.pipelines().any(|p| matches!(p.state, bevy::render::render_resource::CachedPipelineState::Creating(_))) {
+        LAST_COMPILING.store(frame, Ordering::Relaxed);
+    }
+}
+
+/// With a window: the render world counts its waiting pipelines, and the
+/// loading screen waits for them (`ready_the_world`).
+pub fn watch_the_drawing(app: &mut App) {
+    let Some(render_app) = app.get_sub_app_mut(bevy::render::RenderApp) else {
+        return;
+    };
+    render_app.add_systems(bevy::render::Render, count_compiling);
+    DRAWS.store(true, Ordering::Relaxed);
+}
+
+/// Whether the drawing has settled since the drawn frame `since`: every
+/// pipeline the world's meshes need compiled, none waiting for
+/// `SETTLED_FRAMES` frames in a row.
+fn drawing_settled(since: u64) -> bool {
+    if !DRAWS.load(Ordering::Relaxed) {
+        return true;
+    }
+    let busy = LAST_COMPILING.load(Ordering::Relaxed).max(since);
+    DRAWN_FRAMES.load(Ordering::Relaxed) >= busy + SETTLED_FRAMES
 }
 
 /// Nobody acts while the loading screen shows: Bevy's fixed loop, every
@@ -58,6 +111,27 @@ pub fn ready_the_world(world: &mut World) {
         loading.drawn = true;
         return;
     }
+    // The world made: the screen stays until the drawing has compiled what
+    // the world's meshes need, so its compiling never takes the threads
+    // from the first steps (Perf 2: 160 to 274 steps over budget after a
+    // launch's first load, 3 once the drawing had settled).
+    if let Some((frame, at)) = loading.made {
+        let waited = at.elapsed();
+        if !drawing_settled(frame) && waited < SETTLE_AT_MOST {
+            return;
+        }
+        if waited >= SETTLE_AT_MOST {
+            warn!("the drawing did not settle in {} s; the world goes on", SETTLE_AT_MOST.as_secs());
+        }
+        loading.on = false;
+        loading.made = None;
+        LOADING.store(false, Ordering::Relaxed);
+        if let Some(mut laps) = world.get_resource_mut::<crate::profile::Laps>() {
+            laps.restart_worsts();
+        }
+        info!("the drawing settled in {:.0} ms, {} pipelines", waited.as_secs_f64() * 1000.0, PIPELINES.load(Ordering::Relaxed));
+        return;
+    }
     let start = std::time::Instant::now();
     crate::make_the_world(world);
     crate::navmesh::mesh_the_world(world);
@@ -70,11 +144,7 @@ pub fn ready_the_world(world: &mut World) {
         run_history(world);
         crate::save::own_save();
     }
-    world.resource_mut::<Loading>().on = false;
-    LOADING.store(false, Ordering::Relaxed);
-    if let Some(mut laps) = world.get_resource_mut::<crate::profile::Laps>() {
-        laps.restart_worsts();
-    }
+    world.resource_mut::<Loading>().made = Some((DRAWN_FRAMES.load(Ordering::Relaxed), std::time::Instant::now()));
     info!("the world is ready in {:.0} ms", start.elapsed().as_secs_f64() * 1000.0);
 }
 
