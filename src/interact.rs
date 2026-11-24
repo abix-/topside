@@ -695,7 +695,7 @@ pub fn interact_on_use(
         let at = feet.ground();
         let pointed = ActionQueue::aim(&this_tick.0).map_or(at + facing.direction(), |(x, y)| Vec2::new(x, y));
         let nearest = pointed_thing(feet, pointed, things.iter().map(|(e, _, door, _, t, _)| (e, door, t)));
-        let Some(Ok((entity, thing, door, item, transform, draws_from))) = nearest.map(|e| things.get_mut(e)) else {
+        let Some(Ok((entity, mut thing, door, item, transform, draws_from))) = nearest.map(|e| things.get_mut(e)) else {
             // Nothing to use in reach: a river's water pointed at is drunk
             // (design.md: rivers are drinkable), from the ground's level,
             // or a container filled from it.
@@ -786,6 +786,15 @@ pub fn interact_on_use(
             continue;
         }
         if !fills.is_empty() {
+            continue;
+        }
+        // A locked door used with a tool that breaks doors in hand is
+        // broken in (todo Tier 4, modforge `hud::broken_in`): the way into
+        // a boarded house past its locked doors.
+        let breaks = hotbar.as_ref().and_then(|h| h.0.held_stack()).is_some_and(|s| crate::content::BREAKS_DOORS.contains(&s.item.as_str()));
+        if let Some(now) = modforge::hud::broken_in(thing.kind, breaks) {
+            thing.kind = now;
+            mind.0.memory.did(Did::Done("broke the door in".to_string()), tick.0);
             continue;
         }
         let hour = crate::survival::today(&tick, *day).fract() * 24.0;

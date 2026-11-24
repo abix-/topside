@@ -204,6 +204,9 @@ pub const SECRET_DANGER: u32 = 3;
 /// and the materials.
 pub const BUILDING_PLAN: &str = "building plan";
 pub const HAMMER: &str = "hammer";
+/// The tools that break a locked door in (todo Tier 4, modforge
+/// `hud::broken_in`): the heavy ones (Claude's).
+pub const BREAKS_DOORS: [&str; 3] = ["sledgehammer", "hatchet", "mace"];
 pub const TOOL_CUPBOARD: &str = "tool cupboard";
 /// A bed, where its owner wakes after dying; struck with a weapon in hand
 /// it breaks (topside-town "Death and the bed").
@@ -509,6 +512,11 @@ pub fn front_lock(house: usize) -> u32 {
 }
 pub fn safe_lock(house: usize) -> u32 {
     2 * house as u32 + 2
+}
+/// A boarded house's doors' lock, by its lot, apart from the fixed
+/// houses' (todo Tier 4); no key is made for it.
+pub fn boarded_lock(lot: usize) -> u32 {
+    100_000 + lot as u32
 }
 pub const GENERATOR_DEF: modforge::power::GeneratorDef = modforge::power::GeneratorDef { output: 10.0, burn_secs: 600.0 };
 pub const WIRE_REACH: f32 = 12.0;
@@ -1444,6 +1452,10 @@ pub fn small_town_def() -> TownDef {
         // (topside-town "Tiers"; todo "Tier 4"). The holdout is
         // content/actors.yaml's.
         boarded: Some(modforge::town::Boarded { tier: 6, who: "holdout".to_string() }),
+        // Harder the farther out (todo "Tier 4", Icarus): a tier more
+        // every 50 m from the town's middle, so the far cul-de-sacs reach
+        // tier 6 (Claude's).
+        tier_every: 50.0,
     }
 }
 

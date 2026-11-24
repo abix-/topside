@@ -136,12 +136,17 @@ pub fn lock_front_doors(
         return;
     }
     let fronts: Vec<Vec2> = town.fixed_houses().map(|(_, l)| l).map(|l| l.at + modforge::house::front_door(l.front)).collect();
+    // A boarded house has every door locked from inside, its key kept by
+    // no one: the way in is to break a door in (todo Tier 4).
+    let boarded: Vec<usize> = (0..town.lots.len()).filter(|i| town.boarded_by(*i).is_some()).collect();
     for (door, id, mut thing) in &mut doors {
         if door.lying || !things_made.locked.insert(id.0) {
             continue;
         }
         if let Some(house) = fronts.iter().position(|f| f.distance(door.closed_center) < 1.0) {
             thing.kind = InteractKind::Locked { lock: crate::content::front_lock(house), door: true };
+        } else if let Some(&lot) = boarded.iter().find(|i| town.lots[**i].covers(door.closed_center)) {
+            thing.kind = InteractKind::Locked { lock: crate::content::boarded_lock(lot), door: true };
         }
     }
 }
