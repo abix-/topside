@@ -832,7 +832,8 @@ pub const PLACE_SWITCHES: [&str; 7] = [SUBSTATION_SWITCH, SEWAGE_PUMP, POND_VALV
 pub const GAS_STATION: modforge::plan::PlanDef = modforge::plan::PlanDef {
     name: "gas station",
     edge: false,
-    furniture_models: &[],
+    // Each drawn as its own model (todo Model 12; scripts/models.py).
+    furniture_models: &["shop aisle", "shop counter", "bay bench", "work desk", "parts shelving", "toilet"],
     columns: &[8.0, 7.0, 3.0],
     rows: &[6.0, 4.0],
     rooms: &[((0, 0), "gas station shop"), ((1, 0), "garage bay"), ((2, 0), "restroom"), ((0, 1), "gas station office"), ((1, 1), "parts store")],
@@ -865,7 +866,8 @@ pub const GAS_STATION: modforge::plan::PlanDef = modforge::plan::PlanDef {
 pub const SEWAGE_POND: modforge::plan::PlanDef = modforge::plan::PlanDef {
     name: "sewage pond",
     edge: true,
-    furniture_models: &[],
+    // Each drawn as its own model (todo Model 13; scripts/models.py).
+    furniture_models: &["pump set", "tool shelf"],
     columns: &[5.0, 4.0],
     rows: &[5.0],
     rooms: &[((0, 0), "pump shed"), ((1, 0), "sewage tool room")],
@@ -889,7 +891,8 @@ pub const POND_VALVE: &str = "pond valve";
 pub const TOWN_DUMP: modforge::plan::PlanDef = modforge::plan::PlanDef {
     name: "town dump",
     edge: true,
-    furniture_models: &[],
+    // Each drawn as its own model (todo Model 14; scripts/models.py).
+    furniture_models: &["work desk", "truck scale"],
     columns: &[5.0, 4.0],
     rows: &[4.0],
     rooms: &[((0, 0), "dump office"), ((1, 0), "scale shed")],

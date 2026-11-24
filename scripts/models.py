@@ -3603,6 +3603,147 @@ def transformer():
     return join(parts, "transformer")
 
 
+# The gas station (todo Model 12): the shop's aisle 3.5 m by 0.8 m and 1.5 m
+# tall, its counter 1.8 m by 0.7 m and 1 m tall, the garage bay's bench
+# 4 m by 0.8 m, the parts store's shelving 5 m by 0.5 m and 1.8 m tall; the
+# desk, register, shelf, toolbox, pallet and toilet are the grocery's and
+# the house's. The pump's size is Claude's.
+
+
+def shop_aisle():
+    """the gas station shop's aisle, 3.5 m: snacks, oil and wipers."""
+    return stocked(store_colours(), 3.5, 0.8, 4, 1.5, "shop aisle")
+
+
+def shop_counter():
+    """the gas station's counter, 1.8 m: the lottery case and the cigarette
+    rack at its end."""
+    c = store_colours()
+    parts = counter_run("shop counter", 1.8, 0.7, 1.0, c["wood"], c["white"])
+    parts.append(box("lotto", (0.6, 0.3, 0.2), at=(-0.5, -0.1, 1.1), mat=c["glass"]))
+    parts.append(box("rack", (0.5, 0.2, 0.6), at=(0.6, 0.25, 1.3), mat=c["dark steel"]))
+    for i in range(4):
+        parts.append(box(f"packs {i}", (0.45, 0.05, 0.1), at=(0.6, 0.15, 1.08 + 0.14 * i), mat=[c["red"], c["white"], c["green"], c["yellow"]][i]))
+    return join(parts, "shop counter")
+
+
+def bay_bench():
+    """the garage bay's bench, 4 m: a steel top, a vise, a pegboard of
+    tools and the parts washer."""
+    c = store_colours()
+    parts = counter_run("bay bench", 4.0, 0.8, 0.9, c["dark steel"], c["steel"])
+    parts.append(box("pegboard", (3.0, 0.03, 1.0), at=(-0.4, 0.38, 1.5), mat=c["cardboard"]))
+    for i in range(8):
+        parts.append(box(f"tool {i}", (0.04, 0.02, 0.3), at=(-1.7 + 0.37 * i, 0.36, 1.5), mat=c["red"] if i % 2 else c["black"]))
+    parts.append(box("vise", (0.2, 0.25, 0.15), at=(-1.6, -0.2, 0.98), mat=c["black"]))
+    parts.append(box("washer", (0.7, 0.5, 0.35), at=(1.5, 0.05, 1.08), mat=c["red"]))
+    return join(parts, "bay bench")
+
+
+def parts_shelving():
+    """the gas station's parts store shelving, 5 m: oil, filters and boxed
+    parts."""
+    c = store_colours()
+    return shelving("parts shelving", 5.0, 0.5, 1.8, [c["yellow"], c["cardboard"], c["black"], c["red"]])
+
+
+def gas_pump():
+    """a gas pump on its island: the cabinet, the hose and nozzle, the
+    price window."""
+    c = store_colours()
+    parts = [box("island", (1.4, 0.8, 0.15), at=(0, 0, 0.075), mat=material("concrete", (0.6, 0.6, 0.58)))]
+    parts.append(box("cabinet", (0.8, 0.45, 1.6), at=(0, 0, 0.95), mat=c["white"]))
+    parts.append(box("band", (0.82, 0.47, 0.2), at=(0, 0, 1.6), mat=c["red"]))
+    parts.append(box("window", (0.5, 0.01, 0.25), at=(0, -0.235, 1.25), mat=c["black"]))
+    parts.append(box("nozzle", (0.08, 0.15, 0.25), at=(0.45, -0.1, 1.0), mat=c["black"]))
+    parts.append(cylinder("hose", 0.02, 0.8, sides=6, at=(0.45, -0.15, 0.55), mat=c["black"]))
+    return join(parts, "gas pump")
+
+
+# The sewage pond (todo Model 13): the pump shed's pump set is the pump
+# house's, the tool room's shelf 3 m by 0.5 m and 1.6 m tall; the toolbox
+# is the house's. The pump's and the valve's sizes are Claude's.
+
+
+def tool_shelf():
+    """a tool room's shelf, 3 m: hoses, buckets and boxed tools."""
+    c = store_colours()
+    return shelving("tool shelf", 3.0, 0.5, 1.6, [c["green"], c["dark steel"], c["cardboard"]])
+
+
+def sewage_pump():
+    """the pond's lift pump: a squat motor over its wet well lid, a switch box
+    on its post."""
+    c = store_colours()
+    green = material("pump green", (0.3, 0.42, 0.3))
+    parts = [box("lid", (1.0, 1.0, 0.1), at=(0, 0, 0.05), mat=c["dark steel"])]
+    parts.append(cylinder("motor", 0.3, 0.6, sides=14, at=(0, 0, 0.4), mat=green))
+    parts.append(cylinder("cap", 0.32, 0.06, sides=14, at=(0, 0, 0.73), mat=green))
+    parts.append(cylinder("discharge", 0.08, 0.6, sides=8, along="X", at=(0.5, 0, 0.3), mat=c["steel"]))
+    parts.append(box("switch post", (0.06, 0.06, 1.1), at=(-0.6, 0.3, 0.55), mat=c["dark steel"]))
+    parts.append(box("switch box", (0.25, 0.15, 0.3), at=(-0.6, 0.2, 1.1), mat=c["white"]))
+    return join(parts, "sewage pump")
+
+
+def pond_valve():
+    """the pond's valve at its edge: a riser and its wheel on a concrete pad."""
+    c = store_colours()
+    parts = [box("pad", (0.6, 0.6, 0.1), at=(0, 0, 0.05), mat=material("concrete", (0.6, 0.6, 0.58)))]
+    parts.append(cylinder("riser", 0.1, 0.7, sides=10, at=(0, 0, 0.45), mat=c["dark steel"]))
+    parts.append(cylinder("wheel", 0.22, 0.04, sides=14, at=(0, 0, 0.82), mat=c["red"]))
+    parts.append(box("spoke", (0.42, 0.03, 0.03), at=(0, 0, 0.82), mat=c["red"]))
+    return join(parts, "pond valve")
+
+
+# The town dump (todo Model 14): the scale shed's scale 2.5 m square and
+# 0.3 m tall; the desk and toolbox are the grocery's and the house's. The
+# pile's size is Claude's.
+
+
+def truck_scale():
+    """the dump's scale, 2.5 m square: a steel deck on its frame, the read
+    out on a post."""
+    c = store_colours()
+    parts = [box("deck", (2.5, 2.5, 0.25), at=(0, 0, 0.125), mat=c["dark steel"])]
+    for i in range(6):
+        parts.append(box(f"tread {i}", (2.4, 0.05, 0.02), at=(0, -1.0 + 0.4 * i, 0.26), mat=c["steel"]))
+    parts.append(box("post", (0.08, 0.08, 1.2), at=(1.35, -1.35, 0.6), mat=c["dark steel"]))
+    parts.append(box("readout", (0.35, 0.12, 0.25), at=(1.35, -1.35, 1.25), mat=c["black"]))
+    return join(parts, "truck scale")
+
+
+def dump_pile():
+    """a heap at the dump: broken boards, bags, a tyre and scrap."""
+    c = store_colours()
+    dirt = material("dump dirt", (0.4, 0.35, 0.28))
+    bpy.ops.mesh.primitive_cone_add(vertices=10, radius1=2.2, radius2=0.4, depth=1.4, location=(0, 0, 0.7))
+    heap = bpy.context.active_object
+    heap.data.materials.append(dirt)
+    parts = [heap]
+    bits = [c["wood"], c["black"], c["dark steel"], c["white"], c["cardboard"]]
+    for i in range(12):
+        a = i * 0.52
+        r = 0.6 + 0.12 * (i % 5)
+        z = 1.2 - r * 0.5
+        parts.append(box(f"junk {i}", (0.5 + 0.1 * (i % 3), 0.25, 0.15), at=(r * math.cos(a), r * math.sin(a), z), mat=bits[i % 5]))
+    parts.append(cylinder("tyre", 0.35, 0.2, sides=14, along="X", at=(1.4, 0.4, 0.4), mat=c["black"]))
+    return join(parts, "dump pile")
+
+
+PLACES = {
+    "shop aisle": shop_aisle,
+    "shop counter": shop_counter,
+    "bay bench": bay_bench,
+    "parts shelving": parts_shelving,
+    "gas pump": gas_pump,
+    "tool shelf": tool_shelf,
+    "sewage pump": sewage_pump,
+    "pond valve": pond_valve,
+    "truck scale": truck_scale,
+    "dump pile": dump_pile,
+}
+
+
 UTILITIES = {
     "water tower": water_tower,
     "water tower tap": water_tower_tap,
@@ -3712,6 +3853,7 @@ MODELS = {
     **EATERIES,
     **SHOPS,
     **UTILITIES,
+    **PLACES,
     "tree": tree,
     "rock": rock,
     # The wasteland's and the ruins' scatter, at their largest side as
