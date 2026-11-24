@@ -1181,12 +1181,48 @@ pub const HARDWARE_STORE: modforge::plan::PlanDef = modforge::plan::PlanDef {
     furniture_color: [0.55, 0.5, 0.42],
     height: 3.6,
 };
-pub const PLACES: [modforge::plan::PlanDef; 22] = [GROCERY_STORE, CROP_FARM, CROP_FARM, LIVESTOCK_BARN, GRAIN_ELEVATOR, DINER, PIZZA_PLACE, CAFE, BAR, PUMP_HOUSE, SUBSTATION, GAS_STATION, SEWAGE_POND, TOWN_DUMP, CLINIC, FIRE_STATION, SHERIFFS_OFFICE, SCHOOL, TOWN_HALL, CHURCH, CEMETERY, HARDWARE_STORE];
+/// Place 22: the mechanic's garage, on main street: two service bays
+/// with their big doors, the parts room, the office and the restroom.
+pub const MECHANICS_GARAGE: modforge::plan::PlanDef = modforge::plan::PlanDef {
+    name: "mechanic's garage",
+    edge: false,
+    columns: &[7.0, 7.0, 5.0],
+    rows: &[9.0, 4.0],
+    rooms: &[((0, 0), "service bay"), ((1, 0), "second service bay"), ((2, 0), "garage office"), ((0, 1), "parts room"), ((1, 1), "tire store"), ((2, 1), "restroom")],
+    ways: &[((0, 0), East, false), ((1, 0), East, true), ((0, 0), North, true), ((1, 0), North, true), ((2, 0), North, true)],
+    exits: &[((0, 0), South, 3.5), ((1, 0), South, 3.5), ((2, 0), South, 1.2)],
+    furniture: &[
+        ("service bay", [0.0, -0.4], [4.0, 0.9, 0.7]),
+        ("second service bay", [0.0, -0.4], [4.0, 0.9, 0.7]),
+        ("garage office", [0.0, -0.2], [1.4, 0.75, 0.7]),
+        ("parts room", [0.0, -0.35], [5.0, 1.9, 0.5]),
+        ("tire store", [0.0, 0.0], [4.0, 1.0, 1.5]),
+        ("restroom", [0.3, -0.3], [0.4, 0.8, 0.65]),
+    ],
+    things: &[
+        (GARAGE_WORKBENCH, "service bay", [0.3, -0.2]),
+        (TOOLBOX, "second service bay", [0.3, -0.2]),
+        (CASH_REGISTER, "garage office", [0.3, 0.3]),
+        (SHELF, "parts room", [0.0, 0.3]),
+        (PALLET, "tire store", [0.3, 0.3]),
+    ],
+    outside: &[],
+    walls: &[[0.6, 0.62, 0.65], [0.8, 0.75, 0.6]],
+    floor: [0.45, 0.45, 0.47],
+    furniture_color: [0.5, 0.2, 0.15],
+    height: 4.0,
+};
+pub const PLACES: [modforge::plan::PlanDef; 23] = [GROCERY_STORE, CROP_FARM, CROP_FARM, LIVESTOCK_BARN, GRAIN_ELEVATOR, DINER, PIZZA_PLACE, CAFE, BAR, PUMP_HOUSE, SUBSTATION, GAS_STATION, SEWAGE_POND, TOWN_DUMP, CLINIC, FIRE_STATION, SHERIFFS_OFFICE, SCHOOL, TOWN_HALL, CHURCH, CEMETERY, HARDWARE_STORE, MECHANICS_GARAGE];
 /// The places whose garden beds are found sown and ripe, with what.
 pub const PLACE_SOWN: [(&str, &str); 1] = [("crop farm", POTATO_SEED)];
 /// What each place's boxes are found holding: the place, the box, the
 /// item and how many.
-pub const PLACE_HOLDS: [(&str, &str, &str, u32); 92] = [
+pub const PLACE_HOLDS: [(&str, &str, &str, u32); 97] = [
+    ("mechanic's garage", TOOLBOX, WRENCH, 2),
+    ("mechanic's garage", CASH_REGISTER, "scrap", 2),
+    ("mechanic's garage", SHELF, FUEL, 2),
+    ("mechanic's garage", SHELF, "pipe", 4),
+    ("mechanic's garage", PALLET, "scrap", 10),
     ("hardware store", SHELF, HAMMER, 2),
     ("hardware store", SHELF, WRENCH, 2),
     ("hardware store", SHELF, "rope", 4),
