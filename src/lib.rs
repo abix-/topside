@@ -737,6 +737,7 @@ fn spawn_camera(mut commands: Commands, players: Query<Entity, Added<player::Pla
                 bevy::core_pipeline::prepass::DepthPrepass,
                 bevy::core_pipeline::prepass::NormalPrepass,
                 Msaa::Off,
+                bevy::render::view::NoIndirectDrawing,
                 outline::Outlined,
                 player::Eyes::default(),
                 Transform::from_xyz(0.0, EYE_HEIGHT - player::BODY_CENTRE, 0.0)
