@@ -162,16 +162,22 @@ pub(crate) fn apply_avoidance_to_agents<CS: CoordinateSystem>(
 
   let span = tracing::info_span!("landmass: avoidance obstacles").entered();
   let mut agent_id_to_obstacles = HashMap::new();
-  for (agent_id, _) in agents.iter() {
+  for (agent_id, agent) in agents.iter() {
     let agent_node = match agent_id_to_agent_node.get(&agent_id) {
       None => continue,
       Some(agent_node) => agent_node,
     };
-    let mut nearby_obstacles = nav_mesh_borders_to_dodgy_obstacles(
-      *agent_node,
-      nav_data,
-      agent_options.neighbourhood,
-    );
+    // topside's change: only the borders the agent could reach within the
+    // obstacle time horizon, as RVO2 gathers obstacles (its KdTree's
+    // computeObstacleNeighbors, range = timeHorizonObst * maxSpeed +
+    // radius). A border farther than that makes no constraint on any
+    // velocity the agent may take, so the answer is the same; walking every
+    // border within the whole neighbourhood cost a third of the step.
+    let reach = (agent.max_speed * agent_options.obstacle_avoidance_time_horizon
+      + agent.radius)
+      .min(agent_options.neighbourhood);
+    let mut nearby_obstacles =
+      nav_mesh_borders_to_dodgy_obstacles(*agent_node, nav_data, reach);
     let nearby_obstacles = nearby_obstacles
       .drain(..)
       .map(std::borrow::Cow::Owned)
