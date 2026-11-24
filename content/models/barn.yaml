@@ -1,0 +1,234 @@
+# The livestock barn and every thing in it (todo Model 4), built by
+# scripts/models.py.
+#
+# Sizes are content's LIVESTOCK_BARN plan's (a stall rail 6 m long and 1.4 m
+# tall, the tack wall 3 m, the milk tank 1.5 m, the roost 3.5 m, the hay
+# stack 5 m by 2 m, the butchery's table 2 m); the things' are Claude's.
+
+colours:
+  wood: [0.48, 0.36, 0.24]
+  red: [0.55, 0.18, 0.14]
+  steel: [0.7, 0.72, 0.75]
+  dark: [0.2, 0.18, 0.16]
+  leather: [0.4, 0.25, 0.14]
+  hay: [0.82, 0.7, 0.35]
+  straw: [0.75, 0.65, 0.4]
+  feed: [0.65, 0.55, 0.3]
+  egg: [0.92, 0.88, 0.78]
+  block wood: [0.62, 0.48, 0.32]
+
+models:
+  stall rail:
+    about: a stall's side, posts and three rails, 6 m long and 1.4 m tall.
+    parts:
+      - for: {i: range(4)}
+        parts:
+          - box: [0.12, 0.12, 1.4]
+            at: [-2.94 + 1.96 * i, 0, 0.7]
+            colour: wood
+      - for: {z: [0.4, 0.85, 1.3]}
+        parts:
+          - box: [6.0, 0.06, 0.15]
+            at: [0, 0, z]
+            colour: wood
+
+  tack wall:
+    about: the tack room's wall, saddles on their racks, bridles and ropes on pegs.
+    parts:
+      - box: [3.0, 0.05, 1.8]
+        at: [0, 0.22, 0.9]
+        colour: wood
+      - for: {x: [-0.9, 0.0, 0.9]}
+        parts:
+          - box: [0.1, 0.45, 0.05]
+            at: [x, 0, 1.0]
+            colour: wood
+          - box: [0.4, 0.55, 0.2]
+            at: [x, 0, 1.12]
+            colour: leather
+          - box: [0.03, 0.4, 0.35]
+            at: [x, -0.1, 0.9]
+            colour: leather
+      - for: {x: [-1.3, -0.45, 0.45, 1.3]}
+        parts:
+          - cylinder: [0.02, 0.15]
+            along: Y
+            at: [x, 0.12, 1.6]
+            colour: dark
+          - box: [0.05, 0.02, 0.5]
+            at: [x, 0.06, 1.35]
+            colour: leather
+
+  milk tank:
+    about: a steel bulk milk tank on legs, its lid and outlet.
+    parts:
+      - cylinder: [0.38, 1.5]
+        sides: 16
+        along: X
+        at: [0, 0, 0.6]
+        colour: steel
+      - cylinder: [0.15, 0.04]
+        sides: 14
+        at: [0.3, 0, 1.0]
+        colour: steel
+      - cylinder: [0.04, 0.2]
+        along: Y
+        at: [-0.6, -0.4, 0.4]
+        colour: dark
+      - for: {sx: [1, -1], sy: [1, -1]}
+        parts:
+          - cylinder: [0.03, 0.3]
+            sides: 6
+            at: [sx * 0.6, sy * 0.25, 0.15]
+            colour: steel
+
+  roost:
+    about: the chicken coop's roost, bars stepped up a frame over a droppings board.
+    parts:
+      - box: [3.5, 1.0, 0.04]
+        at: [0, 0, 0.02]
+        colour: dark
+      - for: {s: [1, -1]}
+        parts:
+          - box: [0.06, 1.0, 1.0]
+            at: [s * 1.72, 0, 0.5]
+            colour: wood
+      - for: {k: range(3)}
+        parts:
+          - cylinder: [0.025, 3.5]
+            sides: 6
+            along: X
+            at: [0, -0.35 + 0.35 * k, 0.4 + 0.25 * k]
+            colour: wood
+      - box: [3.3, 0.9, 0.04]
+        at: [0, 0, 0.06]
+        colour: straw
+
+  hay stack:
+    about: a stack of square bales, 5 m by 2 m, three high at the back.
+    parts:
+      - for: {row: range(2), lv: range(3), i: range(5)}
+        if: lv < 3 - row
+        parts:
+          - box: [0.95, 0.95, 0.48]
+            at: [-2.0 + 1.0 * i, 0.5 - row * 1.0, 0.25 + 0.5 * lv]
+            colour: "'hay' if (i + lv) % 2 else 'straw'"
+
+  steel table:
+    about: a steel butchery table on legs, a shelf under it.
+    parts:
+      - box: [2.0, 0.8, 0.04]
+        at: [0, 0, 0.88]
+        colour: steel
+      - for: {sx: [1, -1], sy: [1, -1]}
+        parts:
+          - box: [0.04, 0.04, 0.86]
+            at: [sx * 0.95, sy * 0.35, 0.43]
+            colour: steel
+      - box: [1.9, 0.7, 0.03]
+        at: [0, 0, 0.2]
+        colour: steel
+
+  feed trough:
+    about: a wooden feed trough on short legs, feed in it.
+    parts:
+      - box: [2.0, 0.5, 0.05]
+        at: [0, 0, 0.3]
+        colour: wood
+      - for: {s: [1, -1]}
+        parts:
+          - box: [2.0, 0.05, 0.3]
+            at: [0, s * 0.25, 0.45]
+            colour: wood
+          - box: [0.05, 0.55, 0.3]
+            at: [s * 1.0, 0, 0.45]
+            colour: wood
+          - box: [0.1, 0.5, 0.3]
+            at: [s * 0.8, 0, 0.15]
+            colour: wood
+      - box: [1.9, 0.45, 0.08]
+        at: [0, 0, 0.4]
+        colour: feed
+
+  milk can:
+    about: a steel milk churn with its lid and handles.
+    parts:
+      - cylinder: [0.18, 0.5]
+        sides: 14
+        at: [0, 0, 0.25]
+        colour: steel
+      - cylinder: [0.1, 0.15]
+        sides: 12
+        at: [0, 0, 0.57]
+        colour: steel
+      - cylinder: [0.12, 0.05]
+        sides: 12
+        at: [0, 0, 0.67]
+        colour: steel
+      - for: {s: [1, -1]}
+        parts:
+          - box: [0.04, 0.03, 0.08]
+            at: [s * 0.14, 0, 0.6]
+            colour: dark
+
+  nest box:
+    about: a row of three nest boxes on legs, straw and an egg in each.
+    parts:
+      - box: [1.2, 0.4, 0.04]
+        at: [0, 0, 0.5]
+        colour: wood
+      - box: [1.2, 0.04, 0.4]
+        at: [0, 0.18, 0.7]
+        colour: wood
+      - box: [1.25, 0.45, 0.04]
+        at: [0, 0, 0.92]
+        colour: red
+      - for: {i: range(4)}
+        parts:
+          - box: [0.03, 0.4, 0.4]
+            at: [-0.585 + 0.39 * i, 0, 0.7]
+            colour: wood
+      - for: {i: range(3)}
+        let: {x: -0.39 + 0.39 * i}
+        parts:
+          - box: [0.34, 0.34, 0.05]
+            at: [x, 0, 0.545]
+            colour: straw
+          - cylinder: [0.03, 0.06]
+            at: [x, 0, 0.6]
+            colour: egg
+      - for: {s: [1, -1]}
+        parts:
+          - box: [0.05, 0.4, 0.5]
+            at: [s * 0.55, 0, 0.25]
+            colour: wood
+
+  hay bale:
+    about: a square bale of hay, its two strings.
+    parts:
+      - box: [0.9, 0.45, 0.4]
+        at: [0, 0, 0.2]
+        colour: hay
+      - for: {s: [1, -1]}
+        parts:
+          - box: [0.02, 0.47, 0.42]
+            at: [s * 0.22, 0, 0.2]
+            colour: dark
+
+  butcher block:
+    about: a butcher block, a thick end-grain top on legs, a cleaver in it.
+    parts:
+      - box: [0.7, 0.7, 0.3]
+        at: [0, 0, 0.75]
+        colour: block wood
+      - for: {sx: [1, -1], sy: [1, -1]}
+        parts:
+          - box: [0.08, 0.08, 0.6]
+            at: [sx * 0.28, sy * 0.28, 0.3]
+            colour: wood
+      - box: [0.25, 0.01, 0.12]
+        at: [0.05, 0, 0.94]
+        colour: steel
+      - box: [0.12, 0.03, 0.03]
+        at: [0.23, 0, 0.97]
+        colour: dark

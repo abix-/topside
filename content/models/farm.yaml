@@ -1,0 +1,94 @@
+# The crop farm and every thing in it (todo Model 3), built by
+# scripts/models.py.
+#
+# The farmhouse's kitchen counter, the office's desk, the pantry, the toolbox
+# and the garden beds are the house's and the grocery's own; these are the
+# farm's. Sizes are content's CROP_FARM plan's (the tool shed's rack 4 m by
+# 0.6 m and 1.8 m tall, the seed store's shelf 3 m by 0.6 m and 1.6 m tall);
+# the rest are Claude's.
+
+colours:
+  shed plank: [0.5, 0.38, 0.25]
+  burlap: [0.6, 0.5, 0.35]
+  seed: [0.7, 0.6, 0.35]
+
+models:
+  tool rack:
+    about: the tool shed's wall, a plank board on posts with the farm's tools hung on it (a spade, a hoe, a rake, a pitchfork), a bench under it.
+    parts:
+      - box: [4.0, 0.05, 1.2]
+        at: [0, 0.27, 1.2]
+        colour: shed plank
+      - for: {s: [1, -1]}
+        parts:
+          - box: [0.08, 0.08, 1.8]
+            at: [s * 1.96, 0.24, 0.9]
+            colour: wood
+      - box: [4.0, 0.5, 0.05]
+        at: [0, 0, 0.8]
+        colour: shed plank
+      - for: {i: range(4)}
+        let:
+          x: -1.5 + i
+          head: "[(0.2, 0.03, 0.28), (0.18, 0.03, 0.08), (0.35, 0.03, 0.05), (0.25, 0.03, 0.25)][i]"
+        parts:
+          - cylinder: [0.018, 1.2]
+            at: [x, 0.2, 1.15]
+            colour: wood
+          - box: ["head[0]", "head[1]", "head[2]"]
+            at: [x, 0.2, "0.55 - head[2] / 2 + 0.05"]
+            colour: dark steel
+      - box: [0.8, 0.4, 0.4]
+        at: [1.4, 0, 0.2]
+        colour: burlap
+
+  seed shelf:
+    about: the seed store's shelf, wooden shelves of seed packets, jars and sacks.
+    parts:
+      - box: [3.0, 0.04, 1.6]
+        at: [0, 0.28, 0.8]
+        colour: shed plank
+      - for: {s: [1, -1]}
+        parts:
+          - box: [0.04, 0.6, 1.6]
+            at: [s * 1.48, 0, 0.8]
+            colour: shed plank
+      - for: {lv: range(4)}
+        let: {z: "[0.05, 0.55, 1.05, 1.55][lv]"}
+        parts:
+          - box: [3.0, 0.6, 0.03]
+            at: [0, 0, z]
+            colour: shed plank
+          - for: {i: range(6)}
+            if: lv != 3
+            let: {x: -1.25 + 0.5 * i}
+            parts:
+              - box: [0.4, 0.4, 0.4]
+                if: lv == 0
+                at: [x, 0, 0.27]
+                colour: burlap
+              - cylinder: [0.08, 0.22]
+                if: lv == 1
+                sides: 10
+                at: [x, 0, z + 0.125]
+                colour: glass
+              - box: [0.35, 0.3, 0.15]
+                if: lv == 2
+                at: [x, 0, z + 0.09]
+                colour: "['green', 'yellow', 'orange'][i % 3]"
+
+  seed bin:
+    about: a wooden seed bin with its lid propped open on seed.
+    parts:
+      - box: [1.0, 0.6, 0.7]
+        at: [0, 0, 0.35]
+        colour: shed plank
+      - box: [0.92, 0.52, 0.02]
+        at: [0, 0, 0.66]
+        colour: seed
+      - box: [1.0, 0.04, 0.6]
+        at: [0, 0.32, 1.0]
+        colour: shed plank
+      - box: [0.12, 0.2, 0.06]
+        at: [0.25, 0, 0.7]
+        colour: steel
