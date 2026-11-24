@@ -43,11 +43,13 @@ pub fn trouble(
     In((home, seed)): In<(Home, u64)>,
     mut commands: Commands,
     mut people: Query<(Entity, &Actor, &HomeAt, &mut Npc, &mut Persona, Option<&mut crate::actor::Inventory>, Option<&crate::actor::Store>), Without<Dead>>,
-    things: Query<(Entity, &WorldItem, &Transform, &crate::interact::ThingId), Without<Actor>>,
+    mut world_items: ParamSet<(
+        Query<(Entity, &WorldItem, &Transform, &crate::interact::ThingId), Without<Actor>>,
+        Query<(&Transform, &mut WorldItem), (Without<Container>, Without<Actor>)>,
+    )>,
     mut stores: Query<&mut Container, Without<Actor>>,
     items: Res<ItemRegistryRes>,
     shelters: Query<&crate::structure::Shelter>,
-    mut lying: Query<(&Transform, &mut WorldItem), (Without<Container>, Without<Actor>)>,
 ) {
     let roll = |salt: u64, n: usize| modforge::roll::salted_index(seed, 0x4031_0000 + salt, n.max(1) as u64) as usize;
     // The player's bunker people, by their ids.
@@ -57,7 +59,8 @@ pub fn trouble(
     match home {
         // A short circuit: the burnable thing at home picked catches.
         Home::Fire => {
-            let mut burnable: Vec<(Entity, u64)> = things
+            let mut burnable: Vec<(Entity, u64)> = world_items
+                .p0()
                 .iter()
                 .filter(|(_, item, at, _)| crate::content::BURNS.contains(&item.stack.item.as_str()) && at.translation.ground().distance(BUNKER_AT) < AT_HOME)
                 .map(|(e, .., id)| (e, id.0))
@@ -76,6 +79,7 @@ pub fn trouble(
         // water itself is not drawn yet).
         Home::Flood => {
             let at_home = |at: &Transform| at.translation.ground().distance(BUNKER_AT) < AT_HOME && crate::structure::sheltered(&shelters, at.translation.ground());
+            let mut lying = world_items.p1();
             let bottom = lying.iter().filter(|(at, _)| at_home(at)).map(|(at, _)| at.translation.y).fold(f32::MAX, f32::min);
             for (at, mut item) in &mut lying {
                 if at_home(at) && at.translation.y < bottom + 1.0 && crate::content::KEEPS_DAYS.iter().any(|(name, _)| *name == item.stack.item) {
