@@ -1,0 +1,40 @@
+# Every kind of actor (modforge `actor::ActorDef`): anything that moves
+# or shoots. Read by content's `register_actors`. A def has its `name`,
+# `behaviour` (Guard holds its post, Hunter roams and chases),
+# `max_health`, `sight` (how far it notices a target, metres) and `reach`
+# (how close it wants to be before attacking), and any of `faction` (none
+# when left out: a bunker person's is given at spawn), `protection`
+# (armor and resistances), `weapon` (the item in hand at spawn, none when
+# left out) and `weapon_layers` (the layers on it). A person's weapon is
+# a handle and its head (design.md "What 2D changes").
+
+actors:
+  # The player: a bunker person of the player's bunker, under human
+  # control, starting with nothing in hand.
+  - {name: player, faction: player, behaviour: Guard, max_health: 100.0, sight: 25.0, reach: 1.8}
+  - {name: bunker person, behaviour: Guard, max_health: 100.0, weapon: pipe, sight: 25.0, reach: 1.8}
+  - {name: scavenger, faction: scavengers, behaviour: Hunter, max_health: 60.0, weapon: pipe, sight: 25.0, reach: 1.8}
+  - {name: raider, faction: raiders, behaviour: Hunter, max_health: 100.0, weapon: wooden handle, weapon_layers: [axe head], sight: 25.0, reach: 1.8}
+  # A raider camp's guard.
+  - {name: lookout, faction: raiders, behaviour: Guard, max_health: 80.0, weapon: long pole, weapon_layers: [spear point], sight: 25.0, reach: 1.8}
+  - {name: wanderer, faction: townspeople, behaviour: Guard, max_health: 70.0, weapon: pipe, sight: 25.0, reach: 1.8}
+  # A wild animal (design.md "Bunker people and topside people":
+  # "Hostiles attack: wild animals"), hunting with its teeth. Its health
+  # and reach are Claude's, for the operator to change.
+  - {name: wolf, faction: wildlife, behaviour: Hunter, max_health: 50.0, weapon: teeth, sight: 25.0, reach: 1.4}
+  # A turret (todo 11k): an actor that never moves, guarding where it is
+  # set with a pipe shotgun; its faction the placer's. Health and sight
+  # Claude's.
+  - name: turret
+    behaviour: Guard
+    max_health: 150.0
+    weapon: pipe shotgun
+    weapon_layers: [pipe barrel, wooden grip, wooden stock]
+    sight: 20.0
+    reach: 12.0
+  # The car (todo 57): an actor that never thinks for itself; its driver
+  # fills its queue. Its health Claude's.
+  - {name: car, behaviour: Guard, max_health: 400.0, sight: 0.0, reach: 0.0}
+  # A truck and a bike, as the car (Works 13). Health Claude's.
+  - {name: truck, behaviour: Guard, max_health: 600.0, sight: 0.0, reach: 0.0}
+  - {name: bike, behaviour: Guard, max_health: 80.0, sight: 0.0, reach: 0.0}

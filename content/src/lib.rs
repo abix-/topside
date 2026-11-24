@@ -12,7 +12,7 @@ use modforge::places::{Places, SiteKind};
 use modforge::world2d::{Clearing, World2d};
 use modforge::town::{Town, TownDef};
 use modforge::house::HouseDef;
-use modforge::actor::{ActorDef, ActorRegistry, Behaviour, BodyLook, LookDef};
+use modforge::actor::{ActorDef, ActorRegistry, BodyLook, LookDef};
 use modforge::biome::{BiomeDef, BiomeRegistry, ScatterDef};
 use modforge::combat::{DamageDef, DamageRegistry};
 use modforge::faction::{FactionDef, FactionKind, FactionRegistry};
@@ -1907,58 +1907,27 @@ pub fn register_factions(reg: &mut FactionRegistry) {
     }
 }
 
-/// The people: the bunker people (their bunker's faction is given at
-/// spawn), the topside hostiles found at monuments, and the wanderer,
-/// a topside neutral who belongs to no side.
+/// Where the kinds of actor are: content/actors.yaml, its `actors` a list
+/// of modforge `actor::ActorDef`, each naming only what it has.
+pub const ACTORS_FILE: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/actors.yaml");
+
+/// The people (the bunker people, their bunker's faction given at spawn;
+/// the topside hostiles found at monuments; the wanderer), the animals,
+/// the turret and the cars, from `ACTORS_FILE`. A file that does not read
+/// stops the game at once, naming it.
 pub fn register_actors(reg: &mut ActorRegistry) {
-    // Their weapon is a handle and its head (design.md "What 2D changes").
-    let person = |name: &str, faction: Option<&str>, behaviour, max_health, weapon: &str, head: &[&str]| {
-        ActorDef {
-            name: name.to_string(),
-            faction: faction.map(String::from),
-            behaviour,
-            max_health,
-            protection: Default::default(),
-            weapon: Some(weapon.to_string()),
-            weapon_layers: head.iter().map(|h| h.to_string()).collect(),
-            sight: 25.0,
-            reach: 1.8,
-        }
-    };
-    // The player: a bunker person of the player's bunker, under human
-    // control, starting with nothing in hand.
-    reg.register(ActorDef {
-        weapon: None,
-        ..person("player", Some(PLAYER_FACTION), Behaviour::Guard, 100.0, "", &[])
-    })
-    .expect("actor registered once");
-    for def in [
-        person("bunker person", None, Behaviour::Guard, 100.0, "pipe", &[]),
-        person("scavenger", Some(SCAVENGERS), Behaviour::Hunter, 60.0, "pipe", &[]),
-        person("raider", Some(RAIDERS), Behaviour::Hunter, 100.0, "wooden handle", &["axe head"]),
-        // A raider camp's guard.
-        person("lookout", Some(RAIDERS), Behaviour::Guard, 80.0, "long pole", &["spear point"]),
-        person("wanderer", Some(TOWNSPEOPLE), Behaviour::Guard, 70.0, "pipe", &[]),
-        // A wild animal (design.md "Bunker people and topside people":
-        // "Hostiles attack: wild animals"), hunting with its teeth. Its
-        // health and reach are Claude's, for the operator to change.
-        ActorDef { reach: 1.4, ..person("wolf", Some(WILDLIFE), Behaviour::Hunter, 50.0, "teeth", &[]) },
-        // A turret (todo 11k): an actor that never moves, guarding where
-        // it is set with a pipe shotgun; its faction the placer's. Health
-        // and sight Claude's.
-        ActorDef { sight: 20.0, reach: 12.0, ..person(TURRET, None, Behaviour::Guard, 150.0, "pipe shotgun", &["pipe barrel", "wooden grip", "wooden stock"]) },
-        // The car (todo 57): an actor that never thinks for itself; its
-        // driver fills its queue. Its health Claude's.
-        ActorDef { weapon: None, sight: 0.0, reach: 0.0, ..person(CAR, None, Behaviour::Guard, 400.0, "", &[]) },
-        // A truck and a bike, as the car (Works 13). Health Claude's.
-        ActorDef { weapon: None, sight: 0.0, reach: 0.0, ..person(TRUCK, None, Behaviour::Guard, 600.0, "", &[]) },
-        ActorDef { weapon: None, sight: 0.0, reach: 0.0, ..person(BIKE, None, Behaviour::Guard, 80.0, "", &[]) },
-    ] {
+    let text = std::fs::read_to_string(ACTORS_FILE).unwrap_or_else(|e| panic!("{ACTORS_FILE}: {e}"));
+    let mut file: std::collections::BTreeMap<String, serde_yaml::Value> = serde_yaml::from_str(&text).unwrap_or_else(|e| panic!("{ACTORS_FILE}: {e}"));
+    let actors = file.remove("actors").unwrap_or_else(|| panic!("{ACTORS_FILE}: no actors"));
+    if let Some(key) = file.keys().next() {
+        panic!("{ACTORS_FILE}: {key} is not actors");
+    }
+    let defs: Vec<ActorDef> = serde_yaml::from_value(actors).unwrap_or_else(|e| panic!("{ACTORS_FILE}: actors: {e}"));
+    for def in defs {
         reg.register(def).expect("actor registered once");
     }
 }
 
-/// What each weapon's hit does. Melee has no falloff.
 /// Where the kinds of hurt are: content/damage.yaml, its `damage` a list
 /// of modforge `combat::DamageDef`, each naming only what it has.
 pub const DAMAGE_FILE: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/damage.yaml");
