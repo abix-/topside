@@ -729,8 +729,9 @@ pub fn publish_view(
     cameras: Query<&GlobalTransform, With<Camera3d>>,
     meshes: Query<(
         Has<MeshMaterial3d<StandardMaterial>>,
-        Has<MeshMaterial3d<crate::model::Cel>>,
+        Option<&MeshMaterial3d<crate::model::Cel>>,
         &ViewVisibility,
+        Has<bevy::mesh::skinning::SkinnedMesh>,
     ), With<Mesh3d>>,
     models: Query<(&crate::model::Model, &Transform)>,
     map_view: Option<Res<crate::minimap::MapView>>,
@@ -762,12 +763,24 @@ pub fn publish_view(
         let (at, forward) = (c.translation(), c.forward());
         json!({"at": [at.x, at.y, at.z], "forward": [forward.x, forward.y, forward.z]})
     });
-    let (mut standard, mut cel, mut seen, mut all) = (0, 0, 0, 0);
-    for (is_standard, is_cel, visible) in &meshes {
+    // The materials the seen meshes are drawn with (each its own batch to
+    // draw), and the seen meshes bent by a skeleton (each drawn alone).
+    let (mut standard, mut cel, mut seen, mut all, mut skinned) = (0, 0, 0, 0, 0);
+    let (mut materials, mut skinned_materials) = (std::collections::HashSet::new(), std::collections::HashSet::new());
+    for (is_standard, is_cel, visible, is_skinned) in &meshes {
         all += 1;
         standard += is_standard as u32;
-        cel += is_cel as u32;
-        seen += visible.get() as u32;
+        cel += is_cel.is_some() as u32;
+        if visible.get() {
+            seen += 1;
+            skinned += is_skinned as u32;
+            if let Some(material) = is_cel {
+                materials.insert(material.0.id());
+                if is_skinned {
+                    skinned_materials.insert(material.0.id());
+                }
+            }
+        }
     }
     if let Ok(mut slot) = VIEW.lock() {
         *slot = json!({
@@ -776,6 +789,9 @@ pub fn publish_view(
             "standard": standard,
             "cel": cel,
             "seen": seen,
+            "seen_skinned": skinned,
+            "seen_materials": materials.len(),
+            "seen_skinned_materials": skinned_materials.len(),
             "models": models.iter().count(),
             "floors_above": floors_above,
             "blocks_above": blocks_above,
