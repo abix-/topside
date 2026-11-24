@@ -1246,7 +1246,24 @@ pub const GENERAL_STORE: modforge::plan::PlanDef = modforge::plan::PlanDef {
 };
 pub const PLACES: [modforge::plan::PlanDef; 24] = [GROCERY_STORE, CROP_FARM, CROP_FARM, LIVESTOCK_BARN, GRAIN_ELEVATOR, DINER, PIZZA_PLACE, CAFE, BAR, PUMP_HOUSE, SUBSTATION, GAS_STATION, SEWAGE_POND, TOWN_DUMP, CLINIC, FIRE_STATION, SHERIFFS_OFFICE, SCHOOL, TOWN_HALL, CHURCH, CEMETERY, HARDWARE_STORE, MECHANICS_GARAGE, GENERAL_STORE];
 /// The places whose garden beds are found sown and ripe, with what.
-pub const PLACE_SOWN: [(&str, &str); 1] = [("crop farm", POTATO_SEED)];
+/// The small world's tiers, 1 to 6 (topside-town "Tiers": the
+/// operator's "tier 6 enemy house"); the count is the map's.
+pub const TIERS: u32 = 6;
+/// Each kind's usual tier: a house and the shops are quiet, what the town
+/// runs on and guards is higher. Every number is Claude's; a kind not
+/// named is tier 1.
+pub const USUAL_TIERS: [(&str, u32); 9] = [
+    ("house", 1),
+    ("gas station", 2),
+    ("clinic", 2),
+    ("substation", 2),
+    ("grain elevator", 2),
+    ("hardware store", 2),
+    ("mechanic's garage", 2),
+    ("sheriff's office", 3),
+    ("fire station", 2),
+];
+pub const PLACE_SOWN:[(&str, &str); 1] = [("crop farm", POTATO_SEED)];
 /// What each place's boxes are found holding: the place, the box, the
 /// item and how many.
 pub const PLACE_HOLDS: [(&str, &str, &str, u32); 104] = [
@@ -2360,6 +2377,8 @@ pub fn small_town_def() -> TownDef {
         // own kind. The 1 to 4 and the kind are Claude's.
         residents: ("wanderer".to_string(), (1, 4)),
         places: PLACES.to_vec(),
+        tiers: TIERS,
+        usual_tiers: USUAL_TIERS.iter().map(|&(n, t)| (n.to_string(), t)).collect(),
     }
 }
 
