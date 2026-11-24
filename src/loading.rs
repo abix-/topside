@@ -64,6 +64,7 @@ pub fn ready_the_world(world: &mut World) {
     let _ = world.run_system_cached(crate::terrain::open_the_ground);
     let _ = world.run_system_cached(crate::actor::populate_monuments);
     let _ = world.run_system_cached(crate::actor::populate_topside_people);
+    let _ = world.run_system_cached(crate::interact::populate_town_water);
     crate::navmesh::mesh_the_world(world);
     crate::navmesh::run_landmass(world);
     // The start of the game, after the launch only: the world's history

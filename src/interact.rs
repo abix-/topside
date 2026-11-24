@@ -356,6 +356,47 @@ pub struct Container(pub item::Inventory);
 #[reflect(opaque, Component, Serialize, Deserialize)]
 pub struct DrawsFrom(#[entities] pub Entity);
 
+/// The town's water (topside-town "Everything works": "faucets, toilets,
+/// showers, from the water tower through the pump house"; Project
+/// Zomboid's plumbing): the water tower, a store of full water barrels,
+/// and every house's sinks, shower and toilet drawing from it, each
+/// through the one way a thing comes into the world. Once a world, as its
+/// people; after a load they are in the save.
+pub fn populate_town_water(
+    mut commands: Commands,
+    world: Res<crate::terrain::WorldRes>,
+    items: Res<ItemRegistryRes>,
+    mut ids: ResMut<ThingIssuer>,
+    mut things_made: ResMut<crate::terrain::ThingsMade>,
+) {
+    if things_made.water {
+        return;
+    }
+    things_made.water = true;
+    let Some(town) = world.world.town.as_ref() else {
+        return;
+    };
+    let (Some(tower_def), Some(barrel)) = (items.0.def(crate::content::WATER_TOWER), items.0.def("water barrel")) else {
+        return;
+    };
+    let (tower, _) = spawn_item(&mut commands, &mut ids, tower_def, item::create(tower_def, 1, &[], 0.0, 0), on_ground(town.water_tower(), 0.0));
+    let mut held = item::Inventory::new(crate::content::WATER_TOWER_BARRELS);
+    for _ in 0..crate::content::WATER_TOWER_BARRELS {
+        let mut full = item::create(barrel, 1, &[], 0.0, 0);
+        full.litres = barrel.holds_litres.unwrap_or(0.0);
+        let _ = held.add(full, barrel.max_stack);
+    }
+    let litres = modforge::fluid::litres_in(&held);
+    commands.entity(tower).insert((Container(held), Drawn { held: litres }));
+    for (kind, at) in town.fixtures() {
+        let Some(def) = items.0.def(kind) else {
+            continue;
+        };
+        let (made, _) = spawn_item(&mut commands, &mut ids, def, item::create(def, 1, &[], 0.0, 0), on_ground(at, 0.0));
+        commands.entity(made).insert(DrawsFrom(tower));
+    }
+}
+
 /// A store another place draws from (`DrawsFrom`), and the water it held
 /// when that began (the episode's start: its thing placed). It says how
 /// much it holds when looked at, and reads dry under content's `DRY_BELOW`

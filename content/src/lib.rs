@@ -233,6 +233,15 @@ pub const TOOL_CUPBOARD: &str = "tool cupboard";
 /// A bed, where its owner wakes after dying; struck with a weapon in hand
 /// it breaks (topside-town "Death and the bed").
 pub const BED: &str = "bed";
+/// A house's water fixtures and the tower they draw from (topside-town
+/// "Everything works": "faucets, toilets, showers, from the water tower").
+pub const SINK: &str = "sink";
+pub const SHOWER: &str = "shower";
+pub const TOILET: &str = "toilet";
+pub const WATER_TOWER: &str = "water tower";
+/// How much the tower holds, in water barrels of 200 litres: 50, 10,000
+/// litres for the town (Claude's; a real town's tower holds far more).
+pub const WATER_TOWER_BARRELS: usize = 50;
 pub const WOOD: &str = "wood";
 pub const STONE: &str = "stone";
 /// A biome's weather list (todo 21, 32): each weather named as often as
@@ -1865,6 +1874,14 @@ pub fn register_items(reg: &mut ItemRegistry) {
         // wells scattered, food sources): eaten or drunk from where they
         // stand, a mouthful a use, never used up. Tuning.
         source("well", 0.0, 50.0),
+        // A house's water (topside-town "Everything works", Project
+        // Zomboid's plumbing: a house's taps run off the town's water):
+        // a sink and a shower give a mouthful as a well does, a toilet
+        // flushes, each taking it from the water tower (`DrawsFrom`).
+        source(SINK, 0.0, 50.0),
+        source(SHOWER, 0.0, 50.0),
+        source(TOILET, 0.0, 0.0),
+        building(WATER_TOWER, "The town's water tower. Every house's taps draw from it.", ItemKind::Deployable, 1, Some(WATER_TOWER_BARRELS)),
         // Dirty water works but makes you sick (todo Survive 4): each
         // mouthful of river water hurts a little. The 3 is Claude's.
         ItemDef {

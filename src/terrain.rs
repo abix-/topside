@@ -154,6 +154,8 @@ pub struct ThingsMade {
     pub chunks: HashSet<ChunkKey>,
     pub sites: HashSet<(i32, i32)>,
     pub people: bool,
+    /// The town's water: its tower and every house's taps.
+    pub water: bool,
 }
 
 /// The chunks made when the game was saved (`Chunks::made` then). Saved;

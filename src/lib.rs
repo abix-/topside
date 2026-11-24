@@ -310,6 +310,7 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind, port: u16
             (
                 actor::populate_monuments,
                 actor::populate_topside_people,
+                interact::populate_town_water,
                 actor::populate_bunkers,
                 actor::spawn_door_enemy,
             ),
@@ -339,6 +340,7 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind, port: u16
                     terrain::open_the_ground,
                     actor::populate_monuments,
                     actor::populate_topside_people,
+                    interact::populate_town_water,
                     lap("chunks"),
                 )
                     .chain(),
