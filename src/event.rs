@@ -128,7 +128,10 @@ pub fn happen(
 /// The event happens: each of its doings at each of its places (a game
 /// day being `day_secs`).
 fn send(commands: &mut Commands, state: &mut EventsRes, event: Event, secs: f32, day_secs: f32) {
-    info!("event: {} {:?} at {:?}, episode {}", event.name, event.twists, event.places, state.episode);
+    info!(
+        "event: {} {:?} at {:?}, episode {}, the viewers at {:.2} voted down {:?}",
+        event.name, event.twists, event.places, state.episode, state.director.viewers, event.voted_down
+    );
     state.director.sent(&crate::content::EVENTS, &event);
     if event.mood == modforge::event::Mood::Trouble {
         state.last_trouble = secs;
