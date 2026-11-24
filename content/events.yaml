@@ -21,8 +21,9 @@
 # What an event `does`, each one of: `{Arrive: {who, count: [low, high],
 # leaves: Stays or Morning}}` (who are content/actors.yaml kinds),
 # `{Drop: {item, count, danger}}` (a loot box filled at `danger` when no
-# item), `{Last: {what: Fallout, Cold, Heat, Fog or Dark, hours: [low,
-# high]}}`, `Spoil` (the food in the player's store goes bad) and
+# item), `{Last: {what: {Weather: <a weather>} or Dark, hours: [low,
+# high]}}` (a weather is everywhere while it lasts, doing what that
+# weather does: RadiationStorm, ColdSnap, HeatWave, Fog, Rain), `Spoil` (the food in the player's store goes bad) and
 # `{Storm: <a storm effect>}`.
 #
 # The events are Claude's list the operator took (2026-11-24: "Let's
@@ -44,12 +45,12 @@ events:
     - {name: big, cost: 15, size: 1.8}
     - {name: small, size: 0.6}
     - {name: at two places, cost: 15, twice: true}
-    - {name: in the fog, cost: 5, adds: [{Last: {what: Fog, hours: [1.0, 3.0]}}]}
+    - {name: in the fog, cost: 5, adds: [{Last: {what: {Weather: Fog}, hours: [1.0, 3.0]}}]}
     - {name: in the dark, cost: 5, adds: [{Last: {what: Dark, hours: [1.0, 2.0]}}]}
     - {name: with wolves, cost: 10, adds: [{Arrive: {who: [wolf], count: [2, 4]}}]}
     - {name: guarded, cost: 10, adds: [{Arrive: {who: [lookout], count: [1, 2]}}]}
     - {name: with a gift, cost: 5, adds: [{Drop: {count: [1, 1], danger: 2}}]}
-    - {name: in fallout, cost: 10, adds: [{Last: {what: Fallout, hours: [1.0, 2.0]}}]}
+    - {name: in fallout, cost: 10, adds: [{Last: {what: {Weather: RadiationStorm}, hours: [1.0, 2.0]}}]}
   kinds:
     # People arriving.
     # A wanderer at the door (RimWorld's wanderer joins).
@@ -97,13 +98,13 @@ events:
     # Electronics die (RimWorld's solar flare, Fallout's EMP).
     - {name: static, group: the air, mood: Trouble, cost: 10, warnings: [Sky, Broadcast], from_episode: 1, does: [{Storm: Static}]}
     # Poison in the air (RimWorld's toxic fallout).
-    - {name: fallout, group: the air, mood: Trouble, cost: 15, warnings: [Sky, Broadcast], from_episode: 1, does: [{Last: {what: Fallout, hours: [2.0, 6.0]}}]}
+    - {name: fallout, group: the air, mood: Trouble, cost: 15, warnings: [Sky, Broadcast], from_episode: 1, does: [{Last: {what: {Weather: RadiationStorm}, hours: [2.0, 6.0]}}]}
     # Cold (RimWorld's cold snap).
-    - {name: cold snap, group: the air, mood: Trouble, cost: 10, does: [{Last: {what: Cold, hours: [4.0, 12.0]}}]}
+    - {name: cold snap, group: the air, mood: Trouble, cost: 10, does: [{Last: {what: {Weather: ColdSnap}, hours: [4.0, 12.0]}}]}
     # Heat (RimWorld's heat wave).
-    - {name: heat wave, group: the air, mood: Trouble, cost: 10, does: [{Last: {what: Heat, hours: [4.0, 12.0]}}]}
+    - {name: heat wave, group: the air, mood: Trouble, cost: 10, does: [{Last: {what: {Weather: HeatWave}, hours: [4.0, 12.0]}}]}
     # Fog (Silent Hill's fog; Don't Starve's seasons).
-    - {name: fog, group: the air, mood: Strange, cost: 5, twists: [with wolves], does: [{Last: {what: Fog, hours: [2.0, 6.0]}}]}
+    - {name: fog, group: the air, mood: Strange, cost: 5, twists: [with wolves], does: [{Last: {what: {Weather: Fog}, hours: [2.0, 6.0]}}]}
     # Day goes dark (RimWorld's eclipse).
     - {name: eclipse, group: the air, mood: Strange, cost: 5, twists: [with wolves], warnings: [Sky], does: [{Last: {what: Dark, hours: [1.0, 3.0]}}]}
 

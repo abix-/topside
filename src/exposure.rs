@@ -41,7 +41,7 @@ pub fn expose(
     storms: Res<crate::storm::StormRes>,
     harm: (Res<ItemRegistryRes>, Res<crate::content::LayerRegistryRes>, Res<DamageRegistryRes>),
     shelters: Query<&Shelter>,
-    world: (Option<Res<crate::terrain::WorldRes>>, Res<crate::content::BiomeRegistryRes>),
+    world: (Option<Res<crate::terrain::WorldRes>>, Res<crate::content::BiomeRegistryRes>, Res<crate::event::EventsRes>),
     mut people: Query<(Entity, &Transform, Option<&mut Exposure>, &Protection, &Equipment, &mut Health, Option<&mut Persona>, Option<&crate::actor::Inventory>), (With<crate::actor::Actor>, Without<Dead>, Without<crate::vehicle::Vehicle>)>,
     heaters: Query<(&crate::interact::WorldItem, &Transform, &crate::power::Powered), Without<crate::actor::Actor>>,
 ) {
@@ -54,7 +54,7 @@ pub fn expose(
         .filter_map(|(item, at, _)| crate::content::HEAT.iter().find(|(name, ..)| *name == item.stack.item).map(|(_, h, r)| (at.translation, *h, *r)))
         .collect();
     let (items, layers, damage) = harm;
-    let (world, biomes) = world;
+    let (world, biomes, events) = world;
     let night = crate::survival::night(&tick, *day, &reality);
     let storm = matches!(crate::storm::phase(&tick, *day, &storms), modforge::storm::StormPhase::Storm);
     let second = tick.0 % 60 == 0;
@@ -65,7 +65,7 @@ pub fn expose(
         };
         let inside = sheltered(&shelters, at.translation.ground());
         // The weather where they stand, in the open (todo 21).
-        let weather = world.as_deref().filter(|_| !inside).map(|w| crate::weather::at(w, &biomes, tick.0, *day, at.translation.ground()));
+        let weather = world.as_deref().filter(|_| !inside).map(|w| crate::weather::at(w, &biomes, &events, tick.0, *day, at.translation.ground()));
         let base_air = if inside { SHELTER_AIR } else if night { NIGHT_AIR } else { DAY_AIR };
         // Near a fire, a furnace or an AC, and wrapped in a blanket.
         let near: Vec<(f32, f32, f32)> = heat.iter().map(|(p, h, r)| (p.distance(at.translation), *h, *r)).collect();

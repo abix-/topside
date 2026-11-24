@@ -918,7 +918,7 @@ pub fn render_vitals(
     world: Option<Res<crate::terrain::WorldRes>>,
     biomes: Res<crate::content::BiomeRegistryRes>,
     mut texts: Query<&mut Text, With<VitalsText>>,
-    (seed, researched): (Res<crate::WorldSeed>, Res<crate::research::Researched>),
+    (seed, researched, events): (Res<crate::WorldSeed>, Res<crate::research::Researched>, Res<crate::event::EventsRes>),
 ) {
     let (Ok((health, needs, exposure, at)), Ok(mut text)) = (players.single(), texts.single_mut()) else {
         return;
@@ -945,9 +945,12 @@ pub fn render_vitals(
     // Temperature and radiation (todo 20) beside hunger and thirst.
     let exposure = exposure.map(|e| e.0).unwrap_or_default();
     // The weather where the player stands (todo 21).
-    let weather = world.as_deref().map_or("", |w| crate::weather::at(w, &biomes, tick.0, *day, crate::Ground::ground(at.translation)).name());
+    let weather = world.as_deref().map_or("", |w| crate::weather::at(w, &biomes, &events, tick.0, *day, crate::Ground::ground(at.translation)).name());
+    // A foretold event, told (todo "Events 3"): what the player hears,
+    // sees in the sky, or is told on the radio and television.
+    let foretold = events.foretold().map_or(String::new(), |words| format!("   {words}"));
     text.0 = format!(
-        "Health {:.0}   Hunger {:.0}   Thirst {:.0}   Temp {:.1}C   Rad {:.0}   {time}   {weather}",
+        "Health {:.0}   Hunger {:.0}   Thirst {:.0}   Temp {:.1}C   Rad {:.0}   {time}   {weather}{foretold}",
         health.0.current, needs.0.needs.hunger, needs.0.needs.thirst, exposure.warmth, exposure.dose
     );
 }
@@ -1000,7 +1003,7 @@ pub fn render_sky(
     let secs = crate::survival::Day::secs(&tick);
     let sky = match crate::storm::phase(&tick, *day, &storms) {
         StormPhase::Calm if events.lasts(modforge::event::Lasting::Dark, secs) => Color::srgba(0.0, 0.0, 0.02, 0.8),
-        StormPhase::Calm if events.lasts(modforge::event::Lasting::Fog, secs) => Color::srgba(0.75, 0.76, 0.78, 0.7),
+        StormPhase::Calm if events.foretold_by_sky() => Color::srgba(0.9, 0.5, 0.2, 0.15),
         StormPhase::Storm => kind.map_or(Color::srgba(0.95, 0.93, 0.88, 0.85), |k| crate::storm_type::colour(k.storm)),
         StormPhase::Warning => kind.map_or(Color::srgba(0.7, 0.3, 0.05, 0.3), |k| crate::storm_type::colour(k.warning)),
         StormPhase::Calm if first_sky_change(&tick) => Color::srgba(0.7, 0.3, 0.05, 0.3),

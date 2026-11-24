@@ -10,9 +10,13 @@ use modforge::weather::Weather;
 
 use crate::Ground;
 
-/// The weather at a point on the ground now, from its biome's weather
-/// list (todo 32).
-pub fn at(world: &crate::terrain::WorldRes, biomes: &crate::content::BiomeRegistryRes, tick: u64, day: crate::survival::Day, point: Vec2) -> Weather {
+/// The weather at a point on the ground now: an event's while it lasts
+/// (src/event.rs, everywhere), else from its biome's weather list (todo
+/// 32).
+pub fn at(world: &crate::terrain::WorldRes, biomes: &crate::content::BiomeRegistryRes, events: &crate::event::EventsRes, tick: u64, day: crate::survival::Day, point: Vec2) -> Weather {
+    if let Some(weather) = events.weather(crate::survival::Day::secs(&crate::SimTick(tick))) {
+        return weather;
+    }
     let biome = crate::biome::at(world, biomes, point);
     let hour = ((day.0 / 24.0) * 60.0).round().max(1.0) as u64;
     let name = biome.map_or("", |b| b.name.as_str());
@@ -38,13 +42,14 @@ pub fn sky(
     day: Res<crate::survival::Day>,
     world: Option<Res<crate::terrain::WorldRes>>,
     biomes: Res<crate::content::BiomeRegistryRes>,
+    events: Res<crate::event::EventsRes>,
     player: Query<&Transform, With<crate::player::Player>>,
     eyes: Query<(Entity, Option<&DistanceFog>), With<crate::player::Eyes>>,
 ) {
     let (Some(world), Ok(at)) = (world, player.single()) else {
         return;
     };
-    let weather = self::at(&world, &biomes, tick.0, *day, at.translation.ground());
+    let weather = self::at(&world, &biomes, &events, tick.0, *day, at.translation.ground());
     // A heat wave or a cold snap is a haze far off; clear is no fog.
     let far = match weather {
         Weather::Clear => None,

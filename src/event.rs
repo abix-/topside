@@ -10,9 +10,9 @@ use bevy::prelude::*;
 use modforge::event::{Director, Does, Event, Lasting, Leaves, Place, Warning};
 use modforge::storm::StormPhase;
 
-use crate::actor::{Actor, ActorMapRes, Dead, Persona, SpawnActor, spawn_actor};
-use crate::combat::{Equipment, Health, Protection, hit_actor};
-use crate::content::{BUNKER_AT, BUNKER_LEVEL, DamageRegistryRes, ItemRegistryRes, LayerRegistryRes};
+use crate::actor::{Actor, ActorMapRes, SpawnActor, spawn_actor};
+use crate::combat::Health;
+use crate::content::{BUNKER_AT, BUNKER_LEVEL, ItemRegistryRes, LayerRegistryRes};
 use crate::interact::{Container, ThingIssuer, spawn_item};
 use crate::player::Player;
 use crate::storm::StormRes;
@@ -45,6 +45,27 @@ impl EventsRes {
     /// Whether `what` lasts in the air now.
     pub fn lasts(&self, what: Lasting, secs: f32) -> bool {
         self.lasting.iter().any(|(w, until)| *w == what && secs < *until)
+    }
+
+    /// The weather an event set, the last one still lasting at `secs`:
+    /// it is the weather everywhere (src/weather.rs), so it does what that
+    /// weather does to those outside and to sight.
+    pub fn weather(&self, secs: f32) -> Option<modforge::weather::Weather> {
+        self.lasting.iter().rev().find_map(|(w, until)| match w {
+            Lasting::Weather(weather) if secs < *until => Some(*weather),
+            _ => None,
+        })
+    }
+
+    /// What the player is told of the event foretold and coming (todo
+    /// "Events 3").
+    pub fn foretold(&self) -> Option<String> {
+        self.coming.as_ref().and_then(|(event, _)| event.foretold())
+    }
+
+    /// Whether the coming event is foretold by a light in the sky.
+    pub fn foretold_by_sky(&self) -> bool {
+        self.coming.as_ref().is_some_and(|(event, _)| event.warning == Warning::Sky)
     }
 }
 
@@ -234,46 +255,16 @@ fn spoil(shelters: Query<&Shelter>, mut boxes: Query<(&Transform, &mut Container
     }
 }
 
-/// Every game second or so: what lasts in the air hurts those outside
-/// (fallout, cold, heat; fog and dark are drawn, hud `render_sky`), and
-/// what has ended goes.
-#[allow(clippy::too_many_arguments)]
-pub fn lasting(
-    tick: Res<SimTick>,
-    mut state: ResMut<EventsRes>,
-    items: Res<ItemRegistryRes>,
-    layers: Res<LayerRegistryRes>,
-    damage: Res<DamageRegistryRes>,
-    shelters: Query<&Shelter>,
-    mut people: Query<(&Transform, &Protection, &Equipment, &mut Health, &mut Persona), Without<Dead>>,
-) {
+/// Every game second: what lasted in the air and has ended goes. A
+/// weather is the weather while it lasts (src/weather.rs, which hurts
+/// those outside through exposure.rs and closes the fog); the dark is
+/// drawn (hud `render_sky`).
+pub fn lasting(tick: Res<SimTick>, mut state: ResMut<EventsRes>) {
     if tick.0 % 60 != 0 || state.lasting.is_empty() {
         return;
     }
     let secs = Day::secs(&tick);
     state.lasting.retain(|(_, until)| secs < *until);
-    for (what, _) in state.lasting.clone() {
-        let name = match what {
-            Lasting::Fallout => "radiation",
-            Lasting::Cold => "cold",
-            Lasting::Heat => "heat",
-            Lasting::Fog | Lasting::Dark => continue,
-        };
-        let Some(def) = damage.0.def(name) else {
-            continue;
-        };
-        let hit = modforge::combat::Hit {
-            def,
-            self_inflicted: false,
-            distance: 0.0,
-            location_scale: 1.0,
-        };
-        for (at, own, worn, mut health, mut person) in &mut people {
-            if !sheltered(&shelters, at.translation.ground()) {
-                hit_actor(&hit, own, worn, &items.0, &layers.0, Default::default(), &mut health, Some(&mut person), None, tick.0);
-            }
-        }
-    }
 }
 
 /// What an event brought that leaves in the morning, and the day it
