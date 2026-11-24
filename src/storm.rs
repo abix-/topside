@@ -45,6 +45,11 @@ pub struct StormRes {
     pub shuffles: u32,
 }
 
+/// On someone the storm killed in the open: they die forever, a bed or
+/// none (todo Bed 4).
+#[derive(Component)]
+pub struct CaughtOut;
+
 /// With no episode running (none fits the reality), the storm comes a game
 /// day after the last.
 const NO_EPISODE_STORM_IN: (f32, f32) = (1.0, 1.0);
@@ -82,7 +87,7 @@ pub fn storm(
     mut state: ResMut<StormRes>,
     (episode, episodes, seed): (Res<Episode>, Res<EpisodeRegistryRes>, Res<WorldSeed>),
     shelters: Query<&Shelter>,
-    mut actors: Query<(&Transform, &Protection, &Equipment, &mut Health, Option<&mut Persona>), Without<Dead>>,
+    mut actors: Query<(Entity, &Transform, &Protection, &Equipment, &mut Health, Option<&mut Persona>), Without<Dead>>,
     mut events: ResMut<crate::event::EventsRes>,
 ) {
     let secs = Day::secs(&tick);
@@ -115,7 +120,7 @@ pub fn storm(
         && tick.0 % 60 == 0
         && let Some(def) = damage.0.def("storm")
     {
-        for (at, own, worn, mut health, mut memory) in &mut actors {
+        for (entity, at, own, worn, mut health, mut memory) in &mut actors {
             if sheltered(&shelters, at.translation.ground()) && !(deep && crate::storm_effect::reaches(at.translation)) {
                 continue;
             }
@@ -126,6 +131,9 @@ pub fn storm(
                 location_scale: 1.0,
             };
             hit_actor(&hit, own, worn, &items.0, &layers.0, Default::default(), &mut health, memory.as_deref_mut(), None, tick.0);
+            if health.0.current <= 0.0 {
+                commands.entity(entity).insert(CaughtOut);
+            }
         }
     }
     if state.at.is_some_and(|at| day.storm().passed(secs, at)) {

@@ -765,6 +765,7 @@ pub fn die(
             Option<&mut Inventory>,
             Option<&mut Hotbar>,
             Option<&mut Equipment>,
+            Has<crate::storm::CaughtOut>,
         ),
         Without<Dead>,
     >,
@@ -776,7 +777,7 @@ pub fn die(
         dying.iter().filter(|(_, health, ..)| health.0.current <= 0.0).map(|(entity, _, _, _, actor, ..)| (actor.map(|a| a.0), entity)),
     );
     for entity in order {
-        let Ok((entity, mut health, transform, wakes, actor, firing, inventory, hotbar, worn)) = dying.get_mut(entity) else {
+        let Ok((entity, mut health, transform, wakes, actor, firing, inventory, hotbar, worn, caught)) = dying.get_mut(entity) else {
             continue;
         };
         if let (Some(mut inventory), Some(mut hotbar), Some(mut worn)) = (inventory, hotbar, worn) {
@@ -804,7 +805,10 @@ pub fn die(
         // A bed to wake in, the player's rule as everyone's (topside-town
         // "Death and the bed"; modforge `bed::wake_in`).
         // A broken bed is gone from the world: it is no bed.
-        let has_bed = wakes.is_some_and(|b| modforge::bed::wake_in(&b.standing(&thing_ids, &beds_at)).is_some());
+        // Killed by the storm outside, they die forever, bed or none (todo
+        // Bed 4: "you have to be in a safe place, otherwise you die
+        // permanently").
+        let has_bed = !caught && wakes.is_some_and(|b| modforge::bed::wake_in(&b.standing(&thing_ids, &beds_at)).is_some());
         if has_bed || !reality.0.death_sticks {
             // The death message and the choice to respawn (design.md
             // "Death and difficulty"); the world keeps running meanwhile.
