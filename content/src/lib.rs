@@ -114,6 +114,8 @@ impl Default for RecipeRegistryRes {
             bench("sleeping bag", &[("cloth", 4)], (SLEEPING_BAG, 1)),
             // Food is cooked on a stove (topside-town "Everything works").
             RecipeDef { station: StationKind::Stove, ..bench("cooked meat", &[(RAW_MEAT, 1)], (COOKED_MEAT, 1)) },
+            // Bread baked from grain in the bakery's oven (Place 7). Claude's.
+            RecipeDef { station: StationKind::Stove, ..bench("bread", &[(GRAIN, 2)], (BREAD, 1)) },
         ] {
             reg.register(def).expect("recipe registered once");
         }
@@ -656,12 +658,46 @@ pub const PIZZA_PLACE: modforge::plan::PlanDef = modforge::plan::PlanDef {
     height: 3.0,
 };
 pub const FROZEN_PIZZA: &str = "frozen pizza";
-pub const PLACES: [modforge::plan::PlanDef; 7] = [GROCERY_STORE, CROP_FARM, CROP_FARM, LIVESTOCK_BARN, GRAIN_ELEVATOR, DINER, PIZZA_PLACE];
+/// Place 7: the cafe and bakery, on main street: the cafe's tables, the
+/// counter with its case, the bakery with its oven, and the store room.
+pub const CAFE: modforge::plan::PlanDef = modforge::plan::PlanDef {
+    name: "cafe",
+    edge: false,
+    columns: &[7.0, 5.0],
+    rows: &[6.0, 5.0],
+    rooms: &[((0, 0), "cafe tables"), ((1, 0), "cafe counter"), ((0, 1), "bakery"), ((1, 1), "store room")],
+    ways: &[((0, 0), East, false), ((1, 0), North, true), ((0, 1), East, true)],
+    exits: &[((0, 0), South, 1.2)],
+    furniture: &[
+        ("cafe tables", [-0.25, 0.0], [0.8, 0.75, 0.8]),
+        ("cafe tables", [0.25, 0.0], [0.8, 0.75, 0.8]),
+        ("cafe counter", [0.0, 0.0], [3.0, 1.1, 0.7]),
+        ("bakery", [0.0, -0.4], [4.5, 0.9, 0.8]),
+        ("store room", [0.0, -0.4], [3.0, 1.8, 0.5]),
+    ],
+    things: &[
+        (CASH_REGISTER, "cafe counter", [0.3, 0.3]),
+        (BAKERY_CASE, "cafe counter", [-0.3, -0.3]),
+        (STOVE, "bakery", [0.3, 0.1]),
+        (PANTRY, "store room", [0.0, 0.2]),
+    ],
+    outside: &[],
+    walls: &[[0.9, 0.85, 0.7], [0.75, 0.8, 0.7]],
+    floor: [0.6, 0.45, 0.3],
+    furniture_color: [0.55, 0.4, 0.28],
+    height: 3.0,
+};
+pub const BAKERY_CASE: &str = "bakery case";
+pub const BREAD: &str = "bread";
+pub const PLACES: [modforge::plan::PlanDef; 8] = [GROCERY_STORE, CROP_FARM, CROP_FARM, LIVESTOCK_BARN, GRAIN_ELEVATOR, DINER, PIZZA_PLACE, CAFE];
 /// The places whose garden beds are found sown and ripe, with what.
 pub const PLACE_SOWN: [(&str, &str); 1] = [("crop farm", POTATO_SEED)];
 /// What each place's boxes are found holding: the place, the box, the
 /// item and how many.
-pub const PLACE_HOLDS: [(&str, &str, &str, u32); 33] = [
+pub const PLACE_HOLDS: [(&str, &str, &str, u32); 36] = [
+    ("cafe", CASH_REGISTER, "scrap", 1),
+    ("cafe", BAKERY_CASE, BREAD, 6),
+    ("cafe", PANTRY, GRAIN, 8),
     ("pizza place", CASH_REGISTER, "scrap", 1),
     ("pizza place", PANTRY, GRAIN, 4),
     ("pizza place", PANTRY, "canned food", 3),
@@ -2509,6 +2545,11 @@ pub fn register_items(reg: &mut ItemRegistry) {
         building(HAY_BALE, "A hay bale.", ItemKind::Deployable, 1, Some(10)),
         building(BUTCHER_BLOCK, "A butcher block.", ItemKind::Deployable, 1, Some(6)),
         building(FEED, "Animal feed.", ItemKind::Material, 20, None),
+        building(BAKERY_CASE, "A bakery case.", ItemKind::Deployable, 1, Some(8)),
+        ItemDef {
+            food: Some(FoodStats { hunger: 20.0, thirst: -2.0, health: 2.0 }),
+            ..building(BREAD, "A loaf of bread.", ItemKind::Food, 6, None)
+        },
         ItemDef {
             food: Some(FoodStats { hunger: 35.0, thirst: -3.0, health: 2.0 }),
             ..building(FROZEN_PIZZA, "A frozen pizza.", ItemKind::Food, 6, None)
