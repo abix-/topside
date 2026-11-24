@@ -863,12 +863,53 @@ pub const TOWN_DUMP: modforge::plan::PlanDef = modforge::plan::PlanDef {
     furniture_color: [0.42, 0.4, 0.36],
     height: 2.8,
 };
-pub const PLACES: [modforge::plan::PlanDef; 14] = [GROCERY_STORE, CROP_FARM, CROP_FARM, LIVESTOCK_BARN, GRAIN_ELEVATOR, DINER, PIZZA_PLACE, CAFE, BAR, PUMP_HOUSE, SUBSTATION, GAS_STATION, SEWAGE_POND, TOWN_DUMP];
+/// Place 14: the clinic and pharmacy, on main street: the waiting room
+/// and front desk, two exam rooms, the pharmacy counter and its shelves,
+/// the ward with its beds and the restroom.
+pub const CLINIC: modforge::plan::PlanDef = modforge::plan::PlanDef {
+    name: "clinic",
+    edge: false,
+    columns: &[7.0, 5.0, 5.0],
+    rows: &[6.0, 6.0],
+    rooms: &[((0, 0), "waiting room"), ((1, 0), "pharmacy"), ((2, 0), "restroom"), ((0, 1), "ward"), ((1, 1), "exam room"), ((2, 1), "second exam room")],
+    ways: &[((0, 0), East, false), ((1, 0), East, true), ((0, 0), North, true), ((0, 1), East, true), ((1, 1), East, true)],
+    exits: &[((0, 0), South, 1.8), ((1, 0), South, 1.2)],
+    furniture: &[
+        ("waiting room", [-0.3, -0.2], [0.6, 0.45, 3.0]),
+        ("waiting room", [0.3, 0.2], [2.0, 1.1, 0.7]),
+        ("pharmacy", [0.0, 0.2], [3.5, 1.1, 0.6]),
+        ("exam room", [0.0, -0.2], [0.8, 0.9, 1.9]),
+        ("second exam room", [0.0, -0.2], [0.8, 0.9, 1.9]),
+        ("restroom", [0.3, -0.3], [0.4, 0.8, 0.65]),
+    ],
+    things: &[
+        (OFFICE_DESK, "waiting room", [0.3, 0.35]),
+        (PHARMACY_SHELF, "pharmacy", [0.0, -0.3]),
+        (CASH_REGISTER, "pharmacy", [0.3, 0.3]),
+        (BED, "ward", [-0.3, 0.0]),
+        (BED, "ward", [0.3, 0.0]),
+        (MEDICINE_CABINET, "exam room", [0.4, 0.3]),
+        (MEDICINE_CABINET, "second exam room", [0.4, 0.3]),
+    ],
+    outside: &[],
+    walls: &[[0.9, 0.9, 0.92], [0.75, 0.82, 0.85]],
+    floor: [0.85, 0.87, 0.88],
+    furniture_color: [0.7, 0.72, 0.75],
+    height: 3.0,
+};
+pub const PHARMACY_SHELF: &str = "pharmacy shelf";
+pub const PLACES: [modforge::plan::PlanDef; 15] = [GROCERY_STORE, CROP_FARM, CROP_FARM, LIVESTOCK_BARN, GRAIN_ELEVATOR, DINER, PIZZA_PLACE, CAFE, BAR, PUMP_HOUSE, SUBSTATION, GAS_STATION, SEWAGE_POND, TOWN_DUMP, CLINIC];
 /// The places whose garden beds are found sown and ripe, with what.
 pub const PLACE_SOWN: [(&str, &str); 1] = [("crop farm", POTATO_SEED)];
 /// What each place's boxes are found holding: the place, the box, the
 /// item and how many.
-pub const PLACE_HOLDS: [(&str, &str, &str, u32); 55] = [
+pub const PLACE_HOLDS: [(&str, &str, &str, u32); 61] = [
+    ("clinic", OFFICE_DESK, "cloth", 1),
+    ("clinic", PHARMACY_SHELF, "bandage", 5),
+    ("clinic", PHARMACY_SHELF, FIRST_AID_KIT, 3),
+    ("clinic", CASH_REGISTER, "scrap", 1),
+    ("clinic", MEDICINE_CABINET, "bandage", 3),
+    ("clinic", MEDICINE_CABINET, SOAP, 2),
     ("town dump", OFFICE_DESK, "cloth", 1),
     ("town dump", TOOLBOX, "scrap", 4),
     ("sewage pond", TOOLBOX, WRENCH, 1),
@@ -2740,6 +2781,7 @@ pub fn register_items(reg: &mut ItemRegistry) {
         building(BUTCHER_BLOCK, "A butcher block.", ItemKind::Deployable, 1, Some(6)),
         building(FEED, "Animal feed.", ItemKind::Material, 20, None),
         building(BAKERY_CASE, "A bakery case.", ItemKind::Deployable, 1, Some(8)),
+        building(PHARMACY_SHELF, "The pharmacy's shelves.", ItemKind::Deployable, 1, Some(10)),
         building(SUBSTATION_SWITCH, "A substation switch.", ItemKind::Deployable, 1, None),
         building(SEWAGE_PUMP, "The sewage lift pump.", ItemKind::Deployable, 1, None),
         building(POND_VALVE, "The sewage pond's valve.", ItemKind::Deployable, 1, None),
