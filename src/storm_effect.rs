@@ -188,11 +188,16 @@ pub fn fix_struck(mut commands: Commands, mut struck: Query<(Entity, &mut Contai
 }
 
 /// The forgetting storm (todo "Storm effect 6"): whoever was outside,
-/// the player too, loses the map they carry.
-fn forgetting(shelters: Query<&Shelter>, mut people: Query<(&Transform, &mut Map), Without<Dead>>) {
-    for (at, mut map) in &mut people {
+/// the player too, loses the map they carry and what they remember of the
+/// things outside; what is under a roof, their bunker's store with it,
+/// they keep (Claude's).
+fn forgetting(shelters: Query<&Shelter>, mut people: Query<(&Transform, &mut Map, Option<&mut crate::actor::Persona>), Without<Dead>>) {
+    for (at, mut map, persona) in &mut people {
         if !sheltered(&shelters, at.translation.ground()) {
             *map = Map::default();
+            if let Some(mut persona) = persona {
+                persona.0.memory.known.retain(|k| sheltered(&shelters, k.position.ground()));
+            }
         }
     }
 }
