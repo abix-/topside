@@ -471,6 +471,8 @@ const SHOP_WALLS: [modforge::structure::Rgb; 3] = [[0.75, 0.72, 0.62], [0.62, 0.
 pub const GROCERY_STORE: modforge::plan::PlanDef = modforge::plan::PlanDef {
     name: "grocery store",
     edge: false,
+    // Each drawn as its own model (todo Model 2; scripts/models.py).
+    furniture_models: &["grocery aisle", "grocery aisle", "grocery aisle", "checkout counter", "work desk", "stock rack", "toilet"],
     columns: &[12.0, 6.0, 4.0],
     rows: &[10.0, 6.0],
     rooms: &[((0, 0), "sales floor"), ((1, 0), "checkout"), ((2, 0), "office"), ((0, 1), "stockroom"), ((1, 1), "cooler"), ((2, 1), "restroom")],
@@ -506,6 +508,7 @@ pub const GROCERY_STORE: modforge::plan::PlanDef = modforge::plan::PlanDef {
 pub const CROP_FARM: modforge::plan::PlanDef = modforge::plan::PlanDef {
     name: "crop farm",
     edge: true,
+    furniture_models: &[],
     columns: &[6.0, 5.0],
     rows: &[6.0, 5.0],
     rooms: &[((0, 0), "farm kitchen"), ((1, 0), "farm office"), ((0, 1), "tool shed"), ((1, 1), "seed store")],
@@ -541,6 +544,7 @@ pub const SEED_BIN: &str = "seed bin";
 pub const LIVESTOCK_BARN: modforge::plan::PlanDef = modforge::plan::PlanDef {
     name: "livestock barn",
     edge: true,
+    furniture_models: &[],
     columns: &[5.0, 8.0, 5.0],
     rows: &[8.0, 5.0],
     rooms: &[((0, 0), "tack room"), ((1, 0), "stalls"), ((2, 0), "milk room"), ((0, 1), "chicken coop"), ((1, 1), "hay store"), ((2, 1), "butchery")],
@@ -583,6 +587,7 @@ pub const FEED: &str = "animal feed";
 pub const GRAIN_ELEVATOR: modforge::plan::PlanDef = modforge::plan::PlanDef {
     name: "grain elevator",
     edge: true,
+    furniture_models: &[],
     columns: &[7.0, 5.0, 5.0],
     rows: &[7.0, 6.0],
     rooms: &[((0, 0), "feed store"), ((1, 0), "counter"), ((2, 0), "scale house"), ((0, 1), "loading bay"), ((1, 1), "grain bin"), ((2, 1), "second grain bin")],
@@ -617,6 +622,7 @@ pub const GRAIN: &str = "grain";
 pub const DINER: modforge::plan::PlanDef = modforge::plan::PlanDef {
     name: "diner",
     edge: false,
+    furniture_models: &[],
     columns: &[10.0, 5.0, 4.0],
     rows: &[8.0, 6.0],
     rooms: &[((0, 0), "dining room"), ((1, 0), "counter"), ((2, 0), "restroom"), ((0, 1), "kitchen"), ((1, 1), "cooler"), ((2, 1), "office")],
@@ -650,6 +656,7 @@ pub const DINER: modforge::plan::PlanDef = modforge::plan::PlanDef {
 pub const PIZZA_PLACE: modforge::plan::PlanDef = modforge::plan::PlanDef {
     name: "pizza place",
     edge: false,
+    furniture_models: &[],
     columns: &[7.0, 6.0],
     rows: &[6.0, 6.0],
     rooms: &[((0, 0), "tables"), ((1, 0), "front counter"), ((0, 1), "prep room"), ((1, 1), "pizza kitchen")],
@@ -680,6 +687,7 @@ pub const FROZEN_PIZZA: &str = "frozen pizza";
 pub const CAFE: modforge::plan::PlanDef = modforge::plan::PlanDef {
     name: "cafe",
     edge: false,
+    furniture_models: &[],
     columns: &[7.0, 5.0],
     rows: &[6.0, 5.0],
     rooms: &[((0, 0), "cafe tables"), ((1, 0), "cafe counter"), ((0, 1), "bakery"), ((1, 1), "store room")],
@@ -712,6 +720,7 @@ pub const BREAD: &str = "bread";
 pub const BAR: modforge::plan::PlanDef = modforge::plan::PlanDef {
     name: "bar",
     edge: false,
+    furniture_models: &[],
     columns: &[9.0, 6.0, 4.0],
     rows: &[7.0, 5.0],
     rooms: &[((0, 0), "barroom"), ((1, 0), "pool room"), ((2, 0), "restroom"), ((0, 1), "behind the bar"), ((1, 1), "back room"), ((2, 1), "beer store")],
@@ -746,6 +755,7 @@ pub const LIQUOR: &str = "bottle of liquor";
 pub const PUMP_HOUSE: modforge::plan::PlanDef = modforge::plan::PlanDef {
     name: "pump house",
     edge: true,
+    furniture_models: &[],
     columns: &[6.0, 4.0],
     rows: &[5.0, 4.0],
     rooms: &[((0, 0), "pump room"), ((1, 0), "meter office"), ((0, 1), "chlorine room"), ((1, 1), "pipe store")],
@@ -778,6 +788,7 @@ pub const WATER_TOWER_TAP: &str = "water tower tap";
 pub const SUBSTATION_PLAN: modforge::plan::PlanDef =modforge::plan::PlanDef {
     name: "substation",
     edge: true,
+    furniture_models: &[],
     columns: &[6.0, 4.0],
     rows: &[5.0, 4.0],
     rooms: &[((0, 0), "control room"), ((1, 0), "battery room"), ((0, 1), "relay room"), ((1, 1), "substation store")],
@@ -812,6 +823,7 @@ pub const PLACE_SWITCHES: [&str; 7] = [SUBSTATION_SWITCH, SEWAGE_PUMP, POND_VALV
 pub const GAS_STATION: modforge::plan::PlanDef = modforge::plan::PlanDef {
     name: "gas station",
     edge: false,
+    furniture_models: &[],
     columns: &[8.0, 7.0, 3.0],
     rows: &[6.0, 4.0],
     rooms: &[((0, 0), "gas station shop"), ((1, 0), "garage bay"), ((2, 0), "restroom"), ((0, 1), "gas station office"), ((1, 1), "parts store")],
@@ -844,6 +856,7 @@ pub const GAS_STATION: modforge::plan::PlanDef = modforge::plan::PlanDef {
 pub const SEWAGE_POND: modforge::plan::PlanDef = modforge::plan::PlanDef {
     name: "sewage pond",
     edge: true,
+    furniture_models: &[],
     columns: &[5.0, 4.0],
     rows: &[5.0],
     rooms: &[((0, 0), "pump shed"), ((1, 0), "sewage tool room")],
@@ -867,6 +880,7 @@ pub const POND_VALVE: &str = "pond valve";
 pub const TOWN_DUMP: modforge::plan::PlanDef = modforge::plan::PlanDef {
     name: "town dump",
     edge: true,
+    furniture_models: &[],
     columns: &[5.0, 4.0],
     rows: &[4.0],
     rooms: &[((0, 0), "dump office"), ((1, 0), "scale shed")],
@@ -886,6 +900,7 @@ pub const TOWN_DUMP: modforge::plan::PlanDef = modforge::plan::PlanDef {
 pub const CLINIC: modforge::plan::PlanDef = modforge::plan::PlanDef {
     name: "clinic",
     edge: false,
+    furniture_models: &[],
     columns: &[7.0, 5.0, 5.0],
     rows: &[6.0, 6.0],
     rooms: &[((0, 0), "waiting room"), ((1, 0), "pharmacy"), ((2, 0), "restroom"), ((0, 1), "ward"), ((1, 1), "exam room"), ((2, 1), "second exam room")],
@@ -921,6 +936,7 @@ pub const PHARMACY_SHELF: &str = "pharmacy shelf";
 pub const FIRE_STATION: modforge::plan::PlanDef = modforge::plan::PlanDef {
     name: "fire station",
     edge: false,
+    furniture_models: &[],
     columns: &[10.0, 6.0],
     rows: &[10.0, 5.0],
     rooms: &[((0, 0), "engine bay"), ((1, 0), "gear room"), ((0, 1), "bunk room"), ((1, 1), "station kitchen")],
@@ -956,6 +972,7 @@ pub const GEAR_LOCKER: &str = "gear locker";
 pub const SHERIFFS_OFFICE: modforge::plan::PlanDef = modforge::plan::PlanDef {
     name: "sheriff's office",
     edge: false,
+    furniture_models: &[],
     columns: &[7.0, 5.0, 4.0],
     rows: &[6.0, 5.0],
     rooms: &[((0, 0), "front office"), ((1, 0), "sheriff's office"), ((2, 0), "armory"), ((0, 1), "evidence room"), ((1, 1), "cell"), ((2, 1), "second cell")],
@@ -994,6 +1011,7 @@ pub const PLACE_LOCKS: [(&str, u32); 1] = [(GUN_LOCKER, ARMORY_LOCK)];
 pub const SCHOOL: modforge::plan::PlanDef = modforge::plan::PlanDef {
     name: "school",
     edge: true,
+    furniture_models: &[],
     columns: &[8.0, 4.0, 8.0, 8.0],
     rows: &[7.0, 7.0, 10.0],
     rooms: &[
@@ -1060,6 +1078,7 @@ pub const SCHOOL: modforge::plan::PlanDef = modforge::plan::PlanDef {
 pub const TOWN_HALL: modforge::plan::PlanDef = modforge::plan::PlanDef {
     name: "town hall",
     edge: false,
+    furniture_models: &[],
     columns: &[7.0, 6.0, 6.0],
     rows: &[6.0, 6.0],
     rooms: &[((0, 0), "post office"), ((1, 0), "town hall lobby"), ((2, 0), "clerk's office"), ((0, 1), "sorting room"), ((1, 1), "council room"), ((2, 1), "mayor's office")],
@@ -1093,6 +1112,7 @@ pub const RECORDS_CABINET: &str = "records cabinet";
 pub const CHURCH: modforge::plan::PlanDef = modforge::plan::PlanDef {
     name: "church",
     edge: false,
+    furniture_models: &[],
     columns: &[5.0, 9.0, 5.0],
     rows: &[12.0, 5.0],
     rooms: &[((0, 0), "pastor's study"), ((1, 0), "nave"), ((2, 0), "fellowship kitchen"), ((0, 1), "vestry"), ((1, 1), "altar"), ((2, 1), "church store")],
@@ -1130,6 +1150,7 @@ pub const CHURCH: modforge::plan::PlanDef = modforge::plan::PlanDef {
 pub const CEMETERY: modforge::plan::PlanDef = modforge::plan::PlanDef {
     name: "cemetery",
     edge: true,
+    furniture_models: &[],
     columns: &[5.0],
     rows: &[4.0],
     rooms: &[((0, 0), "groundskeeper's shed")],
@@ -1172,6 +1193,7 @@ pub const EPITAPHS: [&str; 6] = [
 pub const HARDWARE_STORE: modforge::plan::PlanDef = modforge::plan::PlanDef {
     name: "hardware store",
     edge: false,
+    furniture_models: &[],
     columns: &[10.0, 6.0],
     rows: &[9.0, 6.0],
     rooms: &[((0, 0), "hardware floor"), ((1, 0), "hardware counter"), ((0, 1), "lumber room"), ((1, 1), "hardware office")],
@@ -1203,6 +1225,7 @@ pub const HARDWARE_STORE: modforge::plan::PlanDef = modforge::plan::PlanDef {
 pub const MECHANICS_GARAGE: modforge::plan::PlanDef = modforge::plan::PlanDef {
     name: "mechanic's garage",
     edge: false,
+    furniture_models: &[],
     columns: &[7.0, 7.0, 5.0],
     rows: &[9.0, 4.0],
     rooms: &[((0, 0), "service bay"), ((1, 0), "second service bay"), ((2, 0), "garage office"), ((0, 1), "parts room"), ((1, 1), "tire store"), ((2, 1), "restroom")],
@@ -1235,6 +1258,7 @@ pub const MECHANICS_GARAGE: modforge::plan::PlanDef = modforge::plan::PlanDef {
 pub const GENERAL_STORE: modforge::plan::PlanDef = modforge::plan::PlanDef {
     name: "general store",
     edge: false,
+    furniture_models: &[],
     columns: &[9.0, 6.0],
     rows: &[8.0, 5.0],
     rooms: &[((0, 0), "store floor"), ((1, 0), "store counter"), ((0, 1), "back store"), ((1, 1), "owner's room")],

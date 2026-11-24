@@ -2721,6 +2721,180 @@ HOUSE = {
 }
 
 
+# -- the grocery store and every thing in it (todo Model 2) ---------------------
+#
+# The furniture at the sizes content's GROCERY_STORE plan gives it (an aisle
+# 7 m by 0.8 m and 1.6 m tall, the checkout 3 m by 0.8 m, the office desk
+# 1.4 m by 0.7 m, the stockroom's rack 9 m by 0.8 m and 2 m tall), long side
+# along x, front to -y; the things it holds at a store's. Sizes and colours
+# are Claude's.
+
+
+def store_colours():
+    return {
+        "steel": material("store steel", (0.7, 0.72, 0.75)),
+        "dark steel": material("store dark steel", (0.3, 0.32, 0.35)),
+        "white": material("store white", (0.9, 0.9, 0.88)),
+        "black": material("store black", (0.1, 0.1, 0.11)),
+        "belt": material("store belt", (0.15, 0.15, 0.16)),
+        "wood": material("store wood", (0.62, 0.5, 0.33)),
+        "cardboard": material("store cardboard", (0.65, 0.5, 0.3)),
+        "red": material("store red", (0.7, 0.15, 0.12)),
+        "green": material("store green", (0.25, 0.5, 0.25)),
+        "yellow": material("store yellow", (0.85, 0.72, 0.2)),
+        "orange": material("store orange", (0.85, 0.45, 0.15)),
+        "glass": material("store glass", (0.25, 0.32, 0.38)),
+    }
+
+
+def stocked(c, length, depth, levels, top, name):
+    """shelves of `length` by `depth` on a steel back, `levels` of them up to
+    `top`, each lined with goods in the store's colours."""
+    goods = [c["red"], c["green"], c["yellow"], c["orange"], c["white"]]
+    parts = [box("back", (length, 0.04, top), at=(0, 0, top / 2), mat=c["dark steel"])]
+    parts.append(box("base", (length, depth, 0.12), at=(0, 0, 0.06), mat=c["dark steel"]))
+    step = (top - 0.15) / levels
+    for lv in range(levels):
+        z = 0.12 + step * lv
+        for s in (1, -1):
+            if depth < 0.5 and s == 1:
+                continue
+            parts.append(box(f"shelf {lv} {s}", (length, depth / 2 - 0.03, 0.025), at=(0, s * depth / 4, z), mat=c["steel"]))
+            n = max(1, int(length / 0.5))
+            for i in range(n):
+                w = length / n
+                parts.append(box(f"goods {lv} {s} {i}", (w - 0.08, depth / 2 - 0.1, step * 0.6),
+                                 at=(-length / 2 + w * (i + 0.5), s * depth / 4, z + 0.0125 + step * 0.3),
+                                 mat=goods[(lv + i + (s > 0)) % len(goods)]))
+    return join(parts, name)
+
+
+def grocery_aisle():
+    """a double-sided aisle of shelves, 7 m long, goods on both faces."""
+    return stocked(store_colours(), 7.0, 0.8, 4, 1.6, "grocery aisle")
+
+
+def checkout_counter():
+    """the checkout: a counter with its black belt, the bagging end, and the
+    candy rack at the customer's side."""
+    c = store_colours()
+    parts = [box("counter", (3.0, 0.8, 0.85), at=(0, 0, 0.425), mat=c["white"])]
+    parts.append(box("belt", (1.8, 0.45, 0.03), at=(-0.5, 0, 0.865), mat=c["belt"]))
+    parts.append(box("bagging", (0.9, 0.6, 0.02), at=(1.0, 0, 0.86), mat=c["steel"]))
+    parts.append(box("divider", (0.3, 0.04, 0.04), at=(-1.2, 0, 0.9), mat=c["red"]))
+    parts.append(box("candy rack", (0.8, 0.15, 0.9), at=(-0.6, -0.48, 0.45), mat=c["dark steel"]))
+    for i in range(4):
+        parts.append(box(f"candy {i}", (0.7, 0.04, 0.12), at=(-0.6, -0.57, 0.15 + 0.2 * i), mat=[c["red"], c["yellow"], c["orange"], c["green"]][i]))
+    return join(parts, "checkout counter")
+
+
+def work_desk():
+    """a steel office desk: its top, a drawer pedestal and a modesty panel."""
+    c = store_colours()
+    parts = [box("top", (1.4, 0.7, 0.04), at=(0, 0, 0.73), mat=c["wood"])]
+    parts.append(box("pedestal", (0.4, 0.65, 0.71), at=(0.48, 0, 0.355), mat=c["dark steel"]))
+    for i in range(3):
+        parts.append(box(f"drawer {i}", (0.36, 0.01, 0.2), at=(0.48, -0.33, 0.12 + 0.23 * i), mat=c["steel"]))
+    parts.append(box("panel", (0.95, 0.03, 0.5), at=(-0.2, 0.3, 0.45), mat=c["dark steel"]))
+    parts.append(box("leg", (0.04, 0.65, 0.71), at=(-0.68, 0, 0.355), mat=c["dark steel"]))
+    return join(parts, "work desk")
+
+
+def stock_rack():
+    """the stockroom's pallet racking: orange uprights, blue beams, cases of
+    stock on two levels, 9 m long and 2 m tall."""
+    c = store_colours()
+    blue = material("rack blue", (0.2, 0.3, 0.6))
+    parts = []
+    bays = 4
+    w = 9.0 / bays
+    for i in range(bays + 1):
+        for s in (1, -1):
+            parts.append(box(f"upright {i} {s}", (0.08, 0.08, 2.0), at=(-4.5 + w * i, s * 0.36, 1.0), mat=c["orange"]))
+    for lv, z in enumerate((0.15, 1.05, 1.95)):
+        for s in (1, -1):
+            parts.append(box(f"beam {lv} {s}", (9.0, 0.06, 0.1), at=(0, s * 0.36, z), mat=blue))
+        if lv < 2:
+            for i in range(bays):
+                for k in range(3):
+                    parts.append(box(f"case {lv} {i} {k}", (0.6, 0.6, 0.45),
+                                     at=(-4.5 + w * i + 0.4 + 0.7 * k, 0, z + 0.275), mat=c["cardboard"]))
+    return join(parts, "stock rack")
+
+
+def store_shelf():
+    """a single-sided store shelf of canned goods, 1.2 m wide and 1.8 m tall."""
+    return stocked(store_colours(), 1.2, 0.45, 5, 1.8, "store shelf")
+
+
+def cash_register():
+    """a cash register on the checkout, its drawer, keys and display."""
+    c = store_colours()
+    parts = [box("drawer", (0.4, 0.4, 0.1), at=(0, 0, 0.05), mat=c["dark steel"])]
+    parts.append(box("keys", (0.3, 0.25, 0.08), at=(0, -0.03, 0.14), mat=c["black"]))
+    for i in range(12):
+        parts.append(box(f"key {i}", (0.04, 0.04, 0.01), at=(-0.09 + 0.06 * (i % 4), -0.1 + 0.06 * (i // 4), 0.185), mat=c["white"]))
+    parts.append(box("display", (0.2, 0.04, 0.1), at=(0, 0.12, 0.25), mat=c["glass"]))
+    parts.append(box("stalk", (0.04, 0.04, 0.12), at=(0, 0.12, 0.16), mat=c["black"]))
+    return join(parts, "cash register", lift=0.85)
+
+
+def pallet():
+    """a wooden pallet stacked with cases of canned food under shrink wrap."""
+    c = store_colours()
+    parts = []
+    for i in range(3):
+        parts.append(box(f"runner {i}", (1.2, 0.1, 0.1), at=(0, -0.45 + 0.45 * i, 0.05), mat=c["wood"]))
+    for i in range(7):
+        parts.append(box(f"slat {i}", (0.12, 1.0, 0.03), at=(-0.54 + 0.18 * i, 0, 0.115), mat=c["wood"]))
+    for lv in range(3):
+        for i in range(2):
+            for k in range(2):
+                parts.append(box(f"case {lv} {i} {k}", (0.56, 0.47, 0.3),
+                                 at=(-0.29 + 0.58 * i, -0.245 + 0.49 * k, 0.28 + 0.31 * lv), mat=c["cardboard"]))
+    return join(parts, "pallet")
+
+
+def walk_in_cooler():
+    """the walk-in cooler's unit and racks: the blower on the wall, its
+    racks of cold goods below."""
+    c = store_colours()
+    parts = [box("blower", (1.0, 0.5, 0.4), at=(0, 0.05, 2.0), mat=c["white"])]
+    parts.append(box("grille", (0.9, 0.01, 0.3), at=(0, -0.205, 2.0), mat=c["dark steel"]))
+    for i in range(3):
+        parts.append(cylinder(f"fan {i}", 0.1, 0.01, sides=12, along="Y", at=(-0.3 + 0.3 * i, -0.215, 2.0), mat=c["black"]))
+    parts.append(box("rack", (1.0, 0.5, 1.5), at=(0, 0.05, 0.75), mat=c["steel"]))
+    for lv in range(3):
+        parts.append(box(f"crate {lv}", (0.9, 0.4, 0.3), at=(0, 0.05, 0.25 + 0.5 * lv), mat=material("meat", (0.7, 0.3, 0.3)) if lv == 1 else c["white"]))
+    return join(parts, "walk-in cooler")
+
+
+def office_desk():
+    """the store office's desk: a wooden desk with a computer, a lamp and papers."""
+    c = store_colours()
+    parts = [box("top", (1.2, 0.6, 0.04), at=(0, 0, 0.73), mat=c["wood"])]
+    for s in (1, -1):
+        parts.append(box(f"side {s}", (0.04, 0.6, 0.71), at=(s * 0.58, 0, 0.355), mat=c["wood"]))
+    parts.append(box("monitor", (0.45, 0.05, 0.3), at=(0, 0.15, 0.95), mat=c["black"]))
+    parts.append(box("screen", (0.41, 0.01, 0.26), at=(0, 0.12, 0.95), mat=c["glass"]))
+    parts.append(box("keyboard", (0.4, 0.15, 0.02), at=(0, -0.1, 0.76), mat=c["black"]))
+    parts.append(box("papers", (0.22, 0.3, 0.02), at=(0.4, -0.05, 0.76), mat=c["white"]))
+    return join(parts, "office desk")
+
+
+GROCERY = {
+    "grocery aisle": grocery_aisle,
+    "checkout counter": checkout_counter,
+    "work desk": work_desk,
+    "stock rack": stock_rack,
+    "store shelf": store_shelf,
+    "cash register": cash_register,
+    "pallet": pallet,
+    "walk-in cooler": walk_in_cooler,
+    "office desk": office_desk,
+}
+
+
 # Models that export several models themselves.
 SETS = {"person": people, "weapons": weapons}
 
@@ -2748,6 +2922,7 @@ ITEMS = {
 MODELS = {
     **ITEMS,
     **HOUSE,
+    **GROCERY,
     "tree": tree,
     "rock": rock,
     # The wasteland's and the ruins' scatter, at their largest side as
