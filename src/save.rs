@@ -143,6 +143,7 @@ saved! {
         crate::Reality,
         crate::episode::Episode,
         crate::storm::StormRes,
+        crate::event::EventsRes,
         crate::actor::ActorMapRes,
         crate::sight::BunkerMaps,
         crate::survival::Day,

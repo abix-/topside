@@ -1,0 +1,29 @@
+# The events (modforge `event::EventDef`; topside-town "Storms and events
+# are different", operator, 2026-11-24: "events can occur in the middle
+# of an episode to do something strangers coming in, some sort of loot
+# drop, something like that. So events and storms are different and need
+# to be different in the YAML and in this game."). Read by content's
+# `EVENTS`. A storm ends an episode (content/storm_types.yaml); an event
+# happens inside one, never while the sky warns or the storm rages.
+#
+# Under `events`, `pace` is how often they come (the gap between two, in
+# game days) and `kinds` the events. Each has its `name`, what it `does` (Bounty, Arrival, Hunting,
+# Static, Shuffle, Rot, Changing, Forgetting; modforge `storm::Effect`),
+# and any of `from_episode` (the least episode it can come in, 0 the
+# first; 0 when left out) and `weight` (how likely against the others,
+# 100 when left out). The events, the pace and the odds are Claude's,
+# moved here from the storm types, for the operator to change; the full
+# list is still to be found from RimWorld's and the other games' events
+# (operator, 2026-11-24).
+events:
+  pace:
+    gap_days: [0.3, 0.8]
+  kinds:
+    # Loot drops from the sky (Rust's airdrops).
+    - {name: loot drop, does: [Bounty]}
+    # Strangers come in (RimWorld's drop pods).
+    - {name: strangers, does: [Arrival], from_episode: 1}
+    # Electronics die until fixed (Fallout's EMP; RimWorld's solar flare).
+    - {name: static, does: [Static], from_episode: 1}
+    # A hunter on the surface till morning (7 Days to Die's blood moon).
+    - {name: hunter's night, does: [Hunting], from_episode: 2, weight: 50}

@@ -703,6 +703,13 @@ pub static STORM: std::sync::LazyLock<StormDef> = std::sync::LazyLock::new(|| re
 /// list of modforge `storm::StormType` (todo "Storm 3").
 pub const STORM_TYPES_FILE: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/storm_types.yaml");
 
+/// Where the events are: content/events.yaml, its `events` a modforge
+/// `event::EventsDef` (topside-town "Storms and events are different").
+pub const EVENTS_FILE: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/events.yaml");
+
+/// The events, read from `EVENTS_FILE` the first time asked.
+pub static EVENTS: std::sync::LazyLock<modforge::event::EventsDef> = std::sync::LazyLock::new(|| read(EVENTS_FILE, "events"));
+
 /// The types of storm, read from `STORM_TYPES_FILE` the first time asked.
 pub static STORM_TYPES: std::sync::LazyLock<Vec<modforge::storm::StormType>> = std::sync::LazyLock::new(|| read_list(STORM_TYPES_FILE, "types"));
 

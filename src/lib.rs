@@ -43,6 +43,7 @@ pub mod research;
 pub mod save;
 pub mod secrets;
 pub mod sight;
+pub mod event;
 pub mod storm;
 pub mod storm_effect;
 pub mod storm_type;
@@ -296,6 +297,7 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind, port: u16
     app.init_resource::<survival::Day>();
     app.init_resource::<content::RecipeRegistryRes>();
     app.init_resource::<storm::StormRes>();
+    app.init_resource::<event::EventsRes>();
     app.init_resource::<anomaly::AnomalyPlaced>();
     app.init_resource::<secrets::SecretsPlaced>();
     app.init_resource::<command::GivenThisRun>();
@@ -372,6 +374,7 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind, port: u16
                     // wakes, after the world's history.
                     (
                         storm::storm,
+                        event::happen,
                         anomaly::place,
                         anomaly::burn,
                         anomaly::throw,
