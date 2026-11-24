@@ -139,10 +139,25 @@ pub fn populate_town_power(
         Some(made)
     };
     make(&mut commands, crate::content::SUBSTATION, town.substation(), None);
-    for ((breaker_at, rooms), heating) in town.wiring().into_iter().zip(town.heating()) {
+    // The streets' lights, one each 30 m (Claude's).
+    for at in town.streetlights(30.0) {
+        make(&mut commands, crate::content::STREETLIGHT, at, None);
+    }
+    // Each house's lamps, by where its people stand in the bedrooms and
+    // the living room, and a candle on the dining table (Claude's).
+    let lamps = town.lots.iter().filter(|l| l.house).map(|l| modforge::house::home_spots(l.front).into_iter().map(|p| l.at + p + Vec2::new(0.8, 0.0)).collect::<Vec<_>>());
+    let candles = town.lots.iter().filter(|l| l.house).map(|l| l.at + modforge::house::dining_table(l.front));
+    let lights: Vec<(Vec<Vec2>, Vec2)> = lamps.zip(candles).collect();
+    for (((breaker_at, rooms), heating), (lamps, candle)) in town.wiring().into_iter().zip(town.heating()).zip(lights) {
         let Some(breaker) = make(&mut commands, crate::content::BREAKER_BOX, breaker_at, Some(InteractKind::Switch { on: true })) else {
             continue;
         };
+        for at in lamps {
+            if let Some(lamp) = make(&mut commands, crate::content::LAMP, at, Some(InteractKind::Switch { on: false })) {
+                commands.entity(lamp).insert(WiredTo(breaker));
+            }
+        }
+        make(&mut commands, crate::content::CANDLE, candle, Some(InteractKind::Switch { on: false }));
         // Its heating: the fires are boxes wood is put in; the furnace and
         // the air conditioner run off the thermostat, as a light off its
         // switch.
@@ -175,48 +190,77 @@ pub fn populate_town_power(
 /// thermostat) is lit when modforge says (`power::lit`): its
 /// switch on, its breaker on, and the breaker on a grid with power, the
 /// substation's lines or a running generator's wiring.
+///
+/// The other lights (topside-town "Everything works": "lamps,
+/// flashlights, candles, streetlights"; Project Zomboid's): a lamp is its
+/// own switch on the house's power; a streetlight is lit at night while
+/// the town's lines have power; a candle is lit or not, needing no power.
 #[allow(clippy::type_complexity)]
 pub fn lights(
     mut commands: Commands,
-    lights: Query<(Entity, &WorldItem, &WiredTo, Option<&Powered>), Without<Interactable>>,
-    switches: Query<(&Interactable, &Transform, Option<&WiredTo>)>,
-    grid: Query<(&WorldItem, &Transform, Option<&Container>)>,
+    (tick, day, reality): (Res<crate::SimTick>, Res<crate::survival::Day>, Res<crate::Reality>),
+    things: Query<(Entity, &WorldItem, &Transform, Option<&WiredTo>, Option<&Interactable>, Option<&Powered>, Option<&Container>)>,
 ) {
-    let on = |kind: &InteractKind| matches!(kind, InteractKind::Switch { on: true });
+    use crate::content::{AIR_CONDITIONER, CANDLE, CEILING_LIGHT, FURNACE, LAMP, LIGHT_LUMENS, STREETLIGHT};
+    let night = crate::survival::night(&tick, *day, &reality);
+    let on = |e: Entity| things.get(e).ok().and_then(|t| t.4).is_some_and(|i| matches!(i.kind, InteractKind::Switch { on: true }));
     // Where power is: the substation (its lines reach the town) and each
     // running generator (its wiring's reach).
-    let sources: Vec<(Vec3, f32)> = grid
+    let sources: Vec<(Vec3, f32)> = things
         .iter()
-        .filter_map(|(item, at, fuel)| match item.stack.item.as_str() {
+        .filter_map(|(_, item, at, .., fuel)| match item.stack.item.as_str() {
             crate::content::SUBSTATION => Some((at.translation, crate::content::LINES_REACH)),
             // A generator runs while it has fuel (modforge `Burning::run`).
             GENERATOR if fuel.is_some_and(|f| f.0.count_of(FUEL) > 0) => Some((at.translation, WIRE_REACH)),
             _ => None,
         })
         .collect();
-    for (light, item, to, was) in &lights {
-        let Ok((switch, _, Some(breaker))) = switches.get(to.0) else {
+    let has_grid = |at: Vec3| sources.iter().any(|(s, reach)| s.distance(at) <= *reach);
+    // A breaker box: on, and on a grid with power.
+    let breaker_live = |breaker: Entity| on(breaker) && things.get(breaker).is_ok_and(|t| has_grid(t.2.translation));
+    for (entity, item, at, wired, _, was, _) in &things {
+        let lit = match item.stack.item.as_str() {
+            // Off its switch, the switch off its breaker.
+            CEILING_LIGHT | FURNACE | AIR_CONDITIONER => wired.is_some_and(|switch| {
+                let breaker = things.get(switch.0).ok().and_then(|t| t.3);
+                breaker.is_some_and(|b| modforge::power::lit(true, breaker_live(b.0), on(switch.0)))
+            }),
+            // Its own switch, off the house's breaker.
+            LAMP => wired.is_some_and(|b| modforge::power::lit(true, breaker_live(b.0), on(entity))),
+            STREETLIGHT => night && has_grid(at.translation),
+            CANDLE => on(entity),
+            _ => continue,
+        };
+        if was.map(|p| p.0) == Some(lit) {
+            continue;
+        }
+        commands.entity(entity).insert(Powered(lit));
+        // What shines, and how brightly; a furnace or an AC only runs.
+        let Some(&(_, lumens)) = LIGHT_LUMENS.iter().find(|(name, _)| *name == item.stack.item) else {
             continue;
         };
-        let Ok((breaker_kind, breaker_at, _)) = switches.get(breaker.0) else {
-            continue;
-        };
-        let has_grid = sources.iter().any(|(at, reach)| at.distance(breaker_at.translation) <= *reach);
-        let lit = modforge::power::lit(has_grid, on(&breaker_kind.kind), on(&switch.kind));
-        if was.map(|p| p.0) != Some(lit) {
-            commands.entity(light).insert(Powered(lit));
-            // A furnace or an air conditioner runs; only a light shines.
-            if item.stack.item != crate::content::CEILING_LIGHT {
-                continue;
-            }
-            if lit {
-                commands.entity(light).insert(PointLight {
-                    intensity: crate::content::CEILING_LIGHT_LUMENS,
-                    ..default()
-                });
-            } else {
-                commands.entity(light).remove::<PointLight>();
-            }
+        if lit {
+            commands.entity(entity).insert(PointLight { intensity: lumens, ..default() });
+        } else {
+            commands.entity(entity).remove::<PointLight>();
+        }
+    }
+}
+
+/// A flashlight held shines from the one holding it (topside-town
+/// "Everything works"), anyone alike.
+pub fn flashlights(
+    mut commands: Commands,
+    people: Query<(Entity, &crate::actor::Hotbar, Has<PointLight>), With<crate::actor::Actor>>,
+) {
+    use crate::content::{FLASHLIGHT, LIGHT_LUMENS};
+    let lumens = LIGHT_LUMENS.iter().find(|(name, _)| *name == FLASHLIGHT).map_or(0.0, |(_, l)| *l);
+    for (person, hotbar, shining) in &people {
+        let held = hotbar.0.held_stack().is_some_and(|s| s.item == FLASHLIGHT);
+        if held && !shining {
+            commands.entity(person).insert(PointLight { intensity: lumens, ..default() });
+        } else if !held && shining {
+            commands.entity(person).remove::<PointLight>();
         }
     }
 }

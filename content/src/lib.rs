@@ -312,8 +312,16 @@ pub const FIRE_DEF: modforge::power::GeneratorDef = modforge::power::GeneratorDe
 pub const HEAT: [(&str, f32, f32); 4] = [(FIREPLACE, 20.0, 4.0), (WOOD_STOVE, 25.0, 4.0), (FURNACE, 18.0, 12.0), (AIR_CONDITIONER, -12.0, 12.0)];
 /// What a blanket carried adds to the air one feels (Claude's).
 pub const BLANKET_WARMTH: f32 = 8.0;
-/// A ceiling light's brightness, the house plan's (modforge house.rs).
-pub const CEILING_LIGHT_LUMENS: f32 = 300_000.0;
+/// The other lights (topside-town "Everything works": "lamps,
+/// flashlights, candles, streetlights").
+pub const LAMP: &str = "lamp";
+pub const CANDLE: &str = "candle";
+pub const STREETLIGHT: &str = "streetlight";
+pub const FLASHLIGHT: &str = "flashlight";
+/// How brightly each light shines, lumens: the ceiling light the house
+/// plan's (modforge house.rs), the rest Claude's.
+pub const LIGHT_LUMENS: [(&str, f32); 5] =
+    [(CEILING_LIGHT, 300_000.0), (LAMP, 100_000.0), (CANDLE, 5_000.0), (STREETLIGHT, 1_000_000.0), (FLASHLIGHT, 200_000.0)];
 pub const RESEARCH_DRAW: f32 = 5.0;
 pub const GENERATOR_AT: [f32; 2] = [2.5, -3.3];
 pub const GENERATOR_FUEL: u32 = 3;
@@ -1927,7 +1935,11 @@ pub fn register_items(reg: &mut ItemRegistry) {
         building(FURNACE, "The house's furnace. With power and the thermostat on, it warms the house.", ItemKind::Deployable, 1, None),
         building(AIR_CONDITIONER, "The house's air conditioner. With power and the thermostat on, it cools the house.", ItemKind::Deployable, 1, None),
         building(THERMOSTAT, "The house's thermostat. On, the furnace and the air conditioner run.", ItemKind::Deployable, 1, None),
-        building(BLANKET, "A warm blanket. Carried, it keeps the cold off.", ItemKind::Material, 1, None),
+        building(LAMP, "A lamp. On, with the house's power, it lights the room.", ItemKind::Deployable, 1, None),
+        building(CANDLE, "A candle. Lit, it gives a little light.", ItemKind::Deployable, 1, None),
+        building(STREETLIGHT, "A streetlight. It comes on at night while the town has power.", ItemKind::Deployable, 1, None),
+        building(FLASHLIGHT, "A flashlight. Held, it lights the way.", ItemKind::Tool, 1, None),
+        building(BLANKET,"A warm blanket. Carried, it keeps the cold off.", ItemKind::Material, 1, None),
         building(WATER_TOWER,"The town's water tower. Every house's taps draw from it.", ItemKind::Deployable, 1, Some(WATER_TOWER_BARRELS)),
         // Dirty water works but makes you sick (todo Survive 4): each
         // mouthful of river water hurts a little. The 3 is Claude's.
