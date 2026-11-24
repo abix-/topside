@@ -315,7 +315,7 @@ pub fn think(
     sight: Sight,
     mut thinkers: Thinkers,
     containers: Query<(Entity, &Container, &Transform, &WorldItem, &ThingId)>,
-    lying: Query<(&ThingId, &Transform, &WorldItem), Without<Container>>,
+    lying: Query<(&ThingId, &Transform, &WorldItem), (With<crate::interact::Source>, Without<Container>)>,
     chunks: Option<Res<crate::terrain::Chunks>>,
 ) {
     // Nobody's moment this tick (most ticks, as each thinks at their own
@@ -353,13 +353,18 @@ pub fn think(
     // its id, where, what kind.
     let sources_at: Vec<(u64, Vec3, &str)> = lying
         .iter()
-        .filter(|(_, _, w)| items.0.def(&w.stack.item).is_some_and(|d| d.kind == modforge::item::ItemKind::Source))
         .map(|(id, t, w)| (id.0, t.translation, w.stack.item.as_str()))
         .collect();
     let source_ids: std::collections::HashMap<u64, Vec3> = sources_at.iter().map(|&(id, at, _)| (id, at)).collect();
     // Every box and source by where it stands, for looking round.
     let things: Vec<(u64, Vec3, &str)> = boxes.iter().chain(&sources_at).copied().collect();
     let things_near = Near::new(things.iter().map(|t| t.1));
+    let mut piece = std::time::Instant::now();
+    let mut lap = |laps: &mut crate::profile::Laps, name: &'static str| {
+        laps.record(name, piece.elapsed().as_secs_f64() * 1000.0);
+        piece = std::time::Instant::now();
+    };
+    laps.record("think: shared: boxes and sources", started.elapsed().as_secs_f64() * 1000.0);
     let source_at = |key: u64| source_ids.get(&key).copied();
     // Where someone can go: a place on the navigation mesh, at its height
     // (pathing.md: never head for a place nobody can stand on).
@@ -395,6 +400,7 @@ pub fn think(
     for faction in everyone.iter().filter_map(|p| p.3) {
         *living_of.entry(faction).or_default() += 1;
     }
+    lap(&mut laps, "think: shared: everyone");
     // Every standing site once: its key, what it is, where it stands, and
     // the ground of each of its buildings and props, any of which in sight
     // is the site seen.
@@ -408,6 +414,7 @@ pub fn think(
     }
     // Every site's parts by where they stand.
     let parts_near = Near::new(site_parts.iter().map(|p| p.1));
+    lap(&mut laps, "think: shared: sites");
     // How hearing words feels: the episode choice that says them.
     let heard = |words: &str| episodes.felt(words);
     // How each faction stands toward each person someone thinking now has
@@ -458,6 +465,7 @@ pub fn think(
             })
             .collect()
     };
+    lap(&mut laps, "think: shared: standings");
     // What each person could spare of food and of water: all but one of
     // what they carry of it (design.md "Trading": one with extra of what
     // another needs), for the trader in sight below.
@@ -477,6 +485,7 @@ pub fn think(
             (entity, (food.saturating_sub(1), water.saturating_sub(1)))
         })
         .collect();
+    lap(&mut laps, "think: shared: spare");
     // In ActorId order (authority.md rule 5): the trades they decide are
     // made in this order, so who gets a seller's last water is the same
     // after a load.
@@ -495,6 +504,7 @@ pub fn think(
             })
             .unwrap_or_default(),
     );
+    lap(&mut laps, "think: shared: order and tiers");
     let shared = started.elapsed();
     // What each one decides, the same buffer passed from one to the next.
     let mut decided_buf: Vec<Action> = Vec::new();

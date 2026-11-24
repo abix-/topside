@@ -665,7 +665,16 @@ pub fn item_body(add: On<Add, WorldItem>, things: Query<&WorldItem>, items: Res<
     if !deployable {
         body.insert(Sensor);
     }
+    if def.kind == ItemKind::Source {
+        body.insert(Source);
+    }
 }
+
+/// A source lying in the world (a well, a berry bush: an item of kind
+/// `Source`), made with its body, so what looks for sources walks only
+/// them, not every thing lying in the world.
+#[derive(Component)]
+pub struct Source;
 
 /// A person's panels, modforge's HUD state: what they have open (the
 /// inventory, a box, a station, a note). Everyone has one; the screen
