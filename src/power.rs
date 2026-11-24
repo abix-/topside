@@ -286,6 +286,11 @@ pub fn populate_town_power(
             make(&mut commands, thing, at, Some(InteractKind::Station(station)));
             continue;
         }
+        // A switch (a substation's breaker), turned on and off.
+        if crate::content::PLACE_SWITCHES.contains(&thing) {
+            make(&mut commands, thing, at, Some(InteractKind::Switch { on: true }));
+            continue;
+        }
         // A source (a pump, a tap), used where it stands.
         if items.0.def(thing).is_some_and(|d| d.kind == modforge::item::ItemKind::Source) {
             make(&mut commands, thing, at, Some(InteractKind::Source));

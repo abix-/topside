@@ -755,12 +755,49 @@ pub const PUMP_HOUSE: modforge::plan::PlanDef = modforge::plan::PlanDef {
 };
 pub const WATER_PUMP: &str = "water pump";
 pub const WATER_TOWER_TAP: &str = "water tower tap";
-pub const PLACES: [modforge::plan::PlanDef; 10] = [GROCERY_STORE, CROP_FARM, CROP_FARM, LIVESTOCK_BARN, GRAIN_ELEVATOR, DINER, PIZZA_PLACE, CAFE, BAR, PUMP_HOUSE];
+/// Place 10: the power substation, at the edge of town: the control
+/// building's control room with its switch panel, the battery room and
+/// the store, with the transformers in the yard behind.
+pub const SUBSTATION: modforge::plan::PlanDef = modforge::plan::PlanDef {
+    name: "substation",
+    edge: true,
+    columns: &[6.0, 4.0],
+    rows: &[5.0, 4.0],
+    rooms: &[((0, 0), "control room"), ((1, 0), "battery room"), ((0, 1), "relay room"), ((1, 1), "substation store")],
+    ways: &[((0, 0), East, true), ((0, 0), North, true), ((0, 1), East, true)],
+    exits: &[((0, 0), South, 1.2), ((0, 1), North, 1.2)],
+    furniture: &[
+        ("control room", [0.0, -0.35], [4.5, 1.8, 0.6]),
+        ("battery room", [0.0, -0.3], [3.0, 1.0, 0.8]),
+        ("relay room", [-0.35, 0.0], [0.6, 2.0, 3.0]),
+        ("substation store", [0.0, -0.4], [2.5, 1.6, 0.5]),
+    ],
+    things: &[
+        (SUBSTATION_SWITCH, "control room", [-0.3, -0.2]),
+        (SUBSTATION_SWITCH, "control room", [0.0, -0.2]),
+        (SUBSTATION_SWITCH, "control room", [0.3, -0.2]),
+        (OFFICE_DESK, "control room", [0.0, 0.3]),
+        (TOOLBOX, "substation store", [0.0, 0.2]),
+    ],
+    outside: &[(TRANSFORMER, [-4.0, -12.0]), (TRANSFORMER, [4.0, -12.0])],
+    walls: &[[0.65, 0.66, 0.66], [0.75, 0.72, 0.6]],
+    floor: [0.5, 0.5, 0.5],
+    furniture_color: [0.45, 0.5, 0.45],
+    height: 3.2,
+};
+pub const SUBSTATION_SWITCH: &str = "substation switch";
+pub const TRANSFORMER: &str = "transformer";
+/// The things of places that are switches.
+pub const PLACE_SWITCHES: [&str; 1] = [SUBSTATION_SWITCH];
+pub const PLACES: [modforge::plan::PlanDef; 11] = [GROCERY_STORE, CROP_FARM, CROP_FARM, LIVESTOCK_BARN, GRAIN_ELEVATOR, DINER, PIZZA_PLACE, CAFE, BAR, PUMP_HOUSE, SUBSTATION];
 /// The places whose garden beds are found sown and ripe, with what.
 pub const PLACE_SOWN: [(&str, &str); 1] = [("crop farm", POTATO_SEED)];
 /// What each place's boxes are found holding: the place, the box, the
 /// item and how many.
-pub const PLACE_HOLDS: [(&str, &str, &str, u32); 43] = [
+pub const PLACE_HOLDS: [(&str, &str, &str, u32); 46] = [
+    ("substation", OFFICE_DESK, "cloth", 1),
+    ("substation", TOOLBOX, WRENCH, 1),
+    ("substation", TRANSFORMER, "scrap", 6),
     ("pump house", OFFICE_DESK, "cloth", 1),
     ("pump house", TOOLBOX, WRENCH, 1),
     ("pump house", PALLET, "pipe", 4),
@@ -2621,7 +2658,9 @@ pub fn register_items(reg: &mut ItemRegistry) {
         building(BUTCHER_BLOCK, "A butcher block.", ItemKind::Deployable, 1, Some(6)),
         building(FEED, "Animal feed.", ItemKind::Material, 20, None),
         building(BAKERY_CASE, "A bakery case.", ItemKind::Deployable, 1, Some(8)),
-        building(LIQUOR_SHELF, "The shelf behind the bar.", ItemKind::Deployable, 1, Some(8)),
+        building(SUBSTATION_SWITCH, "A substation switch.", ItemKind::Deployable, 1, None),
+        building(TRANSFORMER, "A transformer, its casing loose.", ItemKind::Deployable, 1, Some(6)),
+        building(LIQUOR_SHELF,"The shelf behind the bar.", ItemKind::Deployable, 1, Some(8)),
         ItemDef {
             food: Some(FoodStats { hunger: 0.0, thirst: 5.0, health: -2.0 }),
             ..building(LIQUOR, "A bottle of liquor.", ItemKind::Food, 4, None)
