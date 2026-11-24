@@ -174,8 +174,14 @@ pub struct Laps {
     pub counts: Vec<(&'static str, f64)>,
     /// The whole fixed step, every Fixed schedule, in ms.
     pub step_ms: f64,
-    /// The whole fixed step's worst since launch, in ms.
+    /// The whole fixed step's worst since the world was made ready, in ms.
     pub step_worst_ms: f64,
+    /// The tick that worst step ran.
+    pub step_worst_tick: u64,
+    /// The steps over the budget (1/60 s) since the world was made ready:
+    /// how many, and the first `OVER_KEPT` of them, each its tick and ms.
+    pub over_budget: u64,
+    pub over_budget_steps: Vec<(u64, f64)>,
     /// Fixed steps run this frame, so far.
     steps_this_frame: u32,
     /// Fixed steps a frame, averaged over frames.
@@ -206,7 +212,19 @@ impl Laps {
         }
     }
 
-    /// One part's worst single step since launch, if measured.
+    /// The worsts start again: the world was just made ready (a launch or a
+    /// load), so the steps after it are play, not loading.
+    pub fn restart_worsts(&mut self) {
+        self.step_worst_ms = 0.0;
+        self.over_budget = 0;
+        self.over_budget_steps.clear();
+        for (_, worst) in &mut self.worst_ms {
+            *worst = 0.0;
+        }
+    }
+
+    /// One part's worst single step since the world was made ready, if
+    /// measured.
     pub fn worst(&self, name: &str) -> Option<f64> {
         self.part_of.get(name).map(|&(i, _)| self.worst_ms[i].1)
     }
@@ -259,11 +277,26 @@ pub fn start_step(mut laps: ResMut<Laps>) {
 }
 
 /// The end of the fixed step, last in FixedLast: the whole step's time.
-pub fn finish_step(mut laps: ResMut<Laps>) {
+pub fn finish_step(mut laps: ResMut<Laps>, tick: Res<crate::SimTick>) {
     let ms = since(laps.step_start, Instant::now());
     laps.step_ms += (ms - laps.step_ms) * SMOOTHING;
-    laps.step_worst_ms = laps.step_worst_ms.max(ms);
+    if ms > laps.step_worst_ms {
+        laps.step_worst_ms = ms;
+        laps.step_worst_tick = tick.0;
+    }
+    if ms > BUDGET_MS {
+        laps.over_budget += 1;
+        if laps.over_budget_steps.len() < OVER_KEPT {
+            laps.over_budget_steps.push((tick.0, ms));
+        }
+    }
 }
+
+/// A step's budget: one tick of the locked 60 UPS, in ms.
+pub const BUDGET_MS: f64 = 1000.0 / 60.0;
+
+/// How many steps over the budget are kept with their tick.
+const OVER_KEPT: usize = 20;
 
 /// A system that records the time since the last stamp under `name`
 /// and stamps again: put one after each part of the fixed step to time
@@ -351,6 +384,36 @@ impl Plugin for ProfilePlugin {
             FixedPostUpdate,
             (count_units, lap(REST_OF_FIXED_UPDATE)).chain().before(avian3d::schedule::PhysicsSystems::First),
         );
-        app.add_systems(FixedLast, (lap("physics"), finish_step).chain());
+        app.add_systems(FixedLast, (lap("physics"), finish_step, physics_pieces).chain());
+    }
+}
+
+/// The physics lap's pieces, from the timers Avian keeps itself (its
+/// diagnostics, filled whether or not its diagnostics plugin is added):
+/// read once a step, then started again, as Avian's own reset does.
+fn physics_pieces(
+    mut laps: ResMut<Laps>,
+    collision: Option<ResMut<avian3d::collision::CollisionDiagnostics>>,
+    tree: Option<ResMut<avian3d::collider_tree::ColliderTreeDiagnostics>>,
+    solver: Option<ResMut<avian3d::dynamics::solver::SolverDiagnostics>>,
+) {
+    let ms = |d: std::time::Duration| d.as_secs_f64() * 1000.0;
+    if let Some(mut c) = collision {
+        laps.record("physics: broad phase", ms(c.broad_phase));
+        laps.record("physics: narrow phase", ms(c.narrow_phase));
+        *c = default();
+    }
+    if let Some(mut t) = tree {
+        laps.record("physics: collider tree update", ms(t.update));
+        laps.record("physics: collider tree optimize", ms(t.optimize));
+        *t = default();
+    }
+    if let Some(mut s) = solver {
+        laps.record("physics: solver prepare", ms(s.prepare_constraints + s.update_velocity_increments));
+        laps.record("physics: solver integrate", ms(s.integrate_velocities + s.integrate_positions));
+        laps.record("physics: solver solve", ms(s.warm_start + s.solve_constraints + s.relax_velocities + s.apply_restitution));
+        laps.record("physics: solver finalize", ms(s.finalize + s.store_impulses));
+        laps.record("physics: solver swept ccd", ms(s.swept_ccd));
+        *s = default();
     }
 }
