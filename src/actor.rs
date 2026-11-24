@@ -406,7 +406,7 @@ pub fn spawn_person(
     let first_think = id.0 % (AWAKE_REACTION * 60.0) as u64;
     // A topside hostile rolls its traits; an armored one wears armor (an
     // animal wears nothing, so it is never armored).
-    if def.faction.as_deref() == Some(crate::content::TOPSIDE_HOSTILES) {
+    if def.faction.as_deref().is_some_and(|f| crate::content::TOPSIDE_HOSTILES.contains(&f)) {
         let mut traits = modforge::actor::HostileTraits::roll(id, spawn.seed.0);
         traits.armored &= !animal;
         if traits.armored
@@ -549,7 +549,7 @@ pub fn populate_topside_people(
             spawn.commands.entity(npc).insert(Beds(bed.into_iter().collect()));
         }
         // A pack leader brings friends of its kind, standing beside it.
-        let leads = def.faction.as_deref() == Some(crate::content::TOPSIDE_HOSTILES)
+        let leads = def.faction.as_deref().is_some_and(|f| crate::content::TOPSIDE_HOSTILES.contains(&f))
             && spawn.actors.0.id_of(npc).is_some_and(|id| modforge::actor::HostileTraits::roll(id, spawn.seed.0).pack_leader);
         if leads {
             for i in 0..PACK_FRIENDS {

@@ -217,7 +217,7 @@ pub const HISTORY_SECS: f32 = HISTORY_DAYS as f32 * GAME_DAY_SECS;
 /// hostile if they get into a fight, and wolves... might be hostile if
 /// there's something. ...all of those is a chance for hostility to
 /// occur"). Every number here is Claude's.
-pub const HISTORY_FIGHTS: [(&str, u64); 4] = [("raider", 1000), ("lookout", 1000), ("scavenger", 300), ("wolf", 300)];
+pub const HISTORY_FIGHTS: [(&str, u64); 2] = [("scavenger", 300), ("wolf", 300)];
 
 /// Of 1000, the chance two people meeting during the history fight: never
 /// within one group, else the likelier of their two kinds'.
@@ -2568,10 +2568,22 @@ impl Default for FactionRegistryRes {
 /// the AI names it by this.
 pub const PLAYER_FACTION: &str = "player";
 
-/// The topside hostiles (design.md "Bunker people and topside people"):
-/// wild animals and raiders, part of the topside world, hostile to
-/// everyone. Not a bunker; the faction table is how hostility is read.
-pub const TOPSIDE_HOSTILES: &str = "topside hostiles";
+/// The topside's own factions (operator, 2026-11-23: "The raiders are one
+/// group, and there might be multiple raiders, and scavenger another group,
+/// and wildlife is their own separate group" and "every single character
+/// in this world belongs to some sort of faction"): the raiders, hostile to
+/// everyone (operator: "by definition hostile"); the scavengers and the
+/// wildlife, neutral until something makes them hostile (operator:
+/// "Scavengers might be hostile if they get into a fight, and wolves...
+/// might be hostile if there's something"); and the townspeople. Not
+/// bunkers; the faction table is how hostility is read.
+pub const RAIDERS: &str = "raiders";
+pub const SCAVENGERS: &str = "scavengers";
+pub const WILDLIFE: &str = "wildlife";
+pub const TOWNSPEOPLE: &str = "townspeople";
+/// The topside's people found at sites: the ones who roll a hostile's
+/// traits (armored, pack leader).
+pub const TOPSIDE_HOSTILES: [&str; 3] = [RAIDERS, SCAVENGERS, WILDLIFE];
 
 /// Where the other bunkers stand (design.md: every bunker is its own
 /// faction), the same in every world the storm rolls. Tuning.
@@ -2627,8 +2639,8 @@ pub fn bunker_faction(i: usize) -> String {
 
 /// Every bunker is its own faction: the player's, and one per other
 /// bunker, neutral to each other at the start (what happens between
-/// them changes that, todo 11t). The topside hostiles are hostile to
-/// everyone.
+/// them changes that, todo 11t). The raiders are hostile to everyone; the
+/// scavengers, the wildlife and the townspeople start neutral.
 pub fn register_factions(reg: &mut FactionRegistry) {
     // Enough for the other bunkers of either world: the small world's
     // can be any of its houses.
@@ -2636,7 +2648,10 @@ pub fn register_factions(reg: &mut FactionRegistry) {
     let bunkers = (0..most).map(|i| (bunker_faction(i), FactionKind::Builder));
     for (name, kind) in [
         (PLAYER_FACTION.to_string(), FactionKind::Player),
-        (TOPSIDE_HOSTILES.to_string(), FactionKind::Hostile),
+        (RAIDERS.to_string(), FactionKind::Hostile),
+        (SCAVENGERS.to_string(), FactionKind::Builder),
+        (WILDLIFE.to_string(), FactionKind::Builder),
+        (TOWNSPEOPLE.to_string(), FactionKind::Builder),
     ]
     .into_iter()
     .chain(bunkers)
@@ -2672,14 +2687,15 @@ pub fn register_actors(reg: &mut ActorRegistry) {
     .expect("actor registered once");
     for def in [
         person("bunker person", None, Behaviour::Guard, 100.0, "pipe", &[]),
-        person("scavenger", Some(TOPSIDE_HOSTILES), Behaviour::Hunter, 60.0, "pipe", &[]),
-        person("raider", Some(TOPSIDE_HOSTILES), Behaviour::Hunter, 100.0, "wooden handle", &["axe head"]),
-        person("lookout", Some(TOPSIDE_HOSTILES), Behaviour::Guard, 80.0, "long pole", &["spear point"]),
-        person("wanderer", None, Behaviour::Guard, 70.0, "pipe", &[]),
+        person("scavenger", Some(SCAVENGERS), Behaviour::Hunter, 60.0, "pipe", &[]),
+        person("raider", Some(RAIDERS), Behaviour::Hunter, 100.0, "wooden handle", &["axe head"]),
+        // A raider camp's guard.
+        person("lookout", Some(RAIDERS), Behaviour::Guard, 80.0, "long pole", &["spear point"]),
+        person("wanderer", Some(TOWNSPEOPLE), Behaviour::Guard, 70.0, "pipe", &[]),
         // A wild animal (design.md "Bunker people and topside people":
         // "Hostiles attack: wild animals"), hunting with its teeth. Its
         // health and reach are Claude's, for the operator to change.
-        ActorDef { reach: 1.4, ..person("wolf", Some(TOPSIDE_HOSTILES), Behaviour::Hunter, 50.0, "teeth", &[]) },
+        ActorDef { reach: 1.4, ..person("wolf", Some(WILDLIFE), Behaviour::Hunter, 50.0, "teeth", &[]) },
         // A turret (todo 11k): an actor that never moves, guarding where
         // it is set with a pipe shotgun; its faction the placer's. Health
         // and sight Claude's.

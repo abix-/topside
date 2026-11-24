@@ -621,7 +621,7 @@ pub fn conversations(
     }
     // The player's choices: theirs is the first word in a conversation they
     // started, if they have anything to say (modforge `talk::choices`).
-    let stranger = their_npc.is_some_and(|n| n.faction.is_none());
+    let stranger = their_npc.is_some_and(|n| n.faction.as_deref() == Some(crate::content::TOWNSPEOPLE));
     let mine = Moment::of(&episode, (player.0, true), (with, false), here, Some(survival)).to_a_stranger(stranger);
     let open = modforge::talk::choices(&lines.0, &mine.speaking(with, memory, talking.started, !talking.opened));
     let nothing_said = !memory.done.iter().any(|(t, d)| {
