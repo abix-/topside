@@ -844,12 +844,33 @@ pub const SEWAGE_POND: modforge::plan::PlanDef = modforge::plan::PlanDef {
 };
 pub const SEWAGE_PUMP: &str = "sewage pump";
 pub const POND_VALVE: &str = "pond valve";
-pub const PLACES: [modforge::plan::PlanDef; 13] = [GROCERY_STORE, CROP_FARM, CROP_FARM, LIVESTOCK_BARN, GRAIN_ELEVATOR, DINER, PIZZA_PLACE, CAFE, BAR, PUMP_HOUSE, SUBSTATION, GAS_STATION, SEWAGE_POND];
+/// Place 13: the town dump, at the edge of town: its office and the
+/// scale shed, and the four piles behind (Works 17) where the trash
+/// truck takes the town's trash.
+pub const TOWN_DUMP: modforge::plan::PlanDef = modforge::plan::PlanDef {
+    name: "town dump",
+    edge: true,
+    columns: &[5.0, 4.0],
+    rows: &[4.0],
+    rooms: &[((0, 0), "dump office"), ((1, 0), "scale shed")],
+    ways: &[((0, 0), East, true)],
+    exits: &[((0, 0), South, 1.2), ((1, 0), North, 2.4)],
+    furniture: &[("dump office", [0.0, -0.3], [1.4, 0.75, 0.7]), ("scale shed", [0.0, 0.0], [2.5, 0.3, 2.5])],
+    things: &[(OFFICE_DESK, "dump office", [0.0, 0.1]), (TOOLBOX, "scale shed", [0.3, -0.3])],
+    outside: &[(DUMP_PILE, [-7.5, -12.0]), (DUMP_PILE, [-2.5, -12.0]), (DUMP_PILE, [2.5, -12.0]), (DUMP_PILE, [7.5, -12.0])],
+    walls: &[[0.55, 0.5, 0.4], [0.5, 0.55, 0.5]],
+    floor: [0.45, 0.42, 0.38],
+    furniture_color: [0.42, 0.4, 0.36],
+    height: 2.8,
+};
+pub const PLACES: [modforge::plan::PlanDef; 14] = [GROCERY_STORE, CROP_FARM, CROP_FARM, LIVESTOCK_BARN, GRAIN_ELEVATOR, DINER, PIZZA_PLACE, CAFE, BAR, PUMP_HOUSE, SUBSTATION, GAS_STATION, SEWAGE_POND, TOWN_DUMP];
 /// The places whose garden beds are found sown and ripe, with what.
 pub const PLACE_SOWN: [(&str, &str); 1] = [("crop farm", POTATO_SEED)];
 /// What each place's boxes are found holding: the place, the box, the
 /// item and how many.
-pub const PLACE_HOLDS: [(&str, &str, &str, u32); 53] = [
+pub const PLACE_HOLDS: [(&str, &str, &str, u32); 55] = [
+    ("town dump", OFFICE_DESK, "cloth", 1),
+    ("town dump", TOOLBOX, "scrap", 4),
     ("sewage pond", TOOLBOX, WRENCH, 1),
     ("sewage pond", TOOLBOX, "pipe", 2),
     ("gas station", SHELF, "canned food", 3),
@@ -908,7 +929,6 @@ pub const PLACE_HOLDS: [(&str, &str, &str, u32); 53] = [
 pub const PLACE_STATIONS: [(&str, modforge::crafting::StationKind); 1] = [(STOVE, modforge::crafting::StationKind::Stove)];
 pub const TRASH_CAN: &str = "trash can";
 pub const DUMP_PILE: &str = "dump pile";
-pub const DUMP_PILES: usize = 4;
 pub const COLLECTION_HOUR: f32 = 6.0;
 pub const DUMP_HOLDS: [(&str, u32); 3] = [("scrap", 6), ("cloth", 3), ("pipe", 1)];
 pub const MATCHES: &str = "matches";

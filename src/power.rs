@@ -303,29 +303,20 @@ pub fn populate_town_power(
                 let _ = held.add(modforge::item::create(can, can.max_stack, &[], 0.0, 0), can.max_stack);
             }
         }
+        // A dump pile, found holding junk (Works 17).
+        if thing == crate::content::DUMP_PILE {
+            for &(junk, count) in &crate::content::DUMP_HOLDS {
+                if let Some(def) = items.0.def(junk) {
+                    let _ = held.add(modforge::item::create(def, count, &[], 0.0, 0), def.max_stack);
+                }
+            }
+        }
         for &(_, _, item, count) in crate::content::PLACE_HOLDS.iter().filter(|(p, t, ..)| *p == place && *t == thing) {
             if let Some(def) = items.0.def(item) {
                 let _ = held.add(modforge::item::create(def, count, &[], 0.0, 0), def.max_stack);
             }
         }
         commands.entity(made).insert(Container(held));
-    }
-    // The dump's piles, on the last lot that is not a house until Place
-    // 13 builds the dump, found holding junk (Works 17).
-    if let Some(lot) = town.lots.iter().rev().find(|l| !l.house) {
-        for i in 0..crate::content::DUMP_PILES {
-            let at = lot.at + Vec2::new(i as f32 * 3.0 - 4.5, 0.0);
-            let Some(made) = make(&mut commands, crate::content::DUMP_PILE, at, Some(InteractKind::Container)) else {
-                continue;
-            };
-            let mut held = modforge::item::Inventory::new(items.0.def(crate::content::DUMP_PILE).and_then(|d| d.storage).unwrap_or(0));
-            for &(thing, count) in &crate::content::DUMP_HOLDS {
-                if let Some(def) = items.0.def(thing) {
-                    let _ = held.add(modforge::item::create(def, count, &[], 0.0, 0), def.max_stack);
-                }
-            }
-            commands.entity(made).insert(Container(held));
-        }
     }
     for at in town.streetlights(crate::content::HYDRANTS_APART) {
         make(&mut commands, crate::content::HYDRANT, at + Vec2::new(1.5, 0.0), None);
