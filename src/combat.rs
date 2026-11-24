@@ -343,27 +343,12 @@ pub fn melee(
     // in one tick, who lands first, and so who kills, is the same after a
     // load; each swing's targets too.
     let swingers = crate::actor::in_actor_order(actors.p0().iter().map(|(entity, .., actor, _, _)| (actor.map(|a| a.0), entity)));
-    let targets = crate::actor::in_actor_order(actors.p1().iter().map(|(entity, .., actor)| (actor.map(|a| a.0), entity)));
     let mut swinging = actors.p0();
     for entity in swingers {
-        let Ok((entity, this_tick, facing, hotbar, health, personality, shape, rolling, actor, mut firing, mut transform)) = swinging.get_mut(entity) else {
+        let Ok((entity, this_tick, facing, hotbar, health, persona, shape, rolling, actor, mut firing, mut transform)) = swinging.get_mut(entity) else {
             continue;
         };
         firing.0.tick(dt);
-        // What is in the hands: the held hotbar slot (Rust), its numbers
-        // worked out from its layers; guns are their own row, this is the
-        // hand weapons.
-        let held = hotbar.0.held_stack();
-        let weapon = held
-            .and_then(|s| items.0.def(&s.item).and_then(|d| numbers_of(d, s, &layers.0).combat))
-            .filter(|w| w.ammo.is_none());
-        // A better tier hits harder (design.md "Loot randomization").
-        // Its affixes too, all together.
-        let quality = modforge::quality::power(held.and_then(|s| s.quality).map(|q| q.tier), &crate::content::QUALITY)
-            * held.map_or(1.0, |s| modforge::affix::power(&s.affixes));
-        // A practised fighter hits harder (todo 31).
-        let skill = crate::skills::hit_scale(personality);
-        let personality = personality.map(|p| p.0.personality).unwrap_or_default();
         // The swing pressed earlier lands once its wind-up has passed
         // (combat.md "Simple to use": every attack shows a wind-up before
         // it lands), with what is in the hands then.
@@ -372,12 +357,21 @@ pub fn melee(
         if !lands && Rolling::busy(rolling) {
             continue;
         }
+        // Let go: the next press may chain on the beat. Most people, most
+        // ticks, end here, before the weapon's numbers are worked out.
+        if !lands && !ActionQueue::has(&this_tick.0, Action::Attack) {
+            firing.0.release();
+            continue;
+        }
+        // What is in the hands: the held hotbar slot (Rust), its numbers
+        // worked out from its layers; guns are their own row, this is the
+        // hand weapons.
+        let held = hotbar.0.held_stack();
+        let weapon = held
+            .and_then(|s| items.0.def(&s.item).and_then(|d| numbers_of(d, s, &layers.0).combat))
+            .filter(|w| w.ammo.is_none());
+        let personality = persona.map(|p| p.0.personality).unwrap_or_default();
         if !lands {
-            if !ActionQueue::has(&this_tick.0, Action::Attack) {
-                // Let go: the next press may chain on the beat.
-                firing.0.release();
-                continue;
-            }
             let Some(weapon) = weapon else {
                 continue;
             };
@@ -392,6 +386,12 @@ pub fn melee(
         let Some(weapon) = weapon else {
             continue;
         };
+        // A better tier hits harder (design.md "Loot randomization").
+        // Its affixes too, all together.
+        let quality = modforge::quality::power(held.and_then(|s| s.quality).map(|q| q.tier), &crate::content::QUALITY)
+            * held.map_or(1.0, |s| modforge::affix::power(&s.affixes));
+        // A practised fighter hits harder (todo 31).
+        let skill = crate::skills::hit_scale(persona);
         let swing = firing.0.swing;
         if swing == Swing::Overhead {
             let filter = SpatialQueryFilter::from_excluded_entities([entity]);
@@ -424,6 +424,11 @@ pub fn melee(
     // attacker did goes into their memory after: (attacker, whom, how
     // much, killed).
     let mut gave: Vec<(Entity, ActorId, f32, bool)> = Vec::new();
+    // No swing lands this tick (most ticks): nothing to sort or look along.
+    if swings.is_empty() {
+        return;
+    }
+    let targets = crate::actor::in_actor_order(actors.p1().iter().map(|(entity, .., actor)| (actor.map(|a| a.0), entity)));
     let lines = {
         let bodies = actors.p1();
         eye_lines(&eyes, |e| bodies.get(e).ok().map(|(_, t, ..)| t.translation))
