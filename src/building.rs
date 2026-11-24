@@ -19,7 +19,12 @@ use modforge::building::{Build, CELL, Cupboard, Grade, Kind, LEVEL, Slot};
 use crate::actor::{Dead, Hotbar, Inventory, Npc};
 use crate::content::{BUILDING_PLAN, HAMMER, ItemRegistryRes, PLAYER_FACTION, TOOL_CUPBOARD, grade_material};
 use crate::input::ThisTick;
+use crate::interact::{Door, Interactable};
+use crate::model::Model;
+use crate::structure::{FLOOR_TILE, FURNITURE_HEIGHT, WALL_HEIGHT};
 use crate::{Ground, on_ground};
+use modforge::hud::InteractKind;
+use modforge::structure::DOORWAY_HEIGHT;
 
 /// A foundation's height: everything on it stands this much higher.
 pub const FOUNDATION_TOP: f32 = 0.3;
@@ -216,11 +221,13 @@ fn boxes(kind: Kind) -> Vec<(Vec3, Vec3)> {
         Kind::Foundation => vec![(Vec3::new(0.0, FOUNDATION_TOP / 2.0, 0.0), Vec3::new(w, FOUNDATION_TOP, w))],
         Kind::Floor | Kind::Roof => vec![(Vec3::new(0.0, -t / 2.0, 0.0), Vec3::new(w, t, w))],
         Kind::Wall => vec![(Vec3::new(0.0, h / 2.0, 0.0), Vec3::new(w, h, t))],
-        // Two posts and a lintel round a door-wide gap.
+        // Two posts and a head round a door-wide gap, the head from a
+        // house's doorway height up (modforge `DOORWAY_HEIGHT`), a door
+        // hung in it (`door_of`).
         Kind::Doorway => vec![
             (Vec3::new(-1.0, h / 2.0, 0.0), Vec3::new(1.0, h, t)),
             (Vec3::new(1.0, h / 2.0, 0.0), Vec3::new(1.0, h, t)),
-            (Vec3::new(0.0, h - 0.4, 0.0), Vec3::new(1.0, 0.8, t)),
+            (Vec3::new(0.0, (h + DOORWAY_HEIGHT) / 2.0, 0.0), Vec3::new(1.0, h - DOORWAY_HEIGHT, t)),
         ],
         // A wall with a hole at chest height.
         Kind::Window => vec![
@@ -235,6 +242,59 @@ fn boxes(kind: Kind) -> Vec<(Vec3, Vec3)> {
             (Vec3::new(0.0, step * (i as f32 + 0.5), -w / 2.0 + w / 12.0 + i as f32 * w / 6.0), Vec3::new(w * 0.6, step, w / 6.0))
         }).collect(),
     }
+}
+
+/// The house wall model a grade is drawn with, by what it is made of (the
+/// one rule for a wall's model, content `wall_model`, keys on colour; a
+/// grade's material is its own): twig and wood the wood wall, stone the
+/// stone wall, metal and armored the concrete wall (Claude's).
+fn wall_of(grade: Grade) -> &'static str {
+    match grade {
+        Grade::Twig | Grade::Wood => "wall wood",
+        Grade::Stone => "wall stone",
+        Grade::Metal | Grade::Armored => "wall concrete",
+    }
+}
+
+/// How one box of a piece is drawn, as a house's same box is
+/// (`structure::spawn_structure`): a wall, post or head as the house's
+/// wall model, a foundation, floor or roof as its floor tile, a step as its
+/// step block, each stretched to the box.
+fn drawn_as(kind: Kind, grade: Grade, centre: Vec3, size: Vec3) -> (Model, Transform) {
+    let bottom = centre - Vec3::Y * (size.y / 2.0);
+    match kind {
+        Kind::Foundation | Kind::Floor | Kind::Roof => {
+            (Model("floor".to_string()), Transform::from_translation(centre).with_scale(Vec3::new(size.x, size.y / FLOOR_TILE, size.z)))
+        }
+        Kind::Stairs => (
+            Model("furniture".to_string()),
+            Transform::from_translation(bottom).with_scale(Vec3::new(size.x / 0.9, size.y / FURNITURE_HEIGHT, size.z / 0.9)),
+        ),
+        Kind::Wall | Kind::Doorway | Kind::Window => {
+            (Model(wall_of(grade).to_string()), Transform::from_translation(bottom).with_scale(Vec3::new(size.x, size.y / WALL_HEIGHT, size.z)))
+        }
+    }
+}
+
+/// A doorway's door, as a house's (`structure::spawn_structure`): hung on
+/// its hinge at the gap's side, closed across the gap, on the piece's floor.
+fn door_of(slot: Slot) -> (Door, Transform) {
+    let place = placed(slot, Kind::Doorway);
+    let along = (place.rotation * Vec3::X).ground();
+    let centre = place.translation.ground();
+    let hinge = centre - along * 0.5;
+    let door = Door {
+        open: false,
+        closed_center: centre,
+        hinge,
+        closed: Door::facing(hinge, centre),
+        width: 1.0,
+        height: DOORWAY_HEIGHT,
+        lying: false,
+        model: "door".to_string(),
+    };
+    let at = Transform::from_translation(on_ground(hinge, place.translation.y)).with_rotation(door.closed);
+    (door, at)
 }
 
 fn colour(grade: Grade) -> Color {
@@ -255,42 +315,60 @@ fn placed(slot: Slot, kind: Kind) -> Transform {
     Transform::from_translation(Vec3::new(x, floor, z)).with_rotation(turn)
 }
 
-/// Every fixed step: each built piece is in the world, solid and, with a
-/// window, drawn at its grade; one gone or regraded is made again.
+/// Every fixed step: each built piece is in the world, solid and drawn at
+/// its grade with the pieces a house is made of (todo Build 1; operator,
+/// 2026-11-23: "the same building system that we're using to build these
+/// is what the player can use to build and expand his world"), a doorway
+/// with its door; one gone or regraded is made again. A doorway's door is
+/// a thing of its own, saved as a house's is, so one already hung (from a
+/// save) is kept, and it goes with its doorway.
 pub fn make(
     mut commands: Commands,
     builds: Res<Builds>,
-    meshes: Option<ResMut<Assets<Mesh>>>,
-    materials: Option<ResMut<Assets<StandardMaterial>>>,
+    mut ids: ResMut<crate::interact::ThingIssuer>,
     drawn: Query<(Entity, &Drawn)>,
+    doors: Query<(Entity, &Door)>,
 ) {
     if !builds.is_changed() {
         return;
     }
+    let hung = |slot: Slot| {
+        let centre = door_of(slot).0.closed_center;
+        doors.iter().find(|(_, d)| d.closed_center.distance(centre) < 0.05).map(|(e, _)| e)
+    };
     let mut have = std::collections::BTreeMap::new();
     for (entity, d) in &drawn {
         match builds.0.pieces.get(&d.0) {
             Some(piece) if piece.grade == d.1 => {
                 have.insert(d.0, entity);
             }
-            _ => commands.entity(entity).despawn(),
+            Some(piece) if piece.kind == Kind::Doorway => commands.entity(entity).despawn(),
+            _ => {
+                commands.entity(entity).despawn();
+                if let Some(door) = hung(d.0) {
+                    commands.entity(door).despawn();
+                }
+            }
         }
     }
-    let (mut meshes, mut materials) = (meshes, materials);
     for (slot, piece) in &builds.0.pieces {
         if have.contains_key(slot) {
             continue;
         }
         let parts = boxes(piece.kind);
         let collider = Collider::compound(parts.iter().map(|(c, s)| (*c, Rotation::IDENTITY, Collider::cuboid(s.x, s.y, s.z))).collect());
-        let mut entity = commands.spawn((Drawn(*slot, piece.grade), placed(*slot, piece.kind), RigidBody::Static, collider, crate::terrain::BlocksSight));
-        if let (Some(meshes), Some(materials)) = (meshes.as_deref_mut(), materials.as_deref_mut()) {
-            let material = materials.add(StandardMaterial { base_color: colour(piece.grade), perceptual_roughness: 1.0, ..default() });
-            entity.with_children(|parent| {
+        let tint = crate::model::Tint(colour(piece.grade));
+        commands
+            .spawn((Drawn(*slot, piece.grade), placed(*slot, piece.kind), RigidBody::Static, collider, crate::terrain::BlocksSight, Visibility::default()))
+            .with_children(|parent| {
                 for (centre, size) in &parts {
-                    parent.spawn((Mesh3d(meshes.add(Cuboid::new(size.x, size.y, size.z))), MeshMaterial3d(material.clone()), Transform::from_translation(*centre)));
+                    let (model, at) = drawn_as(piece.kind, piece.grade, *centre, *size);
+                    parent.spawn((model, tint, at));
                 }
             });
+        if piece.kind == Kind::Doorway && hung(*slot).is_none() {
+            let (door, at) = door_of(*slot);
+            commands.spawn((door, Interactable { kind: InteractKind::Door { open: false } }, ids.issue(), at));
         }
     }
 }
