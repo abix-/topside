@@ -286,6 +286,11 @@ pub fn populate_town_power(
             make(&mut commands, thing, at, Some(InteractKind::Station(station)));
             continue;
         }
+        // A source (a pump, a tap), used where it stands.
+        if items.0.def(thing).is_some_and(|d| d.kind == modforge::item::ItemKind::Source) {
+            make(&mut commands, thing, at, Some(InteractKind::Source));
+            continue;
+        }
         // A field's bed, found sown and ripe where the place says.
         if thing == crate::content::GARDEN_BED {
             let Some(bed) = make(&mut commands, thing, at, None) else {

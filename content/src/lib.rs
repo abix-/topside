@@ -723,12 +723,47 @@ pub const BAR: modforge::plan::PlanDef = modforge::plan::PlanDef {
 };
 pub const LIQUOR_SHELF: &str = "liquor shelf";
 pub const LIQUOR: &str = "bottle of liquor";
-pub const PLACES: [modforge::plan::PlanDef; 9] = [GROCERY_STORE, CROP_FARM, CROP_FARM, LIVESTOCK_BARN, GRAIN_ELEVATOR, DINER, PIZZA_PLACE, CAFE, BAR];
+/// Place 9: the pump house, at the edge of town, with the water tower
+/// standing beside it: the pump room with the town's well pump, the
+/// chlorine room and the meter office.
+pub const PUMP_HOUSE: modforge::plan::PlanDef = modforge::plan::PlanDef {
+    name: "pump house",
+    edge: true,
+    columns: &[6.0, 4.0],
+    rows: &[5.0, 4.0],
+    rooms: &[((0, 0), "pump room"), ((1, 0), "meter office"), ((0, 1), "chlorine room"), ((1, 1), "pipe store")],
+    ways: &[((0, 0), East, true), ((0, 0), North, true), ((1, 0), North, true)],
+    exits: &[((0, 0), South, 1.8)],
+    furniture: &[
+        ("pump room", [-0.3, -0.2], [1.5, 1.2, 1.5]),
+        ("meter office", [0.0, -0.3], [1.4, 0.75, 0.7]),
+        ("chlorine room", [0.0, -0.4], [3.5, 1.2, 0.6]),
+        ("pipe store", [0.0, -0.4], [2.5, 1.0, 0.6]),
+    ],
+    things: &[
+        (WATER_PUMP, "pump room", [0.2, 0.2]),
+        (OFFICE_DESK, "meter office", [0.0, 0.1]),
+        (TOOLBOX, "chlorine room", [0.3, 0.2]),
+        (PALLET, "pipe store", [0.0, 0.2]),
+    ],
+    // The water tower's tap, at the foot of its legs behind the house.
+    outside: &[(WATER_TOWER_TAP, [0.0, -12.0])],
+    walls: &[[0.7, 0.7, 0.72], [0.6, 0.65, 0.7]],
+    floor: [0.55, 0.55, 0.55],
+    furniture_color: [0.45, 0.5, 0.55],
+    height: 3.2,
+};
+pub const WATER_PUMP: &str = "water pump";
+pub const WATER_TOWER_TAP: &str = "water tower tap";
+pub const PLACES: [modforge::plan::PlanDef; 10] = [GROCERY_STORE, CROP_FARM, CROP_FARM, LIVESTOCK_BARN, GRAIN_ELEVATOR, DINER, PIZZA_PLACE, CAFE, BAR, PUMP_HOUSE];
 /// The places whose garden beds are found sown and ripe, with what.
 pub const PLACE_SOWN: [(&str, &str); 1] = [("crop farm", POTATO_SEED)];
 /// What each place's boxes are found holding: the place, the box, the
 /// item and how many.
-pub const PLACE_HOLDS: [(&str, &str, &str, u32); 40] = [
+pub const PLACE_HOLDS: [(&str, &str, &str, u32); 43] = [
+    ("pump house", OFFICE_DESK, "cloth", 1),
+    ("pump house", TOOLBOX, WRENCH, 1),
+    ("pump house", PALLET, "pipe", 4),
     ("bar", CASH_REGISTER, "scrap", 2),
     ("bar", LIQUOR_SHELF, LIQUOR, 6),
     ("bar", OFFICE_DESK, "cloth", 1),
@@ -2460,6 +2495,8 @@ pub fn register_items(reg: &mut ItemRegistry) {
         // a sink and a shower give a mouthful as a well does, a toilet
         // flushes, each taking it from the water tower (`DrawsFrom`).
         source(SINK, 0.0, 50.0),
+        source(WATER_PUMP, 0.0, 50.0),
+        source(WATER_TOWER_TAP, 0.0, 50.0),
         source(SHOWER, 0.0, 50.0),
         source(TOILET, 0.0, 0.0),
         building(SUBSTATION, "The town's substation. Its lines carry power to every house.", ItemKind::Deployable, 1, None),
