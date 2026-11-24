@@ -491,138 +491,11 @@ def icon(frame, shown, name):
     print(f"{name}: icon -> {out}")
 
 
-# -- weapons, in layers ----------------------------------------------------------
+# -- layers ----------------------------------------------------------------------
 #
-# A melee weapon is a handle and a head (design.md "What 2D changes"). Every
-# handle is built lying along x, its grip at x = 0 and its tip at x = its
-# length, its middle at the height of its radius, so it rests on the ground;
-# every head is built on that tip. Handles differ in length, so each head is
-# exported once per handle, as each hair is once per body: the handle alone
-# is `<handle>` (the item's own model) and each head alone on it is
-# `<handle> <head>`, all of one handle's models in one frame, so they stack.
-# Weapons are their real size, and a head the same size on every handle.
+# A model with layers (content/models/weapons.yaml) is exported as its base
+# alone and each layer alone on it, all in one frame, so they stack.
 WEAPON_SCALE = 1.0
-
-
-def pipe_handle():
-    """the pipe: a metre of rusty steel with a taped grip at one end."""
-    length, radius = 1.0, 0.025
-    steel = material("steel", (0.45, 0.42, 0.40))
-    tape = material("tape", (0.18, 0.16, 0.14))
-    parts = [
-        cylinder("shaft", radius, length, along="X", at=(length / 2, 0, radius), mat=steel),
-        # The grip: a fatter band over the near end.
-        cylinder("grip", radius * 1.25, 0.22, along="X", at=(0.14, 0, radius), mat=tape),
-        # A threaded collar at the far end, so the hitting end reads.
-        cylinder("collar", radius * 1.4, 0.05, along="X", at=(length - 0.04, 0, radius), mat=steel),
-        # A dent: a shallow box pressed into the shaft past the middle.
-        box("dent", (0.06, radius * 1.1, radius * 0.5), at=(0.6, 0, radius * 1.9), mat=steel),
-    ]
-    return parts, length, radius
-
-
-def wooden_handle():
-    """the wooden handle: a short length of grey-brown wood, its grip
-    wrapped in cloth."""
-    length, radius = 0.7, 0.022
-    wood = material("wood", (0.4, 0.28, 0.16))
-    cloth = material("wrap", (0.5, 0.46, 0.38))
-    parts = [
-        cylinder("shaft", radius, length, along="X", at=(length / 2, 0, radius), mat=wood),
-        cylinder("grip", radius * 1.2, 0.18, along="X", at=(0.1, 0, radius), mat=cloth),
-    ]
-    return parts, length, radius
-
-
-def long_pole():
-    """the long pole: nearly two metres of pale wood, wrapped where both
-    hands hold it."""
-    length, radius = 1.8, 0.025
-    wood = material("pole", (0.48, 0.37, 0.22))
-    cloth = material("wrap", (0.5, 0.46, 0.38))
-    parts = [
-        cylinder("shaft", radius, length, along="X", at=(length / 2, 0, radius), mat=wood),
-        cylinder("grip_near", radius * 1.2, 0.16, along="X", at=(0.2, 0, radius), mat=cloth),
-        cylinder("grip_far", radius * 1.2, 0.16, along="X", at=(0.8, 0, radius), mat=cloth),
-    ]
-    return parts, length, radius
-
-
-def nails(tip, radius):
-    """nails driven through the last hand's width of the handle, sticking
-    out to both sides and up."""
-    steel = material("nail", (0.55, 0.55, 0.58))
-    parts = []
-    # Drawn thicker and longer than real nails, so they read at item size.
-    for i in range(6):
-        x = tip - 0.03 - i * 0.04
-        if i % 3 == 2:
-            parts.append(cylinder(f"nail_{i}", 0.009, 0.14, sides=6, along="Z", at=(x, 0, radius + 0.06), mat=steel))
-        else:
-            side = 1 if i % 3 == 0 else -1
-            parts.append(cylinder(f"nail_{i}", 0.009, 0.14, sides=6, along="Y", at=(x, side * 0.06, radius), mat=steel))
-    return parts
-
-
-def scrap_blade(tip, radius):
-    """a strip of rusty scrap sharpened along one edge, bound to the tip."""
-    rust = material("scrap", (0.5, 0.35, 0.25))
-    edge = material("edge", (0.65, 0.63, 0.6))
-    tape = material("tape", (0.18, 0.16, 0.14))
-    return [
-        box("blade", (0.28, 0.07, 0.006), at=(tip + 0.1, 0, radius), mat=rust),
-        box("edge", (0.26, 0.012, 0.007), at=(tip + 0.1, 0.035, radius), mat=edge),
-        cylinder("binding", radius * 1.35, 0.07, along="X", at=(tip - 0.03, 0, radius), mat=tape),
-    ]
-
-
-def axe_head(tip, radius):
-    """an axe head across the tip: the blade to one side, its bright edge
-    ground, a short poll to the other."""
-    steel = material("axe", (0.32, 0.32, 0.34))
-    edge = material("edge", (0.65, 0.63, 0.6))
-    return [
-        box("cheek", (0.08, 0.16, 0.03), at=(tip - 0.05, 0.06, radius), mat=steel),
-        box("edge", (0.1, 0.02, 0.031), at=(tip - 0.05, 0.145, radius), mat=edge),
-        box("poll", (0.06, 0.05, 0.04), at=(tip - 0.05, -0.04, radius), mat=steel),
-    ]
-
-
-def spear_point(tip, radius):
-    """a steel point past the tip, bound on with wire."""
-    steel = material("point", (0.5, 0.5, 0.52))
-    wire = material("wire", (0.35, 0.3, 0.25))
-    bpy.ops.mesh.primitive_cone_add(vertices=4, radius1=0.055, radius2=0, depth=0.3, location=(tip + 0.15, 0, radius), rotation=(0, math.pi / 2, 0))
-    return [
-        _named("point", steel),
-        cylinder("binding", radius * 1.3, 0.08, along="X", at=(tip - 0.02, 0, radius), mat=wire),
-    ]
-
-
-def sharpened_road_sign(tip, radius):
-    """a piece of green road sign with its white border, cut to a point
-    and bolted on past the tip."""
-    sign = material("sign", (0.2, 0.5, 0.2))
-    white = material("border", (0.9, 0.9, 0.88))
-    bolt = material("bolt", (0.55, 0.55, 0.58))
-    return [
-        box("plate", (0.24, 0.13, 0.006), at=(tip + 0.08, 0, radius), mat=sign),
-        box("point", (0.1, 0.1, 0.006), at=(tip + 0.2, 0, radius), rotation=(0, 0, math.pi / 4), mat=sign),
-        box("border", (0.24, 0.015, 0.007), at=(tip + 0.08, 0.058, radius), mat=white),
-        cylinder("bolt", 0.012, 0.02, along="Z", at=(tip - 0.02, 0, radius + 0.01), mat=bolt),
-    ]
-
-
-# The handles and heads, named as in content/src/lib.rs (register_items,
-# register_layers).
-HANDLES = {"pipe": pipe_handle, "wooden handle": wooden_handle, "long pole": long_pole}
-HEADS = {
-    "nails": nails,
-    "scrap blade": scrap_blade,
-    "axe head": axe_head,
-    "spear point": spear_point,
-    "sharpened road sign": sharpened_road_sign,
-}
 
 
 def merge(parts, name):
@@ -661,84 +534,6 @@ def layered(base, parts, layers, middle):
         export(obj, name)
     for name, obj in objs.items():
         icon(every, obj, name)
-
-
-# -- the pipe shotgun, in layers -----------------------------------------------
-#
-# A gun is a body, barrel, grip, stock, and sight (design.md "What 2D
-# changes"). The body is built lying along x, the muzzle toward +x, its middle
-# at x = 0; every part is built where it goes on the body.
-
-
-def pipe_shotgun_body():
-    """the pipe shotgun's body: the fat steel sleeve the barrel slides into,
-    and a bent strip of steel for a trigger guard."""
-    steel = material("steel", (0.3, 0.3, 0.3))
-    return [
-        cylinder("sleeve", 0.032, 0.16, along="X", mat=steel),
-        box("guard", (0.05, 0.012, 0.035), at=(-0.03, 0, -0.045), mat=steel),
-    ]
-
-
-def barrel(length):
-    """a steel pipe barrel of `length`, slid into the sleeve."""
-    steel = material("barrel", (0.34, 0.34, 0.35))
-    return [
-        cylinder("barrel", 0.022, length, along="X", at=(-0.05 + length / 2, 0, 0), mat=steel),
-        cylinder("muzzle", 0.026, 0.03, along="X", at=(-0.05 + length - 0.015, 0, 0), mat=steel),
-    ]
-
-
-def wooden_grip():
-    """a rough wooden grip under the back of the sleeve."""
-    wood = material("wood", (0.4, 0.28, 0.16))
-    return [box("grip", (0.05, 0.04, 0.12), at=(-0.07, 0, -0.08), rotation=(0, -0.25, 0), mat=wood)]
-
-
-def taped_grip():
-    """a grip of scrap wrapped in black tape."""
-    tape = material("tape", (0.14, 0.13, 0.12))
-    band = material("band", (0.3, 0.28, 0.25))
-    return [
-        box("grip", (0.05, 0.042, 0.12), at=(-0.07, 0, -0.08), rotation=(0, -0.25, 0), mat=tape),
-        box("band", (0.055, 0.046, 0.015), at=(-0.075, 0, -0.1), rotation=(0, -0.25, 0), mat=band),
-    ]
-
-
-def wooden_stock():
-    """a rough plank of a stock behind the sleeve."""
-    wood = material("wood", (0.4, 0.28, 0.16))
-    return [box("stock", (0.32, 0.045, 0.09), at=(-0.24, 0, -0.03), mat=wood)]
-
-
-def nail_sight():
-    """a nail standing up on the front of the sleeve, to aim along."""
-    steel = material("nail", (0.55, 0.55, 0.58))
-    return [cylinder("sight", 0.006, 0.05, sides=6, along="Z", at=(0.06, 0, 0.05), mat=steel)]
-
-
-# The pipe shotgun's parts, named as in content/src/lib.rs. No stock and no
-# sight are no layer at all.
-GUN_PARTS = {
-    "pipe barrel": lambda: barrel(0.6),
-    "short pipe barrel": lambda: barrel(0.35),
-    "wooden grip": wooden_grip,
-    "taped grip": taped_grip,
-    "wooden stock": wooden_stock,
-    "nail sight": nail_sight,
-}
-
-
-def weapons():
-    """render every handle with its heads, and the pipe shotgun with its
-    parts, each in its own frame."""
-    for handle, build in HANDLES.items():
-        clear()
-        parts, length, radius = build()
-        # The grip at the ground point, so a hand holds it there.
-        layered(handle, parts, {head: put_on(length, radius) for head, put_on in HEADS.items()}, 0.0)
-    clear()
-    layered("pipe shotgun", pipe_shotgun_body(), {name: build() for name, build in GUN_PARTS.items()}, 0.0)
 
 
 # -- the mustang ---------------------------------------------------------------
@@ -2079,7 +1874,7 @@ GROCERY = {}  # content/models/grocery.yaml
 
 
 # Models that export several models themselves.
-SETS = {"person": people, "weapons": weapons}
+SETS = {"person": people}
 
 
 # Every other model is described in content/models/*.yaml.
@@ -2104,6 +1899,16 @@ def main():
             SETS[name]()
             continue
         clear()
+        if name in found and found[name][0].get("layers"):
+            builder = Builder(found)
+            base, _ = builder.lineage(name)
+            env = builder.env(base)
+            layers = {}
+            for layer in base["layers"]:
+                wants = builder.lineage(layer)[0].get("params") or {}
+                layers[layer] = builder.parts(layer, {k: env[k] for k in wants if k in env})
+            layered(name, builder.parts(name), layers, 0.0)
+            continue
         if name in found:
             builder = Builder(found)
             obj = builder.build(name)

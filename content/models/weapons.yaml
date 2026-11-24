@@ -1,0 +1,243 @@
+# Weapons, in layers, built by scripts/models.py (design.md "What 2D
+# changes"). A melee weapon is a handle and a head: every handle lies along
+# x, its grip at x = 0 and its tip at x = its length, its middle at the
+# height of its radius; every head is built on that tip. A model's `layers`
+# are exported once on it each, the base alone as `<base>` and each layer
+# alone on it as `<base> <layer>`, all in one frame, the grip at the ground
+# point, so they stack and a hand holds them there. A layer takes the
+# base's numbers of the same names (a head's tip and radius). A gun is a
+# body, barrel, grip, stock and sight, its muzzle toward +x, its middle at
+# x = 0, every part where it goes on the body. Weapons are their real size.
+# Named as in content/src/lib.rs (register_items, register_layers).
+
+colours:
+  pipe steel: [0.45, 0.42, 0.40]
+  tape: [0.18, 0.16, 0.14]
+  handle wood: [0.4, 0.28, 0.16]
+  wrap: [0.5, 0.46, 0.38]
+  pole: [0.48, 0.37, 0.22]
+  nail: [0.55, 0.55, 0.58]
+  scrap rust: [0.5, 0.35, 0.25]
+  edge: [0.65, 0.63, 0.6]
+  axe: [0.32, 0.32, 0.34]
+  point: [0.5, 0.5, 0.52]
+  wire: [0.35, 0.3, 0.25]
+  sign: [0.2, 0.5, 0.2]
+  border: [0.9, 0.9, 0.88]
+  sign bolt: [0.55, 0.55, 0.58]
+  gun steel: [0.3, 0.3, 0.3]
+  barrel steel: [0.34, 0.34, 0.35]
+  grip tape: [0.14, 0.13, 0.12]
+  grip band: [0.3, 0.28, 0.25]
+
+models:
+  pipe:
+    about: the pipe, a metre of rusty steel with a taped grip at one end, a threaded collar at the far end and a dent past the middle.
+    params: {length: 1.0, radius: 0.025}
+    let: {tip: length}
+    parts:
+      - cylinder: [radius, length]
+        along: X
+        at: [length / 2, 0, radius]
+        colour: pipe steel
+      - cylinder: [radius * 1.25, 0.22]
+        along: X
+        at: [0.14, 0, radius]
+        colour: tape
+      - cylinder: [radius * 1.4, 0.05]
+        along: X
+        at: [length - 0.04, 0, radius]
+        colour: pipe steel
+      - box: [0.06, radius * 1.1, radius * 0.5]
+        at: [0.6, 0, radius * 1.9]
+        colour: pipe steel
+    layers: [nails, scrap blade, axe head, spear point, sharpened road sign]
+
+  wooden handle:
+    about: the wooden handle, a short length of grey-brown wood, its grip wrapped in cloth.
+    params: {length: 0.7, radius: 0.022}
+    let: {tip: length}
+    parts:
+      - cylinder: [radius, length]
+        along: X
+        at: [length / 2, 0, radius]
+        colour: handle wood
+      - cylinder: [radius * 1.2, 0.18]
+        along: X
+        at: [0.1, 0, radius]
+        colour: wrap
+    layers: [nails, scrap blade, axe head, spear point, sharpened road sign]
+
+  long pole:
+    about: the long pole, nearly two metres of pale wood, wrapped where both hands hold it.
+    params: {length: 1.8, radius: 0.025}
+    let: {tip: length}
+    parts:
+      - cylinder: [radius, length]
+        along: X
+        at: [length / 2, 0, radius]
+        colour: pole
+      - for: {x: [0.2, 0.8]}
+        parts:
+          - cylinder: [radius * 1.2, 0.16]
+            along: X
+            at: [x, 0, radius]
+            colour: wrap
+    layers: [nails, scrap blade, axe head, spear point, sharpened road sign]
+
+  nails:
+    about: nails driven through the last hand's width of the handle, out to both sides and up; drawn thicker and longer than real nails, so they read at item size.
+    template: true
+    params: {tip: 1.0, radius: 0.025}
+    parts:
+      - for: {i: range(6)}
+        let: {x: tip - 0.03 - i * 0.04}
+        parts:
+          - cylinder: [0.009, 0.14]
+            if: i % 3 == 2
+            sides: 6
+            at: [x, 0, radius + 0.06]
+            colour: nail
+          - cylinder: [0.009, 0.14]
+            if: i % 3 != 2
+            sides: 6
+            along: Y
+            at: [x, "(1 if i % 3 == 0 else -1) * 0.06", radius]
+            colour: nail
+
+  scrap blade:
+    about: a strip of rusty scrap sharpened along one edge, bound to the tip.
+    template: true
+    params: {tip: 1.0, radius: 0.025}
+    parts:
+      - box: [0.28, 0.07, 0.006]
+        at: [tip + 0.1, 0, radius]
+        colour: scrap rust
+      - box: [0.26, 0.012, 0.007]
+        at: [tip + 0.1, 0.035, radius]
+        colour: edge
+      - cylinder: [radius * 1.35, 0.07]
+        along: X
+        at: [tip - 0.03, 0, radius]
+        colour: tape
+
+  axe head:
+    about: an axe head across the tip, the blade to one side, its bright edge ground, a short poll to the other.
+    template: true
+    params: {tip: 1.0, radius: 0.025}
+    parts:
+      - box: [0.08, 0.16, 0.03]
+        at: [tip - 0.05, 0.06, radius]
+        colour: axe
+      - box: [0.1, 0.02, 0.031]
+        at: [tip - 0.05, 0.145, radius]
+        colour: edge
+      - box: [0.06, 0.05, 0.04]
+        at: [tip - 0.05, -0.04, radius]
+        colour: axe
+
+  spear point:
+    about: a steel point past the tip, bound on with wire.
+    template: true
+    params: {tip: 1.0, radius: 0.025}
+    parts:
+      - cone: [0.055, 0, 0.3]
+        sides: 4
+        at: [tip + 0.15, 0, radius]
+        rotation: [0, 90, 0]
+        colour: point
+      - cylinder: [radius * 1.3, 0.08]
+        along: X
+        at: [tip - 0.02, 0, radius]
+        colour: wire
+
+  sharpened road sign:
+    about: a piece of green road sign with its white border, cut to a point and bolted on past the tip.
+    template: true
+    params: {tip: 1.0, radius: 0.025}
+    parts:
+      - box: [0.24, 0.13, 0.006]
+        at: [tip + 0.08, 0, radius]
+        colour: sign
+      - box: [0.1, 0.1, 0.006]
+        at: [tip + 0.2, 0, radius]
+        rotation: [0, 0, 45]
+        colour: sign
+      - box: [0.24, 0.015, 0.007]
+        at: [tip + 0.08, 0.058, radius]
+        colour: border
+      - cylinder: [0.012, 0.02]
+        at: [tip - 0.02, 0, radius + 0.01]
+        colour: sign bolt
+
+  pipe shotgun:
+    about: the pipe shotgun's body, the fat steel sleeve the barrel slides into, and a bent strip of steel for a trigger guard; no stock and no sight are no layer at all.
+    parts:
+      - cylinder: [0.032, 0.16]
+        along: X
+        colour: gun steel
+      - box: [0.05, 0.012, 0.035]
+        at: [-0.03, 0, -0.045]
+        colour: gun steel
+    layers: [pipe barrel, short pipe barrel, wooden grip, taped grip, wooden stock, nail sight]
+
+  gun barrel:
+    about: a steel pipe barrel of length, slid into the sleeve.
+    template: true
+    params: {length: 0.6}
+    parts:
+      - cylinder: [0.022, length]
+        along: X
+        at: [-0.05 + length / 2, 0, 0]
+        colour: barrel steel
+      - cylinder: [0.026, 0.03]
+        along: X
+        at: [-0.05 + length - 0.015, 0, 0]
+        colour: barrel steel
+
+  pipe barrel:
+    parent: gun barrel
+    params: {length: 0.6}
+
+  short pipe barrel:
+    parent: gun barrel
+    params: {length: 0.35}
+
+  wooden grip:
+    about: a rough wooden grip under the back of the sleeve.
+    template: true
+    parts:
+      - box: [0.05, 0.04, 0.12]
+        at: [-0.07, 0, -0.08]
+        rotation: [0, -0.25 * 180 / pi, 0]
+        colour: handle wood
+
+  taped grip:
+    about: a grip of scrap wrapped in black tape.
+    template: true
+    parts:
+      - box: [0.05, 0.042, 0.12]
+        at: [-0.07, 0, -0.08]
+        rotation: [0, -0.25 * 180 / pi, 0]
+        colour: grip tape
+      - box: [0.055, 0.046, 0.015]
+        at: [-0.075, 0, -0.1]
+        rotation: [0, -0.25 * 180 / pi, 0]
+        colour: grip band
+
+  wooden stock:
+    about: a rough plank of a stock behind the sleeve.
+    template: true
+    parts:
+      - box: [0.32, 0.045, 0.09]
+        at: [-0.24, 0, -0.03]
+        colour: handle wood
+
+  nail sight:
+    about: a nail standing up on the front of the sleeve, to aim along.
+    template: true
+    parts:
+      - cylinder: [0.006, 0.05]
+        sides: 6
+        at: [0.06, 0, 0.05]
+        colour: nail
