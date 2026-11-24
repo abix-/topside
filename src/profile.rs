@@ -152,6 +152,16 @@ pub fn roll_frame() {
     }
 }
 
+/// The time every span whose name starts with `prefix` has run so far this
+/// frame, in ns, by name: read before and after a piece of work, the
+/// difference is that work's own spans (landmass's parts in one step).
+pub fn spans_now(prefix: &str) -> Vec<(String, u64)> {
+    let Ok(slots) = SLOTS.lock() else {
+        return Vec::new();
+    };
+    slots.values().filter(|s| s.name.starts_with(prefix)).map(|s| (s.name.clone(), s.nanos.load(Ordering::Relaxed))).collect()
+}
+
 /// Every span's average ms per frame, the costliest first.
 pub fn per_frame() -> Vec<(String, f64)> {
     let mut all: Vec<(String, f64)> = PER_FRAME.lock().map(|m| m.iter().map(|(n, v)| (n.clone(), *v)).collect()).unwrap_or_default();
@@ -330,7 +340,7 @@ pub fn finish_step(mut laps: ResMut<Laps>, tick: Res<crate::SimTick>) {
         if laps.over_budget_steps.len() < OVER_KEPT {
             let mut parts = laps.this_step.clone();
             parts.sort_by(|a, b| b.1.total_cmp(&a.1));
-            parts.truncate(3);
+            parts.truncate(12);
             let units = laps.counts.iter().zip(&laps.counts_now).map(|((name, _), n)| (*name, *n)).collect();
             laps.over_budget_steps.push(OverBudget { tick: tick.0, ms, parts, units });
         }

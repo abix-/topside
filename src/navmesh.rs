@@ -102,7 +102,31 @@ struct Landmass;
 /// islands and works out its agents' ways: every tick, first, and exactly
 /// once when the loading screen readies the world (`loading`).
 pub fn run_landmass(world: &mut World) {
+    let before = crate::profile::spans_now("landmass: ");
     world.run_schedule(Landmass);
+    // Each of landmass's own parts this step ("landmass: ways"), as pieces
+    // of the landmass lap: its spans' time added during this run.
+    let Some(mut laps) = world.get_resource_mut::<crate::profile::Laps>() else {
+        return;
+    };
+    for (name, after) in crate::profile::spans_now("landmass: ") {
+        let was = before.iter().find(|(n, _)| *n == name).map_or(0, |(_, ns)| *ns);
+        let ns = after.saturating_sub(was);
+        let piece: &'static str = match name.as_str() {
+            "landmass: islands" => "landmass: islands",
+            "landmass: place agents" => "landmass: place agents",
+            "landmass: place characters" => "landmass: place characters",
+            "landmass: ways" => "landmass: ways",
+            "landmass: follow" => "landmass: follow",
+            "landmass: avoidance" => "landmass: avoidance",
+            "landmass: avoidance obstacles" => "landmass: avoidance obstacles",
+            "landmass: avoidance neighbours" => "landmass: avoidance neighbours",
+            "landmass: avoidance solve" => "landmass: avoidance solve",
+            "landmass: avoidance trees" => "landmass: avoidance trees",
+            _ => continue,
+        };
+        laps.record(piece, ns as f64 / 1_000_000.0);
+    }
 }
 
 /// A chunk's mesh lands, and its landmass mesh with it, the same tick.
