@@ -581,12 +581,12 @@ places:
       - {from: [0, 0], side: south, width: 1.2}
       - {from: [0, 1], side: west, width: 1.2}
     furniture:
-      - {room: front office, at: [0.0, 0.2], size: [4.0, 1.1, 0.7]}
-      - {room: sheriff's office, at: [0.0, -0.2], size: [1.6, 0.75, 0.8]}
-      - {room: armory, at: [0.0, -0.4], size: [3.0, 1.9, 0.5]}
-      - {room: evidence room, at: [0.0, -0.4], size: [5.0, 1.8, 0.5]}
-      - {room: cell, at: [-0.3, 0.0], size: [0.8, 0.5, 2.0]}
-      - {room: second cell, at: [-0.3, 0.0], size: [0.8, 0.5, 2.0]}
+      - {room: front office, at: [0.0, 0.2], size: [4.0, 1.1, 0.7], model: booking counter}
+      - {room: sheriff's office, at: [0.0, -0.2], size: [1.6, 0.75, 0.8], model: sheriff's desk}
+      - {room: armory, at: [0.0, -0.4], size: [3.0, 1.9, 0.5], model: gun rack}
+      - {room: evidence room, at: [0.0, -0.4], size: [5.0, 1.8, 0.5], model: evidence shelves}
+      - {room: cell, at: [-0.3, 0.0], size: [0.8, 0.5, 2.0], model: cell bunk}
+      - {room: second cell, at: [-0.3, 0.0], size: [0.8, 0.5, 2.0], model: cell bunk}
     things:
       - {thing: office desk, room: front office, at: [0.3, 0.0]}
       - {thing: sheriff's desk, room: sheriff's office, at: [0.0, 0.2]}
