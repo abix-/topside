@@ -9,6 +9,10 @@
 colours:
   fur: [0.45, 0.43, 0.4]
   snout: [0.2, 0.19, 0.18]
+  hide: [0.12, 0.1, 0.12]
+  glow: [0.9, 0.25, 0.15]
+  shell: [0.35, 0.28, 0.18]
+  plate: [0.4, 0.42, 0.45]
 
 models:
   wolf:
@@ -64,4 +68,150 @@ models:
         1: {}
         8: {head: [15.0, 0.0], back: [0.0, -0.05]}
         12: {head: [-20.0, 0.0], back: [0.0, 0.2]}
+        20: {}
+
+  storm hunter:
+    about: what the hunting storm brings (todo Storm effect 8), a hulking dark hound twice a wolf's size with glowing eyes and spines down its back, on the wolf's rig; its sizes and colours are Claude's.
+    rig:
+      back: {head: [0, 0.7, 1.1], tail: [0, -0.7, 1.1]}
+      head: {head: [0, -0.8, 1.25], tail: [0, -1.4, 1.2], parent: back}
+      leg_fl: {head: [0.24, -0.55, 0.95], tail: [0.24, -0.55, 0.04], parent: back}
+      leg_fr: {head: [-0.24, -0.55, 0.95], tail: [-0.24, -0.55, 0.04], parent: back}
+      leg_bl: {head: [0.24, 0.55, 0.95], tail: [0.24, 0.55, 0.04], parent: back}
+      leg_br: {head: [-0.24, 0.55, 0.95], tail: [-0.24, 0.55, 0.04], parent: back}
+    parts:
+      - box: [0.6, 1.6, 0.6]
+        at: [0, 0, 1.1]
+        bone: back
+        colour: hide
+      - for: {y: [-0.5, -0.2, 0.1, 0.4]}
+        parts:
+          - box: [0.06, 0.12, 0.3]
+            at: [0, y, 1.5]
+            bone: back
+            colour: hide
+      - box: [0.45, 0.5, 0.42]
+        at: [0, -1.0, 1.3]
+        bone: head
+        colour: hide
+      - box: [0.24, 0.3, 0.18]
+        at: [0, -1.35, 1.2]
+        bone: head
+        colour: snout
+      - for: {x: [0.12, -0.12]}
+        parts:
+          - box: [0.07, 0.03, 0.06]
+            at: [x, -1.26, 1.42]
+            bone: head
+            colour: glow
+      - for: {leg: "[('leg_fl', 0.24, -0.55), ('leg_fr', -0.24, -0.55), ('leg_bl', 0.24, 0.55), ('leg_br', -0.24, 0.55)]"}
+        parts:
+          - box: [0.17, 0.17, 0.92]
+            at: ["leg[1]", "leg[2]", 0.5]
+            bone: leg[0]
+            colour: hide
+    params: {stride: 24.0}
+    animations:
+      Idle_Loop:
+        1: {}
+        25: {head: [-8.0, 0.0]}
+        49: {}
+      Walk_Loop:
+        1: {leg_fl: [stride, 0.0], leg_br: [stride, 0.0], leg_fr: [-stride, 0.0], leg_bl: [-stride, 0.0]}
+        13: {leg_fl: [-stride, 0.0], leg_br: [-stride, 0.0], leg_fr: [stride, 0.0], leg_bl: [stride, 0.0]}
+        25: {leg_fl: [stride, 0.0], leg_br: [stride, 0.0], leg_fr: [-stride, 0.0], leg_bl: [-stride, 0.0]}
+      Sword_Attack:
+        1: {}
+        8: {head: [15.0, 0.0], back: [0.0, -0.1]}
+        12: {head: [-25.0, 0.0], back: [0.0, 0.35]}
+        20: {}
+
+  burrower:
+    about: what comes up in an infestation or a horde (todo Events 4), a low long shelled crawler with mandibles, on a rig of a back, a head and four legs; its sizes and colours are Claude's.
+    rig:
+      back: {head: [0, 0.4, 0.3], tail: [0, -0.4, 0.3]}
+      head: {head: [0, -0.45, 0.3], tail: [0, -0.7, 0.28], parent: back}
+      leg_fl: {head: [0.18, -0.25, 0.28], tail: [0.32, -0.3, 0.02], parent: back}
+      leg_fr: {head: [-0.18, -0.25, 0.28], tail: [-0.32, -0.3, 0.02], parent: back}
+      leg_bl: {head: [0.18, 0.25, 0.28], tail: [0.32, 0.3, 0.02], parent: back}
+      leg_br: {head: [-0.18, 0.25, 0.28], tail: [-0.32, 0.3, 0.02], parent: back}
+    parts:
+      - box: [0.42, 0.95, 0.24]
+        at: [0, 0, 0.32]
+        bone: back
+        colour: shell
+      - box: [0.28, 0.24, 0.2]
+        at: [0, -0.56, 0.3]
+        bone: head
+        colour: shell
+      - for: {x: [0.07, -0.07]}
+        parts:
+          - box: [0.04, 0.16, 0.04]
+            at: [x, -0.74, 0.26]
+            bone: head
+            colour: snout
+      - for: {leg: "[('leg_fl', 0.25, -0.28), ('leg_fr', -0.25, -0.28), ('leg_bl', 0.25, 0.28), ('leg_br', -0.25, 0.28)]"}
+        parts:
+          - box: [0.18, 0.05, 0.05]
+            at: ["leg[1]", "leg[2]", 0.15]
+            bone: leg[0]
+            colour: snout
+    params: {stride: 35.0}
+    animations:
+      Idle_Loop:
+        1: {}
+        13: {head: [-5.0, 0.0]}
+        25: {}
+      Walk_Loop:
+        1: {leg_fl: [stride, 0.0], leg_br: [stride, 0.0], leg_fr: [-stride, 0.0], leg_bl: [-stride, 0.0]}
+        7: {leg_fl: [-stride, 0.0], leg_br: [-stride, 0.0], leg_fr: [stride, 0.0], leg_bl: [stride, 0.0]}
+        13: {leg_fl: [stride, 0.0], leg_br: [stride, 0.0], leg_fr: [-stride, 0.0], leg_bl: [-stride, 0.0]}
+      Sword_Attack:
+        1: {}
+        6: {head: [20.0, 0.0]}
+        10: {head: [-20.0, 0.0], back: [0.0, 0.15]}
+        16: {}
+
+  machine:
+    about: what guards a landed machine cluster (todo Events 4), a boxy four legged walker of grey plates with a red eye, on a rig of a body, a head and four legs; its sizes and colours are Claude's.
+    rig:
+      back: {head: [0, 0.4, 1.0], tail: [0, -0.4, 1.0]}
+      head: {head: [0, -0.45, 1.25], tail: [0, -0.7, 1.25], parent: back}
+      leg_fl: {head: [0.35, -0.3, 0.9], tail: [0.45, -0.4, 0.02], parent: back}
+      leg_fr: {head: [-0.35, -0.3, 0.9], tail: [-0.45, -0.4, 0.02], parent: back}
+      leg_bl: {head: [0.35, 0.3, 0.9], tail: [0.45, 0.4, 0.02], parent: back}
+      leg_br: {head: [-0.35, 0.3, 0.9], tail: [-0.45, 0.4, 0.02], parent: back}
+    parts:
+      - box: [0.8, 0.9, 0.5]
+        at: [0, 0, 1.0]
+        bone: back
+        colour: plate
+      - box: [0.36, 0.3, 0.26]
+        at: [0, -0.55, 1.28]
+        bone: head
+        colour: plate
+      - box: [0.12, 0.03, 0.06]
+        at: [0, -0.71, 1.3]
+        bone: head
+        colour: glow
+      - for: {leg: "[('leg_fl', 0.4, -0.35), ('leg_fr', -0.4, -0.35), ('leg_bl', 0.4, 0.35), ('leg_br', -0.4, 0.35)]"}
+        parts:
+          - box: [0.12, 0.12, 0.9]
+            at: ["leg[1]", "leg[2]", 0.46]
+            bone: leg[0]
+            colour: dark steel
+    params: {stride: 18.0}
+    animations:
+      Idle_Loop:
+        1: {}
+        25: {head: [0.0, 0.02]}
+        49: {}
+      Walk_Loop:
+        1: {leg_fl: [stride, 0.0], leg_br: [stride, 0.0], leg_fr: [-stride, 0.0], leg_bl: [-stride, 0.0]}
+        16: {leg_fl: [-stride, 0.0], leg_br: [-stride, 0.0], leg_fr: [stride, 0.0], leg_bl: [stride, 0.0]}
+        31: {leg_fl: [stride, 0.0], leg_br: [stride, 0.0], leg_fr: [-stride, 0.0], leg_bl: [-stride, 0.0]}
+      Sword_Attack:
+        1: {}
+        8: {head: [10.0, 0.0], back: [0.0, -0.05]}
+        12: {head: [-10.0, 0.0], back: [0.0, 0.25]}
         20: {}

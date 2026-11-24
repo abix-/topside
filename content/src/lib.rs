@@ -1254,8 +1254,9 @@ pub const SMALL_TOPSIDE_PEOPLE: [(&str, u32); 4] = [("wanderer", 25), ("scavenge
 
 /// The wild animals (design.md "Bunker people and topside people"): each
 /// drawn as its own body, `person <name>` (scripts/models.py), with no
-/// rolled look and nothing worn.
-pub const ANIMALS: [&str; 1] = ["wolf"];
+/// rolled look and nothing worn. The storm hunter, the burrower and the
+/// machine are drawn the same way (todo Storm effect 8, Events 4).
+pub const ANIMALS: [&str; 4] = ["wolf", "storm hunter", "burrower", "machine"];
 
 /// What an armored hostile wears (design.md "Enemy randomization"): the
 /// one armor there is.
