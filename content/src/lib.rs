@@ -860,12 +860,15 @@ pub fn read_list<T: serde::de::DeserializeOwned>(path: &str, key: &str) -> Vec<T
 /// game at once, naming it.
 pub fn read<T: serde::de::DeserializeOwned>(path: &str, key: &str) -> T {
     let text = std::fs::read_to_string(path).unwrap_or_else(|e| panic!("{path}: {e}"));
-    let mut file: std::collections::BTreeMap<String, serde_yaml::Value> = serde_yaml::from_str(&text).unwrap_or_else(|e| panic!("{path}: {e}"));
+    // serde_yaml 0.9 wants an enum with data as a `!Variant` tag; the
+    // content writes it `{Variant: ...}`, which its singleton map reads.
+    let mut file: std::collections::BTreeMap<String, T> =
+        serde_yaml::with::singleton_map_recursive::deserialize(serde_yaml::Deserializer::from_str(&text)).unwrap_or_else(|e| panic!("{path}: {key}: {e}"));
     let value = file.remove(key).unwrap_or_else(|| panic!("{path}: no {key}"));
     if let Some(other) = file.keys().next() {
         panic!("{path}: {other} is not {key}");
     }
-    serde_yaml::from_value(value).unwrap_or_else(|e| panic!("{path}: {key}: {e}"))
+    value
 }
 
 /// The layers an item lies in the starting bunker with: the pipe shotgun
