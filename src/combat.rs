@@ -47,6 +47,29 @@ pub struct Protection(pub ProtectionStats);
 #[reflect(opaque, Component, Serialize, Deserialize)]
 pub struct Equipment(pub item::Equipment);
 
+/// The health what a person wears adds to their most (modforge
+/// `gear::worn_health`), kept so a change takes off the old before adding
+/// the new.
+#[derive(Component, Default, Clone, Copy, serde::Serialize, serde::Deserialize, Reflect)]
+#[reflect(opaque, Component, Serialize, Deserialize)]
+pub struct WornHealth(pub f32);
+
+/// Each person whose wear changed: their most health moved by what it now
+/// adds against what it added, their health kept under it (todo "Tiered
+/// loot": health on gear).
+pub fn worn_health(mut commands: Commands, mut people: Query<(Entity, &Equipment, &mut Health, Option<&WornHealth>), Changed<Equipment>>) {
+    for (entity, worn, mut health, was) in &mut people {
+        let now = modforge::gear::worn_health(&worn.0);
+        let was = was.map_or(0.0, |w| w.0);
+        if now == was {
+            continue;
+        }
+        health.0.max = (health.0.max + now - was).max(1.0);
+        health.0.current = health.0.current.min(health.0.max);
+        commands.entity(entity).insert(WornHealth(now));
+    }
+}
+
 /// The one path a hit lands on an actor: its protection is its own
 /// plus every piece it wears on the `area` hit (combat.md "How deadly"),
 /// then modforge's damage function decides. It goes into the actor's memory (life.md

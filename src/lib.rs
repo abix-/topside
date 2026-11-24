@@ -363,7 +363,7 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind, port: u16
                 // mesh (docs/pathing.md).
                 navmesh::walk,
                 lap("walk"),
-                (survival::survival_tick, survival::get_dirty),
+                (survival::survival_tick, survival::get_dirty, combat::worn_health),
                 survival::waste,
                 // Temperature and radiation, then the generators (todo 29).
                 (exposure::expose, power::run, (power::lights, power::flashlights), silo::dig, silo::rebuild, silo::set_down, skills::learn, vehicle::park).chain(),

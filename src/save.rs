@@ -109,6 +109,7 @@ saved! {
         crate::combat::Health,
         crate::combat::Protection,
         crate::combat::Equipment,
+        crate::combat::WornHealth,
         crate::combat::Firing,
         crate::combat::Rolling,
         crate::combat::Knocked,

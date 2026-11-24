@@ -25,29 +25,39 @@
 odds:
   magic: 250
   rare: 50
+  # Each tier has one x tier above it ("tier 1x... tier 2x... tier 5x"),
+  # found this often, per mille (Claude's reading and number).
+  x: 100
 
 # An item as gear: its tier (1 up), its grade in the tier (0 the plain
 # one, then the stronger ones above it), its own numbers and the sockets a
-# plain one is found with, fewest and most (Diablo 2's go to 6).
+# plain one is found with, fewest and most (Diablo 2's go to 6), and what
+# its x tier adds on top, with one more socket.
 bases:
   - item: pipe
     rolls: {power: [-5, 10], delay: [-0.05, 0.05]}
     sockets: [0, 4]
+    x: {power: [15, 25]}
   - item: wooden handle
     rolls: {power: [-5, 10], delay: [-0.05, 0.05]}
     sockets: [0, 3]
+    x: {power: [10, 20], delay: [-0.05, 0.0]}
   - item: long pole
     rolls: {power: [-5, 10], reach: [-0.2, 0.2]}
     sockets: [0, 6]
+    x: {power: [10, 20], reach: [0.1, 0.3]}
   - item: pipe shotgun
     rolls: {power: [-5, 10], spread: [-2.0, 2.0]}
     sockets: [0, 6]
+    x: {power: [15, 25], spread: [-2.0, -1.0]}
   - item: road sign vest
     rolls: {armor: [-5.0, 10.0]}
     sockets: [0, 6]
+    x: {armor: [10.0, 20.0], health: [5.0, 10.0]}
   - item: helmet
     rolls: {armor: [-5.0, 10.0]}
     sockets: [0, 3]
+    x: {armor: [8.0, 15.0], health: [3.0, 6.0]}
 
 # What a magic or rare piece rolls: the gear it goes on, the least tier of
 # spot it is found at, how likely against the others (100 when left out).
@@ -63,6 +73,24 @@ affixes:
   - {name: brutal, on: [melee, gun], tier: 2, weight: 50, rolls: {power: [25, 40]}}
   - {name: quick, on: [melee, gun], tier: 3, weight: 30, rolls: {delay: [-0.3, -0.15]}}
   - {name: fortified, on: [armor], tier: 3, weight: 30, rolls: {armor: [30.0, 50.0]}}
+  # More, the rest of the stats (Claude's, 2026-11-24: health worn, and
+  # each stat at a higher tier).
+  - {name: sturdy, on: [armor], rolls: {health: [5.0, 10.0]}}
+  - {name: hale, on: [armor], tier: 2, weight: 60, rolls: {health: [10.0, 20.0]}}
+  - {name: vital, on: [armor], tier: 3, weight: 30, rolls: {health: [20.0, 35.0]}}
+  - {name: undying, on: [armor], tier: 5, weight: 10, rolls: {health: [35.0, 60.0], armor: [10.0, 20.0]}}
+  - {name: balanced, on: [melee], rolls: {power: [5, 10], delay: [-0.05, -0.02]}}
+  - {name: jagged, on: [melee], tier: 2, weight: 60, rolls: {power: [20, 30]}}
+  - {name: reaching, on: [melee], tier: 2, weight: 60, rolls: {reach: [0.4, 0.8]}}
+  - {name: savage, on: [melee], tier: 4, weight: 20, rolls: {power: [40, 60]}}
+  - {name: steady, on: [gun], rolls: {spread: [-2.0, -0.5]}}
+  - {name: rifled, on: [gun], tier: 2, weight: 60, rolls: {spread: [-6.0, -3.0]}}
+  - {name: hot loaded, on: [gun], tier: 3, weight: 30, rolls: {power: [30, 45], delay: [0.05, 0.1]}}
+  - {name: deadeye, on: [gun], tier: 4, weight: 20, rolls: {spread: [-8.0, -5.0], power: [10, 20]}}
+  - {name: swift, on: [melee, gun], tier: 4, weight: 20, rolls: {delay: [-0.4, -0.25]}}
+  - {name: warded, on: [armor], tier: 4, weight: 20, rolls: {armor: [50.0, 70.0]}}
+  - {name: legendary, on: [melee, gun], tier: 5, weight: 10, rolls: {power: [60, 90]}}
+  - {name: bastion, on: [armor], tier: 5, weight: 10, rolls: {armor: [70.0, 100.0]}}
 
 # The families of socketables: each fits the gear named, every kind when
 # none is. Runes are old marks that make a blow land harder, faster or

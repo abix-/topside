@@ -201,14 +201,23 @@ pub fn information(
             lines.push(format!("Hits x{:.2}", modforge::quality::power(tier, &crate::content::QUALITY)));
         }
     }
+    // Its gear tier, "2x" when found in the tier's x (todo "Tiered loot").
+    let x = stack.affixes.iter().any(|a| a.name == "x");
+    if let Some(base) = crate::content::GEAR.bases.iter().find(|b| b.item == stack.item) {
+        lines.push(format!("Tier {}{}", base.tier, if x { "x" } else { "" }));
+    }
     // Its affixes, each by name; the base's own rolled numbers have none
-    // (modforge `gear`), nor do what is in its sockets.
+    // (modforge `gear`), nor do what is in its sockets, nor its x tier.
     let named: Vec<&str> = stack
         .affixes
         .iter()
         .map(|a| a.name.as_str())
-        .filter(|n| !n.is_empty() && !stack.sockets.filled.iter().any(|r| r == n) && stack.sockets.word.as_deref() != Some(*n))
+        .filter(|n| !n.is_empty() && *n != "x" && !stack.sockets.filled.iter().any(|r| r == n) && stack.sockets.word.as_deref() != Some(*n))
         .collect();
+    let health: f32 = stack.affixes.iter().map(|a| a.health).sum();
+    if health != 0.0 {
+        lines.push(format!("Health {health:+.0} worn"));
+    }
     if !named.is_empty() {
         lines.push(format!("Affixes {}", named.join(", ")));
     }
