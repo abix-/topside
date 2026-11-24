@@ -726,10 +726,12 @@ pub const BOLT_REACH: f32 = 12.0;
 pub const BOLT_SPEED: f32 = 15.0;
 pub const GOES_OFF_SECS: f32 = 1.5;
 
-pub const STORM: StormDef = StormDef {
-    warning_secs: 60.0,
-    storm_secs: 20.0,
-};
+/// Where the storm is: content/storm.yaml, its `storm` a modforge
+/// `storm::StormDef`.
+pub const STORM_FILE: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/storm.yaml");
+
+/// The storm, read from `STORM_FILE` the first time it is asked for.
+pub static STORM: std::sync::LazyLock<StormDef> = std::sync::LazyLock::new(|| read(STORM_FILE, "storm"));
 
 /// Who waits outside the starting bunker's door and where in its plan
 /// (x, z): a scavenger 6 m past the door (the 3D game's first fight).
@@ -960,16 +962,22 @@ pub fn register_layers(reg: &mut LayerRegistry) {
 pub const LAYERS_FILE: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/layers.yaml");
 
 /// The one list `key` in the content file `path`, each entry read as a
-/// `T` naming only what it has. A file that does not read, has no `key`,
-/// or has anything else in it stops the game at once, naming it.
+/// `T` naming only what it has.
 pub fn read_list<T: serde::de::DeserializeOwned>(path: &str, key: &str) -> Vec<T> {
+    read(path, key)
+}
+
+/// The one thing `key` in the content file `path`, read as a `T`. A file
+/// that does not read, has no `key`, or has anything else in it stops the
+/// game at once, naming it.
+pub fn read<T: serde::de::DeserializeOwned>(path: &str, key: &str) -> T {
     let text = std::fs::read_to_string(path).unwrap_or_else(|e| panic!("{path}: {e}"));
     let mut file: std::collections::BTreeMap<String, serde_yaml::Value> = serde_yaml::from_str(&text).unwrap_or_else(|e| panic!("{path}: {e}"));
-    let list = file.remove(key).unwrap_or_else(|| panic!("{path}: no {key}"));
+    let value = file.remove(key).unwrap_or_else(|| panic!("{path}: no {key}"));
     if let Some(other) = file.keys().next() {
         panic!("{path}: {other} is not {key}");
     }
-    serde_yaml::from_value(list).unwrap_or_else(|e| panic!("{path}: {key}: {e}"))
+    serde_yaml::from_value(value).unwrap_or_else(|e| panic!("{path}: {key}: {e}"))
 }
 
 /// The layers an item lies in the starting bunker with: the pipe shotgun

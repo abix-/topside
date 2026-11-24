@@ -1,0 +1,9 @@
+# The storm (modforge `storm::StormDef`; design.md "The storm"): how long
+# each part of it lasts, in seconds of the game's day. Read by content's
+# `STORM`. When it comes is each episode's own.
+
+storm:
+  # How long the sky warns before the storm hits.
+  warning_secs: 60.0
+  # How long the storm lasts.
+  storm_secs: 20.0
