@@ -107,6 +107,27 @@ pub const TICKS_A_SECOND: u64 = 60;
 #[derive(bevy::ecs::schedule::ScheduleLabel, Debug, Clone, PartialEq, Eq, Hash)]
 pub struct MakeTheWorld;
 
+/// The calling thread runs below normal priority, so the threads at normal
+/// priority (the step's) are given the cores first. Windows' own call;
+/// elsewhere nothing.
+fn below_normal_priority() {
+    #[cfg(windows)]
+    {
+        const THREAD_PRIORITY_BELOW_NORMAL: i32 = -1;
+        #[link(name = "kernel32")]
+        unsafe extern "system" {
+            fn GetCurrentThread() -> *mut std::ffi::c_void;
+            fn SetThreadPriority(thread: *mut std::ffi::c_void, priority: i32) -> i32;
+        }
+        // SAFETY: GetCurrentThread returns this thread's pseudo handle,
+        // always valid in it, and SetThreadPriority only reads it.
+        let set = unsafe { SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_BELOW_NORMAL) };
+        if set == 0 {
+            warn!("the async thread's priority could not be lowered");
+        }
+    }
+}
+
 /// Run `MakeTheWorld` now.
 pub fn make_the_world(world: &mut World) {
     world.run_schedule(MakeTheWorld);
@@ -218,6 +239,13 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind, port: u16
                         let mut options = bevy::app::TaskPoolOptions::default();
                         options.async_compute.min_threads = cores;
                         options.async_compute.max_threads = cores;
+                        // Those threads beside the compute pool's are twice the
+                        // cores, so while a load's meshes build, the step's
+                        // own threads waited behind them: physics 20 to 58 ms
+                        // a step for 40 ticks after a load (bench,
+                        // 2026-11-24). Below normal, the meshes take only what
+                        // the step leaves, as Unreal's background workers do.
+                        options.async_compute.on_thread_spawn = Some(std::sync::Arc::new(below_normal_priority));
                         options.compute.min_threads = cores;
                         options
                     },
