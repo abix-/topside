@@ -379,6 +379,40 @@ pub const SAFE: &str = "safe";
 /// hydrant, E, every fire within 25 m (its hose). One extinguisher in
 /// each kitchen cabinet, matches in each pantry, a hydrant each 90 m of
 /// street. All Claude's.
+/// Communication (topside-town "Everything works": "phones, radios, TVs,
+/// mailboxes and the post office"; Project Zomboid's channels): each
+/// house has a TV and a radio in its living room and a phone in its
+/// hall, each turned on with E and saying what is on at that hour; and a
+/// mailbox at the street holding a letter. The programmes and the
+/// letters are Claude's.
+pub const TV: &str = "tv";
+pub const PHONE: &str = "phone";
+pub const MAILBOX: &str = "mailbox";
+pub const TV_CHANNEL: [modforge::broadcast::Programme; 3] = [
+    modforge::broadcast::Programme { from: 6.0, to: 12.0, words: "The morning news, on a loop: the same anchor, the same weather, a date weeks old." },
+    modforge::broadcast::Programme { from: 12.0, to: 20.0, words: "A cartoon, then a test card, then the cartoon again." },
+    modforge::broadcast::Programme { from: 20.0, to: 6.0, words: "The emergency broadcast: stay indoors, stay below ground, wait for the all clear." },
+];
+pub const RADIO_CHANNEL: [modforge::broadcast::Programme; 2] = [
+    modforge::broadcast::Programme { from: 0.0, to: 18.0, words: "Static. Two clicks. Static." },
+    modforge::broadcast::Programme { from: 18.0, to: 24.0, words: "A voice reads a list of names, slowly, then the list starts again." },
+];
+pub const PHONE_LINE: [modforge::broadcast::Programme; 1] =
+    [modforge::broadcast::Programme { from: 0.0, to: 24.0, words: "A dial tone. A number rings and rings, then someone breathes, and hangs up." }];
+/// The channel a thing plays when turned on, by its name.
+pub fn channel_of(thing: &str) -> Option<&'static [modforge::broadcast::Programme]> {
+    match thing {
+        TV => Some(&TV_CHANNEL),
+        RADIO_ITEM => Some(&RADIO_CHANNEL),
+        PHONE => Some(&PHONE_LINE),
+        _ => None,
+    }
+}
+pub const LETTERS: [&str; 3] = [
+    "Final notice. Your account is past due. Service will be cut off.",
+    "Dear neighbour, the block party is cancelled. Keep the kids in. Something is wrong with the sky.",
+    "If you find this, we went down to the shelter by the school. Come find us.",
+];
 pub const MATCHES: &str = "matches";
 pub const EXTINGUISHER: &str = "extinguisher";
 pub const SMOKE_DETECTOR: &str = "smoke detector";
@@ -2156,6 +2190,9 @@ pub fn register_items(reg: &mut ItemRegistry) {
         building(GAS_PUMP, "A gas pump. Cans of fuel are filled here.", ItemKind::Deployable, 1, Some(4)),
         building(SAFE, "A safe. Its key opens it.", ItemKind::Deployable, 1, Some(4)),
         building(MATCHES, "A box of matches. Sets a thing alight.", ItemKind::Tool, 1, None),
+        building(TV, "A TV.", ItemKind::Deployable, 1, None),
+        building(PHONE, "A phone.", ItemKind::Deployable, 1, None),
+        building(MAILBOX, "A mailbox.", ItemKind::Deployable, 1, Some(4)),
         building(EXTINGUISHER, "A fire extinguisher. Puts out the fires near.", ItemKind::Tool, 1, None),
         building(SMOKE_DETECTOR, "A smoke detector. It sounds at a fire.", ItemKind::Deployable, 1, None),
         building(HYDRANT, "A fire hydrant. Its hose puts out the fires around it.", ItemKind::Deployable, 1, None),

@@ -638,7 +638,7 @@ pub fn feet_of(person: &Transform) -> Vec3 {
 pub fn interact_on_use(
     mut commands: Commands,
     registry: Res<ItemRegistryRes>,
-    tick: Res<crate::SimTick>,
+    (tick, day): (Res<crate::SimTick>, Res<crate::survival::Day>),
     chunks: Option<Res<crate::terrain::Chunks>>,
     mut people: Query<
         (
@@ -788,6 +788,7 @@ pub fn interact_on_use(
         if !fills.is_empty() {
             continue;
         }
+        let hour = crate::survival::today(&tick, *day).fract() * 24.0;
         let did = use_thing(
             &mut commands,
             &registry,
@@ -796,6 +797,7 @@ pub fn interact_on_use(
             &mut hud,
             &mut open,
             &mut station,
+            hour,
         );
         // What the use came to is remembered, as anything done is (an
         // episode's cue may wait on a note read).
@@ -822,7 +824,8 @@ pub fn nearest_water(chunks: &crate::terrain::Chunks, at: Vec2, pointed: Vec2) -
         .min_by(|a, b| a.distance(pointed).total_cmp(&b.distance(pointed)))
 }
 
-/// One person uses one thing.
+/// One person uses one thing, at `hour` of the day.
+#[allow(clippy::too_many_arguments)]
 fn use_thing(
     commands: &mut Commands,
     registry: &ItemRegistryRes,
@@ -837,6 +840,7 @@ fn use_thing(
     hud: &mut Hud,
     open: &mut OpenContainer,
     station: &mut OpenStation,
+    hour: f32,
 ) -> Option<Did> {
     let stack = item.map(|w| w.stack.clone());
     let max_stack = match &stack {
@@ -900,7 +904,13 @@ fn use_thing(
                 return None;
             };
             thing.kind = InteractKind::Switch { on: !on };
-            Some(Did::Done(format!("turned the {what} {}", if on { "off" } else { "on" })))
+            // A TV, a radio or a phone turned on says what is on at this
+            // hour (Works 16, modforge broadcast).
+            let playing = crate::content::channel_of(&what).filter(|_| !on).and_then(|c| modforge::broadcast::on_air(c, hour));
+            match playing {
+                Some(words) => Some(Did::Done(format!("turned the {what} on: {words}"))),
+                None => Some(Did::Done(format!("turned the {what} {}", if on { "off" } else { "on" }))),
+            }
         }
         // The key was carried: unlocked for good (Works 14).
         InteractResult::Unlock(now) => {

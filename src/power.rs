@@ -206,6 +206,28 @@ pub fn populate_town_power(
     for lot in town.lots.iter().filter(|l| l.house) {
         make(&mut commands, crate::content::SMOKE_DETECTOR, lot.at + modforge::house::smoke_detector(lot.front), None);
     }
+    // Each house's TV, radio and phone, off; its mailbox at the street,
+    // holding a letter (Works 16).
+    let letter = items.0.def("note");
+    for (house, lot) in town.lots.iter().filter(|l| l.house).enumerate() {
+        for (kind, at) in modforge::house::den(lot.front) {
+            if kind != crate::content::MAILBOX {
+                make(&mut commands, kind, lot.at + at, Some(InteractKind::Switch { on: false }));
+                continue;
+            }
+            let Some(made) = make(&mut commands, kind, lot.at + at, Some(InteractKind::Container)) else {
+                continue;
+            };
+            let mut held = modforge::item::Inventory::new(items.0.def(kind).and_then(|d| d.storage).unwrap_or(0));
+            if let Some(def) = letter {
+                let mut stack = modforge::item::create(def, 1, &[], 0.0, 0);
+                let words = crate::content::LETTERS[house % crate::content::LETTERS.len()];
+                stack.note = Some(modforge::item::Note { text: words.to_string(), signed: String::new() });
+                let _ = held.add(stack, 1);
+            }
+            commands.entity(made).insert(Container(held));
+        }
+    }
     for at in town.streetlights(crate::content::HYDRANTS_APART) {
         make(&mut commands, crate::content::HYDRANT, at + Vec2::new(1.5, 0.0), None);
     }
