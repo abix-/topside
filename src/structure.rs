@@ -575,11 +575,11 @@ pub fn spawn_sites(
     // Food in a box keeps from the day the box is found in the world.
     let today = crate::survival::today(&tick, *day);
     let table = loot_table();
+    // The bunker's question is answered at the nearest site of its
+    // answer's kind, in the first world only (design.md "The first hour").
+    let question = starting_question(world.seed);
+    let note_def = items.0.def("note");
     for (site, things) in new_sites.0.drain(..) {
-        // The bunker's question is answered at the nearest site of its
-        // answer's kind, in the first world only (design.md "The first
-        // hour").
-        let question = starting_question(world.seed);
         if things && storm.shifts == 0 && site.monument == question.answer_at {
             let r = modforge::world2d::Registries {
                 biomes: &biomes.0,
@@ -605,9 +605,10 @@ pub fn spawn_sites(
                 let way = next.as_ref().map(|p| crate::content::compass(site.position, p.position)).unwrap_or_default();
                 let next_kind = next.as_ref().map(|p| p.monument.clone()).unwrap_or_default();
                 let slots: Vec<(&str, &str)> = next.as_ref().map(|_| vec![("next", next_kind.as_str()), ("way", way)]).unwrap_or_default();
-                let note = items.0.def("note").expect("the note is registered");
-                if let Some(words) = question_answer(world.seed, &slots) {
-                    let answer = write(note, words, 0.0, 14).expect("the note def is a note");
+                if let Some(words) = question_answer(world.seed, &slots)
+                    && let Some(note) = note_def
+                    && let Ok(answer) = write(note, words, 0.0, 14)
+                {
                     let (found, _) = spawn_item(&mut commands, &mut ids, note, answer, on_ground(site.position + Vec2::new(1.0, 0.0), 0.0));
                     commands.entity(found).insert(WorldPiece);
                     info!(
@@ -621,7 +622,7 @@ pub fn spawn_sites(
                 }
             }
         }
-        let monument = site.rolled.clone();
+        let monument = site.rolled;
         // Its doors, loot boxes and people made once a world; made again
         // after a load, they come from the save.
         // Its buildings and props are its chunk's, taken back with it.
