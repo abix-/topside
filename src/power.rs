@@ -139,11 +139,16 @@ pub fn lock_front_doors(
     // A boarded house has every door locked from inside, its key kept by
     // no one: the way in is to break a door in (todo Tier 4).
     let boarded: Vec<usize> = (0..town.lots.len()).filter(|i| town.boarded_by(*i).is_some()).collect();
+    // A hidden room's door reads as wall, opened by its lot's hidden switch
+    // (todo Secrets 1).
+    let hidden = town.hidden_doors();
     for (door, id, mut thing) in &mut doors {
         if door.lying || !things_made.locked.insert(id.0) {
             continue;
         }
-        if let Some(house) = fronts.iter().position(|f| f.distance(door.closed_center) < 1.0) {
+        if let Some(&(lot, _)) = hidden.iter().find(|(_, at)| at.distance(door.closed_center) < 1.0) {
+            thing.kind = InteractKind::Hidden { lock: crate::content::hidden_lock(lot) };
+        } else if let Some(house) = fronts.iter().position(|f| f.distance(door.closed_center) < 1.0) {
             thing.kind = InteractKind::Locked { lock: crate::content::front_lock(house), door: true };
         } else if let Some(&lot) = boarded.iter().find(|i| town.lots[**i].covers(door.closed_center)) {
             thing.kind = InteractKind::Locked { lock: crate::content::boarded_lock(lot), door: true };
@@ -294,6 +299,14 @@ pub fn populate_town_power(
         }
         // A switch (a substation's breaker, a radio), turned on and off;
         // the substation's are found on.
+        // A hidden room's switch, opening its lot's hidden doors (todo
+        // Secrets 1).
+        if thing == modforge::layout::HIDDEN_SWITCH {
+            if let Some(lot) = town.lots.iter().position(|l| l.covers(at)) {
+                make(&mut commands, thing, at, Some(InteractKind::HiddenSwitch { lock: crate::content::hidden_lock(lot) }));
+            }
+            continue;
+        }
         if crate::content::PLACE_SWITCHES.contains(&thing) {
             make(&mut commands, thing, at, Some(InteractKind::Switch { on: thing == crate::content::SUBSTATION_SWITCH }));
             continue;

@@ -75,6 +75,9 @@ items:
   - {name: substation, description: "The town's substation. Its lines carry power to every house.", kind: Deployable}
   - {name: breaker box, description: "A house's breaker box. Off, nothing in the house has power.", kind: Deployable}
   - {name: light switch, description: A light switch., kind: Deployable}
+  # A loose brick that opens a hidden room (todo Secrets 1); drawn as the
+  # light switch for now.
+  - {name: hidden switch, description: A loose brick., kind: Deployable}
   - {name: ceiling light, description: A ceiling light., kind: Deployable}
   - {name: fireplace, description: "A fireplace. Put wood in it and it burns, warming the room.", kind: Deployable, storage: 4}
   - {name: wood stove, description: "A wood stove. Put wood in it and it burns, warming the room.", kind: Deployable, storage: 4}

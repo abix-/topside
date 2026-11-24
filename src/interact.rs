@@ -927,5 +927,26 @@ fn use_thing(
             Some(Did::Done("unlocked it with its key".to_string()))
         }
         InteractResult::NeedsKey(_) => Some(Did::Failed("open it".to_string(), "it is locked".to_string())),
+        // A hidden door is a wall: nothing happens (todo Secrets 1).
+        InteractResult::Nothing => None,
+        // A hidden switch pushed: its hidden doors open.
+        InteractResult::OpenHidden(lock) => {
+            commands.run_system_cached_with(open_hidden, lock);
+            Some(Did::Done(format!("pushed the {what}")))
+        }
+    }
+}
+
+/// Every hidden door of `lock` opens, for good: a door again, standing
+/// open (todo Secrets 1).
+fn open_hidden(In(lock): In<u32>, mut commands: Commands, mut doors: Query<(Entity, &mut Interactable, &mut Door, &mut Transform)>) {
+    for (entity, mut thing, mut door, mut transform) in &mut doors {
+        if thing.kind != (InteractKind::Hidden { lock }) {
+            continue;
+        }
+        door.open = true;
+        thing.kind = InteractKind::Door { open: true };
+        transform.rotation = door.open_turn();
+        commands.entity(entity).insert(ColliderDisabled);
     }
 }

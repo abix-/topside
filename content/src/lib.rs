@@ -518,6 +518,11 @@ pub fn safe_lock(house: usize) -> u32 {
 pub fn boarded_lock(lot: usize) -> u32 {
     100_000 + lot as u32
 }
+/// The lock of a house's hidden doors, opened by its hidden switch (todo
+/// Secrets 1); no key is ever made for it.
+pub fn hidden_lock(lot: usize) -> u32 {
+    200_000 + lot as u32
+}
 pub const GENERATOR_DEF: modforge::power::GeneratorDef = modforge::power::GeneratorDef { output: 10.0, burn_secs: 600.0 };
 pub const WIRE_REACH: f32 = 12.0;
 /// The town's power (topside-town "Everything works": "the substation,

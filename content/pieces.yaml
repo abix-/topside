@@ -266,6 +266,9 @@ briefs:
       - {room: bedroom, count: [2, 3]}
       - {room: bathroom, count: [1, 2]}
       - {room: laundry, count: [0, 1]}
+      # A hidden room behind a wall, opened by a loose brick (todo
+      # Secrets 1; the room and its chance Claude's).
+      - {room: laundry, count: [0, 1], hidden: true}
     entry: 1.2
     walls: *walls
     floor: [0.55, 0.50, 0.45]
@@ -286,6 +289,7 @@ briefs:
       - {room: bedroom, count: [1, 1]}
       - {room: bathroom, count: [1, 1]}
       - {room: laundry, count: [1, 1]}
+      - {room: laundry, count: [1, 1], hidden: true}
       - {room: hall, count: [1, 1], upstairs: true}
       - {room: bedroom, count: [3, 3], upstairs: true}
       - {room: bathroom, count: [1, 1], upstairs: true}
