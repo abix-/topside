@@ -45,8 +45,50 @@ impl MaterialExtension for CelShade {
 pub type Cel = ExtendedMaterial<StandardMaterial, CelShade>;
 
 /// The cel shaded twin of every standard material met so far.
+/// And each twin's standard material.
 #[derive(Resource, Default)]
-pub struct CelShaded(HashMap<AssetId<StandardMaterial>, Handle<Cel>>);
+pub struct CelShaded {
+    twins: HashMap<AssetId<StandardMaterial>, Handle<Cel>>,
+    of: HashMap<AssetId<Cel>, Handle<StandardMaterial>>,
+    /// The twin of each different material, by everything it is.
+    alike: HashMap<String, Handle<Cel>>,
+}
+
+impl CelShaded {
+    /// The cel shaded twin of a standard material, made the first time
+    /// it is asked for; None while the material is not loaded.
+    pub fn twin(&mut self, material: &Handle<StandardMaterial>, standard: &Assets<StandardMaterial>, cel: &mut Assets<Cel>) -> Option<Handle<Cel>> {
+        if let Some(handle) = self.twins.get(&material.id()) {
+            return Some(handle.clone());
+        }
+        let base = standard.get(material)?.clone();
+        // Every model file loads its own materials, the same colours over
+        // and over; one twin for each different material, as each
+        // material is a batch of its own to draw (Bevy issue 26182: on
+        // DX12 no standard material shares a bind group).
+        let same = format!("{base:?}");
+        if let Some(handle) = self.alike.get(&same) {
+            let handle = handle.clone();
+            self.twins.insert(material.id(), handle.clone());
+            return Some(handle);
+        }
+        // Cut out by its alpha (leaves): no outlines.
+        let outlined = if matches!(base.alpha_mode, AlphaMode::Mask(_)) { 0.0 } else { 1.0 };
+        let handle = cel.add(Cel {
+            base,
+            extension: CelShade { sun: SUN.normalize().extend(0.0), outlined },
+        });
+        self.twins.insert(material.id(), handle.clone());
+        self.of.insert(handle.id(), material.clone());
+        self.alike.insert(same, handle.clone());
+        Some(handle)
+    }
+
+    /// The standard material a cel shaded one is the twin of.
+    pub fn standard_of(&self, cel: AssetId<Cel>) -> Option<&Handle<StandardMaterial>> {
+        self.of.get(&cel)
+    }
+}
 
 /// The tick a mesh appears with a standard material (a model's, the
 /// ground's), it is drawn with the cel shaded twin of it instead; after
@@ -59,22 +101,8 @@ pub fn cel_shade(
     loaded: Query<(Entity, &MeshMaterial3d<StandardMaterial>), Added<MeshMaterial3d<StandardMaterial>>>,
 ) {
     for (entity, material) in &loaded {
-        let id = material.0.id();
-        let handle = match shaded.0.get(&id) {
-            Some(handle) => handle.clone(),
-            None => {
-                let Some(base) = standard.get(id).cloned() else {
-                    continue;
-                };
-                // Cut out by its alpha (leaves): no outlines.
-                let outlined = if matches!(base.alpha_mode, AlphaMode::Mask(_)) { 0.0 } else { 1.0 };
-                let handle = cel.add(Cel {
-                    base,
-                    extension: CelShade { sun: SUN.normalize().extend(0.0), outlined },
-                });
-                shaded.0.insert(id, handle.clone());
-                handle
-            }
+        let Some(handle) = shaded.twin(&material.0, &standard, &mut cel) else {
+            continue;
         };
         // The mesh may be despawned this same frame (a load, a despawn
         // after this system ran): then there is nothing to shade.
@@ -144,8 +172,21 @@ pub fn attach(mut commands: Commands, assets: Res<AssetServer>, added: Query<(En
 
 /// Every tinted material made so far, by the material it was made from and
 /// the tint, so every wall of one colour shares one material.
+/// And each tinted material's own: the material it was made from and the
+/// tint, for a building drawn as one mesh to carry its tints in the mesh
+/// (`structure::merge_pieces`).
 #[derive(Resource, Default)]
-pub struct Tinted(HashMap<(AssetId<StandardMaterial>, [u8; 4]), Handle<StandardMaterial>>);
+pub struct Tinted {
+    made: HashMap<(AssetId<StandardMaterial>, [u8; 4]), Handle<StandardMaterial>>,
+    of: HashMap<AssetId<StandardMaterial>, (Handle<StandardMaterial>, LinearRgba)>,
+}
+
+impl Tinted {
+    /// The material a tinted one was made from, and its tint.
+    pub fn untinted(&self, tinted: AssetId<StandardMaterial>) -> Option<&(Handle<StandardMaterial>, LinearRgba)> {
+        self.of.get(&tinted)
+    }
+}
 
 /// The tick a mesh of a loaded model appears under something with a
 /// `Tint`, its material becomes that material times the tint.
@@ -161,7 +202,7 @@ pub fn tint(
             continue;
         };
         let key = (material.0.id(), tint.0.to_srgba().to_u8_array());
-        if let Some(handle) = tinted.0.get(&key) {
+        if let Some(handle) = tinted.made.get(&key) {
             material.0 = handle.clone();
             continue;
         }
@@ -171,7 +212,8 @@ pub fn tint(
         let (a, b) = (made.base_color.to_linear(), tint.0.to_linear());
         made.base_color = LinearRgba::new(a.red * b.red, a.green * b.green, a.blue * b.blue, a.alpha).into();
         let handle = materials.add(made);
-        tinted.0.insert(key, handle.clone());
+        tinted.made.insert(key, handle.clone());
+        tinted.of.insert(handle.id(), (material.0.clone(), b));
         material.0 = handle;
     }
 }

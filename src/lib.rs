@@ -639,6 +639,7 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind, port: u16
                 (model::tint, people::dress).before(model::cel_shade),
                 people::redress,
                 model::cel_shade,
+                structure::merge_pieces.after(model::cel_shade),
                 people::animate,
                 held::hold,
                 held::swing,

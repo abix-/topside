@@ -31,7 +31,7 @@ use crate::content::{
 /// number, for the operator to change.
 const FIRST_HOUR_WALK: f32 = 300.0;
 use crate::interact::{Container, Door, Interactable, spawn_item, spawn_station};
-use crate::model::{Model, Tint};
+use crate::model::{Cel, Model, Tint};
 use crate::on_ground;
 use crate::terrain::{NewSites, WorldPiece, WorldRes};
 
@@ -317,12 +317,17 @@ pub fn spawn_structure(commands: &mut Commands, ids: &mut crate::interact::Thing
         root.insert(Below { rects: below, bottom, open });
     }
     let root = root.id();
+    let mut spawned = Vec::with_capacity(pieces.len());
     for piece in pieces {
         let mut piece = commands.spawn(piece);
         if of_world {
             piece.insert(WorldPiece);
         }
+        spawned.push(piece.id());
     }
+    // Drawn as one mesh per material once their models are in
+    // (`merge_pieces`; authority.md: one merged mesh per colour).
+    commands.entity(root).insert(Unmerged(spawned));
     // Every door in its doorway, hung on its block's hinge (modforge
     // `door_blocks`), the model of the building's doors. The door's own
     // place is the hinge; the panel and its collider reach from it across
@@ -688,5 +693,128 @@ pub fn spawn_sites(
             monuments.1.push(next);
         }
         monuments.0.push((site.position, monument));
+    }
+}
+
+/// A building's pieces (its walls, slabs, blocks and furniture models), still
+/// each drawn as its own model: drawn as one mesh per material once their
+/// models are in (`merge_pieces`).
+#[derive(Component)]
+pub struct Unmerged(Vec<Entity>);
+
+/// Each building's pieces drawn as one mesh per material, children of its
+/// root (authority.md "Bevy ECS world model": one merged mesh per colour):
+/// every piece's model spawned, tinted and cel shaded the one way
+/// (`model::attach`, `tint`, `cel_shade`), then its meshes laid into the
+/// building's, and the piece's own drawing taken away. The pieces stay, as
+/// the data what reads a building's pieces reads. A piece whose model
+/// failed to load keeps nothing to merge. Every wall and slab tile drawn as
+/// its own model made 123,285 meshes in the town, 46,154 drawn a frame
+/// (Perf 3).
+pub fn merge_pieces(
+    mut commands: Commands,
+    assets: Res<AssetServer>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut shaded: ResMut<crate::model::CelShaded>,
+    tinted: Res<crate::model::Tinted>,
+    standard: Res<Assets<StandardMaterial>>,
+    mut cels: ResMut<Assets<Cel>>,
+    roots: Query<(Entity, &Unmerged, &Transform)>,
+    pieces: Query<(&Transform, &bevy::world_serialization::prelude::WorldAssetRoot, Option<&Children>)>,
+    parts: Query<(&Transform, Option<&Children>, Option<&Mesh3d>, Has<MeshMaterial3d<StandardMaterial>>, Option<&MeshMaterial3d<Cel>>)>,
+) {
+    'roots: for (root, unmerged, root_at) in &roots {
+        // Each piece's meshes, each with the transforms from it up to the
+        // piece, innermost first.
+        let mut laid: Vec<(Entity, Vec<(Handle<Mesh>, Handle<Cel>, Vec<Transform>)>)> = Vec::new();
+        for &piece in &unmerged.0 {
+            let Ok((piece_at, scene, children)) = pieces.get(piece) else {
+                continue;
+            };
+            if assets.load_state(&scene.0).is_failed() {
+                continue;
+            }
+            let Some(children) = children else {
+                continue 'roots;
+            };
+            let mut found = Vec::new();
+            let mut stack: Vec<(Entity, Vec<Transform>)> = children.iter().map(|c| (c, vec![*piece_at])).collect();
+            while let Some((entity, mut chain)) = stack.pop() {
+                let Ok((at, children, mesh, standard, cel)) = parts.get(entity) else {
+                    continue;
+                };
+                // Not yet cel shaded: the building waits for it.
+                if standard {
+                    continue 'roots;
+                }
+                chain.insert(0, *at);
+                if let (Some(mesh), Some(cel)) = (mesh, cel) {
+                    found.push((mesh.0.clone(), cel.0.clone(), chain.clone()));
+                }
+                for child in children.into_iter().flatten() {
+                    stack.push((*child, chain.clone()));
+                }
+            }
+            if found.is_empty() {
+                continue 'roots;
+            }
+            laid.push((piece, found));
+        }
+        // Every piece's meshes, moved into the root's frame, laid into one
+        // mesh per material (a mesh with other attributes starts another).
+        // A tinted piece's tint goes into its mesh's colours and it is drawn
+        // with the material it was tinted from, which the standard material
+        // multiplies the same way (`model::tint`): every building shares
+        // the few untinted materials, where each tint was a material of its
+        // own, each drawn as its own batch (Perf 3: 415 materials seen).
+        let into_root = Transform::from_translation(-root_at.translation);
+        let mut merged: Vec<(Handle<Cel>, Mesh)> = Vec::new();
+        for (_, found) in &laid {
+            for (mesh, own, chain) in found {
+                let Some(mut mesh) = meshes.get(mesh).cloned() else {
+                    continue;
+                };
+                for step in chain.iter().chain(std::iter::once(&into_root)) {
+                    mesh.transform_by(*step);
+                }
+                let untinted = shaded
+                    .standard_of(own.id())
+                    .and_then(|standard| tinted.untinted(standard.id()))
+                    .cloned()
+                    .and_then(|(base, tint)| Some((shaded.twin(&base, &standard, &mut cels)?, tint)));
+                let (base, tint) = untinted.unwrap_or((own.clone(), LinearRgba::WHITE));
+                let count = mesh.count_vertices();
+                let cel = match mesh.attribute_mut(Mesh::ATTRIBUTE_COLOR) {
+                    Some(bevy::mesh::VertexAttributeValues::Float32x4(colours)) => {
+                        for c in colours.iter_mut() {
+                            *c = [c[0] * tint.red, c[1] * tint.green, c[2] * tint.blue, c[3]];
+                        }
+                        base
+                    }
+                    None => {
+                        mesh.insert_attribute(Mesh::ATTRIBUTE_COLOR, vec![[tint.red, tint.green, tint.blue, 1.0]; count]);
+                        base
+                    }
+                    // Colours in another form: drawn with its tinted
+                    // material, as it was.
+                    Some(_) => own.clone(),
+                };
+                let cel = &cel;
+                let laid_in = merged.iter_mut().rev().find(|(c, _)| c == cel).is_some_and(|(_, into)| into.merge(&mesh).is_ok());
+                if !laid_in {
+                    merged.push((cel.clone(), mesh));
+                }
+            }
+        }
+        for (cel, mesh) in merged {
+            commands.spawn((Mesh3d(meshes.add(mesh)), MeshMaterial3d(cel), Transform::default(), ChildOf(root)));
+        }
+        for (piece, _) in laid {
+            commands
+                .entity(piece)
+                .remove::<bevy::world_serialization::prelude::WorldAssetRoot>()
+                .despawn_related::<Children>();
+        }
+        commands.entity(root).remove::<Unmerged>();
     }
 }
