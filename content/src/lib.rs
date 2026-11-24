@@ -1535,6 +1535,10 @@ pub fn small_town_def() -> TownDef {
         usual_tiers: USUAL_TIERS.iter().map(|&(n, t)| (n.to_string(), t)).collect(),
         pieces: PIECES.pieces.clone(),
         briefs: PIECES.briefs.clone(),
+        // A tier 6 house is boarded up with people with guns inside
+        // (topside-town "Tiers"; todo "Tier 4"). The holdout is
+        // content/actors.yaml's.
+        boarded: Some(modforge::town::Boarded { tier: 6, who: "holdout".to_string() }),
     }
 }
 

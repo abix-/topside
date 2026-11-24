@@ -346,6 +346,13 @@ pub fn spawn_person(
             Err(e) => warn!("{}'s weapon: {e}", def.name),
         }
     }
+    // What the def carries besides (a holdout's shells).
+    let mut pack = Inventory::default();
+    for (name, count) in &def.carries {
+        if let Some(item) = spawn.items.0.def(name) {
+            pack.0.add(item::create(item, *count, &[], 0.0, 0), item.max_stack);
+        }
+    }
     // Everyone is dressed (operator, 2026-11-20: clothes were missing);
     // a wild animal wears nothing.
     let animal = crate::content::ANIMALS.contains(&def.name.as_str());
@@ -359,7 +366,7 @@ pub fn spawn_person(
             Transform::from_translation(at + Vec3::Y * BODY_CENTRE),
             (
                 Facing::default(),
-                Inventory::default(),
+                pack,
                 hotbar,
                 worn,
                 Firing::default(),
@@ -485,7 +492,9 @@ pub fn populate_monuments(
         for (k, spot) in monument.npc_spots.iter().enumerate() {
             // A spot with no danger is the biome's own people; a dangerous
             // one is by its danger (todo 33; Claude's split).
-            let by_danger = def_for_danger(spot.danger);
+            // A spot naming who stands there (a boarded house's holdouts)
+            // is theirs.
+            let by_danger = spot.who.as_deref().unwrap_or_else(|| def_for_danger(spot.danger));
             let name = match world.as_deref().filter(|_| spot.danger == 0) {
                 Some(world) => {
                     let seed = modforge::ground::tile_hash(world.seed, modforge::walk::cell_of(*at), 0x517E + k as u64);

@@ -15,6 +15,18 @@ actors:
   - {name: bunker person, behaviour: Guard, max_health: 100.0, weapon: pipe, sight: 25.0, reach: 1.8}
   - {name: scavenger, faction: scavengers, behaviour: Hunter, max_health: 60.0, weapon: pipe, sight: 25.0, reach: 1.8}
   - {name: raider, faction: raiders, behaviour: Hunter, max_health: 100.0, weapon: wooden handle, weapon_layers: [axe head], sight: 25.0, reach: 1.8}
+  # Who holds a boarded tier 6 house (topside-town "Tiers": "there's
+  # people with guns inside"): they stay in, with a loaded pipe shotgun.
+  # Faction, health, sight and shells are Claude's.
+  - name: holdout
+    faction: raiders
+    behaviour: Guard
+    max_health: 120.0
+    weapon: pipe shotgun
+    weapon_layers: [pipe barrel, wooden grip, wooden stock]
+    sight: 25.0
+    reach: 12.0
+    carries: [[shotgun shell, 12]]
   # A raider camp's guard.
   - {name: lookout, faction: raiders, behaviour: Guard, max_health: 80.0, weapon: long pole, weapon_layers: [spear point], sight: 25.0, reach: 1.8}
   - {name: wanderer, faction: townspeople, behaviour: Guard, max_health: 70.0, weapon: pipe, sight: 25.0, reach: 1.8}
