@@ -1,0 +1,93 @@
+# Plain talk (episodes.md "One way for every conversation"): what anyone
+# says outside an episode's lines, the same rules. Each is a modforge
+# storyteller `LineDef`, written as an episode's lines are: its `name`,
+# its `part` (who may say it: "player", an episode part, '' for anyone
+# but the player), `when` (what must all be true of the speaker), its
+# `ways`, what it `tells` of, how hearing it is `felt` (-1 to 1) and the
+# `wait` of a silence (0 for every other line). Read by content's
+# `plain_lines`.
+lines:
+# With nothing to talk about, a short line, and it ends (episodes.md
+# "Conversations").
+- name: nothing to say
+  part: ''
+  when:
+  - Opened
+  ways: ["Not now.", "What do you want?", "Leave me be.", "I've got nothing for you.", "Busy."]
+  tells: ''
+  felt: 0.0
+  wait: 0.0
+# Thirsty (thirst at or below 50 of 100), the player's first word can be
+# to ask; it is not offered after every reply, so the conversation still
+# ends.
+- name: asks for water
+  part: player
+  when:
+  - Needs: [thirst, 50.0]
+  - First
+  ways: ["Know where there's water?", "Any water around here?"]
+  tells: ''
+  felt: 0.0
+  wait: 0.0
+# A well they know of and do not keep quiet, by the place it is at when
+# they know it.
+- name: gives the well
+  part: ''
+  when:
+  - Heard: asks for water
+  - Knows: well
+  ways: ["There's a well at the {place}.", "Try the {place}. There's a well.", "There's a well not far from here."]
+  tells: well
+  felt: 0.1
+  wait: 0.0
+- name: no water
+  part: ''
+  when:
+  - Heard: asks for water
+  ways: ["No idea.", "Find your own.", "If I knew, I'd be drinking."]
+  tells: ''
+  felt: 0.0
+  wait: 0.0
+# Holding a place, the one warning to anyone they stand hostile to who
+# comes for it (todo 11z), called to them.
+- name: warns off
+  part: ''
+  when:
+  - Warning
+  ways: ["Stay back. This place is held.", "Not one step closer.", "Turn around. This is ours."]
+  tells: ''
+  felt: 0.0
+  wait: 0.0
+# Joining (todo 11af, draft): the player asks a stranger to stay; they
+# say yes feeling well enough toward the player (relationship::FRIENDLY,
+# 0.5, orchestrator 2026-10-02), and saying it, they join (content's
+# `AGREES_TO_STAY`). Not to one who asked for the water ("a stranger asks
+# for water", an episode's line), whom the episode's own answers take in;
+# that stranger speaks up first (talk::speak_up).
+- name: asks to stay
+  part: player
+  when:
+  - To: stranger
+  - Not:
+      HasHeard: a stranger asks for water
+  ways: ["You can stay with us."]
+  tells: ''
+  felt: 0.0
+  wait: 0.0
+- name: agrees to stay
+  part: ''
+  when:
+  - Heard: asks to stay
+  - Feels: 0.5
+  ways: ["All right. I'll stay with you.", "Yes. I'd like that."]
+  tells: ''
+  felt: 0.0
+  wait: 0.0
+- name: will not stay
+  part: ''
+  when:
+  - Heard: asks to stay
+  ways: ["No. I don't know you well enough.", "I'll keep to myself."]
+  tells: ''
+  felt: 0.0
+  wait: 0.0

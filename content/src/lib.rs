@@ -19,7 +19,7 @@ use modforge::faction::{FactionDef, FactionKind, FactionRegistry};
 use modforge::item::{Armor, ItemDef, ItemKind, ItemRegistry, LayerDef, LayerRegistry, Note};
 use modforge::monument::Roll;
 use modforge::reality::{RealityDef, RealityRegistry};
-use modforge::storyteller::{EpisodeDef, EpisodeRegistry, LineDef, When};
+use modforge::storyteller::{EpisodeDef, EpisodeRegistry, LineDef};
 use modforge::monument::{BuildingRegistry, BuildingTypeDef, MonumentRegistry, MonumentTypeDef};
 use modforge::crafting::{RecipeDef, RecipeRegistry, StationKind};
 use modforge::loot::LootTable;
@@ -958,92 +958,26 @@ impl Default for BiomeRegistryRes {
     }
 }
 
-/// One line as a rule (modforge storyteller `LineDef`; episodes.md "One
-/// way for every conversation"): its name, who may say it ("player", an
-/// episode part, "" anyone else), what must be true, its ways, what it
-/// tells of, and how hearing it feels.
-pub fn line(name: &str, part: &str, when: Vec<When>, ways: &[&str], tells: &str, felt: f32) -> LineDef {
-    LineDef {
-        name: name.to_string(),
-        part: part.to_string(),
-        when,
-        ways: ways.iter().map(|w| w.to_string()).collect(),
-        tells: tells.to_string(),
-        felt,
-        wait: 0.0,
-        gives: String::new(),
-    }
-}
-
-/// Silence as a player's line (episodes.md: doing nothing is always a
-/// choice): never shown; said by itself when the player chooses nothing
-/// within `wait` real seconds of their choices showing.
-pub fn silence(name: &str, when: Vec<When>, wait: f32, felt: f32) -> LineDef {
-    LineDef { wait, ..line(name, "player", when, &[], "", felt) }
-}
+/// Where plain talk is: content/lines.yaml, its `lines` a list of modforge
+/// storyteller `LineDef`, written as an episode's lines are.
+pub const LINES_FILE: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/lines.yaml");
 
 /// Plain talk: what anyone says outside an episode's lines, the same rules
-/// (episodes.md "One way for every conversation"). With nothing to talk
-/// about, a short line, and it ends (episodes.md "Conversations").
+/// (episodes.md "One way for every conversation"), from `LINES_FILE`.
+/// Through a JSON value, as an episode is (`episode_from_yaml`): a line's
+/// conditions hold one inside another. A file that does not read stops
+/// the game at once, naming it.
 pub fn plain_lines() -> Vec<LineDef> {
-    let heard = |name: &str| When::Heard(name.to_string());
-    vec![
-        line("nothing to say", "", vec![When::Opened], &["Not now.", "What do you want?", "Leave me be.", "I've got nothing for you.", "Busy."], "", 0.0),
-        // Thirsty, the player's first word can be to ask; it is not offered
-        // after every reply, so the conversation still ends.
-        line(
-            "asks for water",
-            "player",
-            vec![When::Needs("thirst".to_string(), THIRSTY), When::First],
-            &["Know where there's water?", "Any water around here?"],
-            "",
-            0.0,
-        ),
-        // A well they know of and do not keep quiet, by the place it is at
-        // when they know it.
-        line(
-            "gives the well",
-            "",
-            vec![heard("asks for water"), When::Knows("well".to_string())],
-            &["There's a well at the {place}.", "Try the {place}. There's a well.", "There's a well not far from here."],
-            "well",
-            0.1,
-        ),
-        line("no water", "", vec![heard("asks for water")], &["No idea.", "Find your own.", "If I knew, I'd be drinking."], "", 0.0),
-        // Holding a place, the one warning to anyone they stand hostile to
-        // who comes for it (todo 11z), called to them.
-        line("warns off", "", vec![When::Warning], &["Stay back. This place is held.", "Not one step closer.", "Turn around. This is ours."], "", 0.0),
-        // Joining (todo 11af, draft): the player
-        // asks a stranger to stay; they say yes feeling well enough toward
-        // the player (relationship::FRIENDLY, orchestrator 2026-10-02), and
-        // saying it, they join (`AGREES_TO_STAY`).
-        // Not to one who asked for the water, whom the episode's own answers
-        // take in (`STRANGER_ASKS`; that stranger speaks up first,
-        // talk::speak_up).
-        line(
-            "asks to stay",
-            "player",
-            vec![When::To("stranger".to_string()), When::Not(Box::new(When::HasHeard(STRANGER_ASKS.to_string())))],
-            &["You can stay with us."],
-            "",
-            0.0,
-        ),
-        line(AGREES_TO_STAY, "", vec![heard("asks to stay"), When::Feels(modforge::relationship::FRIENDLY)], &["All right. I'll stay with you.", "Yes. I'd like that."], "", 0.0),
-        line("will not stay", "", vec![heard("asks to stay")], &["No. I don't know you well enough.", "I'll keep to myself."], "", 0.0),
-    ]
+    let text = std::fs::read_to_string(LINES_FILE).unwrap_or_else(|e| panic!("{LINES_FILE}: {e}"));
+    let mut file: std::collections::BTreeMap<String, serde_json::Value> = serde_yaml::from_str(&text).unwrap_or_else(|e| panic!("{LINES_FILE}: {e}"));
+    let lines = file.remove("lines").unwrap_or_else(|| panic!("{LINES_FILE}: no lines"));
+    serde_json::from_value(lines).unwrap_or_else(|e| panic!("{LINES_FILE}: lines: {e}"))
 }
 
 /// The line a person says agreeing to stay with the one who asked: said,
-/// they join that one's group (todo 11af, `joining::join`).
+/// they join that one's group (todo 11af, `joining::join`). Its name in
+/// `LINES_FILE`.
 pub const AGREES_TO_STAY: &str = "agrees to stay";
-
-/// A stranger who came for the water asks for it (an episode's line by
-/// this name; plain talk's "asks to stay" is not offered once it is heard).
-pub const STRANGER_ASKS: &str = "a stranger asks for water";
-
-/// Thirst at or below which the player can ask anyone for water (modforge
-/// `SurvivalStats`, full at 100). Tuning.
-pub const THIRSTY: f32 = 50.0;
 
 /// The names people are given (everybody has a name; operator,
 /// 2026-09-27), one rolled for each person from who they are.
