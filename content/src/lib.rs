@@ -111,6 +111,7 @@ impl Default for RecipeRegistryRes {
             // Claude's.
             bench("rope", &[("fiber", 3)], ("rope", 1)),
             bench("cotton bandage", &[("cotton", 2)], ("bandage", 1)),
+            bench("sleeping bag", &[("cloth", 4)], (SLEEPING_BAG, 1)),
             // Food is cooked on a stove (topside-town "Everything works").
             RecipeDef { station: StationKind::Stove, ..bench("cooked meat", &[(RAW_MEAT, 1)], (COOKED_MEAT, 1)) },
         ] {
@@ -240,6 +241,16 @@ pub const TOOL_CUPBOARD: &str = "tool cupboard";
 /// A bed, where its owner wakes after dying; struck with a weapon in hand
 /// it breaks (topside-town "Death and the bed").
 pub const BED: &str = "bed";
+/// What else a person sleeps on (topside-town "Everything works": "beds,
+/// couches and sleeping bags rest a person").
+pub const COUCH: &str = "couch";
+pub const SLEEPING_BAG: &str = "sleeping bag";
+/// How well each rests a sleeper (modforge `SurvivalStats::slept_on`), a
+/// bed fully; sleeping on nothing rests at `GROUND_COMFORT`. Claude's.
+pub const COMFORT: [(&str, f32); 3] = [(BED, 1.0), (COUCH, 0.75), (SLEEPING_BAG, 0.6)];
+pub const GROUND_COMFORT: f32 = 0.4;
+/// How near a bed or a couch a sleeper is to be sleeping on it, metres.
+pub const SLEEPS_ON_REACH: f32 = 1.5;
 /// A house's water fixtures and the tower they draw from (topside-town
 /// "Everything works": "faucets, toilets, showers, from the water tower").
 pub const SINK: &str = "sink";
@@ -1952,7 +1963,9 @@ pub fn register_items(reg: &mut ItemRegistry) {
         building(FURNACE, "The house's furnace. With power and the thermostat on, it warms the house.", ItemKind::Deployable, 1, None),
         building(AIR_CONDITIONER, "The house's air conditioner. With power and the thermostat on, it cools the house.", ItemKind::Deployable, 1, None),
         building(THERMOSTAT, "The house's thermostat. On, the furnace and the air conditioner run.", ItemKind::Deployable, 1, None),
-        building(PANTRY, "A kitchen pantry. Food keeps here as it would anywhere.", ItemKind::Deployable, 1, Some(12)),
+        building(COUCH, "A couch. Use it to sleep on; a bed rests better.", ItemKind::Source, 1, None),
+        building(SLEEPING_BAG, "A sleeping bag. Carried, sleeping off a bed rests better.", ItemKind::Material, 1, None),
+        building(PANTRY,"A kitchen pantry. Food keeps here as it would anywhere.", ItemKind::Deployable, 1, Some(12)),
         building(FRIDGE, "A fridge. With power, food in it keeps four times as long.", ItemKind::Deployable, 1, Some(12)),
         building(FREEZER, "A freezer. With power, food in it does not spoil.", ItemKind::Deployable, 1, Some(12)),
         building(STOVE, "A kitchen stove. Food is cooked on it.", ItemKind::Deployable, 1, None),

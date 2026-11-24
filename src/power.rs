@@ -145,6 +145,11 @@ pub fn populate_town_power(
     for at in town.streetlights(30.0) {
         make(&mut commands, crate::content::STREETLIGHT, at, None);
     }
+    // Each house's couch in its living room, slept on as a bed is
+    // (topside-town "Everything works").
+    for lot in town.lots.iter().filter(|l| l.house) {
+        make(&mut commands, crate::content::COUCH, lot.at + modforge::house::couch(lot.front), Some(InteractKind::Source));
+    }
     // Each house's lamps, by where its people stand in the bedrooms and
     // the living room, and a candle on the dining table (Claude's).
     let lamps = town.lots.iter().filter(|l| l.house).map(|l| modforge::house::home_spots(l.front).into_iter().map(|p| l.at + p + Vec2::new(0.8, 0.0)).collect::<Vec<_>>());

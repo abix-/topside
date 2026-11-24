@@ -633,6 +633,7 @@ pub fn interact_on_use(
         (
             (Entity, &Transform, &ThisTick, &mut Inventory, &mut Hud, &mut OpenContainer, &mut OpenStation),
             (&mut Persona, &mut Health, &Facing, Option<&crate::talk::LookingAt>, Option<&crate::actor::Actor>, Option<&mut crate::actor::Hotbar>),
+            Option<&mut crate::actor::ActorCondition>,
         ),
         Without<Dead>,
     >,
@@ -645,9 +646,9 @@ pub fn interact_on_use(
 ) {
     // In ActorId order (authority.md rule 5): of two people using one thing
     // in one tick, who gets it is the same after a load.
-    let order = crate::actor::in_actor_order(people.iter().map(|((me, ..), (.., actor, _))| (actor.map(|a| a.0), me)));
+    let order = crate::actor::in_actor_order(people.iter().map(|((me, ..), (.., actor, _), _)| (actor.map(|a| a.0), me)));
     for entity in order {
-        let Ok(((me, person, this_tick, mut inventory, mut hud, mut open, mut station), (mut mind, mut health, facing, looking, _, mut hotbar))) =
+        let Ok(((me, person, this_tick, mut inventory, mut hud, mut open, mut station), (mut mind, mut health, facing, looking, _, mut hotbar), mut condition)) =
             people.get_mut(entity)
         else {
             continue;
@@ -717,6 +718,17 @@ pub fn interact_on_use(
                 if breaks && fills.is_empty() && hotbar.as_ref().is_some_and(|h| melee_in_hand(&h.0, &registry.0)) {
                     commands.entity(entity).despawn();
                     mind.0.memory.did(Did::Done(format!("broke the {}", item.stack.item)), tick.0);
+                    continue;
+                }
+                // A bed or a couch, used, is slept on; used again, the
+                // sleeper wakes (topside-town "Everything works"). How
+                // well it rests is `survival::survival_tick`'s.
+                if fills.is_empty() && crate::content::COMFORT.iter().any(|(name, _)| *name == item.stack.item) {
+                    if let Some(condition) = condition.as_mut() {
+                        condition.0.asleep = !condition.0.asleep;
+                        let did = if condition.0.asleep { Did::Slept } else { Did::Done(format!("got up from the {}", item.stack.item)) };
+                        mind.0.memory.did(did, tick.0);
+                    }
                     continue;
                 }
                 // Water drawn from a store comes out of the store's water
