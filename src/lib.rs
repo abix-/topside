@@ -221,13 +221,6 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind, port: u16
                         }
                         settings.into()
                     },
-                    // Shaders compiled on the drawing's own thread, one at a
-                    // time, not on every async thread at once: after a
-                    // launch's first load, the compiles and the graphics
-                    // driver's threads behind them stalled the step 20 to
-                    // 245 ms (bench, 2026-11-24). A frame waits for its new
-                    // shader instead, once a launch.
-                    synchronous_pipeline_compilation: true,
                     ..default()
                 })
                 .set(WindowPlugin {
