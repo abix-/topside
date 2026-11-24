@@ -1149,12 +1149,51 @@ pub const EPITAPHS: [&str; 6] = [
     "Danny Sheldrake. 1988 - 1997. Our boy.",
     "Reverend Hal Ostrowski. He married half this town and buried the rest.",
 ];
-pub const PLACES: [modforge::plan::PlanDef; 21] = [GROCERY_STORE, CROP_FARM, CROP_FARM, LIVESTOCK_BARN, GRAIN_ELEVATOR, DINER, PIZZA_PLACE, CAFE, BAR, PUMP_HOUSE, SUBSTATION, GAS_STATION, SEWAGE_POND, TOWN_DUMP, CLINIC, FIRE_STATION, SHERIFFS_OFFICE, SCHOOL, TOWN_HALL, CHURCH, CEMETERY];
+/// Place 21: the hardware store, on main street: the sales floor with
+/// its aisles and counter, the paint and key counter, the lumber yard
+/// room with its workbench, the stockroom and the office.
+pub const HARDWARE_STORE: modforge::plan::PlanDef = modforge::plan::PlanDef {
+    name: "hardware store",
+    edge: false,
+    columns: &[10.0, 6.0],
+    rows: &[9.0, 6.0],
+    rooms: &[((0, 0), "hardware floor"), ((1, 0), "hardware counter"), ((0, 1), "lumber room"), ((1, 1), "hardware office")],
+    ways: &[((0, 0), East, false), ((0, 0), North, true), ((1, 0), North, true), ((0, 1), East, true)],
+    exits: &[((0, 0), South, 1.8), ((0, 1), West, 3.0)],
+    furniture: &[
+        ("hardware floor", [-0.25, 0.0], [0.8, 1.8, 6.0]),
+        ("hardware floor", [0.1, 0.0], [0.8, 1.8, 6.0]),
+        ("hardware counter", [0.0, 0.1], [3.5, 1.0, 0.7]),
+        ("lumber room", [0.0, -0.4], [8.0, 1.2, 1.0]),
+        ("hardware office", [0.0, -0.3], [1.4, 0.75, 0.7]),
+    ],
+    things: &[
+        (SHELF, "hardware floor", [-0.08, 0.0]),
+        (SHELF, "hardware floor", [0.35, 0.0]),
+        (CASH_REGISTER, "hardware counter", [0.3, 0.3]),
+        (GARAGE_WORKBENCH, "lumber room", [0.3, 0.2]),
+        (PALLET, "lumber room", [-0.3, 0.2]),
+        (OFFICE_DESK, "hardware office", [0.0, 0.1]),
+    ],
+    outside: &[],
+    walls: &[[0.7, 0.3, 0.2], [0.75, 0.7, 0.6]],
+    floor: [0.6, 0.58, 0.55],
+    furniture_color: [0.55, 0.5, 0.42],
+    height: 3.6,
+};
+pub const PLACES: [modforge::plan::PlanDef; 22] = [GROCERY_STORE, CROP_FARM, CROP_FARM, LIVESTOCK_BARN, GRAIN_ELEVATOR, DINER, PIZZA_PLACE, CAFE, BAR, PUMP_HOUSE, SUBSTATION, GAS_STATION, SEWAGE_POND, TOWN_DUMP, CLINIC, FIRE_STATION, SHERIFFS_OFFICE, SCHOOL, TOWN_HALL, CHURCH, CEMETERY, HARDWARE_STORE];
 /// The places whose garden beds are found sown and ripe, with what.
 pub const PLACE_SOWN: [(&str, &str); 1] = [("crop farm", POTATO_SEED)];
 /// What each place's boxes are found holding: the place, the box, the
 /// item and how many.
-pub const PLACE_HOLDS: [(&str, &str, &str, u32); 85] = [
+pub const PLACE_HOLDS: [(&str, &str, &str, u32); 92] = [
+    ("hardware store", SHELF, HAMMER, 2),
+    ("hardware store", SHELF, WRENCH, 2),
+    ("hardware store", SHELF, "rope", 4),
+    ("hardware store", SHELF, MATCHES, 3),
+    ("hardware store", CASH_REGISTER, "scrap", 2),
+    ("hardware store", PALLET, WOOD, 20),
+    ("hardware store", PALLET, "pipe", 6),
     ("cemetery", TOOLBOX, "rope", 1),
     ("cemetery", TOOLBOX, "scrap", 2),
     ("church", OFFICE_DESK, MATCHES, 1),
@@ -1242,7 +1281,7 @@ pub const PLACE_HOLDS: [(&str, &str, &str, u32); 85] = [
     ("grocery store", PALLET, CARROT_SEED, 4),
 ];
 /// The things of places that are crafting stations, not boxes.
-pub const PLACE_STATIONS: [(&str, modforge::crafting::StationKind); 1] = [(STOVE, modforge::crafting::StationKind::Stove)];
+pub const PLACE_STATIONS: [(&str, modforge::crafting::StationKind); 2] = [(STOVE, modforge::crafting::StationKind::Stove), (GARAGE_WORKBENCH, modforge::crafting::StationKind::CraftingBench)];
 pub const TRASH_CAN: &str = "trash can";
 pub const DUMP_PILE: &str = "dump pile";
 pub const COLLECTION_HOUR: f32 = 6.0;
