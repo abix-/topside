@@ -120,7 +120,9 @@ pub fn populate_town_power(
     items: Res<crate::content::ItemRegistryRes>,
     mut ids: ResMut<crate::interact::ThingIssuer>,
     mut things_made: ResMut<crate::terrain::ThingsMade>,
+    (tick, day): (Res<crate::SimTick>, Res<crate::survival::Day>),
 ) {
+    let today = crate::survival::today(&tick, *day);
     if things_made.power {
         return;
     }
@@ -148,10 +150,36 @@ pub fn populate_town_power(
     let lamps = town.lots.iter().filter(|l| l.house).map(|l| modforge::house::home_spots(l.front).into_iter().map(|p| l.at + p + Vec2::new(0.8, 0.0)).collect::<Vec<_>>());
     let candles = town.lots.iter().filter(|l| l.house).map(|l| l.at + modforge::house::dining_table(l.front));
     let lights: Vec<(Vec<Vec2>, Vec2)> = lamps.zip(candles).collect();
-    for (((breaker_at, rooms), heating), (lamps, candle)) in town.wiring().into_iter().zip(town.heating()).zip(lights) {
+    for ((((breaker_at, rooms), heating), (lamps, candle)), kitchen) in town.wiring().into_iter().zip(town.heating()).zip(lights).zip(town.kitchens()) {
         let Some(breaker) = make(&mut commands, crate::content::BREAKER_BOX, breaker_at, Some(InteractKind::Switch { on: true })) else {
             continue;
         };
+        // Its kitchen: the stove cooks; the pantry, the fridge and the
+        // freezer are boxes, found holding food; the fridge and the
+        // freezer are on the house's breaker.
+        for (kind, at) in kitchen {
+            if kind == crate::content::STOVE {
+                make(&mut commands, kind, at, Some(InteractKind::Station(StationKind::Stove)));
+                continue;
+            }
+            let Some(made) = make(&mut commands, kind, at, Some(InteractKind::Container)) else {
+                continue;
+            };
+            if kind != crate::content::PANTRY {
+                commands.entity(made).insert(WiredTo(breaker));
+            }
+            let slots = items.0.def(kind).and_then(|d| d.storage).unwrap_or(0);
+            let mut held = modforge::item::Inventory::new(slots);
+            for &(_, food, count) in crate::content::KITCHEN_FOOD.iter().filter(|(place, ..)| *place == kind) {
+                let Some(def) = items.0.def(food) else {
+                    continue;
+                };
+                let mut stack = modforge::item::create(def, count, &[], 0.0, 0);
+                stack.made_day = today;
+                held.add(stack, def.max_stack);
+            }
+            commands.entity(made).insert(Container(held));
+        }
         for at in lamps {
             if let Some(lamp) = make(&mut commands, crate::content::LAMP, at, Some(InteractKind::Switch { on: false })) {
                 commands.entity(lamp).insert(WiredTo(breaker));
@@ -228,6 +256,8 @@ pub fn lights(
             // Its own switch, off the house's breaker.
             LAMP => wired.is_some_and(|b| modforge::power::lit(true, breaker_live(b.0), on(entity))),
             STREETLIGHT => night && has_grid(at.translation),
+            // A fridge or a freezer is cold while its breaker is live.
+            crate::content::FRIDGE | crate::content::FREEZER => wired.is_some_and(|b| breaker_live(b.0)),
             CANDLE => on(entity),
             _ => continue,
         };

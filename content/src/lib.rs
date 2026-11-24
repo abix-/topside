@@ -111,6 +111,8 @@ impl Default for RecipeRegistryRes {
             // Claude's.
             bench("rope", &[("fiber", 3)], ("rope", 1)),
             bench("cotton bandage", &[("cotton", 2)], ("bandage", 1)),
+            // Food is cooked on a stove (topside-town "Everything works").
+            RecipeDef { station: StationKind::Stove, ..bench("cooked meat", &[(RAW_MEAT, 1)], (COOKED_MEAT, 1)) },
         ] {
             reg.register(def).expect("recipe registered once");
         }
@@ -1070,7 +1072,22 @@ pub const HOSTILE_ARMOR: &str = "road sign vest";
 /// How many game days each food keeps before it turns to `ROTTEN_FOOD`
 /// (design.md "Survival pressures": food spoils over time). The 10 is
 /// Claude's, for the operator to change.
-pub const KEEPS_DAYS: [(&str, f32); 1] = [("canned food", 10.0)];
+pub const KEEPS_DAYS: [(&str, f32); 3] = [("canned food", 10.0), (RAW_MEAT, 1.0), (COOKED_MEAT, 2.0)];
+/// A house's kitchen (topside-town "Everything works": food "found, kept
+/// in pantries, fridges and freezers, cooked on stoves, eaten"; Project
+/// Zomboid's kitchens).
+pub const PANTRY: &str = "pantry";
+pub const FRIDGE: &str = "fridge";
+pub const FREEZER: &str = "freezer";
+pub const STOVE: &str = "stove";
+pub const RAW_MEAT: &str = "raw meat";
+pub const COOKED_MEAT: &str = "cooked meat";
+/// How much a powered fridge and freezer slow food's ageing (modforge
+/// `item::keep_cold`). Claude's.
+pub const COLD: [(&str, f32); 2] = [(FRIDGE, 0.75), (FREEZER, 1.0)];
+/// What a house's kitchen is found holding: (where, what, how many).
+/// Claude's.
+pub const KITCHEN_FOOD: [(&str, &str, u32); 2] = [(PANTRY, "canned food", 3), (FRIDGE, RAW_MEAT, 2)];
 /// What spoiled food becomes.
 pub const ROTTEN_FOOD: &str = "rotten food";
 
@@ -1935,7 +1952,19 @@ pub fn register_items(reg: &mut ItemRegistry) {
         building(FURNACE, "The house's furnace. With power and the thermostat on, it warms the house.", ItemKind::Deployable, 1, None),
         building(AIR_CONDITIONER, "The house's air conditioner. With power and the thermostat on, it cools the house.", ItemKind::Deployable, 1, None),
         building(THERMOSTAT, "The house's thermostat. On, the furnace and the air conditioner run.", ItemKind::Deployable, 1, None),
-        building(LAMP, "A lamp. On, with the house's power, it lights the room.", ItemKind::Deployable, 1, None),
+        building(PANTRY, "A kitchen pantry. Food keeps here as it would anywhere.", ItemKind::Deployable, 1, Some(12)),
+        building(FRIDGE, "A fridge. With power, food in it keeps four times as long.", ItemKind::Deployable, 1, Some(12)),
+        building(FREEZER, "A freezer. With power, food in it does not spoil.", ItemKind::Deployable, 1, Some(12)),
+        building(STOVE, "A kitchen stove. Food is cooked on it.", ItemKind::Deployable, 1, None),
+        ItemDef {
+            food: Some(FoodStats { hunger: 15.0, thirst: 0.0, health: -5.0 }),
+            ..building(RAW_MEAT, "Raw meat. Cook it on a stove; eaten raw it makes you sick.", ItemKind::Food, 10, None)
+        },
+        ItemDef {
+            food: Some(FoodStats { hunger: 40.0, thirst: 0.0, health: 10.0 }),
+            ..building(COOKED_MEAT, "Cooked meat. It fills and heals.", ItemKind::Food, 10, None)
+        },
+        building(LAMP,"A lamp. On, with the house's power, it lights the room.", ItemKind::Deployable, 1, None),
         building(CANDLE, "A candle. Lit, it gives a little light.", ItemKind::Deployable, 1, None),
         building(STREETLIGHT, "A streetlight. It comes on at night while the town has power.", ItemKind::Deployable, 1, None),
         building(FLASHLIGHT, "A flashlight. Held, it lights the way.", ItemKind::Tool, 1, None),

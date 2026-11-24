@@ -103,12 +103,23 @@ pub fn rot(
     day: Res<Day>,
     mut inventories: Query<&mut crate::actor::Inventory>,
     mut hotbars: Query<&mut crate::actor::Hotbar>,
-    mut boxes: Query<&mut crate::interact::Container>,
+    mut boxes: Query<(&mut crate::interact::Container, Option<&crate::interact::WorldItem>, Option<&crate::power::Powered>)>,
 ) {
     if tick.0 % 60 != 0 {
         return;
     }
     let today = today(&tick, *day);
+    // A powered fridge or freezer keeps what is in it cold: it ages only
+    // part of this second (modforge `item::keep_cold`).
+    let second = 1.0 / day.0;
+    for (mut held, item, powered) in &mut boxes {
+        let cold = item.and_then(|i| crate::content::COLD.iter().find(|(name, _)| *name == i.stack.item)).map(|(_, slows)| *slows);
+        if let (Some(slows), Some(true)) = (cold, powered.map(|p| p.0)) {
+            for stack in held.0.slots.iter_mut().flatten() {
+                modforge::item::keep_cold(stack, second, slows);
+            }
+        }
+    }
     let turn = |inventory: &mut modforge::item::Inventory| {
         for stack in inventory.slots.iter_mut().flatten() {
             let Some(&(_, keeps)) = crate::content::KEEPS_DAYS.iter().find(|(item, _)| *item == stack.item) else {
@@ -125,7 +136,7 @@ pub fn rot(
     for mut held in &mut hotbars {
         turn(&mut held.0.slots);
     }
-    for mut held in &mut boxes {
+    for (mut held, ..) in &mut boxes {
         turn(&mut held.0);
     }
 }

@@ -1139,6 +1139,7 @@ pub fn drag_drop(slot: In<SlotRef>, registry: Res<ItemRegistryRes>, mut holders:
 pub fn hud_keys(
     mut commands: Commands,
     tick: Res<crate::SimTick>,
+    day: Res<crate::survival::Day>,
     registry: Res<ItemRegistryRes>,
     recipes: Res<RecipeRegistryRes>,
     layers: Res<crate::content::LayerRegistryRes>,
@@ -1323,9 +1324,11 @@ pub fn hud_keys(
                         crate::skills::mastery(Some(&*person), crate::skills::CRAFTING),
                         crate::skills::CRAFT_LEAN,
                     );
-                    let Some(made) = craft(recipe, &mut inventory.0, &registry.0, &layers.0, &odds, tick.0 as f32, tick.0) else {
+                    let Some(mut made) = craft(recipe, &mut inventory.0, &registry.0, &layers.0, &odds, tick.0 as f32, tick.0) else {
                         continue;
                     };
+                    // Made now: food cooked today keeps from today.
+                    made.made_day = crate::survival::today(&tick, *day);
                     practised.0.push((entity, crate::skills::CRAFTING, crate::skills::CRAFT_XP));
                     let Some(def) = registry.0.def(&made.item) else {
                         continue;
