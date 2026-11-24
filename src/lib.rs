@@ -98,6 +98,20 @@ pub struct SimTick(pub u64);
 /// The ticks in one second of game time: the locked 60 UPS.
 pub const TICKS_A_SECOND: u64 = 60;
 
+/// The chunks the world needs now, their sites, the ground opened over
+/// their ways down, and the sites' people: one schedule, run every tick
+/// by the fixed step and once by the loading screen
+/// (`loading::ready_the_world`), as landmass's is (`navmesh::run_landmass`).
+/// The same systems both times, so what one run did (a building's way
+/// down opened) is not done again by the other.
+#[derive(bevy::ecs::schedule::ScheduleLabel, Debug, Clone, PartialEq, Eq, Hash)]
+pub struct MakeTheWorld;
+
+/// Run `MakeTheWorld` now.
+pub fn make_the_world(world: &mut World) {
+    world.run_schedule(MakeTheWorld);
+}
+
 /// The seed the world rolls from.
 #[derive(Resource)]
 pub struct WorldSeed(pub u64);
@@ -348,6 +362,23 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind, port: u16
     // times it (profile.rs).
     use profile::lap;
     app.add_systems(
+        MakeTheWorld,
+        (
+            terrain::make_chunks,
+            structure::spawn_sites,
+            terrain::open_the_ground,
+            actor::populate_monuments,
+            actor::populate_topside_people,
+            interact::populate_town_water,
+            power::populate_town_power,
+        )
+            .chain(),
+    );
+    // One after another, as landmass's schedule: no parallel to hand out.
+    app.edit_schedule(MakeTheWorld, |schedule| {
+        schedule.set_executor(bevy::ecs::schedule::SingleThreadedExecutor::new());
+    });
+    app.add_systems(
         FixedUpdate,
         (
             (
@@ -355,13 +386,8 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind, port: u16
                 // The chunks the world needs now, their sites, and the
                 // sites' people.
                 (
-                    terrain::make_chunks,
-                    structure::spawn_sites,
-                    terrain::open_the_ground,
-                    actor::populate_monuments,
-                    actor::populate_topside_people,
-                    interact::populate_town_water,
-                    power::populate_town_power,
+                    make_the_world,
+                    lap("make the world"),
                     power::lock_front_doors,
                     power::collect_trash,
                     lap("chunks"),

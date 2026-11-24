@@ -59,15 +59,10 @@ pub fn ready_the_world(world: &mut World) {
         return;
     }
     let start = std::time::Instant::now();
-    let _ = world.run_system_cached(crate::terrain::make_chunks);
-    let _ = world.run_system_cached(crate::structure::spawn_sites);
-    let _ = world.run_system_cached(crate::terrain::open_the_ground);
-    let _ = world.run_system_cached(crate::actor::populate_monuments);
-    let _ = world.run_system_cached(crate::actor::populate_topside_people);
-    let _ = world.run_system_cached(crate::interact::populate_town_water);
-    let _ = world.run_system_cached(crate::power::populate_town_power);
+    crate::make_the_world(world);
     crate::navmesh::mesh_the_world(world);
     crate::navmesh::run_landmass(world);
+    rebuild_collider_trees(world);
     // The start of the game, after the launch only: the world's history
     // runs, then the game's own first save, a replay of this run plays
     // from it.
@@ -77,7 +72,43 @@ pub fn ready_the_world(world: &mut World) {
     }
     world.resource_mut::<Loading>().on = false;
     LOADING.store(false, Ordering::Relaxed);
+    if let Some(mut laps) = world.get_resource_mut::<crate::profile::Laps>() {
+        laps.restart_worsts();
+    }
     info!("the world is ready in {:.0} ms", start.elapsed().as_secs_f64() * 1000.0);
+}
+
+/// Avian's collider trees made ready now, behind the loading screen: every
+/// collider the world just made has its box worked out by Avian's own
+/// update (`update_moved_collider_aabbs`, the first thing its step does;
+/// 43 ms in the bench's first step), so the first step finds none of them
+/// moved; each is still a moved proxy for the broad phase, which pairs them
+/// in that step as it would have. Then each tree with most of it new is
+/// rebuilt whole (77 ms in the bench's first step), the same choice Avian
+/// makes (`TreeOptimizationMode::resolve`), made here instead of in a step.
+/// The time this takes is the loading's, not a step's.
+fn rebuild_collider_trees(world: &mut World) {
+    use avian3d::collider_tree::{ColliderTreeDiagnostics, ColliderTreeOptimization, ColliderTrees, TreeOptimizationMode, update_moved_collider_aabbs};
+    let _ = world.run_system_cached(update_moved_collider_aabbs::<avian3d::prelude::Collider>);
+    if let Some(mut diagnostics) = world.get_resource_mut::<ColliderTreeDiagnostics>() {
+        *diagnostics = default();
+    }
+    let Some(mode) = world.get_resource::<ColliderTreeOptimization>().map(|o| o.optimization_mode) else {
+        return;
+    };
+    let Some(mut trees) = world.get_resource_mut::<ColliderTrees>() else {
+        return;
+    };
+    for tree in trees.iter_trees_mut() {
+        if tree.moved_proxies.is_empty() {
+            continue;
+        }
+        let moved = tree.moved_proxies.len() as f32 / tree.proxies.len() as f32;
+        if mode.resolve(moved) == TreeOptimizationMode::FullRebuild {
+            tree.rebuild_full();
+            tree.moved_proxies.clear();
+        }
+    }
 }
 
 /// While the world's history runs: the episode and the storm wait for the

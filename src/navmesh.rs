@@ -83,7 +83,7 @@ impl Plugin for NavPlugin {
         app.add_systems(Startup, setup);
         // In the fixed step, after the chunks are made: the mesh follows
         // the ticks, never the frames.
-        app.add_systems(FixedUpdate, (wait_for_chunks, build_chunk_meshes, gather_meshes).chain().after(crate::actor::populate_topside_people));
+        app.add_systems(FixedUpdate, (wait_for_chunks, build_chunk_meshes, gather_meshes).chain().after(crate::make_the_world));
         app.add_systems(FixedFirst, (land_meshes, crate::profile::lap("land meshes")).chain().after(crate::profile::start_step));
         app.add_observer(mesh_failed);
         app.add_observer(chunks_changed_by_a_building);
