@@ -202,6 +202,14 @@ fn bodies_placed(
 
 /// Build the app. `headless` skips the window and the drawing so
 /// tests can run the simulation bare; `world` is the 2D world to make;
+/// The newest Windows SDK's 64-bit `dxcompiler.dll`, if one is installed.
+fn dxc_path() -> Option<String> {
+    let kits = std::path::Path::new(r"C:\Program Files (x86)\Windows Kits\10\bin");
+    let mut versions: Vec<std::path::PathBuf> = std::fs::read_dir(kits).ok()?.filter_map(|e| e.ok().map(|e| e.path())).collect();
+    versions.sort();
+    versions.into_iter().rev().map(|v| v.join(r"x64\dxcompiler.dll")).find(|dll| dll.is_file()).map(|dll| dll.to_string_lossy().into_owned())
+}
+
 /// `port` is the control plane's.
 pub fn build_app(headless: bool, seed: u64, world: content::WorldKind, port: u16) -> App {
     let mut app = App::new();
@@ -218,6 +226,12 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind, port: u16
                         // Keep WGPU_BACKEND available for measured comparisons.
                         if cfg!(target_os = "windows") && std::env::var_os("WGPU_BACKEND").is_none() {
                             settings.backends = Some(bevy::render::settings::Backends::DX12);
+                        }
+                        // DX12 compiles shaders with DXC when the Windows SDK
+                        // has it: FXC, Bevy's fallback, took 55 s for the
+                        // game's 64 pipelines after a launch (Perf 2).
+                        if let Some(dxc) = dxc_path() {
+                            settings.dx12_shader_compiler = bevy::render::settings::Dx12Compiler::DynamicDxc { dxc_path: dxc };
                         }
                         settings.into()
                     },
