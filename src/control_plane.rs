@@ -38,7 +38,9 @@ static FPS_BITS: AtomicU32 = AtomicU32::new(0);
 /// How many times real time the game actually ran over the last second.
 static RUNS_AT_BITS: AtomicU32 = AtomicU32::new(0);
 static DIAGNOSTICS: Mutex<Json> = Mutex::new(Json::Null);
-static PEOPLE_LIST: Mutex<Json> = Mutex::new(Json::Null);
+/// Every person's row for the `people` op, in ActorId order, with the tick
+/// it was made (`publish` remakes a sixtieth of them a tick).
+static PEOPLE_LIST: Mutex<std::collections::BTreeMap<modforge::actor::ActorId, (u64, Json)>> = Mutex::new(std::collections::BTreeMap::new());
 static PERF: Mutex<Json> = Mutex::new(Json::Null);
 static WORLD: Mutex<Json> = Mutex::new(Json::Null);
 static PLAYER: Mutex<Json> = Mutex::new(Json::Null);
@@ -591,11 +593,10 @@ pub fn lives(memory: &modforge::memory::Memory) -> Vec<f32> {
 /// the `ways` op: who, where they are and are going [x, height, z], and why.
 #[allow(clippy::type_complexity)]
 pub fn publish_ways(
-    tick: Res<crate::SimTick>,
     walkers: Query<(&Actor, Option<&Npc>, &Transform, &crate::navmesh::Walker)>,
     ways: crate::navmesh::Ways,
 ) {
-    if !due(tick.0) {
+    if !WAYS_ASKED.wanted() {
         return;
     }
     use bevy_landmass::AgentState;
@@ -617,6 +618,7 @@ pub fn publish_ways(
     if let Ok(mut slot) = WAYS.lock() {
         *slot = Json::Array(list);
     }
+    WAYS_ASKED.made();
 }
 /// How many times real time the game runs, set by the `speed` op
 /// (Factorio's game speed); 1 is normal.
@@ -1253,6 +1255,52 @@ fn due(tick: u64) -> bool {
     tick % 60 == 0 || PUBLISH_NOW.load(Ordering::Relaxed)
 }
 
+/// A copy made only when an op asks for it (the `ground_on_floors` way),
+/// never on a clock nobody reads: its publisher makes it at the next step,
+/// or at a stop for a test (`publish_now`), and counts each one made.
+struct Asked {
+    asked: AtomicBool,
+    made: AtomicU64,
+}
+
+impl Asked {
+    const fn new() -> Self {
+        Self { asked: AtomicBool::new(false), made: AtomicU64::new(0) }
+    }
+
+    /// Whether the publisher makes its copy this tick.
+    fn wanted(&self) -> bool {
+        PUBLISH_NOW.load(Ordering::Relaxed) || self.asked.swap(false, Ordering::Relaxed)
+    }
+
+    /// The publisher made its copy.
+    fn made(&self) {
+        self.made.fetch_add(1, Ordering::Relaxed);
+    }
+
+    /// The op's answer: while the game stands still (paused or loading)
+    /// the copy made at its stop; while it runs, the one the next step
+    /// makes.
+    fn answer(&self, copy: &Mutex<Json>) -> Json {
+        let still = || PAUSED_AT.load(Ordering::Relaxed) != u64::MAX || crate::loading::LOADING.load(Ordering::Relaxed);
+        if !still() {
+            let before = self.made.load(Ordering::Relaxed);
+            self.asked.store(true, Ordering::Relaxed);
+            // A step that cannot make it (a frame held by a load) gives the
+            // last copy after a second rather than no answer.
+            let until = std::time::Instant::now() + std::time::Duration::from_secs(1);
+            while self.made.load(Ordering::Relaxed) == before && !still() && std::time::Instant::now() < until {
+                std::thread::sleep(std::time::Duration::from_millis(5));
+            }
+        }
+        copy.lock().map(|c| c.clone()).unwrap_or(Json::Null)
+    }
+}
+
+static PERF_ASKED: Asked = Asked::new();
+static WORLD_ASKED: Asked = Asked::new();
+static WAYS_ASKED: Asked = Asked::new();
+
 /// Every copy the ops read written now, by the same publishers that write
 /// them once a game second: called when the game comes to a stop for a
 /// test (a load done, a step done, a pause taking hold), so an op never
@@ -1310,7 +1358,7 @@ pub fn publish_world(
     ),
     edge: Res<crate::edge::EdgeRes>,
 ) {
-    if !due(tick.0) {
+    if !WORLD_ASKED.wanted() {
         return;
     }
     // The player's bunker, room by room (design.md "The bunker you start
@@ -1561,6 +1609,7 @@ pub fn publish_world(
     if let Ok(mut slot) = WORLD.lock() {
         *slot = world;
     }
+    WORLD_ASKED.made();
 }
 
 /// What the brain's tree has a person doing: the active state's name, or
@@ -1573,7 +1622,7 @@ pub fn publish(
     tick: Res<crate::SimTick>,
     real: Res<Time<Real>>,
     mut last_second: Local<Option<(u64, f64)>>,
-    laps: Res<crate::profile::Laps>,
+    mut laps: ResMut<crate::profile::Laps>,
     actors: Res<ActorMapRes>,
     diagnostics: Option<Res<DiagnosticsStore>>,
     items: Res<crate::content::ItemRegistryRes>,
@@ -1666,7 +1715,8 @@ pub fn publish(
     // Where the step's time goes, once a second: the whole step, every
     // part costliest first (a part named "steer: ..." is a piece inside
     // steer), and what was counted.
-    if tick.0 % 60 == 0 {
+    if PERF_ASKED.wanted() {
+        let began = std::time::Instant::now();
         // Each part's average and its worst single step since launch; the
         // laps of the step ("in_step") add up to the whole step.
         let parts: Vec<Json> = laps
@@ -1682,23 +1732,36 @@ pub fn publish(
             *slot = json!({
                 "step_ms": laps.step_ms,
                 "step_worst_ms": laps.step_worst_ms,
+                "step_worst_tick": laps.step_worst_tick,
+                "over_budget": laps.over_budget,
+                "over_budget_steps": laps.over_budget_steps.iter().map(|(t, ms)| json!({"tick": t, "ms": ms})).collect::<Vec<_>>(),
                 "steps_per_frame": laps.steps_per_frame,
-                "budget_ms": 1000.0 / 60.0,
+                "budget_ms": crate::profile::BUDGET_MS,
                 "people": actors.0.live_count(),
                 "parts": parts,
                 "counts": counts,
                 "frame": frame,
             });
         }
+        laps.record("publish: perf copy", began.elapsed().as_secs_f64() * 1000.0);
+        PERF_ASKED.made();
     }
     // Every person, once a second, in ActorId order (authority.md rule 5):
     // the query's own order changes with every load and death, so "the
     // first" of the list is the same person every time only this way.
-    if due(tick.0) {
-        let mut in_order: Vec<_> = npcs.iter().collect();
-        in_order.sort_by_key(|((actor, ..), _)| actor.0);
-        let list: Vec<Json> = in_order
-            .into_iter()
+    // In play a sixtieth of them a tick, by ActorId, so the list is remade
+    // over each second rather than all in one step; at a stop for a test
+    // (`publish_now`), everyone now.
+    let everyone = PUBLISH_NOW.load(Ordering::Relaxed);
+    let slice = tick.0 % 60;
+    let began = std::time::Instant::now();
+    {
+        let Ok(mut staged) = PEOPLE_LIST.lock() else {
+            return;
+        };
+        let made = npcs
+            .iter()
+            .filter(|((actor, ..), _)| everyone || actor.0.0 % 60 == slice)
             .map(|((actor, npc, at, health, person, this_tick), (dead, hotbar, facing, drawn, map, worn, holding, traits))| {
                 let (needs, memory, record, personality, name) = (&person.0.needs, &person.0.memory, &person.0.doing, &person.0.personality, &person.0.profile.name);
                 // What is in their hands, its layers, and the damage its
@@ -1713,18 +1776,18 @@ pub fn publish(
                 });
                 // How many of each kind of thing they did (life.md "What a
                 // person did"), and the last one.
-                let mut did = serde_json::Map::new();
                 // What they ate and drank, by what: a can, a well, water.
-                let mut ate_what = serde_json::Map::new();
+                // Counted by name first, each name made a key once.
+                let (mut kinds, mut ate) = (std::collections::BTreeMap::<&str, u64>::new(), std::collections::BTreeMap::<&str, u64>::new());
                 for (_, d) in &memory.done {
-                    let n = did.get(d.kind()).and_then(Json::as_u64).unwrap_or(0);
-                    did.insert(d.kind().to_string(), json!(n + 1));
+                    *kinds.entry(d.kind()).or_default() += 1;
                     if let modforge::memory::Did::Ate(what) = d {
-                        let n = ate_what.get(what).and_then(Json::as_u64).unwrap_or(0);
-                        ate_what.insert(what.clone(), json!(n + 1));
+                        *ate.entry(what.as_str()).or_default() += 1;
                     }
                 }
-                json!({
+                let did: serde_json::Map<String, Json> = kinds.into_iter().map(|(k, n)| (k.to_string(), json!(n))).collect();
+                let ate_what: serde_json::Map<String, Json> = ate.into_iter().map(|(k, n)| (k.to_string(), json!(n))).collect();
+                let row = json!({
                     "id": actor.0.0,
                     "name": name,
                     "def": npc.def,
@@ -1771,13 +1834,17 @@ pub fn publish(
                     "axes": personality.axes,
                     "traits": modforge::actor::Axis::NAMES.iter().zip(personality.axes).map(|(n, v)| (n.to_string(), json!(v))).collect::<serde_json::Map<_, _>>(),
                     "actions": this_tick.0.iter().map(|s| format!("{:?}", s.action)).collect::<Vec<_>>(),
-                })
-            })
-            .collect();
-        if let Ok(mut slot) = PEOPLE_LIST.lock() {
-            *slot = Json::Array(list);
+                });
+                (actor.0, (tick.0, row))
+            });
+        staged.extend(made);
+        // Whoever was not remade in the last second is gone (despawned),
+        // and a load set the tick back past what was made after it.
+        if due(tick.0) {
+            staged.retain(|_, (made_at, _)| *made_at <= tick.0 && *made_at + 60 > tick.0);
         }
     }
+    laps.record("publish: people", began.elapsed().as_secs_f64() * 1000.0);
     let Some(diagnostics) = diagnostics else {
         return;
     };
@@ -1838,14 +1905,14 @@ pub fn start(port: u16) {
         "perf",
         "the whole fixed step's ms against its budget, every part's ms costliest first (pieces inside a system named 'system: piece'), counts per step, and `frame`: every span Bevy ran (each system, each schedule, the drawing's work) in ms per frame, the costliest first",
         "",
-        |_| Ok(PERF.lock().map(|p| p.clone()).unwrap_or(Json::Null)),
+        |_| Ok(PERF_ASKED.answer(&PERF)),
     ));
     OP_REGISTRY.register(OpDef::new(
         "people",
         "every NPC: id, def, faction, position, health, needs, traits, actions this tick; with a filter, only those it takes (the whole list is too big for one MCP answer): `ids` [id, ...], `near` [x, z] within `within` metres (10 when left out), `faction` (a bunker's people share its faction, \"bunker 1\")",
         "{\"near\": [400, 160], \"within\": 20}",
         |args| {
-            let list = PEOPLE_LIST.lock().map(|p| p.clone()).unwrap_or(Json::Null);
+            let list = PEOPLE_LIST.lock().map(|p| Json::Array(p.values().map(|(_, row)| row.clone()).collect())).unwrap_or(Json::Null);
             let ids: Option<Vec<u64>> = args.get("ids").and_then(Json::as_array).map(|a| a.iter().filter_map(Json::as_u64).collect());
             let near = args.get("near").and_then(Json::as_array).and_then(|a| Some((a.first()?.as_f64()?, a.get(1)?.as_f64()?)));
             let within = args.get("within").and_then(Json::as_f64).unwrap_or(10.0);
@@ -1963,13 +2030,13 @@ pub fn start(port: u16) {
         "ways",
         "everyone sent somewhere the navigation mesh gives no way to: who, from, to ([x, height, z]), and why (no way, the place not on the mesh, or they off it)",
         "",
-        |_| Ok(WAYS.lock().map(|w| w.clone()).unwrap_or(Json::Null)),
+        |_| Ok(WAYS_ASKED.answer(&WAYS)),
     ));
     OP_REGISTRY.register(OpDef::new(
         "world",
         "the day, the storms, what the people have done, every bunker's store and people",
         "",
-        |_| Ok(WORLD.lock().map(|w| w.clone()).unwrap_or(Json::Null)),
+        |_| Ok(WORLD_ASKED.answer(&WORLD)),
     ));
     OP_REGISTRY.register(OpDef::new(
         "view",
