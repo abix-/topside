@@ -788,7 +788,7 @@ pub const SUBSTATION: modforge::plan::PlanDef = modforge::plan::PlanDef {
 pub const SUBSTATION_SWITCH: &str = "substation switch";
 pub const TRANSFORMER: &str = "transformer";
 /// The things of places that are switches.
-pub const PLACE_SWITCHES: [&str; 3] = [SUBSTATION_SWITCH, SEWAGE_PUMP, POND_VALVE];
+pub const PLACE_SWITCHES: [&str; 5] = [SUBSTATION_SWITCH, SEWAGE_PUMP, POND_VALVE, RADIO_ITEM, TV];
 /// Place 11: the gas station, on main street: the shop with its shelves
 /// and counter, the garage bay with its bench, the office, the store and
 /// the restroom, with two pumps out front under the canopy.
@@ -898,12 +898,50 @@ pub const CLINIC: modforge::plan::PlanDef = modforge::plan::PlanDef {
     height: 3.0,
 };
 pub const PHARMACY_SHELF: &str = "pharmacy shelf";
-pub const PLACES: [modforge::plan::PlanDef; 15] = [GROCERY_STORE, CROP_FARM, CROP_FARM, LIVESTOCK_BARN, GRAIN_ELEVATOR, DINER, PIZZA_PLACE, CAFE, BAR, PUMP_HOUSE, SUBSTATION, GAS_STATION, SEWAGE_POND, TOWN_DUMP, CLINIC];
+/// Place 15: the volunteer fire station, on main street: the engine bay
+/// with its big door, the gear room, the radio room, the bunk room and
+/// the kitchen.
+pub const FIRE_STATION: modforge::plan::PlanDef = modforge::plan::PlanDef {
+    name: "fire station",
+    edge: false,
+    columns: &[10.0, 6.0],
+    rows: &[10.0, 5.0],
+    rooms: &[((0, 0), "engine bay"), ((1, 0), "gear room"), ((0, 1), "bunk room"), ((1, 1), "station kitchen")],
+    ways: &[((0, 0), East, true), ((0, 0), North, true), ((1, 0), North, true)],
+    exits: &[((0, 0), South, 4.0), ((1, 0), South, 1.2)],
+    furniture: &[
+        // The engine: a block the size of a small truck (Claude's).
+        ("engine bay", [0.0, 0.0], [2.6, 2.8, 7.0]),
+        ("gear room", [0.0, -0.4], [4.5, 1.9, 0.5]),
+        ("bunk room", [-0.3, 0.0], [0.9, 0.6, 2.0]),
+        ("bunk room", [0.3, 0.0], [0.9, 0.6, 2.0]),
+        ("station kitchen", [0.0, -0.4], [4.0, 0.9, 0.7]),
+    ],
+    things: &[
+        (GEAR_LOCKER, "gear room", [-0.3, -0.2]),
+        (EXTINGUISHER, "gear room", [0.3, 0.2]),
+        (EXTINGUISHER, "engine bay", [0.4, 0.4]),
+        (RADIO_ITEM, "gear room", [0.4, -0.3]),
+        (BED, "bunk room", [-0.3, 0.3]),
+        (STOVE, "station kitchen", [0.3, -0.2]),
+        (PANTRY, "station kitchen", [-0.3, -0.2]),
+    ],
+    outside: &[],
+    walls: &[[0.7, 0.25, 0.2], [0.8, 0.78, 0.72]],
+    floor: [0.55, 0.55, 0.55],
+    furniture_color: [0.7, 0.15, 0.12],
+    height: 4.2,
+};
+pub const GEAR_LOCKER: &str = "gear locker";
+pub const PLACES: [modforge::plan::PlanDef; 16] = [GROCERY_STORE, CROP_FARM, CROP_FARM, LIVESTOCK_BARN, GRAIN_ELEVATOR, DINER, PIZZA_PLACE, CAFE, BAR, PUMP_HOUSE, SUBSTATION, GAS_STATION, SEWAGE_POND, TOWN_DUMP, CLINIC, FIRE_STATION];
 /// The places whose garden beds are found sown and ripe, with what.
 pub const PLACE_SOWN: [(&str, &str); 1] = [("crop farm", POTATO_SEED)];
 /// What each place's boxes are found holding: the place, the box, the
 /// item and how many.
-pub const PLACE_HOLDS: [(&str, &str, &str, u32); 61] = [
+pub const PLACE_HOLDS: [(&str, &str, &str, u32); 64] = [
+    ("fire station", GEAR_LOCKER, "road sign vest", 2),
+    ("fire station", GEAR_LOCKER, FLASHLIGHT, 2),
+    ("fire station", PANTRY, "canned food", 4),
     ("clinic", OFFICE_DESK, "cloth", 1),
     ("clinic", PHARMACY_SHELF, "bandage", 5),
     ("clinic", PHARMACY_SHELF, FIRST_AID_KIT, 3),
@@ -2781,7 +2819,8 @@ pub fn register_items(reg: &mut ItemRegistry) {
         building(BUTCHER_BLOCK, "A butcher block.", ItemKind::Deployable, 1, Some(6)),
         building(FEED, "Animal feed.", ItemKind::Material, 20, None),
         building(BAKERY_CASE, "A bakery case.", ItemKind::Deployable, 1, Some(8)),
-        building(PHARMACY_SHELF, "The pharmacy's shelves.", ItemKind::Deployable, 1, Some(10)),
+        building(GEAR_LOCKER, "A firefighter's gear locker.", ItemKind::Deployable, 1, Some(8)),
+        building(PHARMACY_SHELF,"The pharmacy's shelves.", ItemKind::Deployable, 1, Some(10)),
         building(SUBSTATION_SWITCH, "A substation switch.", ItemKind::Deployable, 1, None),
         building(SEWAGE_PUMP, "The sewage lift pump.", ItemKind::Deployable, 1, None),
         building(POND_VALVE, "The sewage pond's valve.", ItemKind::Deployable, 1, None),
