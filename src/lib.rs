@@ -200,6 +200,16 @@ fn bodies_placed(
     }
 }
 
+/// A static or kinematic body's mass is never worked out: Avian's solver
+/// holds both still against everything, whatever their mass.
+fn massless(mut commands: Commands, queued: Query<(Entity, &avian3d::prelude::RigidBody), With<avian3d::dynamics::rigid_body::mass_properties::components::RecomputeMassProperties>>) {
+    for (entity, body) in &queued {
+        if !body.is_dynamic() {
+            commands.entity(entity).remove::<avian3d::dynamics::rigid_body::mass_properties::components::RecomputeMassProperties>();
+        }
+    }
+}
+
 /// Build the app. `headless` skips the window and the drawing so
 /// tests can run the simulation bare; `world` is the 2D world to make;
 /// The newest Windows SDK's 64-bit `dxcompiler.dll`, if one is installed.
@@ -322,6 +332,16 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind, port: u16
     // reads. Avian's own config for this: `propagate_before_physics`.
     app.insert_resource(avian3d::physics_transform::PhysicsTransformConfig { propagate_before_physics: false, ..default() });
     app.add_systems(FixedPostUpdate, bodies_placed.in_set(avian3d::physics_transform::PhysicsTransformSystems::Propagate));
+    // Avian works out a new body's mass by walking everything under it (a
+    // person's whole drawn rig), 5.4 ms the first step after a load (Perf
+    // 2); a static or kinematic body never moves by its mass, and nothing
+    // here is dynamic, so theirs is not worked out (`massless`).
+    app.add_systems(
+        FixedPostUpdate,
+        massless
+            .after(avian3d::dynamics::rigid_body::mass_properties::MassPropertySystems::QueueRecomputation)
+            .before(avian3d::dynamics::rigid_body::mass_properties::MassPropertySystems::UpdateComputedMassProperties),
+    );
     // The navigation mesh from those colliders (docs/pathing.md).
     app.add_plugins(navmesh::NavPlugin);
     app.add_plugins(profile::ProfilePlugin);
