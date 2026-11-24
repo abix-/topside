@@ -23,8 +23,9 @@
 # `{Drop: {item, count, danger}}` (a loot box filled at `danger` when no
 # item), `{Last: {what: {Weather: <a weather>} or Dark, hours: [low,
 # high]}}` (a weather is everywhere while it lasts, doing what that
-# weather does: RadiationStorm, ColdSnap, HeatWave, Fog, Rain), `Spoil` (the food in the player's store goes bad) and
-# `{Storm: <a storm effect>}`.
+# weather does: RadiationStorm, ColdSnap, HeatWave, Fog, Rain), `Spoil` (the food in the player's store goes bad),
+# `{Storm: <a storm effect>}` and `{Home: <trouble at home>}` (Fire,
+# Sickness, Flood, Breaks, FallOut, InLove; src/home.rs).
 #
 # The events are Claude's list the operator took (2026-11-24: "Let's
 # go."), from RimWorld's, Rust's, Project Zomboid's, 7 Days to Die's and
@@ -130,3 +131,16 @@ events:
     # Trouble at home.
     # The store's food goes bad (RimWorld's food rot).
     - {name: spoiled store, group: home, mood: Trouble, cost: 10, warnings: [None], from_episode: 1, weight: 50, does: [Spoil]}
+    # The rest of the trouble at home (todo Events 5, src/home.rs).
+    # A short circuit sets something alight (RimWorld's short circuit).
+    - {name: short circuit, group: home, mood: Trouble, cost: 10, warnings: [None], from_episode: 1, weight: 50, does: [{Home: Fire}]}
+    # One falls sick and it spreads (RimWorld's plague).
+    - {name: sickness, group: home, mood: Trouble, cost: 10, warnings: [None], from_episode: 1, weight: 50, does: [{Home: Sickness}]}
+    # The bottom level floods (Fallout Shelter's flooding rooms).
+    - {name: flood, group: home, mood: Trouble, cost: 10, warnings: [None, Sound], from_episode: 1, weight: 40, does: [{Home: Flood}]}
+    # Someone breaks, steals and runs (RimWorld's mental breaks).
+    - {name: breaking, group: home, mood: Trouble, cost: 10, warnings: [None], from_episode: 1, weight: 40, does: [{Home: Breaks}]}
+    # Two fall out (RimWorld's social fights).
+    - {name: falling out, group: home, mood: Strange, cost: 5, warnings: [None], weight: 40, does: [{Home: FallOut}]}
+    # Two fall for each other (RimWorld's lovers).
+    - {name: in love, group: home, mood: Strange, cost: 5, warnings: [None], weight: 40, does: [{Home: InLove}]}

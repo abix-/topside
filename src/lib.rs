@@ -15,6 +15,7 @@ pub mod control_plane;
 pub mod edge;
 pub mod episode;
 pub mod held;
+pub mod home;
 pub mod hud;
 pub mod input;
 pub mod interact;
@@ -371,7 +372,7 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind, port: u16
                 survival::waste,
                 // Temperature and radiation, then the generators (todo 29).
                 (exposure::expose, power::run, (power::lights, power::flashlights), silo::dig, silo::rebuild, silo::set_down, actor::claim_beds, skills::learn, vehicle::park).chain(),
-                (survival::rot, event::leave_in_the_morning, storm_effect::fix_struck, event::lasting),
+                (survival::rot, event::leave_in_the_morning, storm_effect::fix_struck, event::lasting, home::sicken),
                 lap("survival"),
                 (
                     // The episode and its storm start when the player

@@ -153,6 +153,8 @@ fn send(commands: &mut Commands, state: &mut EventsRes, event: Event, secs: f32,
                 Does::Spoil => {}
                 Does::Storm(effect) if k == 0 => crate::storm_effect::run(commands, *effect),
                 Does::Storm(_) => {}
+                Does::Home(home) if k == 0 => commands.run_system_cached_with(crate::home::trouble, (*home, seed)),
+                Does::Home(_) => {}
             }
         }
     }

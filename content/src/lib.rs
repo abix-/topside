@@ -977,7 +977,12 @@ impl EpisodeRegistryRes {
 /// a gift warms them a little, a threat a lot the other way (orchestrator,
 /// 2026-10-02, life.md "How a person feels about others"; for the operator
 /// to change).
-pub const SAID_FELT: [(&str, f32); 2] = [("offered", 0.2), ("threatened", -0.5)];
+/// Two falling out or for each other at home (todo Events 5, src/home.rs)
+/// hear it of each other: felt hard, Claude's.
+pub const SAID_FELT: [(&str, f32); 4] = [("offered", 0.2), ("threatened", -0.5), ("fell out", -0.8), ("fell for", 0.8)];
+
+/// The damage sickness does once a game second (content/damage.yaml).
+pub const SICKNESS_DAMAGE: &str = "sickness";
 
 /// Where the episodes are (docs/episodes/): one YAML file each,
 /// content/episodes/<name>.yaml, and episodes.yaml listing them in order.

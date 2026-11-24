@@ -39,6 +39,8 @@ damage:
   - {name: cold, amount: 2.0, kind: Blunt, ignores_armor: true}
   - {name: heat, amount: 2.0, kind: Blunt, ignores_armor: true}
   - {name: radiation, amount: 2.0, kind: Blunt, ignores_armor: true}
+  # Sick (todo Events 5, src/home.rs), a game second. Tuning.
+  - {name: sickness, amount: 0.5, kind: Blunt, ignores_armor: true}
   # Caught in the open when the storm hits: `amount` a second, no armor
   # helps. Tuning.
   - {name: storm, amount: 25.0, kind: Blunt, ignores_armor: true}
