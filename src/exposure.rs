@@ -42,14 +42,23 @@ pub fn expose(
     harm: (Res<ItemRegistryRes>, Res<crate::content::LayerRegistryRes>, Res<DamageRegistryRes>),
     shelters: Query<&Shelter>,
     world: (Option<Res<crate::terrain::WorldRes>>, Res<crate::content::BiomeRegistryRes>),
-    mut people: Query<(Entity, &Transform, Option<&mut Exposure>, &Protection, &Equipment, &mut Health, Option<&mut Persona>), (With<crate::actor::Actor>, Without<Dead>, Without<crate::vehicle::Vehicle>)>,
+    mut people: Query<(Entity, &Transform, Option<&mut Exposure>, &Protection, &Equipment, &mut Health, Option<&mut Persona>, Option<&crate::actor::Inventory>), (With<crate::actor::Actor>, Without<Dead>, Without<crate::vehicle::Vehicle>)>,
+    heaters: Query<(&crate::interact::WorldItem, &Transform, &crate::power::Powered), Without<crate::actor::Actor>>,
 ) {
+    // The heat sources running now, each where, its heat and its reach
+    // (topside-town "Everything works"; a fire while it burns, a furnace
+    // or an air conditioner while it has power and its thermostat is on).
+    let heat: Vec<(Vec3, f32, f32)> = heaters
+        .iter()
+        .filter(|(.., on)| on.0)
+        .filter_map(|(item, at, _)| crate::content::HEAT.iter().find(|(name, ..)| *name == item.stack.item).map(|(_, h, r)| (at.translation, *h, *r)))
+        .collect();
     let (items, layers, damage) = harm;
     let (world, biomes) = world;
     let night = crate::survival::night(&tick, *day, &reality);
     let storm = matches!(crate::storm::phase(&tick, *day, &storms), modforge::storm::StormPhase::Storm);
     let second = tick.0 % 60 == 0;
-    for (entity, at, exposure, own, worn, mut health, mut memory) in &mut people {
+    for (entity, at, exposure, own, worn, mut health, mut memory, carried) in &mut people {
         let Some(mut exposure) = exposure else {
             commands.entity(entity).insert(Exposure::default());
             continue;
@@ -58,7 +67,10 @@ pub fn expose(
         // The weather where they stand, in the open (todo 21).
         let weather = world.as_deref().filter(|_| !inside).map(|w| crate::weather::at(w, &biomes, tick.0, *day, at.translation.ground()));
         let base_air = if inside { SHELTER_AIR } else if night { NIGHT_AIR } else { DAY_AIR };
-        let air = base_air + weather.map_or(0.0, |w| w.air());
+        // Near a fire, a furnace or an AC, and wrapped in a blanket.
+        let near: Vec<(f32, f32, f32)> = heat.iter().map(|(p, h, r)| (p.distance(at.translation), *h, *r)).collect();
+        let blanket = if carried.is_some_and(|i| i.0.count_of(crate::content::BLANKET) > 0) { crate::content::BLANKET_WARMTH } else { 0.0 };
+        let air = base_air + weather.map_or(0.0, |w| w.air()) + modforge::exposure::warmth_near(&near) + blanket;
         let base_radiation = if storm && !inside { STORM_RADIATION } else { 0.0 };
         let radiation = base_radiation + weather.map_or(0.0, |w| w.radiation());
         exposure.0.tick(air, radiation, time.delta_secs());

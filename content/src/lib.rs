@@ -292,6 +292,26 @@ pub const LIGHT_SWITCH: &str = "light switch";
 pub const CEILING_LIGHT: &str = "ceiling light";
 /// How far the substation's lines reach: the whole town (Claude's).
 pub const LINES_REACH: f32 = 2000.0;
+/// A house's heating and cooling (topside-town "Everything works":
+/// "furnaces, fireplaces, wood stoves, AC, blankets, thermostats"):
+/// fires burn wood; the furnace and the air conditioner run on the
+/// house's power while its thermostat is on; a blanket carried keeps one
+/// warm.
+pub const FIREPLACE: &str = "fireplace";
+pub const WOOD_STOVE: &str = "wood stove";
+pub const FURNACE: &str = "furnace";
+pub const AIR_CONDITIONER: &str = "air conditioner";
+pub const THERMOSTAT: &str = "thermostat";
+pub const BLANKET: &str = "blanket";
+/// The things that burn wood.
+pub const FIRES: [&str; 2] = [FIREPLACE, WOOD_STOVE];
+/// How long one wood burns in a fire: 5 game minutes (Claude's).
+pub const FIRE_DEF: modforge::power::GeneratorDef = modforge::power::GeneratorDef { output: 0.0, burn_secs: 300.0 };
+/// Each heat source's heat (degrees C added to the air) and its reach in
+/// metres (modforge `exposure::warmth_near`); the AC cools. Claude's.
+pub const HEAT: [(&str, f32, f32); 4] = [(FIREPLACE, 20.0, 4.0), (WOOD_STOVE, 25.0, 4.0), (FURNACE, 18.0, 12.0), (AIR_CONDITIONER, -12.0, 12.0)];
+/// What a blanket carried adds to the air one feels (Claude's).
+pub const BLANKET_WARMTH: f32 = 8.0;
 /// A ceiling light's brightness, the house plan's (modforge house.rs).
 pub const CEILING_LIGHT_LUMENS: f32 = 300_000.0;
 pub const RESEARCH_DRAW: f32 = 5.0;
@@ -1902,6 +1922,12 @@ pub fn register_items(reg: &mut ItemRegistry) {
         building(BREAKER_BOX, "A house's breaker box. Off, nothing in the house has power.", ItemKind::Deployable, 1, None),
         building(LIGHT_SWITCH, "A light switch.", ItemKind::Deployable, 1, None),
         building(CEILING_LIGHT, "A ceiling light.", ItemKind::Deployable, 1, None),
+        building(FIREPLACE, "A fireplace. Put wood in it and it burns, warming the room.", ItemKind::Deployable, 1, Some(4)),
+        building(WOOD_STOVE, "A wood stove. Put wood in it and it burns, warming the room.", ItemKind::Deployable, 1, Some(4)),
+        building(FURNACE, "The house's furnace. With power and the thermostat on, it warms the house.", ItemKind::Deployable, 1, None),
+        building(AIR_CONDITIONER, "The house's air conditioner. With power and the thermostat on, it cools the house.", ItemKind::Deployable, 1, None),
+        building(THERMOSTAT, "The house's thermostat. On, the furnace and the air conditioner run.", ItemKind::Deployable, 1, None),
+        building(BLANKET, "A warm blanket. Carried, it keeps the cold off.", ItemKind::Material, 1, None),
         building(WATER_TOWER,"The town's water tower. Every house's taps draw from it.", ItemKind::Deployable, 1, Some(WATER_TOWER_BARRELS)),
         // Dirty water works but makes you sick (todo Survive 4): each
         // mouthful of river water hurts a little. The 3 is Claude's.

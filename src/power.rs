@@ -39,10 +39,32 @@ pub fn run(
     time: Res<Time<Fixed>>,
     mut generators: Query<(Entity, &WorldItem, &Transform, &mut Container, Option<&mut Generator>, &ThingId)>,
     consumers: Query<(Entity, &Interactable, &Transform, &ThingId, Option<&Powered>)>,
+    (items, fires): (Res<crate::content::ItemRegistryRes>, Query<&Powered, With<Container>>),
 ) {
     // The generators, in ThingId order: where each runs and its supply.
     let mut running: Vec<(u64, Vec3, f32)> = Vec::new();
     for (entity, item, at, mut fuel, generator, id) in &mut generators {
+        // A fire (a fireplace, a wood stove) burns any wood put in it, on
+        // the generator's burning (modforge `Burning::run`), and is lit
+        // while it does (topside-town "Everything works").
+        if crate::content::FIRES.contains(&item.stack.item.as_str()) {
+            let Some(mut burning) = generator else {
+                commands.entity(entity).insert(Generator::default());
+                continue;
+            };
+            let wood = items.0.count_in(&fuel.0, crate::content::WOOD);
+            let (used, lit) = burning.0.run(&crate::content::FIRE_DEF, wood, time.delta_secs());
+            for _ in 0..used {
+                let kind = fuel.0.slots.iter().flatten().find(|s| items.0.answers(&s.item, crate::content::WOOD)).map(|s| s.item.clone());
+                if let Some(kind) = kind {
+                    fuel.0.take_one(&kind);
+                }
+            }
+            if fires.get(entity).map(|p| p.0).ok() != Some(lit) {
+                commands.entity(entity).insert(Powered(lit));
+            }
+            continue;
+        }
         if item.stack.item != GENERATOR {
             continue;
         }
@@ -117,10 +139,27 @@ pub fn populate_town_power(
         Some(made)
     };
     make(&mut commands, crate::content::SUBSTATION, town.substation(), None);
-    for (breaker_at, rooms) in town.wiring() {
+    for ((breaker_at, rooms), heating) in town.wiring().into_iter().zip(town.heating()) {
         let Some(breaker) = make(&mut commands, crate::content::BREAKER_BOX, breaker_at, Some(InteractKind::Switch { on: true })) else {
             continue;
         };
+        // Its heating: the fires are boxes wood is put in; the furnace and
+        // the air conditioner run off the thermostat, as a light off its
+        // switch.
+        let thermostat_at = heating.iter().find(|(kind, _)| *kind == crate::content::THERMOSTAT).map(|(_, at)| *at);
+        let thermostat = thermostat_at.and_then(|at| make(&mut commands, crate::content::THERMOSTAT, at, Some(InteractKind::Switch { on: false })));
+        if let Some(thermostat) = thermostat {
+            commands.entity(thermostat).insert(WiredTo(breaker));
+        }
+        for (kind, at) in heating {
+            if crate::content::FIRES.contains(&kind) {
+                make(&mut commands, kind, at, Some(InteractKind::Container));
+            } else if kind != crate::content::THERMOSTAT
+                && let (Some(made), Some(thermostat)) = (make(&mut commands, kind, at, None), thermostat)
+            {
+                commands.entity(made).insert(WiredTo(thermostat));
+            }
+        }
         for (switch_at, light_at) in rooms {
             let switch = make(&mut commands, crate::content::LIGHT_SWITCH, switch_at, Some(InteractKind::Switch { on: false }));
             let light = make(&mut commands, crate::content::CEILING_LIGHT, light_at, None);
@@ -132,13 +171,14 @@ pub fn populate_town_power(
     }
 }
 
-/// Every step: each light is lit when modforge says (`power::lit`): its
+/// Every step: each light (and each furnace and air conditioner, off its
+/// thermostat) is lit when modforge says (`power::lit`): its
 /// switch on, its breaker on, and the breaker on a grid with power, the
 /// substation's lines or a running generator's wiring.
 #[allow(clippy::type_complexity)]
 pub fn lights(
     mut commands: Commands,
-    lights: Query<(Entity, &WiredTo, Option<&Powered>), Without<Interactable>>,
+    lights: Query<(Entity, &WorldItem, &WiredTo, Option<&Powered>), Without<Interactable>>,
     switches: Query<(&Interactable, &Transform, Option<&WiredTo>)>,
     grid: Query<(&WorldItem, &Transform, Option<&Container>)>,
 ) {
@@ -154,7 +194,7 @@ pub fn lights(
             _ => None,
         })
         .collect();
-    for (light, to, was) in &lights {
+    for (light, item, to, was) in &lights {
         let Ok((switch, _, Some(breaker))) = switches.get(to.0) else {
             continue;
         };
@@ -165,6 +205,10 @@ pub fn lights(
         let lit = modforge::power::lit(has_grid, on(&breaker_kind.kind), on(&switch.kind));
         if was.map(|p| p.0) != Some(lit) {
             commands.entity(light).insert(Powered(lit));
+            // A furnace or an air conditioner runs; only a light shines.
+            if item.stack.item != crate::content::CEILING_LIGHT {
+                continue;
+            }
             if lit {
                 commands.entity(light).insert(PointLight {
                     intensity: crate::content::CEILING_LIGHT_LUMENS,
