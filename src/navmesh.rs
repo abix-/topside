@@ -548,27 +548,37 @@ pub fn walk(
     // Everyone in ActorId order (authority.md rule 5): who makes way for
     // whom, and the first one found in someone's way, is the same after a
     // load.
-    let order = crate::actor::in_actor_order(people.iter().map(|(entity, ..)| (actors.get(entity).ok().map(|a| a.0), entity)));
-    // Everyone walking now: who, their feet, and the way they head (the
-    // velocity their stand-in was given last step, `Walking`).
-    let walking: Vec<(Entity, Vec3, Vec2)> = order
+    // Each person once, in ActorId order: who, their feet, the velocity
+    // their stand-in was given last step (`Walking`), and where they were
+    // stuck as of the last step.
+    let mut all: Vec<(Option<modforge::actor::ActorId>, Entity, Vec3, Vec3, Option<(Vec3, u32)>)> = people
         .iter()
-        .filter_map(|e| people.get(*e).ok())
-        .filter_map(|(entity, at, .., walk)| {
-            let way = Vec2::new(walk.velocity.x, walk.velocity.z);
-            (way.length() > 0.1).then(|| (entity, crate::interact::feet_of(at), way.normalize()))
-        })
+        .map(|(entity, at, .., walk)| (actors.get(entity).ok().map(|a| a.0), entity, crate::interact::feet_of(at), walk.velocity, walk.stuck))
         .collect();
-    // Everyone's feet, walking or standing; and the walkers stuck as of the
-    // last step.
-    let everyone: Vec<(Entity, Vec3)> = order.iter().filter_map(|e| people.get(*e).ok()).map(|(entity, at, ..)| (entity, crate::interact::feet_of(at))).collect();
-    let stuck_now: Vec<(Entity, Vec3)> = order
-        .iter()
-        .filter_map(|e| people.get(*e).ok())
-        .filter_map(|(entity, .., walk)| walk.stuck.filter(|(_, steps)| *steps > STUCK_STEPS).map(|(feet, _)| (entity, feet)))
-        .collect();
-    for entity in &order {
-        let Ok((entity, at, mut this_tick, personality, walker, (is_player, held_to_talk), mut walk)) = people.get_mut(*entity) else {
+    all.sort_by_key(|p| p.0);
+    // Everyone walking now (who, their feet, and the way they head), and
+    // the walkers stuck as of the last step, in one pass; each kept by
+    // where they stand, as everyone is, to find who is near without
+    // looking at all of them.
+    let mut walking: Vec<(Entity, Vec3, Vec2)> = Vec::new();
+    let mut stuck_now: Vec<(Entity, Vec3)> = Vec::new();
+    for &(_, entity, feet, velocity, stuck) in &all {
+        let way = Vec2::new(velocity.x, velocity.z);
+        if way.length() > 0.1 {
+            walking.push((entity, feet, way.normalize()));
+        }
+        if let Some((at, steps)) = stuck
+            && steps > STUCK_STEPS
+        {
+            stuck_now.push((entity, at));
+        }
+    }
+    let walking_near = crate::ai::Near::new(walking.iter().map(|w| w.1));
+    let stuck_near = crate::ai::Near::new(stuck_now.iter().map(|s| s.1));
+    let everyone_near = crate::ai::Near::new(all.iter().map(|p| p.2));
+    let mut nearby: Vec<usize> = Vec::new();
+    for &(_, entity, ..) in &all {
+        let Ok((entity, at, mut this_tick, personality, walker, (is_player, held_to_talk), mut walk)) = people.get_mut(entity) else {
             continue;
         };
         let speed = crate::player::WALK_SPEED * personality.map_or(1.0, |p| p.0.personality.speed_mult());
@@ -619,28 +629,35 @@ pub fn walk(
                 let out = d.closed_center + d.across() * d.side_of(feet, door_at.translation.y) * STEP_OUT_OF_A_DOORWAY;
                 Some(crate::on_ground(out, door_at.translation.y))
             };
-            let out_of_a_walkers_way = || {
-                let (_, their_feet, way) = walking.iter().find(|(other, their_feet, way)| {
+            let out_of_a_walkers_way = |nearby: &mut Vec<usize>| {
+                walking_near.within(feet, IN_A_WALKERS_WAY, nearby);
+                let (_, their_feet, way) = nearby.iter().map(|&i| &walking[i]).find(|(other, their_feet, way)| {
                     let to_me = feet.ground() - their_feet.ground();
                     *other != entity && (their_feet.y - feet.y).abs() < 1.5 && to_me.length() < IN_A_WALKERS_WAY && to_me.dot(*way) > 0.0
                 })?;
                 let side = if (feet.ground() - their_feet.ground()).dot(way.perp()) >= 0.0 { 1.0 } else { -1.0 };
-                Some(vec![crate::on_ground(feet.ground() + way.perp() * side * STEP_ASIDE, feet.y)])
+                Some([Some(crate::on_ground(feet.ground() + way.perp() * side * STEP_ASIDE, feet.y)), None, None])
             };
             // A walker stuck right by them, whichever way: landmass gives
             // someone pressed against another no way to head, so their being
             // stuck is the sign; to either side of the line between them, or
             // straight away.
-            let out_of_a_stuck_walkers_way = || {
-                let (_, their_feet) = stuck_now
+            let out_of_a_stuck_walkers_way = |nearby: &mut Vec<usize>| {
+                stuck_near.within(feet, IN_A_WALKERS_WAY, nearby);
+                let (_, their_feet) = nearby
                     .iter()
+                    .map(|&i| &stuck_now[i])
                     .find(|(other, their_feet)| *other != entity && (their_feet.y - feet.y).abs() < 1.5 && their_feet.ground().distance(feet.ground()) < IN_A_WALKERS_WAY)?;
                 let away = (feet.ground() - their_feet.ground()).normalize_or_zero();
-                Some([away.perp(), -away.perp(), away].into_iter().map(|d| crate::on_ground(feet.ground() + d * STEP_ASIDE, feet.y)).collect())
+                Some([away.perp(), -away.perp(), away].map(|d| Some(crate::on_ground(feet.ground() + d * STEP_ASIDE, feet.y))))
             };
-            let candidates: Vec<Vec3> = out_of_a_doorway().map(|s| vec![s]).or_else(out_of_a_walkers_way).or_else(out_of_a_stuck_walkers_way)?;
+            // At most three spots to try, the first on the mesh taken.
+            let candidates: [Option<Vec3>; 3] = match out_of_a_doorway() {
+                Some(s) => [Some(s), None, None],
+                None => out_of_a_walkers_way(&mut nearby).or_else(|| out_of_a_stuck_walkers_way(&mut nearby))?,
+            };
             // A spot on the mesh where it is meant to be, not somewhere near.
-            candidates.into_iter().find_map(|c| archipelago.and_then(|a| on_mesh(a, c)).filter(|p| p.ground().distance(c.ground()) < 0.3))
+            candidates.into_iter().flatten().find_map(|c| archipelago.and_then(|a| on_mesh(a, c)).filter(|p| p.ground().distance(c.ground()) < 0.3))
         });
         let Some(to) = go else {
             // Not sent anywhere: walking by their own move (the keys) or
@@ -706,7 +723,8 @@ pub fn walk(
         if steps > STUCK_STEPS && walk.aside.is_none() {
             // Ahead is the way they head, or with none, the way to where they go.
             let dir = Vec2::new(v.x, v.z).try_normalize().unwrap_or_else(|| (to - feet).ground().normalize_or_zero());
-            let ahead = everyone.iter().find(|(other, their_feet)| {
+            everyone_near.within(feet, IN_A_WALKERS_WAY, &mut nearby);
+            let ahead = nearby.iter().map(|&i| (all[i].1, all[i].2)).find(|(other, their_feet)| {
                 let to_them = their_feet.ground() - feet.ground();
                 *other != entity && (their_feet.y - feet.y).abs() < 1.5 && to_them.length() < IN_A_WALKERS_WAY && to_them.dot(dir) > 0.0
             });
