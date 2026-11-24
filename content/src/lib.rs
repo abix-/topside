@@ -788,7 +788,7 @@ pub const SUBSTATION: modforge::plan::PlanDef = modforge::plan::PlanDef {
 pub const SUBSTATION_SWITCH: &str = "substation switch";
 pub const TRANSFORMER: &str = "transformer";
 /// The things of places that are switches.
-pub const PLACE_SWITCHES: [&str; 1] = [SUBSTATION_SWITCH];
+pub const PLACE_SWITCHES: [&str; 3] = [SUBSTATION_SWITCH, SEWAGE_PUMP, POND_VALVE];
 /// Place 11: the gas station, on main street: the shop with its shelves
 /// and counter, the garage bay with its bench, the office, the store and
 /// the restroom, with two pumps out front under the canopy.
@@ -822,12 +822,36 @@ pub const GAS_STATION: modforge::plan::PlanDef = modforge::plan::PlanDef {
     furniture_color: [0.5, 0.5, 0.52],
     height: 3.2,
 };
-pub const PLACES: [modforge::plan::PlanDef; 12] = [GROCERY_STORE, CROP_FARM, CROP_FARM, LIVESTOCK_BARN, GRAIN_ELEVATOR, DINER, PIZZA_PLACE, CAFE, BAR, PUMP_HOUSE, SUBSTATION, GAS_STATION];
+/// Place 12: the sewage pond's pump shed, at the edge of town, with the
+/// pond's lift pumps and the pond behind it.
+pub const SEWAGE_POND: modforge::plan::PlanDef = modforge::plan::PlanDef {
+    name: "sewage pond",
+    edge: true,
+    columns: &[5.0, 4.0],
+    rows: &[5.0],
+    rooms: &[((0, 0), "pump shed"), ((1, 0), "sewage tool room")],
+    ways: &[((0, 0), East, true)],
+    exits: &[((0, 0), South, 1.2), ((0, 0), North, 1.2)],
+    furniture: &[("pump shed", [-0.3, -0.2], [1.5, 1.2, 1.5]), ("sewage tool room", [0.0, -0.4], [3.0, 1.6, 0.5])],
+    things: &[(SEWAGE_PUMP, "pump shed", [0.2, 0.1]), (TOOLBOX, "sewage tool room", [0.0, 0.2])],
+    // The pond behind the shed: its valve at the edge. The pond itself
+    // is not water drawn on the ground (Claude's).
+    outside: &[(POND_VALVE, [0.0, -10.0])],
+    walls: &[[0.6, 0.62, 0.58]],
+    floor: [0.45, 0.45, 0.42],
+    furniture_color: [0.4, 0.42, 0.4],
+    height: 3.0,
+};
+pub const SEWAGE_PUMP: &str = "sewage pump";
+pub const POND_VALVE: &str = "pond valve";
+pub const PLACES: [modforge::plan::PlanDef; 13] = [GROCERY_STORE, CROP_FARM, CROP_FARM, LIVESTOCK_BARN, GRAIN_ELEVATOR, DINER, PIZZA_PLACE, CAFE, BAR, PUMP_HOUSE, SUBSTATION, GAS_STATION, SEWAGE_POND];
 /// The places whose garden beds are found sown and ripe, with what.
 pub const PLACE_SOWN: [(&str, &str); 1] = [("crop farm", POTATO_SEED)];
 /// What each place's boxes are found holding: the place, the box, the
 /// item and how many.
-pub const PLACE_HOLDS: [(&str, &str, &str, u32); 51] = [
+pub const PLACE_HOLDS: [(&str, &str, &str, u32); 53] = [
+    ("sewage pond", TOOLBOX, WRENCH, 1),
+    ("sewage pond", TOOLBOX, "pipe", 2),
     ("gas station", SHELF, "canned food", 3),
     ("gas station", SHELF, "water bottle", 3),
     ("gas station", CASH_REGISTER, "scrap", 2),
@@ -2697,6 +2721,8 @@ pub fn register_items(reg: &mut ItemRegistry) {
         building(FEED, "Animal feed.", ItemKind::Material, 20, None),
         building(BAKERY_CASE, "A bakery case.", ItemKind::Deployable, 1, Some(8)),
         building(SUBSTATION_SWITCH, "A substation switch.", ItemKind::Deployable, 1, None),
+        building(SEWAGE_PUMP, "The sewage lift pump.", ItemKind::Deployable, 1, None),
+        building(POND_VALVE, "The sewage pond's valve.", ItemKind::Deployable, 1, None),
         building(TRANSFORMER, "A transformer, its casing loose.", ItemKind::Deployable, 1, Some(6)),
         building(LIQUOR_SHELF,"The shelf behind the bar.", ItemKind::Deployable, 1, Some(8)),
         ItemDef {
