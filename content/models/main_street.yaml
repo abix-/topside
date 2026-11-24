@@ -1,0 +1,141 @@
+# The hardware store, the mechanic's garage and the general store and every
+# thing in them (todo Model 22, Model 23 and Model 24), built by
+# scripts/models.py.
+#
+# The furniture at the sizes content's plans give it, long side along x,
+# front to -y, as the clinic's. The store shelf, cash register, pallet,
+# office desk, garage workbench, toolbox, toilet, bed and dresser are the
+# grocery's and the house's. Sizes and colours are Claude's.
+
+colours:
+  hardware red: [0.68, 0.16, 0.12]
+  paint blue: [0.25, 0.4, 0.7]
+  bolt bin: [0.55, 0.57, 0.6]
+  lumber: [0.78, 0.65, 0.42]
+  tyre: [0.08, 0.08, 0.09]
+  oil: [0.15, 0.12, 0.08]
+  shop green: [0.25, 0.4, 0.28]
+  jar: [0.75, 0.6, 0.35]
+  laminate: [0.78, 0.76, 0.7]
+  dark wood: [0.3, 0.2, 0.12]
+
+models:
+  # The hardware store (Model 22).
+  hardware aisle:
+    about: a double-sided hardware aisle, 6 m long and 1.8 m tall, bins of bolts, boxed tools and tins of paint.
+    parent: stocked
+    params: {length: 6.0, depth: 0.8, levels: 4, top: 1.8, goods: [bolt bin, hardware red, paint blue, cardboard, yellow]}
+
+  hardware counter:
+    about: the hardware store's counter, 3.5 m long and 1 m tall, a red front, a key cutter and paint cans on top.
+    parent: counter run
+    params: {length: 3.5, depth: 0.7, height: 1.0, front: hardware red, top: wood}
+    parts:
+      - box: [0.35, 0.3, 0.25]
+        at: [-1.2, 0, 1.125]
+        colour: dark steel
+      - for: {i: range(3)}
+        parts:
+          - cylinder: [0.09, 0.2]
+            at: [0.6 + 0.22 * i, 0, 1.1]
+            colour: paint blue
+
+  lumber rack:
+    about: the lumber room's rack, 8 m long, 1 m deep and 1.2 m tall, steel arms holding stacks of boards.
+    parts:
+      - for: {i: range(5)}
+        parts:
+          - box: [0.08, 0.08, 1.2]
+            at: [-3.8 + 1.9 * i, 0.45, 0.6]
+            colour: dark steel
+          - for: {lv: range(3)}
+            parts:
+              - box: [0.06, 0.9, 0.05]
+                at: [-3.8 + 1.9 * i, 0, 0.2 + 0.4 * lv]
+                colour: dark steel
+      - for: {lv: range(3)}
+        parts:
+          - box: [7.9, 0.8, 0.18]
+            at: [0, -0.02, 0.315 + 0.4 * lv]
+            colour: lumber
+
+  # The mechanic's garage (Model 23).
+  tool wall:
+    about: a service bay's tool wall, 4 m long, a steel bench with a pegboard of tools over it, oil cans and a vice.
+    parts:
+      - box: [4.0, 0.7, 0.05]
+        at: [0, 0, 0.88]
+        colour: steel
+      - for: {x: [-1.95, 1.95], y: [-0.3, 0.3]}
+        parts:
+          - box: [0.06, 0.06, 0.86]
+            at: [x, y, 0.43]
+            colour: dark steel
+      - box: [4.0, 0.03, 0.9]
+        at: [0, 0.34, 1.45]
+        colour: cardboard
+      - for: {i: range(12)}
+        parts:
+          - box: [0.05, 0.02, 0.28]
+            at: [-1.8 + 0.33 * i, 0.31, 1.45 + 0.15 * (i % 2)]
+            colour: [hardware red, dark steel, yellow][i % 3]
+      - box: [0.25, 0.2, 0.18]
+        at: [1.6, -0.1, 0.995]
+        colour: dark steel
+      - for: {i: range(3)}
+        parts:
+          - cylinder: [0.08, 0.22]
+            at: [-1.6 + 0.2 * i, 0.15, 1.015]
+            colour: oil
+
+  parts shelves:
+    about: the parts room's steel shelves, 5 m long and 1.9 m tall, boxed parts, filters and belts.
+    parent: shelving
+    params: {length: 5.0, depth: 0.5, height: 1.9, goods: [cardboard, hardware red, white, oil], frame: dark steel}
+
+  tire stack:
+    about: the tire store's stacks of tires, over 4 m by 1.5 m, piled four high.
+    parts:
+      - for: {c: range(6), r: range(2), lv: range(4)}
+        parts:
+          - cylinder: [0.32, 0.22]
+            sides: 12
+            at: [-1.65 + 0.66 * c, -0.37 + 0.74 * r, 0.11 + 0.23 * lv]
+            colour: tyre
+
+  # The general store (Model 24).
+  general shelves:
+    about: a double-sided general store aisle, 5 m long and 1.6 m tall, a bit of everything on it: jars, sacks, boxes and tins.
+    parent: stocked
+    params: {length: 5.0, depth: 0.8, levels: 4, top: 1.6, goods: [jar, burlap, cardboard, shop green, red, white]}
+
+  general counter:
+    about: the general store's counter, 3.5 m long and 1 m tall, dark wood with jars of sweets on top.
+    parent: counter run
+    params: {length: 3.5, depth: 0.7, height: 1.0, front: dark wood, top: wood}
+    parts:
+      - for: {i: range(4)}
+        parts:
+          - cylinder: [0.08, 0.22]
+            at: [-1.3 + 0.2 * i, 0, 1.11]
+            colour: glass
+
+  back store shelves:
+    about: the back store's shelves, 7 m long and 1.9 m tall, sacks and crates of stock.
+    parent: shelving
+    params: {length: 7.0, depth: 0.5, height: 1.9, goods: [burlap, cardboard, wood, jar], frame: wood}
+
+  owner's table:
+    about: the owner's small table, 1 m by 0.6 m, laminate on steel legs, a mug on it.
+    parts:
+      - box: [1.0, 0.6, 0.04]
+        at: [0, 0, 0.73]
+        colour: laminate
+      - for: {x: [-0.46, 0.46], y: [-0.26, 0.26]}
+        parts:
+          - box: [0.04, 0.04, 0.71]
+            at: [x, y, 0.355]
+            colour: steel
+      - cylinder: [0.04, 0.1]
+        at: [0.2, 0.1, 0.8]
+        colour: white

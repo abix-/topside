@@ -786,11 +786,11 @@ places:
       - {from: [0, 0], side: south, width: 1.8}
       - {from: [0, 1], side: west, width: 3.0}
     furniture:
-      - {room: hardware floor, at: [-0.25, 0.0], size: [0.8, 1.8, 6.0]}
-      - {room: hardware floor, at: [0.1, 0.0], size: [0.8, 1.8, 6.0]}
-      - {room: hardware counter, at: [0.0, 0.1], size: [3.5, 1.0, 0.7]}
-      - {room: lumber room, at: [0.0, -0.4], size: [8.0, 1.2, 1.0]}
-      - {room: hardware office, at: [0.0, -0.3], size: [1.4, 0.75, 0.7]}
+      - {room: hardware floor, at: [-0.25, 0.0], size: [0.8, 1.8, 6.0], model: hardware aisle}
+      - {room: hardware floor, at: [0.1, 0.0], size: [0.8, 1.8, 6.0], model: hardware aisle}
+      - {room: hardware counter, at: [0.0, 0.1], size: [3.5, 1.0, 0.7], model: hardware counter}
+      - {room: lumber room, at: [0.0, -0.4], size: [8.0, 1.2, 1.0], model: lumber rack}
+      - {room: hardware office, at: [0.0, -0.3], size: [1.4, 0.75, 0.7], model: clerk's desk}
     things:
       - {thing: store shelf, room: hardware floor, at: [-0.08, 0.0]}
       - {thing: store shelf, room: hardware floor, at: [0.35, 0.0]}
@@ -825,12 +825,12 @@ places:
       - {from: [1, 0], side: south, width: 3.5}
       - {from: [2, 0], side: south, width: 1.2}
     furniture:
-      - {room: service bay, at: [0.0, -0.4], size: [4.0, 0.9, 0.7]}
-      - {room: second service bay, at: [0.0, -0.4], size: [4.0, 0.9, 0.7]}
-      - {room: garage office, at: [0.0, -0.2], size: [1.4, 0.75, 0.7]}
-      - {room: parts room, at: [0.0, -0.35], size: [5.0, 1.9, 0.5]}
-      - {room: tire store, at: [0.0, 0.0], size: [4.0, 1.0, 1.5]}
-      - {room: restroom, at: [0.3, -0.3], size: [0.4, 0.8, 0.65]}
+      - {room: service bay, at: [0.0, -0.4], size: [4.0, 0.9, 0.7], model: tool wall}
+      - {room: second service bay, at: [0.0, -0.4], size: [4.0, 0.9, 0.7], model: tool wall}
+      - {room: garage office, at: [0.0, -0.2], size: [1.4, 0.75, 0.7], model: clerk's desk}
+      - {room: parts room, at: [0.0, -0.35], size: [5.0, 1.9, 0.5], model: parts shelves}
+      - {room: tire store, at: [0.0, 0.0], size: [4.0, 1.0, 1.5], model: tire stack}
+      - {room: restroom, at: [0.3, -0.3], size: [0.4, 0.8, 0.65], model: toilet}
     things:
       - {thing: garage workbench, room: service bay, at: [0.3, -0.2]}
       - {thing: toolbox, room: second service bay, at: [0.3, -0.2]}
@@ -859,11 +859,11 @@ places:
       - {from: [0, 0], side: south, width: 1.8}
       - {from: [0, 1], side: west, width: 1.2}
     furniture:
-      - {room: store floor, at: [-0.2, 0.0], size: [0.8, 1.6, 5.0]}
-      - {room: store floor, at: [0.2, 0.0], size: [0.8, 1.6, 5.0]}
-      - {room: store counter, at: [0.0, 0.1], size: [3.5, 1.0, 0.7]}
-      - {room: back store, at: [0.0, -0.4], size: [7.0, 1.9, 0.5]}
-      - {room: owner's room, at: [0.3, -0.3], size: [1.0, 0.75, 0.6]}
+      - {room: store floor, at: [-0.2, 0.0], size: [0.8, 1.6, 5.0], model: general shelves}
+      - {room: store floor, at: [0.2, 0.0], size: [0.8, 1.6, 5.0], model: general shelves}
+      - {room: store counter, at: [0.0, 0.1], size: [3.5, 1.0, 0.7], model: general counter}
+      - {room: back store, at: [0.0, -0.4], size: [7.0, 1.9, 0.5], model: back store shelves}
+      - {room: owner's room, at: [0.3, -0.3], size: [1.0, 0.75, 0.6], model: owner's table}
     things:
       - {thing: store shelf, room: store floor, at: [0.0, 0.0]}
       - {thing: store shelf, room: store floor, at: [0.4, 0.0]}
