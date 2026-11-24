@@ -148,9 +148,20 @@ pub fn sicken(
             hit_actor(&hit, own, worn, &items.0, &layers.0, Default::default(), &mut health, persona.as_deref_mut(), None, tick.0);
         }
     }
+    if near.is_empty() {
+        return;
+    }
+    // The sick by where they stand: each well person looks only at those
+    // whose cells the sickness's reach covers.
+    let sick_at = crate::ai::Near::new(near.iter().copied());
+    let mut in_reach: Vec<usize> = Vec::new();
     for (entity, actor, at) in &well {
+        sick_at.within(at.translation, SICKNESS.reach, &mut in_reach);
+        if in_reach.is_empty() {
+            continue;
+        }
         let roll = modforge::roll::salted_index(tick.0 ^ u64::from(actor.0.0) << 32, 0x5_1C4, 10_001) as f32 / 10_000.0;
-        if near.iter().any(|p| modforge::sickness::catches(&SICKNESS, p.distance(at.translation), dt, roll)) {
+        if in_reach.iter().any(|&i| modforge::sickness::catches(&SICKNESS, near[i].distance(at.translation), dt, roll)) {
             commands.entity(entity).insert(Sick::default());
         }
     }
