@@ -84,8 +84,14 @@ pub fn answer_act_results(tick: Res<crate::SimTick>, registry: Res<crate::conten
 /// learned, forgotten (so a test sets up what someone needs and knows).
 pub fn answer_needs(mut people: Query<(&Actor, &mut Persona)>) {
     let needs: Vec<(u64, Option<f32>, Option<f32>)> = NEEDS_ASK.lock().map(|mut ask| ask.drain(..).collect()).unwrap_or_default();
-    for (id, hunger, thirst) in needs {
-        if let Some((_, mut person)) = people.iter_mut().find(|(a, ..)| a.0.0 == id) {
+    let forget: Vec<u64> = FORGET_ASK.lock().map(|mut ask| ask.drain(..).collect()).unwrap_or_default();
+    if needs.is_empty() && forget.is_empty() {
+        return;
+    }
+    // One pass over the people, each asked of in the order asked.
+    for (actor, mut person) in &mut people {
+        let id = actor.0.0;
+        for &(_, hunger, thirst) in needs.iter().filter(|(asked, ..)| *asked == id) {
             if let Some(h) = hunger {
                 person.0.needs.hunger = h;
             }
@@ -93,10 +99,7 @@ pub fn answer_needs(mut people: Query<(&Actor, &mut Persona)>) {
                 person.0.needs.thirst = t;
             }
         }
-    }
-    let forget: Vec<u64> = FORGET_ASK.lock().map(|mut ask| ask.drain(..).collect()).unwrap_or_default();
-    for id in forget {
-        if let Some((_, mut person)) = people.iter_mut().find(|(a, ..)| a.0.0 == id) {
+        if forget.contains(&id) {
             person.0.memory.known.clear();
             person.0.memory.learned = Default::default();
         }
@@ -491,18 +494,10 @@ pub fn answer_npc(
                 .map(|(thing, _, item, _)| format!("{:?} {}", thing.kind, item.map_or("", |i| i.stack.item.as_str())))
                 .collect();
             let water_in_reach = view.chunks.as_ref().and_then(|c| crate::interact::nearest_water(c, here, here));
-            let acting: Vec<String> = view
-                .this_tick
-                .iter()
-                .find(|(a, ..)| a.0.0 == id)
-                .map(|(_, t, _)| t.0.iter().map(|s| format!("{:?}", s.action)).collect())
-                .unwrap_or_default();
-            let commands_left: Option<Vec<String>> = view
-                .this_tick
-                .iter()
-                .find(|(a, ..)| a.0.0 == id)
-                .and_then(|(.., c)| c)
-                .map(|c| c.left.iter().map(|c| format!("{c:?}")).collect());
+            let theirs = view.this_tick.iter().find(|(a, ..)| a.0.0 == id);
+            let acting: Vec<String> = theirs.map(|(_, t, _)| t.0.iter().map(|s| format!("{:?}", s.action)).collect()).unwrap_or_default();
+            let commands_left: Option<Vec<String>> =
+                theirs.and_then(|(.., c)| c).map(|c| c.left.iter().map(|c| format!("{c:?}")).collect());
             let picture = chunk(walk.0.picture(here, '@'));
             json!({
                 "id": id,
@@ -1488,23 +1483,34 @@ pub fn publish_world(
         .collect();
     // Each member's feeling toward a faction: their feelings toward its
     // people taken together; none when they feel nothing toward any.
-    let names: std::collections::BTreeSet<&String> = faction_of.values().collect();
-    let mut factions: Vec<Json> = Vec::new();
-    for from in &names {
-        let members: Vec<Vec<(modforge::actor::ActorId, f32)>> = memories
-            .iter()
-            .filter(|(_, actor, _)| faction_of.get(&actor.0.0) == Some(*from))
-            .map(|(person, ..)| modforge::relationship::feelings(&person.0.memory, |w| episodes.felt(w)))
-            .collect();
-        for to in &names {
-            let toward = members.iter().map(|felt| {
-                let theirs: Vec<Option<f32>> = felt.iter().filter(|(who, _)| faction_of.get(&who.0) == Some(*to)).map(|(_, f)| Some(*f)).collect();
-                modforge::relationship::standing(theirs)
-            });
-            if let Some(standing) = modforge::relationship::standing(toward) {
-                factions.push(json!({"faction": from, "toward": to, "standing": standing, "relation": format!("{:?}", modforge::relationship::relation_of(standing))}));
+    // modforge `relationship::standing` in one pass over the people: each
+    // member's feeling toward a faction is the mean of their feelings
+    // toward its people; the faction's, the sum of its members' over how
+    // many members it has (one with none counting as 0).
+    let mut members: std::collections::BTreeMap<&String, u32> = std::collections::BTreeMap::new();
+    let mut summed: std::collections::BTreeMap<(&String, &String), f32> = std::collections::BTreeMap::new();
+    let mut theirs: std::collections::BTreeMap<&String, (f32, u32)> = std::collections::BTreeMap::new();
+    for (person, actor, _) in &memories {
+        let Some(from) = faction_of.get(&actor.0.0) else {
+            continue;
+        };
+        *members.entry(from).or_default() += 1;
+        theirs.clear();
+        for (who, felt) in modforge::relationship::feelings(&person.0.memory, |w| episodes.felt(w)) {
+            if let Some(to) = faction_of.get(&who.0) {
+                let (sum, n) = theirs.entry(to).or_default();
+                *sum += felt;
+                *n += 1;
             }
         }
+        for (to, (sum, n)) in &theirs {
+            *summed.entry((from, *to)).or_default() += sum / *n as f32;
+        }
+    }
+    let mut factions: Vec<Json> = Vec::new();
+    for ((from, to), sum) in summed {
+        let standing = sum / members.get(from).copied().unwrap_or(1) as f32;
+        factions.push(json!({"faction": from, "toward": to, "standing": standing, "relation": format!("{:?}", modforge::relationship::relation_of(standing))}));
     }
     let world = json!({
         "tick": tick.0,
@@ -1608,6 +1614,19 @@ pub fn publish(
         if due(tick.0)
             && let Ok(mut slot) = PLAYER.lock()
         {
+            // What they heard, heard knock, said and did, in one pass over
+            // their memory; the last ten acts' results.
+            let (mut heard, mut knocking, mut said, mut did) = (Vec::new(), Vec::new(), Vec::new(), Vec::new());
+            for (t, d) in &memory.done {
+                match d {
+                    modforge::memory::Did::Heard(by, line) => heard.push(json!({"tick": t, "by": by.0, "said": line.words, "line": line.name})),
+                    modforge::memory::Did::HeardKnocking(by) => knocking.push(json!({"tick": t, "by": by.0})),
+                    modforge::memory::Did::Talked(to, line) => said.push(json!({"tick": t, "to": to.0, "said": line.words, "line": line.name})),
+                    modforge::memory::Did::Done(_) | modforge::memory::Did::Failed(..) => did.push((*t, d)),
+                    _ => {}
+                }
+            }
+            let did: Vec<Json> = did.iter().rev().take(10).map(|(t, d)| json!({"tick": t, "did": d.words()})).collect();
             *slot = json!({
                 "id": actor.0.0,
                 "at": [at.translation.x, at.translation.z],
@@ -1626,23 +1645,14 @@ pub fn publish(
                 // Who killed them last, and of what, from their memory.
                 "killed_by": memory.killed_by().map(|(by, of)| json!({"by": by.map(|a| a.0), "of": of})),
                 "knows": memory.known.iter().map(|k| json!({"key": k.key, "kind": k.kind, "told_by": k.told_by.map(|a| a.0)})).collect::<Vec<_>>(),
-                "heard": memory.done.iter().filter_map(|(t, d)| match d {
-                    modforge::memory::Did::Heard(by, said) => Some(json!({"tick": t, "by": by.0, "said": said.words, "line": said.name})),
-                    _ => None,
-                }).collect::<Vec<_>>(),
+                "heard": heard,
                 // Who they heard knock on a door, and when.
-                "heard_knocking": memory.done.iter().filter_map(|(t, d)| match d {
-                    modforge::memory::Did::HeardKnocking(by) => Some(json!({"tick": t, "by": by.0})),
-                    _ => None,
-                }).collect::<Vec<_>>(),
-                "said": memory.done.iter().filter_map(|(t, d)| match d {
-                    modforge::memory::Did::Talked(to, said) => Some(json!({"tick": t, "to": to.0, "said": said.words, "line": said.name})),
-                    _ => None,
-                }).collect::<Vec<_>>(),
+                "heard_knocking": knocking,
+                "said": said,
                 // What their acts came to, done or failed and why, the last
                 // ten, as the npc op's "did" (todo: write every act's result
                 // into memory, 2026-11-19).
-                "did": memory.done.iter().filter(|(_, d)| matches!(d, modforge::memory::Did::Done(_) | modforge::memory::Did::Failed(..))).rev().take(10).map(|(t, d)| json!({"tick": t, "did": d.words()})).collect::<Vec<_>>(),
+                "did": did,
             });
         }
         HEALTH_BITS.store(health.0.current.to_bits(), Ordering::Relaxed);
