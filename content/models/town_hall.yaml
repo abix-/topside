@@ -1,0 +1,148 @@
+# The post office and town hall and every thing in it (todo Model 19),
+# built by scripts/models.py.
+#
+# The furniture at the sizes content's town hall plan gives it (the post
+# office's counter 4 m by 0.7 m and 1.1 m tall, the sorting room's table
+# of pigeonholes 5 m by 0.8 m, the clerk's desk 1.4 m by 0.7 m, the
+# council table 4 m by 1.5 m, the mayor's desk 1.6 m by 0.8 m), long side
+# along x, front to -y, as the clinic's. The cash register, office desk
+# and phone are the grocery's and the house's. Sizes and colours are
+# Claude's.
+
+colours:
+  post blue: [0.2, 0.3, 0.55]
+  oak: [0.5, 0.36, 0.22]
+  dark wood: [0.3, 0.2, 0.12]
+  letter: [0.92, 0.9, 0.82]
+  sack canvas: [0.6, 0.55, 0.42]
+  council green: [0.2, 0.38, 0.25]
+  file grey: [0.55, 0.56, 0.55]
+
+models:
+  post counter:
+    about: the post office's counter, 4 m long, blue front, a brass grille over the window and a scale on top.
+    parent: counter run
+    params: {length: 4.0, depth: 0.7, height: 1.1, front: post blue, top: oak}
+    parts:
+      - box: [1.2, 0.04, 0.6]
+        at: [-0.8, 0, 1.42]
+        colour: yellow
+      - box: [0.3, 0.3, 0.08]
+        at: [1.2, 0, 1.16]
+        colour: steel
+
+  sorting table:
+    about: the sorting room's table, 5 m long, a wall of wooden pigeonholes along its back, letters in them.
+    parts:
+      - box: [5.0, 0.8, 0.04]
+        at: [0, 0, 0.88]
+        colour: oak
+      - for: {x: [-2.45, 2.45], y: [-0.35, 0.35]}
+        parts:
+          - box: [0.05, 0.05, 0.86]
+            at: [x, y, 0.43]
+            colour: oak
+      - box: [5.0, 0.3, 0.9]
+        at: [0, 0.25, 1.35]
+        colour: oak
+      - for: {c: range(10), r: range(3)}
+        parts:
+          - box: [0.4, 0.01, 0.22]
+            at: [-2.25 + 0.5 * c, 0.095, 1.0 + 0.3 * r]
+            colour: [letter, white, sack canvas][(c + r) % 3]
+
+  clerk's desk:
+    about: the clerk's desk, 1.4 m wide, oak with drawers down one side and stacks of papers.
+    parts:
+      - box: [1.4, 0.7, 0.05]
+        at: [0, 0, 0.73]
+        colour: oak
+      - box: [0.4, 0.65, 0.7]
+        at: [0.48, 0, 0.35]
+        colour: oak
+      - box: [0.05, 0.65, 0.7]
+        at: [-0.67, 0, 0.35]
+        colour: oak
+      - for: {i: range(3)}
+        parts:
+          - box: [0.25, 0.32, 0.04]
+            at: [-0.4, 0.05, 0.775 + 0.04 * i]
+            colour: letter
+
+  council table:
+    about: the council's long table, 4 m by 1.5 m, oak on green, chairs down both sides.
+    parts:
+      - box: [4.0, 1.5, 0.05]
+        at: [0, 0, 0.73]
+        colour: oak
+      - box: [3.6, 1.1, 0.01]
+        at: [0, 0, 0.76]
+        colour: council green
+      - for: {x: [-1.8, 1.8], y: [-0.6, 0.6]}
+        parts:
+          - box: [0.08, 0.08, 0.7]
+            at: [x, y, 0.35]
+            colour: oak
+      - for: {i: range(5), s: [-1, 1]}
+        parts:
+          - box: [0.45, 0.45, 0.05]
+            at: [-1.6 + 0.8 * i, s * 0.95, 0.45]
+            colour: oak
+          - box: [0.45, 0.05, 0.5]
+            at: [-1.6 + 0.8 * i, s * 1.15, 0.72]
+            colour: oak
+
+  mayor's desk:
+    about: the mayor's desk, 1.6 m wide, dark oak with a leather top and a flag on a stand beside it.
+    parts:
+      - box: [1.6, 0.8, 0.06]
+        at: [0, 0, 0.73]
+        colour: dark wood
+      - box: [1.5, 0.05, 0.68]
+        at: [0, -0.35, 0.36]
+        colour: dark wood
+      - for: {x: [-0.75, 0.75]}
+        parts:
+          - box: [0.08, 0.75, 0.7]
+            at: [x, 0, 0.35]
+            colour: dark wood
+      - box: [1.0, 0.5, 0.01]
+        at: [0, 0.05, 0.765]
+        colour: council green
+      - cylinder: [0.02, 1.8]
+        at: [1.0, 0.3, 0.9]
+        colour: yellow
+      - box: [0.5, 0.01, 0.35]
+        at: [1.25, 0.3, 1.6]
+        colour: red
+
+  mail sack:
+    about: a full canvas mail sack, tied at the neck.
+    parts:
+      - box: [0.5, 0.4, 0.55]
+        at: [0, 0, 0.275]
+        colour: sack canvas
+      - box: [0.25, 0.2, 0.12]
+        at: [0, 0, 0.61]
+        colour: sack canvas
+      - box: [0.27, 0.22, 0.03]
+        at: [0, 0, 0.56]
+        colour: belt
+
+  records cabinet:
+    about: a grey four-drawer filing cabinet of the town's records, each drawer with its handle and label.
+    parts:
+      - box: [0.45, 0.6, 1.3]
+        at: [0, 0, 0.65]
+        colour: file grey
+      - for: {d: range(4)}
+        parts:
+          - box: [0.4, 0.01, 0.28]
+            at: [0, -0.305, 0.17 + 0.32 * d]
+            colour: steel
+          - box: [0.15, 0.02, 0.03]
+            at: [0, -0.32, 0.25 + 0.32 * d]
+            colour: dark steel
+          - box: [0.08, 0.015, 0.04]
+            at: [0, -0.315, 0.29 + 0.32 * d]
+            colour: letter

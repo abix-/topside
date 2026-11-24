@@ -677,11 +677,11 @@ places:
       - {from: [0, 0], side: south, width: 1.2}
       - {from: [1, 0], side: south, width: 1.8}
     furniture:
-      - {room: post office, at: [0.0, 0.0], size: [4.0, 1.1, 0.7]}
-      - {room: sorting room, at: [0.0, -0.3], size: [5.0, 0.9, 0.8]}
-      - {room: clerk's office, at: [0.0, -0.3], size: [1.4, 0.75, 0.7]}
-      - {room: council room, at: [0.0, 0.0], size: [4.0, 0.75, 1.5]}
-      - {room: mayor's office, at: [0.0, -0.2], size: [1.6, 0.75, 0.8]}
+      - {room: post office, at: [0.0, 0.0], size: [4.0, 1.1, 0.7], model: post counter}
+      - {room: sorting room, at: [0.0, -0.3], size: [5.0, 0.9, 0.8], model: sorting table}
+      - {room: clerk's office, at: [0.0, -0.3], size: [1.4, 0.75, 0.7], model: clerk's desk}
+      - {room: council room, at: [0.0, 0.0], size: [4.0, 0.75, 1.5], model: council table}
+      - {room: mayor's office, at: [0.0, -0.2], size: [1.6, 0.75, 0.8], model: mayor's desk}
     things:
       - {thing: cash register, room: post office, at: [0.3, 0.3]}
       - {thing: mail sack, room: sorting room, at: [0.0, 0.2]}
