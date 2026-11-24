@@ -174,8 +174,10 @@ pub fn redress(
     helds: Query<(), With<crate::held::Held>>,
     mut meshes: Query<&mut Visibility, With<Mesh3d>>,
 ) {
+    // The layers shown, the same buffer passed from one person to the next.
+    let mut shown = Vec::new();
     for (person, look, worn, mut drawn) in &mut people {
-        let mut shown = Vec::new();
+        shown.clear();
         for mesh in children.iter_descendants(person) {
             // What they hold hangs off their hand but is not their body.
             if parents.iter_ancestors(mesh).any(|a| helds.contains(a)) {
@@ -197,7 +199,7 @@ pub fn redress(
             }
         }
         if !shown.is_empty() {
-            drawn.layers = shown;
+            drawn.layers.clone_from(&shown);
         }
     }
 }
