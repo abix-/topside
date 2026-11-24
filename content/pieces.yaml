@@ -222,11 +222,20 @@ pieces:
     size: [4.0, 2.0]
     doors: [south, north, east, west]
 
+  # The stairs up: a flight along the west wall, front to back, long
+  # enough for a 3 m storey; the stairwell over it opens on the rooms
+  # upstairs through its back (Claude's).
+  - room: stairs
+    size: [3.0, 6.0]
+    doors: [south, north, east]
+    stair: true
+
 # What a house of each tier has (topside-town "Every place different":
 # "tier 3 means we're going to have 4 bedrooms and 2 baths and so on").
 # The first room is the front room. A house of a tier with no brief here
-# takes the highest one below it. All one floor until a place is laid
-# out over floors.
+# takes the highest one below it. A room `upstairs` is on the second
+# storey ("a tier 3 house, so that means it would be 2 stories"), over
+# the ground floor, reached by the stairs.
 briefs:
   - place: house
     tier: 1
@@ -264,17 +273,22 @@ briefs:
     height: 2.8
     people: [[wanderer, 6], [scavenger, 3], [raider, 1]]
     living: [0, 4]
-  # The operator's tier 3: 4 bedrooms and 2 baths.
+  # The operator's tier 3: 2 storeys, 4 bedrooms and 2 baths. Which rooms
+  # are upstairs is Claude's.
   - place: house
     tier: 3
     rooms:
       - {room: living room, count: [1, 1]}
       - {room: kitchen, count: [1, 1]}
       - {room: dining room, count: [1, 1]}
-      - {room: hall, count: [2, 3]}
-      - {room: bedroom, count: [4, 4]}
-      - {room: bathroom, count: [2, 2]}
+      - {room: stairs, count: [1, 1]}
+      - {room: hall, count: [1, 2]}
+      - {room: bedroom, count: [1, 1]}
+      - {room: bathroom, count: [1, 1]}
       - {room: laundry, count: [1, 1]}
+      - {room: hall, count: [1, 1], upstairs: true}
+      - {room: bedroom, count: [3, 3], upstairs: true}
+      - {room: bathroom, count: [1, 1], upstairs: true}
     entry: 1.2
     walls: *walls
     floor: [0.38, 0.30, 0.25]
