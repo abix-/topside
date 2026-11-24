@@ -7,7 +7,7 @@
 use avian3d::prelude::*;
 use bevy::prelude::*;
 
-use crate::actor::{Dead, Facing, Home, Hotbar, Inventory, Persona, SpawnActor, spawn_person};
+use crate::actor::{Dead, Facing, Hotbar, Inventory, Persona, SpawnActor, spawn_person};
 use crate::combat::{Equipment, Firing, Health, Protection, Rolling};
 use crate::content::ActorRegistryRes;
 use crate::input::{Action, ActionQueue, Actions, ThisTick};
@@ -98,7 +98,14 @@ pub fn spawn_player(mut spawn: SpawnActor, registry: Res<ActorRegistryRes>, worl
     spawn
         .commands
         .entity(person)
-        .insert((Player, crate::talk::LookingAt::default(), crate::hud::HintsDone::default()));
+        .insert((
+            Player,
+            crate::talk::LookingAt::default(),
+            crate::hud::HintsDone::default(),
+            // The player's bed, where they wake (topside-town "Death and
+            // the bed").
+            crate::actor::Beds(vec![at - Vec3::Y * BODY_CENTRE]),
+        ));
 }
 
 /// Every actor's roll this tick (combat.md "The roll"): Roll starts one
@@ -279,26 +286,28 @@ pub fn respawn(
     tick: Res<crate::SimTick>,
     mut dead: Query<
         (
-            (Entity, &ThisTick, &mut Transform, Option<&Home>, Option<&crate::actor::SpawnedAt>),
-            (&mut crate::actor::Persona, &mut Health, Has<crate::actor::Npc>),
+            (Entity, &ThisTick, &mut Transform, Option<&crate::actor::Beds>, Option<&crate::actor::SpawnedAt>),
+            (&mut crate::actor::Persona, &mut Health),
         ),
-        With<Dead>,
+        // Dead for good never comes back, the player too.
+        (With<Dead>, Without<crate::actor::Gone>),
     >,
 ) {
-    for ((entity, this_tick, mut transform, home, spawned), (mut person, mut health, npc)) in &mut dead {
+    for ((entity, this_tick, mut transform, beds, spawned), (mut person, mut health)) in &mut dead {
         if !this_tick.0.iter().any(|s| matches!(s.action, Action::Respawn)) {
             continue;
         }
         // What they come back with: modforge's rule.
         modforge::survival::respawn(&mut health.0, &mut person.0.needs);
         person.0.memory.did(modforge::memory::Did::Respawned, tick.0);
-        // Home if they have one; a topside person where they were spawned
-        // (they come back only where death does not stick); the player
-        // wakes in their bunker.
-        transform.translation = match (home, spawned) {
-            (Some(home), _) => home.0 + Vec3::Y * BODY_CENTRE,
-            (None, Some(spawned)) if npc => spawned.0 + Vec3::Y * BODY_CENTRE,
-            (None, _) => wake_point(&world),
+        // In their bed (topside-town "Death and the bed", modforge
+        // `bed::wake_in`); with none, where they were spawned (they come
+        // back only where death does not stick).
+        let bed = beds.and_then(|b| modforge::bed::wake_in(&b.0));
+        transform.translation = match (bed, spawned) {
+            (Some(bed), _) => bed + Vec3::Y * BODY_CENTRE,
+            (None, Some(spawned)) => spawned.0 + Vec3::Y * BODY_CENTRE,
+            (None, None) => wake_point(&world),
         };
         commands
             .entity(entity)

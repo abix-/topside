@@ -16,7 +16,7 @@ use modforge::memory::Did;
 use modforge::actor::ActorId;
 use modforge::item::numbers_of;
 
-use crate::actor::{Actor, ActorMapRes, Dead, Facing, Home, Hotbar, Inventory, Persona};
+use crate::actor::{Actor, ActorMapRes, Dead, Facing, Hotbar, Inventory, Persona};
 use crate::{Ground, on_ground};
 use crate::content::{DamageRegistryRes, ItemRegistryRes, LayerRegistryRes};
 use crate::input::{Action, ActionQueue, ThisTick};
@@ -716,11 +716,12 @@ pub fn fly(
 /// (design.md "Death and difficulty": everyone is equal): everything it
 /// carried (inventory, hotbar, worn gear) goes into one storage box
 /// where it fell (modforge's `loot_all`, a box through `spawn_item`).
-/// Someone with a home to wake in (the player, the bunker people) is
-/// then dead until they respawn there with nothing; so is a topside
-/// person where death does not stick (realities.md, Loop), to wake where
-/// they were spawned. Any other topside person leaves the actor map (its
-/// id never returns) and the world.
+/// Someone with a bed (topside-town "Death and the bed": the player, the
+/// bunker people, the townspeople) is then dead until they respawn in it
+/// with nothing; so is a topside person where death does not stick
+/// (realities.md, Loop), to wake where they were spawned. Anyone else,
+/// the player too, leaves the actor map (its id never returns) and the
+/// world.
 pub fn die(
     mut commands: Commands,
     items: Res<ItemRegistryRes>,
@@ -733,7 +734,7 @@ pub fn die(
             Entity,
             &mut Health,
             &Transform,
-            (Has<Player>, Has<Home>),
+            Option<&crate::actor::Beds>,
             Option<&Actor>,
             Option<&mut Firing>,
             Option<&mut Inventory>,
@@ -775,8 +776,10 @@ pub fn die(
                 commands.entity(dropped).insert(Container(contents));
             }
         }
-        let (is_player, has_home) = wakes;
-        if is_player || has_home || !reality.0.death_sticks {
+        // A bed to wake in, the player's rule as everyone's (topside-town
+        // "Death and the bed"; modforge `bed::wake_in`).
+        let has_bed = modforge::bed::wake_in(wakes.map_or(&[][..], |b| &b.0)).is_some();
+        if has_bed || !reality.0.death_sticks {
             // The death message and the choice to respawn (design.md
             // "Death and difficulty"); the world keeps running meanwhile.
             health.0.current = health.0.max;

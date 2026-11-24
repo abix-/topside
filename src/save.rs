@@ -84,6 +84,7 @@ saved! {
         crate::actor::Traits,
         crate::actor::Map,
         crate::actor::Home,
+        crate::actor::Beds,
         crate::actor::Asked,
         crate::actor::SpawnedAt,
         crate::actor::Store,

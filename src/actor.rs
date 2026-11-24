@@ -189,6 +189,13 @@ pub struct Map {
 #[reflect(opaque, Component, Serialize, Deserialize)]
 pub struct Home(pub Vec3);
 
+/// The beds this person has (topside-town "Death and the bed"): where
+/// their feet stand when they wake in each. With one they come back after
+/// dying, in it (modforge `bed::wake_in`); with none, dead for good.
+#[derive(Component, Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize, Reflect)]
+#[reflect(opaque, Component, Serialize, Deserialize)]
+pub struct Beds(pub Vec<Vec3>);
+
 /// A place this person was asked to go to and wait at (an episode's
 /// errand, episodes.md), its height included; the brain weighs it like
 /// any other choice.
@@ -510,6 +517,11 @@ pub fn populate_topside_people(
         let Some(npc) = settle(&mut spawn, def, on_ground(at, 0.0), &known) else {
             continue;
         };
+        // Someone living in the town has a bed in their house, where they
+        // stand; everyone else topside has none.
+        if in_town {
+            spawn.commands.entity(npc).insert(Beds(vec![on_ground(at, 0.0)]));
+        }
         // A pack leader brings friends of its kind, standing beside it.
         let leads = def.faction.as_deref() == Some(crate::content::TOPSIDE_HOSTILES)
             && spawn.actors.0.id_of(npc).is_some_and(|id| modforge::actor::HostileTraits::roll(id, spawn.seed.0).pack_leader);
@@ -608,7 +620,8 @@ pub fn populate_bunkers(
                 // They know one thing: this bunker is home (life.md
                 // "Learning to stay alive"). The store is theirs, but
                 // found, not known.
-                spawn.commands.entity(npc).insert(Home(stand));
+                // Their bed is where they live.
+                spawn.commands.entity(npc).insert((Home(stand), Beds(vec![stand])));
                 if let Some(store) = store {
                     spawn.commands.entity(npc).insert(Store(store));
                 }
