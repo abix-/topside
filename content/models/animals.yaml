@@ -1,0 +1,67 @@
+# The wild animals, built by scripts/models.py, each exported as its own
+# body (`person <name>`) with the three animations a person has
+# (src/people.rs): standing, walking, and the bite as its swing. A model
+# with a `rig` has bones (each from its head to its tail, on its parent);
+# a part with a `bone` moves with that bone. Each animation is its frames,
+# each frame the bones turned (degrees about x) and moved forward (metres);
+# a bone a frame leaves out stands still in it.
+
+colours:
+  fur: [0.45, 0.43, 0.4]
+  snout: [0.2, 0.19, 0.18]
+
+models:
+  wolf:
+    about: a grey wolf (todo 13w) of boxes on a rig of a back, a head and four legs, facing -y as the people do; its sizes and colours are Claude's.
+    rig:
+      back: {head: [0, 0.35, 0.55], tail: [0, -0.35, 0.55]}
+      head: {head: [0, -0.4, 0.62], tail: [0, -0.7, 0.62], parent: back}
+      leg_fl: {head: [0.11, -0.28, 0.48], tail: [0.11, -0.28, 0.02], parent: back}
+      leg_fr: {head: [-0.11, -0.28, 0.48], tail: [-0.11, -0.28, 0.02], parent: back}
+      leg_bl: {head: [0.11, 0.28, 0.48], tail: [0.11, 0.28, 0.02], parent: back}
+      leg_br: {head: [-0.11, 0.28, 0.48], tail: [-0.11, 0.28, 0.02], parent: back}
+    parts:
+      - box: [0.26, 0.8, 0.28]
+        at: [0, 0, 0.55]
+        bone: back
+        colour: fur
+      - box: [0.07, 0.35, 0.07]
+        at: [0, 0.55, 0.58]
+        rotation: [0.5 * 180 / pi, 0, 0]
+        bone: back
+        colour: fur
+      - box: [0.2, 0.22, 0.2]
+        at: [0, -0.5, 0.66]
+        bone: head
+        colour: fur
+      - box: [0.1, 0.16, 0.09]
+        at: [0, -0.68, 0.61]
+        bone: head
+        colour: snout
+      - for: {x: [0.06, -0.06]}
+        parts:
+          - box: [0.05, 0.03, 0.08]
+            at: [x, -0.46, 0.8]
+            bone: head
+            colour: fur
+      - for: {leg: "[('leg_fl', 0.11, -0.28), ('leg_fr', -0.11, -0.28), ('leg_bl', 0.11, 0.28), ('leg_br', -0.11, 0.28)]"}
+        parts:
+          - box: [0.08, 0.08, 0.46]
+            at: ["leg[1]", "leg[2]", 0.25]
+            bone: leg[0]
+            colour: fur
+    params: {stride: 28.0}
+    animations:
+      Idle_Loop:
+        1: {}
+        25: {head: [-6.0, 0.0]}
+        49: {}
+      Walk_Loop:
+        1: {leg_fl: [stride, 0.0], leg_br: [stride, 0.0], leg_fr: [-stride, 0.0], leg_bl: [-stride, 0.0]}
+        13: {leg_fl: [-stride, 0.0], leg_br: [-stride, 0.0], leg_fr: [stride, 0.0], leg_bl: [stride, 0.0]}
+        25: {leg_fl: [stride, 0.0], leg_br: [stride, 0.0], leg_fr: [-stride, 0.0], leg_bl: [-stride, 0.0]}
+      Sword_Attack:
+        1: {}
+        8: {head: [15.0, 0.0], back: [0.0, -0.05]}
+        12: {head: [-20.0, 0.0], back: [0.0, 0.2]}
+        20: {}
