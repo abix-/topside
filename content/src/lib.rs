@@ -434,6 +434,67 @@ pub const CROPS: [modforge::grow::CropDef; 2] = [
     modforge::grow::CropDef { seed: CARROT_SEED, food: CARROT, days: 2.0, gives: 4, seeds_back: 2 },
     modforge::grow::CropDef { seed: POTATO_SEED, food: POTATO, days: 3.0, gives: 5, seeds_back: 2 },
 ];
+/// The town's places (topside-town "What the town has"), each a real
+/// building built by modforge plan.rs from its plan, on a lot of its
+/// part, in this order. Each thing a place holds is a box found holding
+/// `PLACE_HOLDS`, unless it is a station (`PLACE_STATIONS`). Every plan,
+/// room size and stock is Claude's.
+pub const SHELF: &str = "store shelf";
+pub const CASH_REGISTER: &str = "cash register";
+pub const PALLET: &str = "pallet";
+pub const WALK_IN_COOLER: &str = "walk-in cooler";
+pub const OFFICE_DESK: &str = "office desk";
+use modforge::structure::Side::{East, North, South};
+const SHOP_WALLS: [modforge::structure::Rgb; 3] = [[0.75, 0.72, 0.62], [0.62, 0.66, 0.7], [0.7, 0.6, 0.52]];
+/// Place 1: the grocery store: the sales floor with its aisles, the
+/// checkout at the front door, the office, the stockroom with the loading
+/// door at the back, the walk-in cooler and the restroom.
+pub const GROCERY_STORE: modforge::plan::PlanDef = modforge::plan::PlanDef {
+    name: "grocery store",
+    edge: false,
+    columns: &[12.0, 6.0, 4.0],
+    rows: &[10.0, 6.0],
+    rooms: &[((0, 0), "sales floor"), ((1, 0), "checkout"), ((2, 0), "office"), ((0, 1), "stockroom"), ((1, 1), "cooler"), ((2, 1), "restroom")],
+    ways: &[((0, 0), East, false), ((1, 0), East, true), ((0, 0), North, true), ((0, 1), East, true), ((2, 0), North, true)],
+    exits: &[((1, 0), South, 2.4), ((0, 1), North, 3.0)],
+    furniture: &[
+        ("sales floor", [-0.3, 0.0], [0.8, 1.6, 7.0]),
+        ("sales floor", [0.0, 0.0], [0.8, 1.6, 7.0]),
+        ("sales floor", [0.3, 0.0], [0.8, 1.6, 7.0]),
+        ("checkout", [0.0, 0.1], [3.0, 1.0, 0.8]),
+        ("office", [0.0, -0.3], [1.4, 0.75, 0.7]),
+        ("stockroom", [0.0, -0.4], [9.0, 2.0, 0.8]),
+        ("restroom", [0.3, -0.3], [0.4, 0.8, 0.65]),
+    ],
+    things: &[
+        (SHELF, "sales floor", [-0.15, 0.0]),
+        (SHELF, "sales floor", [0.15, 0.0]),
+        (SHELF, "sales floor", [0.45, 0.0]),
+        (CASH_REGISTER, "checkout", [0.0, 0.3]),
+        (OFFICE_DESK, "office", [0.0, 0.0]),
+        (PALLET, "stockroom", [0.0, 0.2]),
+        (WALK_IN_COOLER, "cooler", [0.0, 0.0]),
+    ],
+    walls: &SHOP_WALLS,
+    floor: [0.8, 0.8, 0.78],
+    furniture_color: [0.55, 0.55, 0.58],
+    height: 3.6,
+};
+pub const PLACES: [modforge::plan::PlanDef; 1] = [GROCERY_STORE];
+/// What each place's boxes are found holding: the place, the box, the
+/// item and how many.
+pub const PLACE_HOLDS: [(&str, &str, &str, u32); 8] = [
+    ("grocery store", SHELF, "canned food", 6),
+    ("grocery store", SHELF, "water bottle", 4),
+    ("grocery store", SHELF, SOAP, 2),
+    ("grocery store", CASH_REGISTER, "scrap", 2),
+    ("grocery store", OFFICE_DESK, "cloth", 1),
+    ("grocery store", PALLET, "canned food", 12),
+    ("grocery store", WALK_IN_COOLER, RAW_MEAT, 6),
+    ("grocery store", PALLET, CARROT_SEED, 4),
+];
+/// The things of places that are crafting stations, not boxes.
+pub const PLACE_STATIONS: [(&str, modforge::crafting::StationKind); 0] = [];
 pub const TRASH_CAN: &str = "trash can";
 pub const DUMP_PILE: &str = "dump pile";
 pub const DUMP_PILES: usize = 4;
@@ -1435,6 +1496,7 @@ pub fn small_town_def() -> TownDef {
         // topside people who belong to no side, until the town has its
         // own kind. The 1 to 4 and the kind are Claude's.
         residents: ("wanderer".to_string(), (1, 4)),
+        places: PLACES.to_vec(),
     }
 }
 
@@ -2230,7 +2292,12 @@ pub fn register_items(reg: &mut ItemRegistry) {
             food: Some(FoodStats { hunger: 20.0, thirst: 0.0, health: 2.0 }),
             ..building(POTATO, "A potato, from a garden.", ItemKind::Food, 20, None)
         },
-        building(TRASH_CAN,"A trash can. The truck takes what is in it to the dump.", ItemKind::Deployable, 1, Some(6)),
+        building(SHELF, "A store shelf.", ItemKind::Deployable, 1, Some(12)),
+        building(CASH_REGISTER, "A cash register.", ItemKind::Deployable, 1, Some(4)),
+        building(PALLET, "A pallet of stock.", ItemKind::Deployable, 1, Some(16)),
+        building(WALK_IN_COOLER, "A walk-in cooler.", ItemKind::Deployable, 1, Some(16)),
+        building(OFFICE_DESK, "An office desk.", ItemKind::Deployable, 1, Some(6)),
+        building(TRASH_CAN, "A trash can. The truck takes what is in it to the dump.", ItemKind::Deployable, 1, Some(6)),
         building(DUMP_PILE, "A pile of the town's junk.", ItemKind::Deployable, 1, Some(24)),
         building(EXTINGUISHER, "A fire extinguisher. Puts out the fires near.", ItemKind::Tool, 1, None),
         building(SMOKE_DETECTOR, "A smoke detector. It sounds at a fire.", ItemKind::Deployable, 1, None),

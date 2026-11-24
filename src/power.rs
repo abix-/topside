@@ -279,6 +279,24 @@ pub fn populate_town_power(
             commands.entity(made).insert(Container(held));
         }
     }
+    // Every place's things (topside-town "What the town has"): a station,
+    // or a box found holding its stock.
+    for (place, thing, at) in town.place_things() {
+        if let Some(&(_, station)) = crate::content::PLACE_STATIONS.iter().find(|(n, _)| *n == thing) {
+            make(&mut commands, thing, at, Some(InteractKind::Station(station)));
+            continue;
+        }
+        let Some(made) = make(&mut commands, thing, at, Some(InteractKind::Container)) else {
+            continue;
+        };
+        let mut held = modforge::item::Inventory::new(items.0.def(thing).and_then(|d| d.storage).unwrap_or(0));
+        for &(_, _, item, count) in crate::content::PLACE_HOLDS.iter().filter(|(p, t, ..)| *p == place && *t == thing) {
+            if let Some(def) = items.0.def(item) {
+                let _ = held.add(modforge::item::create(def, count, &[], 0.0, 0), def.max_stack);
+            }
+        }
+        commands.entity(made).insert(Container(held));
+    }
     // The dump's piles, on the last lot that is not a house until Place
     // 13 builds the dump, found holding junk (Works 17).
     if let Some(lot) = town.lots.iter().rev().find(|l| !l.house) {
