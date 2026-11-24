@@ -1351,10 +1351,11 @@ pub fn publish_world(
     reality: Res<crate::Reality>,
     episode: Res<crate::Episode>,
     below: Query<(&Transform, &crate::structure::Below)>,
-    (doors, things, bunker_people): (
+    (doors, things, bunker_people, sources): (
         Query<(&crate::interact::Door, &Transform)>,
         Query<(&crate::interact::Interactable, Option<&crate::interact::WorldItem>, &Transform), Without<crate::interact::Door>>,
         Query<(&Transform, Option<&Name>, Has<Player>), With<Actor>>,
+        Query<(&crate::interact::WorldItem, &Transform), With<crate::interact::Source>>,
     ),
     edge: Res<crate::edge::EdgeRes>,
 ) {
@@ -1577,10 +1578,9 @@ pub fn publish_world(
         "things": episode.things.iter().map(|(name, at, key)| json!({"name": name, "at": [at.x, at.z], "height": at.y, "key": key})).collect::<Vec<_>>(),
         // Every well and berry bush lying in the world (an item of kind
         // Source), and where: what a test has someone use.
-        "sources": things
+        "sources": sources
             .iter()
-            .filter(|(i, w, _)| i.kind == modforge::hud::InteractKind::Source && w.is_some())
-            .map(|(_, w, t)| json!({"name": w.map(|w| w.stack.item.clone()), "at": [t.translation.x, t.translation.z], "height": t.translation.y}))
+            .map(|(w, t)| json!({"name": w.stack.item, "at": [t.translation.x, t.translation.z], "height": t.translation.y}))
             .collect::<Vec<_>>(),
         // Each pivot point reached: who and when.
         "reached": episode.reached.iter().map(|(pivot, who, at)| json!({"pivot": pivot, "by": who.0, "tick": at})).collect::<Vec<_>>(),
