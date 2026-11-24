@@ -81,12 +81,14 @@ pub fn newcomers(
     let count = modforge::edge::group_size(seed.0 ^ tick.0 ^ word.key);
     let place = Vec3::new(word.place.0, word.place.1, word.place.2);
     info!("newcomers: {count} at the edge {:?}, for the place {place}", word.edge);
+    // The place's kind, shared by the group, not copied for each.
+    let kind: std::sync::Arc<str> = word.kind.as_str().into();
     for i in 0..count {
         // Side by side, a step apart.
         let at = crate::on_ground(Vec2::new(word.edge.0, word.edge.1) + Vec2::new(i as f32 * 1.5, 0.0), 0.0);
         if let Some(person) = spawn_actor(&mut spawn, def, at, None) {
             // They know the place they heard of, and go to it.
-            let (key, kind, now) = (word.key, word.kind.clone(), tick.0);
+            let (key, kind, now) = (word.key, std::sync::Arc::clone(&kind), tick.0);
             spawn.commands.entity(person).insert((Asked(place), CameFor(key))).queue(move |mut e: EntityWorldMut| {
                 if let Some(mut person) = e.get_mut::<crate::actor::Persona>() {
                     person.0.memory.see(key, &kind, place, now);
