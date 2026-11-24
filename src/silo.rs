@@ -55,7 +55,7 @@ pub fn dig(
             continue;
         }
         let (item, n) = dig_cost(silo.0);
-        if crate::research::pay(&mut inventory.0, &[(item.to_string(), n)]) {
+        if crate::research::pay(&mut inventory.0, &[(item, n)]) {
             silo.0 += 1;
             info!("dug the silo to {} levels", silo.0);
         }

@@ -59,18 +59,18 @@ pub fn rows<'a>(kind: StationKind, recipes: &'a RecipeRegistry, tree: &'a TechTr
 }
 
 /// Whether the inventory holds a cost.
-pub fn affords(inventory: &modforge::item::Inventory, cost: &[(String, u32)]) -> bool {
-    cost.iter().all(|(item, n)| inventory.count_of(item) >= *n)
+pub fn affords(inventory: &modforge::item::Inventory, cost: &[(impl AsRef<str>, u32)]) -> bool {
+    cost.iter().all(|(item, n)| inventory.count_of(item.as_ref()) >= *n)
 }
 
 /// Pay a cost from the inventory, only if it is all there.
-pub fn pay(inventory: &mut modforge::item::Inventory, cost: &[(String, u32)]) -> bool {
+pub fn pay(inventory: &mut modforge::item::Inventory, cost: &[(impl AsRef<str>, u32)]) -> bool {
     if !affords(inventory, cost) {
         return false;
     }
     for (item, n) in cost {
         for _ in 0..*n {
-            inventory.take_one(item);
+            inventory.take_one(item.as_ref());
         }
     }
     true

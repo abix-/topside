@@ -141,7 +141,7 @@ pub fn drive(
             }
             // Fixed with scrap in hand and a wrench carried (Works 11).
             Some(item) if item == CAR_REPAIR.0 && vehicle.broken => {
-                if inventory.0.count_of(crate::content::WRENCH) > 0 && crate::research::pay(&mut inventory.0, &[(CAR_REPAIR.0.to_string(), CAR_REPAIR.1)]) {
+                if inventory.0.count_of(crate::content::WRENCH) > 0 && crate::research::pay(&mut inventory.0, &[CAR_REPAIR]) {
                     vehicle.broken = false;
                 }
             }

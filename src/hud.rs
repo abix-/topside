@@ -3,6 +3,8 @@
 //! move; this only draws and forwards): the hotbar always shown, the
 //! inventory panel with an open box beside it, the note panel.
 
+use std::fmt::Write as _;
+
 use bevy::prelude::*;
 use modforge::hud::{
     Holder, Holders, HudState, OpenPanel, SlotRef, drop_from, end_drag, hotbar_key, select_slot, set_split,
@@ -111,6 +113,9 @@ pub struct SlotIcons {
     pub item: Option<String>,
     pub shown: Vec<String>,
     nodes: Vec<Entity>,
+    /// The stack the slot was last drawn with (None: not drawn yet), so
+    /// a slot whose stack did not change is not drawn again.
+    drawn: Option<Option<modforge::item::ItemStack>>,
 }
 
 /// The icons a stack shows: its item's picture and each layer's on it
@@ -325,6 +330,9 @@ pub struct InventoryScreen;
 #[derive(Component, Default)]
 pub struct ItemPanel {
     pub shown: Option<Shown>,
+    /// What `shown` was made from: the slot, its stack and the splitting
+    /// bar's amount; the same again is not made again.
+    from: Option<(SlotRef, modforge::item::ItemStack, Option<u32>)>,
 }
 
 /// What the item information panel shows.
@@ -775,44 +783,44 @@ pub fn render(
     };
     let inventory_open = hud.0.open_panel == OpenPanel::Inventory;
     if let Ok(mut v) = screen.single_mut() {
-        *v = if inventory_open { Visibility::Visible } else { Visibility::Hidden };
+        v.set_if_neq(if inventory_open { Visibility::Visible } else { Visibility::Hidden });
     }
     for (panel, mut v) in &mut panels {
         if panel.0 == Holder::Container {
-            *v = if container.is_some() { Visibility::Inherited } else { Visibility::Hidden };
+            v.set_if_neq(if container.is_some() { Visibility::Inherited } else { Visibility::Hidden });
         }
     }
     for (entity, slot, mut icons, children, mut color, mut visibility) in &mut slots {
         if slot.0.holder == Holder::Container {
             let exists = container.is_some_and(|c| slot.0.index < c.0.slots.len());
-            *visibility = if exists { Visibility::Inherited } else { Visibility::Hidden };
+            visibility.set_if_neq(if exists { Visibility::Inherited } else { Visibility::Hidden });
         }
         if slot.0.holder == Holder::Theirs {
             let exists = theirs.is_some_and(|i| slot.0.index < i.0.slots.len());
-            *visibility = if exists { Visibility::Inherited } else { Visibility::Hidden };
+            visibility.set_if_neq(if exists { Visibility::Inherited } else { Visibility::Hidden });
         }
         let stack = stack_at(slot.0, inventory, hotbar, worn, container, theirs);
-        let item = stack.map(|s| s.item.clone());
-        if icons.item != item {
-            icons.item = item;
-        }
-        let wanted = stack.map(|s| icons_of(s, &items.0, &layers.0)).unwrap_or_default();
-        show_icons(&mut commands, &assets, entity, &mut icons, wanted);
-        // With an icon, only the count is written; without, the name too.
-        let label = match stack {
-            Some(s) if !icons.shown.is_empty() => if s.count > 1 { format!("x{}", s.count) } else { String::new() },
-            _ => slot_label(stack),
-        };
-        let label = if slot.0.holder == Holder::Hotbar {
-            format!("{}\n{}", slot.0.index + 1, label)
-        } else {
-            label
-        };
-        if let Some(mut text) = children.first().and_then(|c| texts.get_mut(*c).ok()) {
-            text.0 = label;
+        // Its icons and label only when its stack changed: written text is
+        // laid out again.
+        if icons.drawn.as_ref().is_none_or(|drawn| drawn.as_ref() != stack)
+            && let Some(mut text) = children.first().and_then(|c| texts.get_mut(*c).ok())
+        {
+            icons.drawn = Some(stack.cloned());
+            icons.item = stack.map(|s| s.item.clone());
+            let wanted = stack.map(|s| icons_of(s, &items.0, &layers.0)).unwrap_or_default();
+            show_icons(&mut commands, &assets, entity, &mut icons, wanted);
+            // With an icon, only the count is written; without, the name
+            // too; a hotbar slot's number over it.
+            let number = (slot.0.holder == Holder::Hotbar).then_some(slot.0.index + 1);
+            text.0 = match (stack, number) {
+                (Some(s), Some(n)) if !icons.shown.is_empty() => if s.count > 1 { format!("{n}\nx{}", s.count) } else { format!("{n}\n") },
+                (Some(s), None) if !icons.shown.is_empty() => if s.count > 1 { format!("x{}", s.count) } else { String::new() },
+                (_, Some(n)) => format!("{n}\n{}", slot_label(stack)),
+                (_, None) => slot_label(stack),
+            };
         }
         let held = slot.0.holder == Holder::Hotbar && hotbar.0.held == Some(slot.0.index);
-        color.0 = if hovered.0 == Some(slot.0) || hud.0.selected == Some(slot.0) {
+        color.set_if_neq(BackgroundColor(if hovered.0 == Some(slot.0) || hud.0.selected == Some(slot.0) {
             HOVER_COLOR
         } else if on_table(slot.0) {
             OFFER_COLOR
@@ -820,15 +828,21 @@ pub fn render(
             HELD_COLOR
         } else {
             SLOT_COLOR
-        };
+        }));
     }
     if let Ok((mut text, mut visibility)) = note.single_mut() {
         match (&hud.0.open_panel, &hud.0.reading) {
             (OpenPanel::Note, Some(n)) => {
-                text.0 = format!("{}\n\n  {}", n.text, n.signed);
-                *visibility = Visibility::Visible;
+                // Written once for the note read, not every frame.
+                let written = text.0.len() == n.text.len() + 4 + n.signed.len() && text.0.starts_with(n.text.as_str()) && text.0.ends_with(n.signed.as_str());
+                if !written {
+                    text.0 = format!("{}\n\n  {}", n.text, n.signed);
+                }
+                visibility.set_if_neq(Visibility::Visible);
             }
-            _ => *visibility = Visibility::Hidden,
+            _ => {
+                visibility.set_if_neq(Visibility::Hidden);
+            }
         }
     }
 }
@@ -853,8 +867,17 @@ pub fn render_item_panel(
         return;
     };
     let container = open.0.and_then(|e| containers.get(e).ok());
-    let shown = hud.0.selected.and_then(|slot| {
-        let stack = stack_at(slot, inventory, hotbar, worn, container, None)?;
+    let selected = hud.0.selected.and_then(|slot| Some((slot, stack_at(slot, inventory, hotbar, worn, container, None)?)));
+    // The same slot, stack and split as last made: nothing to make again.
+    if panel.shown.is_some()
+        && let (Some((slot, stack)), Some((was_slot, was_stack, was_split))) = (selected, panel.from.as_ref())
+        && slot == *was_slot
+        && stack == was_stack
+        && hud.0.split == *was_split
+    {
+        return;
+    }
+    let shown = selected.and_then(|(slot, stack)| {
         let def = items.0.def(&stack.item)?;
         Some((
             Shown {
@@ -872,8 +895,10 @@ pub fn render_item_panel(
     let Some((shown, wanted)) = shown else {
         visibility.set_if_neq(Visibility::Hidden);
         panel.shown = None;
+        panel.from = None;
         return;
     };
+    panel.from = selected.map(|(slot, stack)| (slot, stack.clone(), hud.0.split));
     visibility.set_if_neq(Visibility::Inherited);
     if let Ok((node, mut icons)) = icons.single_mut() {
         show_icons(&mut commands, &assets, node, &mut icons, wanted);
@@ -882,20 +907,20 @@ pub fn render_item_panel(
         return;
     }
     for (which, mut text) in &mut texts {
-        text.0 = match which {
-            PanelText::Name => shown.name.clone(),
-            PanelText::Description => shown.description.clone(),
-            PanelText::Information => shown.information.join("\n"),
-            PanelText::Split => format!("{} of {}", shown.split.unwrap_or(shown.count), shown.count),
-            PanelText::Action(n) => shown.actions.get(*n).map(|a| a.label().to_string()).unwrap_or_default(),
-        };
+        match which {
+            PanelText::Name => text.0.clone_from(&shown.name),
+            PanelText::Description => text.0.clone_from(&shown.description),
+            PanelText::Information => text.0 = shown.information.join("\n"),
+            PanelText::Split => text.0 = format!("{} of {}", shown.split.unwrap_or(shown.count), shown.count),
+            PanelText::Action(n) => text.0 = shown.actions.get(*n).map(|a| a.label().to_string()).unwrap_or_default(),
+        }
     }
     for (mut button, mut v) in &mut buttons {
         button.1 = shown.actions.get(button.0).copied();
-        *v = if button.1.is_some() { Visibility::Inherited } else { Visibility::Hidden };
+        v.set_if_neq(if button.1.is_some() { Visibility::Inherited } else { Visibility::Hidden });
     }
     for mut v in &mut split_rows {
-        *v = if shown.count > 1 { Visibility::Inherited } else { Visibility::Hidden };
+        v.set_if_neq(if shown.count > 1 { Visibility::Inherited } else { Visibility::Hidden });
     }
     panel.shown = Some(shown);
 }
@@ -1489,44 +1514,63 @@ pub fn render_station(
         return;
     };
     let Some(kind) = station.0 else {
-        *panel = Visibility::Hidden;
+        panel.set_if_neq(Visibility::Hidden);
         return;
     };
-    *panel = Visibility::Visible;
+    panel.set_if_neq(Visibility::Visible);
     // The player's group's research decides what is listed (todo 28).
     let (tree, researched) = research;
     let known = researched.0.get(crate::content::PLAYER_FACTION).cloned().unwrap_or_default();
     let list = crate::research::rows(kind, &recipes.0, &tree.0, &known);
+    // Each row's line written into one buffer, and into its text only when
+    // it changed: written text is laid out again.
+    let mut line = String::new();
+    let takes = |line: &mut String, cost: &[(String, u32)]| {
+        for (k, (item, n)) in cost.iter().enumerate() {
+            let _ = write!(line, "{}{item} x{n}", if k == 0 { "" } else { ", " });
+        }
+    };
     for (i, child) in in_order.iter().enumerate() {
         let Ok((mut row, children, mut color, mut node)) = rows.get_mut(child) else {
             continue;
         };
         let Some(entry) = list.get(i) else {
-            node.display = Display::None;
+            display(&mut node, Display::None);
             continue;
         };
-        node.display = Display::Flex;
-        row.0 = i;
-        let (line, can) = match entry {
+        display(&mut node, Display::Flex);
+        if row.0 != i {
+            row.0 = i;
+        }
+        line.clear();
+        let can = match entry {
             crate::research::Row::Recipe(recipe) => {
-                let takes: Vec<String> = recipe.inputs.iter().map(|(item, n)| format!("{item} x{n}")).collect();
-                (format!("{} x{}  <-  {}", recipe.output.0, recipe.output.1, takes.join(", ")), can_craft(recipe, &inventory.0, &items.0))
+                let _ = write!(line, "{} x{}  <-  ", recipe.output.0, recipe.output.1);
+                takes(&mut line, &recipe.inputs);
+                can_craft(recipe, &inventory.0, &items.0)
             }
             crate::research::Row::Topic(topic) => {
                 let cost = crate::skills::research_cost(tree.0.cost(topic, &known), skills);
-                let takes: Vec<String> = cost.iter().map(|(item, n)| format!("{item} x{n}")).collect();
-                let level = known.level(&topic.name) + 1;
-                let name = if topic.endless { format!("Research {} {level}", topic.name) } else { format!("Research {}", topic.name) };
+                let _ = write!(line, "Research {}", topic.name);
+                if topic.endless {
+                    let _ = write!(line, " {}", known.level(&topic.name) + 1);
+                }
+                line.push_str("  <-  ");
+                takes(&mut line, &cost);
                 // No power, no research (todo 29).
                 let powered = crate::power::station_powered(at.translation, kind, &stations);
-                let power = if powered { "" } else { "  (no power)" };
-                (format!("{name}  <-  {}{power}", takes.join(", ")), powered && crate::research::affords(&inventory.0, &cost))
+                if !powered {
+                    line.push_str("  (no power)");
+                }
+                powered && crate::research::affords(&inventory.0, &cost)
             }
         };
-        if let Some(mut text) = children.first().and_then(|c| texts.get_mut(*c).ok()) {
-            text.0 = line;
+        if let Some(mut text) = children.first().and_then(|c| texts.get_mut(*c).ok())
+            && text.0 != line
+        {
+            text.0.clone_from(&line);
         }
-        color.0 = if can { HELD_COLOR } else { SLOT_COLOR };
+        color.set_if_neq(BackgroundColor(if can { HELD_COLOR } else { SLOT_COLOR }));
     }
 }
 
@@ -1690,7 +1734,20 @@ pub fn render_hints(players: Query<(&HintsDone, &Transform), With<Player>>, mut 
     let (Ok((done, at)), Ok(mut text)) = (players.single(), list.single_mut()) else {
         return;
     };
-    text.0 = hints_shown(done, crate::interact::feet_of(at).y).join("\n");
+    let lines = hints_shown(done, crate::interact::feet_of(at).y);
+    // Written only when it changes: written text is laid out again.
+    let same = if lines.is_empty() { text.0.is_empty() } else { text.0.split('\n').eq(lines.iter().copied()) };
+    if !same {
+        text.0 = lines.join("\n");
+    }
+}
+
+/// Set a node's display only when it changes: a node changed is laid out
+/// again.
+fn display(node: &mut Mut<Node>, wanted: Display) {
+    if node.display != wanted {
+        node.display = wanted;
+    }
 }
 
 /// What the player can do with what they look at: "[E] Talk to Hank"
@@ -1721,7 +1778,12 @@ pub fn render_prompt(players: Query<&Hud, With<Player>>, mut texts: Query<&mut T
         return;
     };
     let choosing = hud.0.talking.as_ref().is_some_and(|t| !t.choices.is_empty());
-    text.0 = if hud.0.open_panel == OpenPanel::None && !choosing { hud.0.prompt.text.clone() } else { String::new() };
+    let wanted = if hud.0.open_panel == OpenPanel::None && !choosing { hud.0.prompt.text.as_str() } else { "" };
+    // Written only when it changes: written text is laid out again.
+    if text.0 != wanted {
+        text.0.clear();
+        text.0.push_str(wanted);
+    }
 }
 
 /// Paint the conversation from `HudState::talking`: the box while there is
@@ -1744,34 +1806,57 @@ pub fn render_talk(
         return;
     };
     let Some(talking) = hud.0.talking.as_ref() else {
-        *shown = Visibility::Hidden;
+        shown.set_if_neq(Visibility::Hidden);
         return;
     };
-    *shown = Visibility::Visible;
-    name.0 = talking.name.clone();
-    line.0 = match &talking.line {
-        Some((who, words)) if *who == talking.name => format!("\"{words}\""),
-        Some((who, words)) => format!("{who}: \"{words}\""),
-        None => String::new(),
+    shown.set_if_neq(Visibility::Visible);
+    // Each text written only when it changes: written text is laid out
+    // again.
+    if name.0 != talking.name {
+        name.0.clone_from(&talking.name);
+    }
+    // Who said the last line (None: the one talked with) and its words.
+    let said = talking.line.as_ref().map(|(who, words)| ((*who != talking.name).then_some(who.as_str()), words.as_str()));
+    let written = match said {
+        None => line.0.is_empty(),
+        Some((None, words)) => line.0.len() == words.len() + 2 && line.0.get(1..line.0.len() - 1) == Some(words),
+        Some((Some(who), words)) => {
+            line.0.len() == who.len() + words.len() + 4 && line.0.starts_with(who) && line.0.get(who.len() + 3..line.0.len() - 1) == Some(words)
+        }
     };
+    if !written {
+        line.0 = match said {
+            None => String::new(),
+            Some((None, words)) => format!("\"{words}\""),
+            Some((Some(who), words)) => format!("{who}: \"{words}\""),
+        };
+    }
     // Nothing said yet in this conversation: the line takes no room.
-    line_node.display = if line.0.is_empty() { Display::None } else { Display::Flex };
-    list.display = if talking.choices.is_empty() { Display::None } else { Display::Flex };
+    display(&mut line_node, if line.0.is_empty() { Display::None } else { Display::Flex });
+    let list_display = if talking.choices.is_empty() { Display::None } else { Display::Flex };
+    if list.display != list_display {
+        list.display = list_display;
+    }
     // Top to bottom in the list's own order.
-    let in_order: Vec<Entity> = in_order.iter().filter(|c| rows.contains(*c)).collect();
-    for (i, child) in in_order.into_iter().enumerate() {
+    let mut row = 0;
+    for child in in_order.iter() {
         let Ok((children, mut node)) = rows.get_mut(child) else {
             continue;
         };
+        let i = row;
+        row += 1;
         let Some(choice) = talking.choices.get(i) else {
-            node.display = Display::None;
+            display(&mut node, Display::None);
             continue;
         };
-        node.display = Display::Flex;
+        display(&mut node, Display::Flex);
         let tag = if choice.threat { "<Threaten> " } else { "" };
         for (span, text) in children.iter().zip([tag, choice.words.as_str()]) {
-            if let Ok(mut span) = spans.get_mut(span) {
-                span.0 = text.to_string();
+            if let Ok(mut span) = spans.get_mut(span)
+                && span.0 != text
+            {
+                span.0.clear();
+                span.0.push_str(text);
             }
         }
     }

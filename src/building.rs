@@ -180,8 +180,9 @@ pub fn upkeep(
     if tick.0 == 0 || tick.0 % hour != 0 || builds.0.pieces.is_empty() {
         return;
     }
-    let mut paid: Vec<(Slot, Vec<Grade>)> = Vec::new();
-    for cupboard in builds.0.cupboards.clone() {
+    // Each grade a cupboard paid for, by where it stands.
+    let mut paid: Vec<(Slot, Grade)> = Vec::new();
+    for cupboard in &builds.0.cupboards {
         let [x, _, z] = cupboard.at.centre();
         let Some((_, _, mut holds)) = cupboards
             .iter_mut()
@@ -189,21 +190,19 @@ pub fn upkeep(
         else {
             continue;
         };
-        let mut grades = Vec::new();
-        for (grade, n) in builds.0.upkeep(&cupboard) {
+        for (grade, n) in builds.0.upkeep(cupboard) {
             let material = grade_material(grade);
             if holds.0.count_of(material) >= n {
                 for _ in 0..n {
                     holds.0.take_one(material);
                 }
-                grades.push(grade);
+                paid.push((cupboard.at, grade));
             }
         }
-        paid.push((cupboard.at, grades));
     }
     let reach = modforge::building::CUPBOARD_REACH;
     let is_paid = |slot: Slot, grade: Grade| {
-        paid.iter().any(|(at, grades)| (at.x - slot.x).abs() <= reach && (at.z - slot.z).abs() <= reach && grades.contains(&grade))
+        paid.iter().any(|(at, paid_for)| (at.x - slot.x).abs() <= reach && (at.z - slot.z).abs() <= reach && *paid_for == grade)
     };
     for slot in builds.0.decay(&is_paid) {
         info!("the piece at {slot:?} decayed away");
