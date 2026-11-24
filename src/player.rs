@@ -194,7 +194,7 @@ pub fn movement(
     time: Res<Time<Fixed>>,
     move_and_slide: MoveAndSlide,
     below: Query<&crate::structure::Below>,
-    (waters, chunks): (Query<Entity, With<crate::terrain::Water>>, Res<crate::terrain::Chunks>),
+    chunks: Res<crate::terrain::Chunks>,
     mut actors: Query<
         (
             Entity,
@@ -212,8 +212,6 @@ pub fn movement(
 ) {
     let config = MoveAndSlideConfig::default();
     let dt = time.delta_secs();
-    // Water stops no one: they swim through it (todo Secrets 2).
-    let waters: Vec<Entity> = waters.iter().collect();
     for (entity, this_tick, shape, personality, firing, rolling, mut transform, mut fall, vehicle) in &mut actors {
         // Swift people walk faster, slow ones slower; a vehicle goes at
         // its own speed (todo 57); in water, at SWIM_SPEED of it.
@@ -242,7 +240,7 @@ pub fn movement(
         if velocity == Vec2::ZERO && fall.0 == 0.0 {
             continue;
         }
-        let filter = SpatialQueryFilter::from_excluded_entities(std::iter::once(entity).chain(waters.iter().copied()));
+        let filter = SpatialQueryFilter::from_mask(!crate::terrain::WATER_LAYER).with_excluded_entities([entity]);
         let start = transform.translation;
         let slide = |from: Vec3| {
             move_and_slide

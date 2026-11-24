@@ -28,9 +28,14 @@ use crate::{Ground as _, WorldSeed, on_ground};
 const WATER_HEIGHT: f32 = 1.0;
 
 /// A chunk's water body: a body moving goes through it, swimming
-/// (`player::movement`, todo Secrets 2).
+/// (`player::movement`, todo Secrets 2), which leaves out `WATER_LAYER`.
 #[derive(Component)]
+#[require(CollisionLayers = CollisionLayers::new(WATER_LAYER, LayerMask::ALL))]
 pub struct Water;
+
+/// The layer only water bodies are on; every other collider is on
+/// Avian's default layer.
+pub const WATER_LAYER: LayerMask = LayerMask(1 << 1);
 /// How tall cliffs, trees, and rocks stand as a body: over the eyes, so
 /// they hide what is past them.
 const SOLID_HEIGHT: f32 = 4.0;
