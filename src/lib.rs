@@ -399,13 +399,20 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind, port: u16
     app.add_systems(
         MakeTheWorld,
         (
+            profile::pieces_start,
             terrain::make_chunks,
+            profile::piece("make the world: chunks"),
             structure::spawn_sites,
+            profile::piece("make the world: sites"),
             terrain::open_the_ground,
+            profile::piece("make the world: open the ground"),
             actor::populate_monuments,
+            profile::piece("make the world: monument people"),
             actor::populate_topside_people,
+            profile::piece("make the world: topside people"),
             interact::populate_town_water,
             power::populate_town_power,
+            profile::piece("make the world: town water and power"),
         )
             .chain(),
     );

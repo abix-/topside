@@ -206,6 +206,8 @@ pub struct Laps {
     part_of: HashMap<&'static str, (usize, bool)>,
     /// Each count's place in `counts`.
     count_of: HashMap<&'static str, usize>,
+    /// Where the last piece of a schedule's systems ended (`piece`).
+    piece_mark: Option<Instant>,
 }
 
 impl Laps {
@@ -338,6 +340,24 @@ pub fn lap(name: &'static str) -> impl FnMut(ResMut<Laps>) {
             laps.in_step.push(name);
         }
         laps.mark = Some(now);
+    }
+}
+
+/// The start of a run of pieces inside one lap's schedule (MakeTheWorld):
+/// each `piece` after it times the systems since the one before.
+pub fn pieces_start(mut laps: ResMut<Laps>) {
+    laps.piece_mark = Some(Instant::now());
+}
+
+/// A piece inside a lap ("make the world: chunks"): the systems since the
+/// last `piece` or `pieces_start`, recorded as a piece, never a lap of the
+/// step, so the lap round them still holds the whole.
+pub fn piece(name: &'static str) -> impl FnMut(ResMut<Laps>) {
+    move |mut laps: ResMut<Laps>| {
+        let now = Instant::now();
+        let ms = since(laps.piece_mark, now);
+        laps.record(name, ms);
+        laps.piece_mark = Some(now);
     }
 }
 
