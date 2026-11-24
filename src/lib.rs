@@ -426,17 +426,21 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind, port: u16
                     talk::word_spreads,
                     // Joining (todo 11af): agreed in talk, or leaving for a
                     // group felt better toward; made after.
-                    joining::leave_for_better,
-                    prisoner::put_to_work,
-                    joining::join,
-                    // Word of a place reaching the edge brings newcomers
-                    // (todo 11i).
-                    edge::newcomers,
-                    // Factions vote on what to do; a raid sets out (todo 11j).
-                    raid::vote_and_raid,
-                    // While the player walks topside, Randy Random rolls
-                    // encounters (todo 10h1).
-                    randy::encounters.run_if(loading::awake),
+                    // (In one chained group: a tuple holds at most 20.)
+                    (
+                        joining::leave_for_better,
+                        prisoner::put_to_work,
+                        joining::join,
+                        // Word of a place reaching the edge brings newcomers
+                        // (todo 11i).
+                        edge::newcomers,
+                        // Factions vote on what to do; a raid sets out (todo 11j).
+                        raid::vote_and_raid,
+                        // While the player walks topside, Randy Random rolls
+                        // encounters (todo 10h1).
+                        randy::encounters.run_if(loading::awake),
+                    )
+                        .chain(),
                 )
                     .chain(),
                 lap("interact"),
