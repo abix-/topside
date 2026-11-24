@@ -81,6 +81,102 @@ pub fn run(
     }
 }
 
+/// What a switch or a light is wired to: a light to its switch, a switch
+/// to its house's breaker box (saved).
+#[derive(Component, Clone, Copy, serde::Serialize, serde::Deserialize, Reflect)]
+#[reflect(opaque, Component, Serialize, Deserialize)]
+pub struct WiredTo(#[entities] pub Entity);
+
+/// The town's power (topside-town "Everything works"; Project Zomboid's
+/// house power): the substation, and in every house a breaker box and each
+/// room's switch with its light, each through the one way a thing comes
+/// into the world. Once a world, as its people; after a load they are in
+/// the save.
+pub fn populate_town_power(
+    mut commands: Commands,
+    world: Res<crate::terrain::WorldRes>,
+    items: Res<crate::content::ItemRegistryRes>,
+    mut ids: ResMut<crate::interact::ThingIssuer>,
+    mut things_made: ResMut<crate::terrain::ThingsMade>,
+) {
+    if things_made.power {
+        return;
+    }
+    things_made.power = true;
+    let Some(town) = world.world.town.as_ref() else {
+        return;
+    };
+    let mut make = |commands: &mut Commands, name: &str, at: Vec2, kind: Option<InteractKind>| -> Option<Entity> {
+        let def = items.0.def(name)?;
+        let (made, _) = crate::interact::spawn_item(commands, &mut ids, def, modforge::item::create(def, 1, &[], 0.0, 0), crate::on_ground(at, 0.0));
+        match kind {
+            Some(kind) => commands.entity(made).insert(Interactable { kind }),
+            // Not picked up or used: it shines or it does not.
+            None => commands.entity(made).remove::<Interactable>(),
+        };
+        Some(made)
+    };
+    make(&mut commands, crate::content::SUBSTATION, town.substation(), None);
+    for (breaker_at, rooms) in town.wiring() {
+        let Some(breaker) = make(&mut commands, crate::content::BREAKER_BOX, breaker_at, Some(InteractKind::Switch { on: true })) else {
+            continue;
+        };
+        for (switch_at, light_at) in rooms {
+            let switch = make(&mut commands, crate::content::LIGHT_SWITCH, switch_at, Some(InteractKind::Switch { on: false }));
+            let light = make(&mut commands, crate::content::CEILING_LIGHT, light_at, None);
+            if let (Some(switch), Some(light)) = (switch, light) {
+                commands.entity(switch).insert(WiredTo(breaker));
+                commands.entity(light).insert(WiredTo(switch));
+            }
+        }
+    }
+}
+
+/// Every step: each light is lit when modforge says (`power::lit`): its
+/// switch on, its breaker on, and the breaker on a grid with power, the
+/// substation's lines or a running generator's wiring.
+#[allow(clippy::type_complexity)]
+pub fn lights(
+    mut commands: Commands,
+    lights: Query<(Entity, &WiredTo, Option<&Powered>), Without<Interactable>>,
+    switches: Query<(&Interactable, &Transform, Option<&WiredTo>)>,
+    grid: Query<(&WorldItem, &Transform, Option<&Container>)>,
+) {
+    let on = |kind: &InteractKind| matches!(kind, InteractKind::Switch { on: true });
+    // Where power is: the substation (its lines reach the town) and each
+    // running generator (its wiring's reach).
+    let sources: Vec<(Vec3, f32)> = grid
+        .iter()
+        .filter_map(|(item, at, fuel)| match item.stack.item.as_str() {
+            crate::content::SUBSTATION => Some((at.translation, crate::content::LINES_REACH)),
+            // A generator runs while it has fuel (modforge `Burning::run`).
+            GENERATOR if fuel.is_some_and(|f| f.0.count_of(FUEL) > 0) => Some((at.translation, WIRE_REACH)),
+            _ => None,
+        })
+        .collect();
+    for (light, to, was) in &lights {
+        let Ok((switch, _, Some(breaker))) = switches.get(to.0) else {
+            continue;
+        };
+        let Ok((breaker_kind, breaker_at, _)) = switches.get(breaker.0) else {
+            continue;
+        };
+        let has_grid = sources.iter().any(|(at, reach)| at.distance(breaker_at.translation) <= *reach);
+        let lit = modforge::power::lit(has_grid, on(&breaker_kind.kind), on(&switch.kind));
+        if was.map(|p| p.0) != Some(lit) {
+            commands.entity(light).insert(Powered(lit));
+            if lit {
+                commands.entity(light).insert(PointLight {
+                    intensity: crate::content::CEILING_LIGHT_LUMENS,
+                    ..default()
+                });
+            } else {
+                commands.entity(light).remove::<PointLight>();
+            }
+        }
+    }
+}
+
 /// Whether the research station nearest a point has power.
 pub fn station_powered(at: Vec3, kind: StationKind, stations: &Query<(&Interactable, &Transform, Option<&Powered>)>) -> bool {
     stations

@@ -282,6 +282,18 @@ pub const GENERATOR: &str = "generator";
 pub const FUEL: &str = "fuel";
 pub const GENERATOR_DEF: modforge::power::GeneratorDef = modforge::power::GeneratorDef { output: 10.0, burn_secs: 600.0 };
 pub const WIRE_REACH: f32 = 12.0;
+/// The town's power (topside-town "Everything works": "the substation,
+/// the lines, breaker boxes, outlets, switches, generators"; Project
+/// Zomboid's house power): the substation, each house's breaker box, each
+/// room's light switch and its light.
+pub const SUBSTATION: &str = "substation";
+pub const BREAKER_BOX: &str = "breaker box";
+pub const LIGHT_SWITCH: &str = "light switch";
+pub const CEILING_LIGHT: &str = "ceiling light";
+/// How far the substation's lines reach: the whole town (Claude's).
+pub const LINES_REACH: f32 = 2000.0;
+/// A ceiling light's brightness, the house plan's (modforge house.rs).
+pub const CEILING_LIGHT_LUMENS: f32 = 300_000.0;
 pub const RESEARCH_DRAW: f32 = 5.0;
 pub const GENERATOR_AT: [f32; 2] = [2.5, -3.3];
 pub const GENERATOR_FUEL: u32 = 3;
@@ -1886,7 +1898,11 @@ pub fn register_items(reg: &mut ItemRegistry) {
         source(SINK, 0.0, 50.0),
         source(SHOWER, 0.0, 50.0),
         source(TOILET, 0.0, 0.0),
-        building(WATER_TOWER, "The town's water tower. Every house's taps draw from it.", ItemKind::Deployable, 1, Some(WATER_TOWER_BARRELS)),
+        building(SUBSTATION, "The town's substation. Its lines carry power to every house.", ItemKind::Deployable, 1, None),
+        building(BREAKER_BOX, "A house's breaker box. Off, nothing in the house has power.", ItemKind::Deployable, 1, None),
+        building(LIGHT_SWITCH, "A light switch.", ItemKind::Deployable, 1, None),
+        building(CEILING_LIGHT, "A ceiling light.", ItemKind::Deployable, 1, None),
+        building(WATER_TOWER,"The town's water tower. Every house's taps draw from it.", ItemKind::Deployable, 1, Some(WATER_TOWER_BARRELS)),
         // Dirty water works but makes you sick (todo Survive 4): each
         // mouthful of river water hurts a little. The 3 is Claude's.
         ItemDef {

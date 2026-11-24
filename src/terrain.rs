@@ -156,6 +156,8 @@ pub struct ThingsMade {
     pub people: bool,
     /// The town's water: its tower and every house's taps.
     pub water: bool,
+    /// The town's power: its substation and every house's wiring.
+    pub power: bool,
 }
 
 /// The chunks made when the game was saved (`Chunks::made` then). Saved;

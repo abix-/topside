@@ -858,5 +858,14 @@ fn use_thing(
         InteractResult::InventoryFull => Some(Did::Failed(format!("pick up {what}"), "the bags are full".to_string())),
         // A source is eaten from before this (`eat_from_source`), never here.
         InteractResult::UseSource => None,
+        // A switch flips (a light switch, a breaker box); what it powers
+        // follows (`power::lights`).
+        InteractResult::ToggleSwitch => {
+            let InteractKind::Switch { on } = thing.kind else {
+                return None;
+            };
+            thing.kind = InteractKind::Switch { on: !on };
+            Some(Did::Done(format!("turned the {what} {}", if on { "off" } else { "on" })))
+        }
     }
 }
