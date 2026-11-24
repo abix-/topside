@@ -211,6 +211,23 @@ pub const GAME_DAY_SECS: f32 = 1200.0;
 pub const HISTORY_DAYS: u32 = 7;
 /// The history's span in game seconds: the clock at waking.
 pub const HISTORY_SECS: f32 = HISTORY_DAYS as f32 * GAME_DAY_SECS;
+/// Of 1000, the chance that a person of this kind, meeting someone of
+/// another group during the history, comes to blows (operator,
+/// 2026-11-23: raiders are "by definition hostile. Scavengers might be
+/// hostile if they get into a fight, and wolves... might be hostile if
+/// there's something. ...all of those is a chance for hostility to
+/// occur"). Every number here is Claude's.
+pub const HISTORY_FIGHTS: [(&str, u64); 4] = [("raider", 1000), ("lookout", 1000), ("scavenger", 300), ("wolf", 300)];
+
+/// Of 1000, the chance two people meeting during the history fight: never
+/// within one group, else the likelier of their two kinds'.
+pub fn history_fights(a: (&str, Option<&str>), b: (&str, Option<&str>)) -> u64 {
+    if a.1.is_some() && a.1 == b.1 {
+        return 0;
+    }
+    let of = |kind: &str| HISTORY_FIGHTS.iter().find(|(k, _)| *k == kind).map_or(0, |(_, n)| *n);
+    of(a.0).max(of(b.0))
+}
 
 /// How a storm goes (design.md "The storm", MISERY's emission): a minute
 /// of warning, twenty seconds of storm. When it comes is the episode's

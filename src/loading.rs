@@ -160,9 +160,9 @@ fn lay_down_history(
     let mut camps: Vec<Vec2> = Vec::new();
     let mut figures: Vec<modforge::history::Figure> = Vec::new();
     // In ActorId order, never the query's (authority.md rule 5).
-    let mut order: Vec<_> = people.iter().map(|(actor, npc, at, ..)| (actor.0.0, npc.faction.clone(), ground(at))).collect();
+    let mut order: Vec<_> = people.iter().map(|(actor, npc, at, ..)| (actor.0.0, npc.def.clone(), npc.faction.clone(), ground(at))).collect();
     order.sort_by_key(|o| o.0);
-    for (id, faction, p) in order {
+    for (id, kind, faction, p) in order {
         let home = if residents.iter().any(|(_, r)| r.distance(p) < 0.5) {
             houses.iter().enumerate().min_by(|a, b| a.1.at.distance(p).total_cmp(&b.1.at.distance(p))).map(|(i, _)| i)
         } else {
@@ -170,7 +170,7 @@ fn lay_down_history(
             Some(houses.len() + camps.len() - 1)
         };
         if let Some(home) = home {
-            figures.push(modforge::history::Figure { id, group: faction, home });
+            figures.push(modforge::history::Figure { id, kind, group: faction, home });
         }
     }
     // Where a place is: a room of the house (`house::home_spots`), or the camp.
@@ -181,8 +181,15 @@ fn lay_down_history(
         }
         None => camps[i - houses.len()],
     };
-    let hostile = |a: Option<&str>, b: Option<&str>| factions.0.relation(a, b) == modforge::faction::Relation::Hostile;
-    let events = modforge::history::roll(&figures, houses.len() + camps.len(), crate::content::HISTORY_DAYS, &hostile, world.seed ^ 0x4157_0123);
+    // The faction registry first: two it holds hostile fight. Else the
+    // chance hostility occurs between their kinds (content history_fights).
+    let fights = |a: &modforge::history::Figure, b: &modforge::history::Figure| {
+        if factions.0.relation(a.group.as_deref(), b.group.as_deref()) == modforge::faction::Relation::Hostile {
+            return 1000;
+        }
+        crate::content::history_fights((&a.kind, a.group.as_deref()), (&b.kind, b.group.as_deref()))
+    };
+    let events = modforge::history::roll(&figures, houses.len() + camps.len(), crate::content::HISTORY_DAYS, &fights, world.seed ^ 0x4157_0123);
     let ends = modforge::history::ends_at(&figures, &events);
     let day_ticks = (crate::content::GAME_DAY_SECS / step.timestep().as_secs_f32()).round() as u64;
     let when = |day: u32| tick.0 + u64::from(day) * day_ticks + day_ticks / 2;
