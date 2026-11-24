@@ -444,7 +444,7 @@ pub const CASH_REGISTER: &str = "cash register";
 pub const PALLET: &str = "pallet";
 pub const WALK_IN_COOLER: &str = "walk-in cooler";
 pub const OFFICE_DESK: &str = "office desk";
-use modforge::structure::Side::{East, North, South};
+use modforge::structure::Side::{East, North, South, West};
 const SHOP_WALLS: [modforge::structure::Rgb; 3] = [[0.75, 0.72, 0.62], [0.62, 0.66, 0.7], [0.7, 0.6, 0.52]];
 /// Place 1: the grocery store: the sales floor with its aisles, the
 /// checkout at the front door, the office, the stockroom with the loading
@@ -475,15 +475,59 @@ pub const GROCERY_STORE: modforge::plan::PlanDef = modforge::plan::PlanDef {
         (PALLET, "stockroom", [0.0, 0.2]),
         (WALK_IN_COOLER, "cooler", [0.0, 0.0]),
     ],
+    outside: &[],
     walls: &SHOP_WALLS,
     floor: [0.8, 0.8, 0.78],
     furniture_color: [0.55, 0.55, 0.58],
     height: 3.6,
 };
-pub const PLACES: [modforge::plan::PlanDef; 1] = [GROCERY_STORE];
+/// Place 2: a crop farm, at the edge of town: the farmhouse's kitchen
+/// and office, the tool shed and the seed store, with its fields behind,
+/// rows of beds found sown and ripe. Two stand (topside-town: 2 to 3).
+pub const CROP_FARM: modforge::plan::PlanDef = modforge::plan::PlanDef {
+    name: "crop farm",
+    edge: true,
+    columns: &[6.0, 5.0],
+    rows: &[6.0, 5.0],
+    rooms: &[((0, 0), "farm kitchen"), ((1, 0), "farm office"), ((0, 1), "tool shed"), ((1, 1), "seed store")],
+    ways: &[((0, 0), East, true), ((0, 0), North, true), ((0, 1), East, true)],
+    exits: &[((0, 0), South, 1.2), ((0, 1), West, 2.4)],
+    furniture: &[
+        ("farm kitchen", [-0.4, 0.0], [0.6, 0.9, 2.2]),
+        ("farm office", [0.0, -0.3], [1.4, 0.75, 0.7]),
+        ("tool shed", [0.0, -0.4], [4.0, 1.8, 0.6]),
+        ("seed store", [0.0, -0.4], [3.0, 1.6, 0.6]),
+    ],
+    things: &[(PANTRY, "farm kitchen", [0.3, -0.3]), (OFFICE_DESK, "farm office", [0.0, 0.0]), (TOOLBOX, "tool shed", [0.3, 0.2]), (SEED_BIN, "seed store", [0.0, 0.0])],
+    outside: &[
+        (GARDEN_BED, [-6.0, -12.0]),
+        (GARDEN_BED, [-3.0, -12.0]),
+        (GARDEN_BED, [0.0, -12.0]),
+        (GARDEN_BED, [3.0, -12.0]),
+        (GARDEN_BED, [6.0, -12.0]),
+        (GARDEN_BED, [-6.0, -16.0]),
+        (GARDEN_BED, [-3.0, -16.0]),
+        (GARDEN_BED, [0.0, -16.0]),
+        (GARDEN_BED, [3.0, -16.0]),
+        (GARDEN_BED, [6.0, -16.0]),
+    ],
+    walls: &[[0.7, 0.3, 0.25], [0.85, 0.82, 0.75]],
+    floor: [0.55, 0.42, 0.3],
+    furniture_color: [0.5, 0.38, 0.25],
+    height: 3.0,
+};
+pub const SEED_BIN: &str = "seed bin";
+pub const PLACES: [modforge::plan::PlanDef; 3] = [GROCERY_STORE, CROP_FARM, CROP_FARM];
+/// The places whose garden beds are found sown and ripe, with what.
+pub const PLACE_SOWN: [(&str, &str); 1] = [("crop farm", POTATO_SEED)];
 /// What each place's boxes are found holding: the place, the box, the
 /// item and how many.
-pub const PLACE_HOLDS: [(&str, &str, &str, u32); 8] = [
+pub const PLACE_HOLDS: [(&str, &str, &str, u32); 13] = [
+    ("crop farm", PANTRY, "canned food", 2),
+    ("crop farm", OFFICE_DESK, "cloth", 1),
+    ("crop farm", TOOLBOX, WRENCH, 1),
+    ("crop farm", SEED_BIN, CARROT_SEED, 10),
+    ("crop farm", SEED_BIN, POTATO_SEED, 10),
     ("grocery store", SHELF, "canned food", 6),
     ("grocery store", SHELF, "water bottle", 4),
     ("grocery store", SHELF, SOAP, 2),
@@ -1488,7 +1532,9 @@ pub fn small_town_def() -> TownDef {
         main_lot: Vec2::new(25.0, 40.0),
         cul_de_sacs: (2, 4),
         cul_de_sac_lots: 3,
-        edge_lots: 2,
+        // 3 a side at each end, for the places at the edge (Place 2,
+        // Claude's; it was 2).
+        edge_lots: 3,
         edge_lot: Vec2::new(40.0, 60.0),
         house: house_def(),
         // Up to 4 a house (operator, 2026-11-23: "4 people per house"),
@@ -2297,6 +2343,7 @@ pub fn register_items(reg: &mut ItemRegistry) {
         building(PALLET, "A pallet of stock.", ItemKind::Deployable, 1, Some(16)),
         building(WALK_IN_COOLER, "A walk-in cooler.", ItemKind::Deployable, 1, Some(16)),
         building(OFFICE_DESK, "An office desk.", ItemKind::Deployable, 1, Some(6)),
+        building(SEED_BIN, "A bin of seed.", ItemKind::Deployable, 1, Some(8)),
         building(TRASH_CAN, "A trash can. The truck takes what is in it to the dump.", ItemKind::Deployable, 1, Some(6)),
         building(DUMP_PILE, "A pile of the town's junk.", ItemKind::Deployable, 1, Some(24)),
         building(EXTINGUISHER, "A fire extinguisher. Puts out the fires near.", ItemKind::Tool, 1, None),

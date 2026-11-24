@@ -286,6 +286,18 @@ pub fn populate_town_power(
             make(&mut commands, thing, at, Some(InteractKind::Station(station)));
             continue;
         }
+        // A field's bed, found sown and ripe where the place says.
+        if thing == crate::content::GARDEN_BED {
+            let Some(bed) = make(&mut commands, thing, at, None) else {
+                continue;
+            };
+            let sown = crate::content::PLACE_SOWN.iter().find(|(p, _)| *p == place).and_then(|(_, seed)| modforge::grow::crop_of(&crate::content::CROPS, seed));
+            if let Some(crop) = sown {
+                let day = -crate::content::CROPS[crop].days;
+                commands.entity(bed).insert(crate::garden::Growing(modforge::grow::Sown { crop, day }));
+            }
+            continue;
+        }
         let Some(made) = make(&mut commands, thing, at, Some(InteractKind::Container)) else {
             continue;
         };
