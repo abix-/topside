@@ -87,7 +87,7 @@ pub struct Thinkers<'w, 's> {
     others: Query<
         'w,
         's,
-        (Entity, &'static Transform, Option<&'static Npc>, Option<&'static Actor>),
+        (Entity, &'static Transform, Option<&'static Npc>, Option<&'static Actor>, Has<crate::storm_effect::Changed>),
         (Or<(With<Npc>, With<Player>)>, Without<Dead>),
     >,
     /// The sites standing, seen as they walk (todo 4b).
@@ -365,9 +365,12 @@ pub fn think(
     let everyone: Vec<(Entity, ActorId, Vec3, Option<String>)> = thinkers
         .others
         .iter()
-        .map(|(e, t, npc, actor)| {
+        .map(|(e, t, npc, actor, changed)| {
+            // The player a changing storm caught outside is one of the
+            // changed, as any NPC it caught (todo Storm effect 7).
             let faction = match npc {
                 Some(n) => n.faction.clone(),
+                None if changed => Some(crate::storm_effect::CHANGED_FACTION.to_string()),
                 None => Some(PLAYER_FACTION.to_string()),
             };
             (e, actor.map_or(ActorId(0), |a| a.0), crate::interact::feet_of(t), faction)

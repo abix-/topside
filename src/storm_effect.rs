@@ -22,7 +22,7 @@ use crate::Ground;
 const REACH: f32 = 150.0;
 
 /// The faction those caught by a changing storm come back in.
-const CHANGED_FACTION: &str = "raiders";
+pub const CHANGED_FACTION: &str = "raiders";
 
 /// What fixes electronics a static storm killed (one put in the struck
 /// thing).
@@ -60,12 +60,47 @@ pub fn drop_point(seed: u64, salt: u64, n: u32, shelters: &Query<&Shelter>) -> O
 /// The shuffle storm (todo "Storm effect 2"; Control's moving rooms): the
 /// town laid again with its places moved about, the seed kept, so the
 /// ground, the houses and the bunkers stay where they were.
-fn shuffle(mut commands: Commands, mut state: ResMut<crate::storm::StormRes>, pieces: Query<Entity, With<crate::terrain::WorldPiece>>) {
+fn shuffle(
+    mut commands: Commands,
+    mut state: ResMut<crate::storm::StormRes>,
+    world: Option<Res<crate::terrain::WorldRes>>,
+    pieces: Query<Entity, With<crate::terrain::WorldPiece>>,
+) {
+    // Each place's lot before the move, in the town's order of places.
+    let was: Vec<modforge::town::Lot> = world
+        .as_deref()
+        .and_then(|w| w.world.town.as_ref())
+        .map(|town| town.places().iter().map(|(lot, _)| town.lots[*lot].clone()).collect())
+        .unwrap_or_default();
     state.shuffles += 1;
     for entity in &pieces {
         commands.entity(entity).despawn();
     }
     commands.run_system_cached(crate::terrain::roll);
+    commands.run_system_cached_with(carry, was);
+}
+
+/// After a shuffle, what lay in a place that moved goes with it, to the
+/// same spot in it on its new lot, turned as it is turned.
+fn carry(In(was): In<Vec<modforge::town::Lot>>, world: Res<crate::terrain::WorldRes>, mut lying: Query<&mut Transform, With<WorldItem>>) {
+    let Some(town) = world.world.town.as_ref() else {
+        return;
+    };
+    let now: Vec<&modforge::town::Lot> = town.places().iter().map(|(lot, _)| &town.lots[*lot]).collect();
+    for mut at in &mut lying {
+        let p = at.translation.ground();
+        let Some((from, to)) = was.iter().zip(&now).find(|(from, _)| from.covers(p)) else {
+            continue;
+        };
+        if from.at == to.at {
+            continue;
+        }
+        // Turned from the old front to the new (both unit vectors).
+        let offset = (p - from.at).rotate(Vec2::new(from.front.x, -from.front.y)).rotate(to.front);
+        let moved = to.at + offset;
+        at.translation.x = moved.x;
+        at.translation.z = moved.y;
+    }
 }
 
 /// The rot storm (todo "Storm effect 3"; Project Zomboid's decay in one
@@ -98,13 +133,32 @@ fn rot(
 
 /// The changing storm (todo "Storm effect 7"; STALKER's zombified
 /// stalkers): the people caught outside live, and come back hostile.
-fn changing(shelters: Query<&Shelter>, mut people: Query<(&Transform, &mut Npc), Without<Dead>>) {
-    for (at, mut npc) in &mut people {
-        if !sheltered(&shelters, at.translation.ground()) {
-            npc.faction = Some(CHANGED_FACTION.to_string());
+/// The player too, everyone being equal (Claude's, from topside-authority
+/// "Everyone is equal"): caught outside, they come back one of the
+/// changed, `Changed` standing for the faction they have no `Npc` to hold.
+fn changing(
+    mut commands: Commands,
+    shelters: Query<&Shelter>,
+    mut people: Query<(Entity, &Transform, Option<&mut Npc>), (Or<(With<Npc>, With<crate::player::Player>)>, Without<Dead>)>,
+) {
+    for (entity, at, npc) in &mut people {
+        if sheltered(&shelters, at.translation.ground()) {
+            continue;
+        }
+        match npc {
+            Some(mut npc) => npc.faction = Some(CHANGED_FACTION.to_string()),
+            None => {
+                commands.entity(entity).insert(Changed);
+            }
         }
     }
 }
+
+/// On the player a changing storm caught outside: the others see them as
+/// one of `CHANGED_FACTION` (saved).
+#[derive(Component, Clone, Copy, Default, serde::Serialize, serde::Deserialize, Reflect)]
+#[reflect(opaque, Component, Serialize, Deserialize)]
+pub struct Changed;
 
 /// A thing whose electronics a static storm killed: it does not work
 /// until one `FIX_WITH` is put in it (saved).
