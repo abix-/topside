@@ -2475,7 +2475,11 @@ pub fn roll_world2d(
                 .collect(),
         ),
         WorldKind::Big => Places::new(site_kinds(monuments), keep_clear),
-    };
+    }
+    // Every site rolls its tier from its type's danger (topside-town
+    // "Tiers": "an airfield is always tier 3, but it doesn't have to be
+    // only tier 3").
+    .with_tiers(TIERS);
     let people = match kind {
         WorldKind::Small => SMALL_TOPSIDE_PEOPLE.iter().map(|(d, n)| (d.to_string(), *n)).collect(),
         WorldKind::Big => Vec::new(),
