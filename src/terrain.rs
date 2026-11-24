@@ -162,6 +162,9 @@ pub struct ThingsMade {
     /// a load never locks one that was opened.
     #[serde(default)]
     pub locked: HashSet<u64>,
+    /// The day the trash was last taken to the dump (Works 17).
+    #[serde(default)]
+    pub collected: u32,
 }
 
 /// The chunks made when the game was saved (`Chunks::made` then). Saved;

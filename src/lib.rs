@@ -345,6 +345,7 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind, port: u16
                     interact::populate_town_water,
                     power::populate_town_power,
                     power::lock_front_doors,
+                    power::collect_trash,
                     lap("chunks"),
                 )
                     .chain(),

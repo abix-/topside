@@ -413,6 +413,16 @@ pub const LETTERS: [&str; 3] = [
     "Dear neighbour, the block party is cancelled. Keep the kids in. Something is wrong with the sky.",
     "If you find this, we went down to the shelter by the school. Come find us.",
 ];
+/// Trash (topside-town "Everything works": "trash cans, the dump, septic
+/// and sewage"; Project Zomboid's bins): each house's trash can at the
+/// street; once a day at 6 the truck empties every can into the dump's
+/// piles, which stand on the last lot that is not a house until Place 13
+/// builds the dump, and start holding junk to scavenge. All Claude's.
+pub const TRASH_CAN: &str = "trash can";
+pub const DUMP_PILE: &str = "dump pile";
+pub const DUMP_PILES: usize = 4;
+pub const COLLECTION_HOUR: f32 = 6.0;
+pub const DUMP_HOLDS: [(&str, u32); 3] = [("scrap", 6), ("cloth", 3), ("pipe", 1)];
 pub const MATCHES: &str = "matches";
 pub const EXTINGUISHER: &str = "extinguisher";
 pub const SMOKE_DETECTOR: &str = "smoke detector";
@@ -2193,6 +2203,8 @@ pub fn register_items(reg: &mut ItemRegistry) {
         building(TV, "A TV.", ItemKind::Deployable, 1, None),
         building(PHONE, "A phone.", ItemKind::Deployable, 1, None),
         building(MAILBOX, "A mailbox.", ItemKind::Deployable, 1, Some(4)),
+        building(TRASH_CAN, "A trash can. The truck takes what is in it to the dump.", ItemKind::Deployable, 1, Some(6)),
+        building(DUMP_PILE, "A pile of the town's junk.", ItemKind::Deployable, 1, Some(24)),
         building(EXTINGUISHER, "A fire extinguisher. Puts out the fires near.", ItemKind::Tool, 1, None),
         building(SMOKE_DETECTOR, "A smoke detector. It sounds at a fire.", ItemKind::Deployable, 1, None),
         building(HYDRANT, "A fire hydrant. Its hose puts out the fires around it.", ItemKind::Deployable, 1, None),

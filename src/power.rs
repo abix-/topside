@@ -144,6 +144,46 @@ pub fn lock_front_doors(
     }
 }
 
+/// Once a day at the collection hour: every trash can emptied into the
+/// dump's piles, in ThingId order, the first pile with room first
+/// (modforge `trash`, Works 17).
+pub fn collect_trash(
+    mut things_made: ResMut<crate::terrain::ThingsMade>,
+    (tick, day): (Res<crate::SimTick>, Res<crate::survival::Day>),
+    items: Res<crate::content::ItemRegistryRes>,
+    mut boxes: Query<(&crate::interact::WorldItem, &crate::interact::ThingId, &mut Container)>,
+) {
+    let today = crate::survival::today(&tick, *day);
+    if !modforge::trash::due(today, crate::content::COLLECTION_HOUR, things_made.collected) {
+        return;
+    }
+    things_made.collected = today.floor() as u32;
+    let mut cans: Vec<(u64, modforge::item::Inventory)> = Vec::new();
+    for (item, id, mut held) in &mut boxes {
+        if item.stack.item == crate::content::TRASH_CAN {
+            cans.push((id.0, std::mem::replace(&mut held.0, modforge::item::Inventory::new(0))));
+        }
+    }
+    cans.sort_by_key(|c| c.0);
+    let max_stack = |name: &str| items.0.def(name).map_or(1, |d| d.max_stack);
+    let mut piles: Vec<_> = boxes.iter_mut().filter(|(item, ..)| item.stack.item == crate::content::DUMP_PILE).collect();
+    piles.sort_by_key(|p| p.1.0);
+    for (_, can) in cans.iter_mut() {
+        for (_, _, pile) in piles.iter_mut() {
+            modforge::trash::collect(can, &mut pile.0, max_stack);
+        }
+    }
+    drop(piles);
+    // The cans back, with what did not fit.
+    let mut back: std::collections::HashMap<u64, modforge::item::Inventory> = cans.into_iter().collect();
+    for (item, id, mut held) in &mut boxes {
+        if item.stack.item == crate::content::TRASH_CAN && let Some(can) = back.remove(&id.0) {
+            held.0 = can;
+        }
+    }
+    info!("the trash was taken to the dump");
+}
+
 pub fn populate_town_power(
     mut commands: Commands,
     world: Res<crate::terrain::WorldRes>,
@@ -211,6 +251,13 @@ pub fn populate_town_power(
     let letter = items.0.def("note");
     for (house, lot) in town.lots.iter().filter(|l| l.house).enumerate() {
         for (kind, at) in modforge::house::den(lot.front) {
+            if kind == crate::content::TRASH_CAN {
+                if let Some(made) = make(&mut commands, kind, lot.at + at, Some(InteractKind::Container)) {
+                    let room = items.0.def(kind).and_then(|d| d.storage).unwrap_or(0);
+                    commands.entity(made).insert(Container(modforge::item::Inventory::new(room)));
+                }
+                continue;
+            }
             if kind != crate::content::MAILBOX {
                 make(&mut commands, kind, lot.at + at, Some(InteractKind::Switch { on: false }));
                 continue;
@@ -224,6 +271,23 @@ pub fn populate_town_power(
                 let words = crate::content::LETTERS[house % crate::content::LETTERS.len()];
                 stack.note = Some(modforge::item::Note { text: words.to_string(), signed: String::new() });
                 let _ = held.add(stack, 1);
+            }
+            commands.entity(made).insert(Container(held));
+        }
+    }
+    // The dump's piles, on the last lot that is not a house until Place
+    // 13 builds the dump, found holding junk (Works 17).
+    if let Some(lot) = town.lots.iter().rev().find(|l| !l.house) {
+        for i in 0..crate::content::DUMP_PILES {
+            let at = lot.at + Vec2::new(i as f32 * 3.0 - 4.5, 0.0);
+            let Some(made) = make(&mut commands, crate::content::DUMP_PILE, at, Some(InteractKind::Container)) else {
+                continue;
+            };
+            let mut held = modforge::item::Inventory::new(items.0.def(crate::content::DUMP_PILE).and_then(|d| d.storage).unwrap_or(0));
+            for &(thing, count) in &crate::content::DUMP_HOLDS {
+                if let Some(def) = items.0.def(thing) {
+                    let _ = held.add(modforge::item::create(def, count, &[], 0.0, 0), def.max_stack);
+                }
             }
             commands.entity(made).insert(Container(held));
         }
