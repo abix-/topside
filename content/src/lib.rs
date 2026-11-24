@@ -971,12 +971,83 @@ pub const ARMORY_LOCK: u32 = KEYS;
 pub const ARMORY_KEY: &str = "key 128";
 /// The boxes of places under lock, each with its lock.
 pub const PLACE_LOCKS: [(&str, u32); 1] = [(GUN_LOCKER, ARMORY_LOCK)];
-pub const PLACES: [modforge::plan::PlanDef; 17] = [GROCERY_STORE, CROP_FARM, CROP_FARM, LIVESTOCK_BARN, GRAIN_ELEVATOR, DINER, PIZZA_PLACE, CAFE, BAR, PUMP_HOUSE, SUBSTATION, GAS_STATION, SEWAGE_POND, TOWN_DUMP, CLINIC, FIRE_STATION, SHERIFFS_OFFICE];
+/// Place 17: the school, on a big lot at the edge of town (the main
+/// street lots are too small for it): the hall, three classrooms, the
+/// office, the nurse's room, the cafeteria and its kitchen, and the gym.
+pub const SCHOOL: modforge::plan::PlanDef = modforge::plan::PlanDef {
+    name: "school",
+    edge: true,
+    columns: &[8.0, 4.0, 8.0, 8.0],
+    rows: &[7.0, 7.0, 10.0],
+    rooms: &[
+        ((0, 0), "classroom"),
+        ((1, 0), "school office"),
+        ((2, 0), "second classroom"),
+        ((3, 0), "third classroom"),
+        ((0, 1), "nurse's room"),
+        ((1, 1), "school hall"),
+        ((2, 1), "cafeteria"),
+        ((3, 1), "school kitchen"),
+        ((0, 2), "gym"),
+        ((1, 2), "gym store"),
+        ((2, 2), "library"),
+        ((3, 2), "janitor's room"),
+    ],
+    ways: &[
+        ((1, 0), North, false),
+        ((0, 1), East, true),
+        ((1, 1), East, false),
+        ((2, 1), East, true),
+        ((1, 1), North, true),
+        ((0, 1), North, false),
+        ((0, 0), North, true),
+        ((2, 0), North, true),
+        ((3, 0), North, true),
+        ((1, 2), East, true),
+        ((2, 2), East, true),
+    ],
+    exits: &[((1, 0), South, 2.4), ((0, 2), West, 2.4)],
+    furniture: &[
+        ("classroom", [0.0, 0.0], [5.0, 0.75, 3.0]),
+        ("second classroom", [0.0, 0.0], [5.0, 0.75, 3.0]),
+        ("third classroom", [0.0, 0.0], [5.0, 0.75, 3.0]),
+        ("school office", [0.0, 0.2], [2.5, 1.1, 0.7]),
+        ("nurse's room", [-0.3, -0.2], [0.8, 0.6, 1.9]),
+        ("cafeteria", [0.0, 0.0], [5.0, 0.75, 1.0]),
+        ("school kitchen", [0.0, -0.4], [6.0, 0.9, 0.7]),
+        ("library", [0.0, -0.4], [6.0, 1.9, 0.5]),
+        ("janitor's room", [0.0, -0.4], [5.0, 1.6, 0.5]),
+    ],
+    things: &[
+        (OFFICE_DESK, "classroom", [0.0, -0.4]),
+        (OFFICE_DESK, "second classroom", [0.0, -0.4]),
+        (OFFICE_DESK, "third classroom", [0.0, -0.4]),
+        (OFFICE_DESK, "school office", [0.0, -0.3]),
+        (MEDICINE_CABINET, "nurse's room", [0.3, 0.3]),
+        (PANTRY, "school kitchen", [-0.3, 0.2]),
+        (STOVE, "school kitchen", [0.3, 0.2]),
+        (SHELF, "gym store", [0.0, 0.0]),
+        (SHELF, "library", [0.0, 0.2]),
+        (TOOLBOX, "janitor's room", [0.0, 0.2]),
+    ],
+    outside: &[],
+    walls: &[[0.7, 0.45, 0.35], [0.8, 0.78, 0.7]],
+    floor: [0.72, 0.7, 0.62],
+    furniture_color: [0.55, 0.45, 0.32],
+    height: 3.2,
+};
+pub const PLACES: [modforge::plan::PlanDef; 18] = [GROCERY_STORE, CROP_FARM, CROP_FARM, LIVESTOCK_BARN, GRAIN_ELEVATOR, DINER, PIZZA_PLACE, CAFE, BAR, PUMP_HOUSE, SUBSTATION, GAS_STATION, SEWAGE_POND, TOWN_DUMP, CLINIC, FIRE_STATION, SHERIFFS_OFFICE, SCHOOL];
 /// The places whose garden beds are found sown and ripe, with what.
 pub const PLACE_SOWN: [(&str, &str); 1] = [("crop farm", POTATO_SEED)];
 /// What each place's boxes are found holding: the place, the box, the
 /// item and how many.
-pub const PLACE_HOLDS: [(&str, &str, &str, u32); 69] = [
+pub const PLACE_HOLDS: [(&str, &str, &str, u32); 75] = [
+    ("school", OFFICE_DESK, "cloth", 1),
+    ("school", MEDICINE_CABINET, "bandage", 4),
+    ("school", PANTRY, "canned food", 8),
+    ("school", SHELF, "rope", 2),
+    ("school", TOOLBOX, SOAP, 3),
+    ("school", TOOLBOX, WRENCH, 1),
     ("sheriff's office", OFFICE_DESK, "cloth", 1),
     ("sheriff's office", SHERIFFS_DESK, ARMORY_KEY, 1),
     ("sheriff's office", GUN_LOCKER, "shotgun shell", 16),
