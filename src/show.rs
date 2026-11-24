@@ -68,7 +68,7 @@ pub fn aliens(
     (tick, day): (Res<SimTick>, Res<Day>),
     mut state: ResMut<ShowRes>,
     mut storms: ResMut<crate::storm::StormRes>,
-    shelters: Query<&crate::structure::Shelter>,
+    shelters: Res<crate::structure::Roofs>,
     mut player: Query<(&Transform, &mut Persona), With<Player>>,
     mut people: Query<(Entity, &Actor, &mut Transform, &crate::actor::Home, Option<&Store>), (With<Npc>, Without<Dead>, Without<Player>)>,
     secrets: Query<(&ThingId, &Transform), (With<crate::secrets::Secret>, Without<Actor>, Without<Player>)>,

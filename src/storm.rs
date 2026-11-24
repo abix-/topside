@@ -90,7 +90,7 @@ pub fn storm(
     damage: Res<DamageRegistryRes>,
     mut state: ResMut<StormRes>,
     (episode, episodes, seed): (Res<Episode>, Res<EpisodeRegistryRes>, Res<WorldSeed>),
-    shelters: Query<&Shelter>,
+    shelters: Res<crate::structure::Roofs>,
     mut actors: Query<(Entity, &Transform, &Protection, &Equipment, &mut Health, Option<&mut Persona>, Option<&crate::actor::Actor>), Without<Dead>>,
     mut events: ResMut<crate::event::EventsRes>,
     show: Res<crate::show::ShowRes>,

@@ -258,6 +258,7 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind, port: u16
     app.init_resource::<BunkerCount>();
     app.insert_resource(world);
     app.init_resource::<SimTick>();
+    app.init_resource::<structure::Roofs>();
     app.init_resource::<content::RealityRegistryRes>();
     app.init_resource::<Reality>();
     app.init_resource::<content::EpisodeRegistryRes>();
@@ -345,7 +346,7 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind, port: u16
         FixedUpdate,
         (
             (
-                tick_system,
+                (tick_system, structure::index_roofs),
                 // The chunks the world needs now, their sites, and the
                 // sites' people.
                 (

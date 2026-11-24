@@ -99,7 +99,7 @@ pub fn encounters(
     seed: Res<crate::WorldSeed>,
     mut randy: ResMut<RandyRes>,
     player: Query<&Transform, With<crate::player::Player>>,
-    shelters: Query<&crate::structure::Shelter>,
+    shelters: Res<crate::structure::Roofs>,
     registry: Res<ActorRegistryRes>,
     (nav, archipelagos): (Res<crate::navmesh::Nav>, Query<&bevy_landmass::prelude::Archipelago3d>),
     mut spawn: SpawnActor,

@@ -49,7 +49,7 @@ pub fn trouble(
     )>,
     mut stores: Query<&mut Container, Without<Actor>>,
     items: Res<ItemRegistryRes>,
-    shelters: Query<&crate::structure::Shelter>,
+    shelters: Res<crate::structure::Roofs>,
 ) {
     let roll = |salt: u64, n: usize| modforge::roll::salted_index(seed, 0x4031_0000 + salt, n.max(1) as u64) as usize;
     // The player's bunker people, by their ids.

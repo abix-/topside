@@ -16,7 +16,7 @@ use crate::content::{BUNKER_AT, BUNKER_LEVEL, ItemRegistryRes, LayerRegistryRes}
 use crate::interact::{Container, ThingIssuer, spawn_item};
 use crate::player::Player;
 use crate::storm::StormRes;
-use crate::structure::{Shelter, sheltered};
+use crate::structure::{Roofs, sheltered};
 use crate::survival::Day;
 use crate::{Ground, SimTick, WorldSeed, on_ground};
 
@@ -170,7 +170,7 @@ fn send(commands: &mut Commands, state: &mut EventsRes, event: Event, secs: f32,
 /// The `n`th spot at `place`, rolled from `seed`: on open ground for the
 /// edge, the town and the door; inside and under the player's bunker by
 /// its levels.
-pub(crate) fn spot(place: Place, seed: u64, n: u32, shelters: &Query<&Shelter>) -> Option<Vec3> {
+pub(crate) fn spot(place: Place, seed: u64, n: u32, shelters: &Res<Roofs>) -> Option<Vec3> {
     let roll = |k: u64| modforge::roll::salted_index(seed ^ u64::from(n) << 16, 0xE7_5070 + k, 10_001) as f32 / 10_000.0;
     let around = |far: (f32, f32)| {
         (0..16u64).find_map(|t| {
@@ -194,7 +194,7 @@ fn arrive(
     mut spawn: SpawnActor,
     actors: Res<crate::content::ActorRegistryRes>,
     (tick, day): (Res<SimTick>, Res<Day>),
-    shelters: Query<&Shelter>,
+    shelters: Res<Roofs>,
 ) {
     let Some(def) = actors.0.def(&who).cloned() else {
         warn!("event: no actor kind {who}");
@@ -221,7 +221,7 @@ pub(crate) fn drop(
     items: Res<ItemRegistryRes>,
     layers: Res<LayerRegistryRes>,
     (tick, day): (Res<SimTick>, Res<Day>),
-    shelters: Query<&Shelter>,
+    shelters: Res<Roofs>,
 ) {
     if let Some(name) = item {
         let Some(def) = items.0.def(&name) else {
@@ -253,7 +253,7 @@ pub(crate) fn drop(
 
 /// The food in the player's store goes bad: every box under a roof by
 /// the player's bunker.
-fn spoil(shelters: Query<&Shelter>, mut boxes: Query<(&Transform, &mut Container)>) {
+fn spoil(shelters: Res<Roofs>, mut boxes: Query<(&Transform, &mut Container)>) {
     for (at, mut held) in &mut boxes {
         let ground = at.translation.ground();
         if ground.distance(BUNKER_AT) > 30.0 || !sheltered(&shelters, ground) {

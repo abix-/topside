@@ -76,9 +76,41 @@ fn inside(rects: &[(Vec2, Vec2)], point: Vec2) -> bool {
     rects.iter().any(|(min, max)| point.x >= min.x && point.x <= max.x && point.y >= min.y && point.y <= max.y)
 }
 
+/// Every roof's floors, in square cells `ROOF_CELL` metres a side, so a
+/// point is checked only against the floors in its own cell, not every
+/// building's (rustperf `full_scan_with_spatial_index`). Made again from
+/// the `Shelter`s only when one is added, changed or removed
+/// (`index_roofs`); never saved.
+#[derive(Resource, Default)]
+pub struct Roofs(std::collections::HashMap<(i32, i32), Vec<(Vec2, Vec2)>>);
+
+/// A roof cell's side, metres (Claude's).
+const ROOF_CELL: f32 = 16.0;
+
+fn roof_cell(point: Vec2) -> (i32, i32) {
+    ((point.x / ROOF_CELL).floor() as i32, (point.y / ROOF_CELL).floor() as i32)
+}
+
+/// Before every step: the roof cells made again when a building's
+/// `Shelter` came, changed or went.
+pub fn index_roofs(mut roofs: ResMut<Roofs>, changed: Query<(), Changed<Shelter>>, mut gone: RemovedComponents<Shelter>, shelters: Query<&Shelter>) {
+    if changed.is_empty() && gone.read().count() == 0 {
+        return;
+    }
+    roofs.0.clear();
+    for &(min, max) in shelters.iter().flat_map(|s| &s.0) {
+        let (lo, hi) = (roof_cell(min), roof_cell(max));
+        for x in lo.0..=hi.0 {
+            for y in lo.1..=hi.1 {
+                roofs.0.entry((x, y)).or_default().push((min, max));
+            }
+        }
+    }
+}
+
 /// Whether `point` is under any roof.
-pub fn sheltered(shelters: &Query<&Shelter>, point: Vec2) -> bool {
-    shelters.iter().any(|s| s.covers(point))
+pub fn sheltered(roofs: &Roofs, point: Vec2) -> bool {
+    roofs.0.get(&roof_cell(point)).is_some_and(|rects| inside(rects, point))
 }
 
 /// What a building has below the ground: where its levels below stand

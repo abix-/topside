@@ -15,7 +15,7 @@ use modforge::storm::Effect;
 use crate::actor::{Dead, Inventory, Map, Npc};
 use crate::content::{BUNKER_AT, BUNKER_LEVEL};
 use crate::interact::{Container, WorldItem};
-use crate::structure::{Shelter, sheltered};
+use crate::structure::{Roofs, sheltered};
 use crate::Ground;
 
 /// How far from the player's bunker, each way, something is dropped.
@@ -49,7 +49,7 @@ pub fn reaches(at: Vec3) -> bool {
 
 /// The `n`th open ground point something is dropped on, rolled from the
 /// seed: around the player's bunker, never under a roof.
-pub fn drop_point(seed: u64, salt: u64, n: u32, shelters: &Query<&Shelter>) -> Option<Vec2> {
+pub fn drop_point(seed: u64, salt: u64, n: u32, shelters: &Res<Roofs>) -> Option<Vec2> {
     (0..16u32).find_map(|tries| {
         let roll = |k: u64| modforge::roll::salted_index(seed ^ u64::from(n) << 16 ^ u64::from(tries) << 32, salt + k, 20_001) as f32 / 10_000.0 - 1.0;
         let at = BUNKER_AT + Vec2::new(roll(0), roll(1)) * REACH;
@@ -106,7 +106,7 @@ fn carry(In(was): In<Vec<modforge::town::Lot>>, world: Res<crate::terrain::World
 /// The rot storm (todo "Storm effect 3"; Project Zomboid's decay in one
 /// night): food outside turns rotten, lying, in a box or carried.
 fn rot(
-    shelters: Query<&Shelter>,
+    shelters: Res<Roofs>,
     mut lying: Query<(&Transform, &mut WorldItem, Option<&mut Container>)>,
     mut carried: Query<(&Transform, &mut Inventory), Without<WorldItem>>,
     mut builds: ResMut<crate::building::Builds>,
@@ -148,7 +148,7 @@ fn rot(
 /// changed, `Changed` standing for the faction they have no `Npc` to hold.
 fn changing(
     mut commands: Commands,
-    shelters: Query<&Shelter>,
+    shelters: Res<Roofs>,
     mut people: Query<(Entity, &Transform, Option<&mut Npc>), (Or<(With<Npc>, With<crate::player::Player>)>, Without<Dead>)>,
 ) {
     for (entity, at, npc) in &mut people {
@@ -220,7 +220,7 @@ pub fn fix_struck(mut commands: Commands, mut struck: Query<(Entity, &mut Contai
 /// the player too, loses the map they carry and what they remember of the
 /// things outside; what is under a roof, their bunker's store with it,
 /// they keep (Claude's).
-fn forgetting(shelters: Query<&Shelter>, mut people: Query<(&Transform, &mut Map, Option<&mut crate::actor::Persona>), Without<Dead>>) {
+fn forgetting(shelters: Res<Roofs>, mut people: Query<(&Transform, &mut Map, Option<&mut crate::actor::Persona>), Without<Dead>>) {
     for (at, mut map, persona) in &mut people {
         if !sheltered(&shelters, at.translation.ground()) {
             *map = Map::default();
