@@ -42,5 +42,7 @@ fn main() {
     if let Some(n) = bunkers {
         app.insert_resource(topside::BunkerCount(n));
     }
+    // The main thread runs the step (lib.rs `above_normal_priority`).
+    topside::above_normal_priority();
     app.run();
 }

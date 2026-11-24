@@ -108,12 +108,23 @@ pub const TICKS_A_SECOND: u64 = 60;
 pub struct MakeTheWorld;
 
 /// The calling thread runs below normal priority, so the threads at normal
-/// priority (the step's) are given the cores first. Windows' own call;
-/// elsewhere nothing.
+/// priority are given the cores first.
 fn below_normal_priority() {
+    thread_priority(-1);
+}
+
+/// The calling thread runs above normal priority: the step's own threads
+/// (the main one and the compute pool's), so nothing at normal priority
+/// (the graphics driver's threads) takes a core from them mid step.
+pub fn above_normal_priority() {
+    thread_priority(1);
+}
+
+/// Set the calling thread's priority (Windows' THREAD_PRIORITY_* levels: -1
+/// below normal, 1 above). Windows' own call; elsewhere nothing.
+fn thread_priority(priority: i32) {
     #[cfg(windows)]
     {
-        const THREAD_PRIORITY_BELOW_NORMAL: i32 = -1;
         #[link(name = "kernel32")]
         unsafe extern "system" {
             fn GetCurrentThread() -> *mut std::ffi::c_void;
@@ -121,11 +132,13 @@ fn below_normal_priority() {
         }
         // SAFETY: GetCurrentThread returns this thread's pseudo handle,
         // always valid in it, and SetThreadPriority only reads it.
-        let set = unsafe { SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_BELOW_NORMAL) };
+        let set = unsafe { SetThreadPriority(GetCurrentThread(), priority) };
         if set == 0 {
-            warn!("the async thread's priority could not be lowered");
+            warn!("a thread's priority could not be set to {priority}");
         }
     }
+    #[cfg(not(windows))]
+    let _ = priority;
 }
 
 /// Run `MakeTheWorld` now.
@@ -247,6 +260,7 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind, port: u16
                         // the step leaves, as Unreal's background workers do.
                         options.async_compute.on_thread_spawn = Some(std::sync::Arc::new(below_normal_priority));
                         options.compute.min_threads = cores;
+                        options.compute.on_thread_spawn = Some(std::sync::Arc::new(above_normal_priority));
                         options
                     },
                 }),
