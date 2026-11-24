@@ -342,9 +342,9 @@ pub fn populate_town_power(
         }
         // A dump pile, found holding junk (Works 17).
         if thing == crate::content::DUMP_PILE {
-            for &(junk, count) in &crate::content::DUMP_HOLDS {
+            for (junk, count) in &crate::content::HOUSE_HOLDS.dump {
                 if let Some(def) = items.0.def(junk) {
-                    let _ = held.add(modforge::item::create(def, count, &[], 0.0, 0), def.max_stack);
+                    let _ = held.add(modforge::item::create(def, *count, &[], 0.0, 0), def.max_stack);
                 }
             }
         }
@@ -368,9 +368,9 @@ pub fn populate_town_power(
         let safe_lock = crate::content::safe_lock(house);
         if let Some(made) = make(&mut commands, crate::content::SAFE, safe_at, Some(InteractKind::Locked { lock: safe_lock, door: false })) {
             let mut held = modforge::item::Inventory::new(items.0.def(crate::content::SAFE).and_then(|d| d.storage).unwrap_or(0));
-            for &(thing, count) in &crate::content::SAFE_HOLDS {
+            for (thing, count) in &crate::content::HOUSE_HOLDS.safe {
                 if let Some(def) = items.0.def(thing) {
-                    let _ = held.add(modforge::item::create(def, count, &[], 0.0, 0), def.max_stack);
+                    let _ = held.add(modforge::item::create(def, *count, &[], 0.0, 0), def.max_stack);
                 }
             }
             commands.entity(made).insert(Container(held));
@@ -392,9 +392,9 @@ pub fn populate_town_power(
                 continue;
             };
             let mut held = modforge::item::Inventory::new(items.0.def(kind).and_then(|d| d.storage).unwrap_or(0));
-            for &(_, thing, count) in crate::content::STORAGE_HOLDS.iter().filter(|(place, ..)| *place == kind) {
+            for (_, thing, count) in crate::content::HOUSE_HOLDS.storage.iter().filter(|(place, ..)| *place == kind) {
                 if let Some(def) = items.0.def(thing) {
-                    let _ = held.add(modforge::item::create(def, count, &[], 0.0, 0), def.max_stack);
+                    let _ = held.add(modforge::item::create(def, *count, &[], 0.0, 0), def.max_stack);
                 }
             }
             if kind == front_key_in && let Some(k) = key(crate::content::front_lock(house)) {
@@ -412,9 +412,9 @@ pub fn populate_town_power(
                 commands.entity(made).insert(WiredTo(breaker));
             }
             let mut held = modforge::item::Inventory::new(items.0.def(kind).and_then(|d| d.storage).unwrap_or(0));
-            for &(_, cloth, count) in crate::content::WARDROBE_HOLDS.iter().filter(|(place, ..)| *place == kind) {
+            for (_, cloth, count) in crate::content::HOUSE_HOLDS.wardrobe.iter().filter(|(place, ..)| *place == kind) {
                 if let Some(def) = items.0.def(cloth) {
-                    for _ in 0..count {
+                    for _ in 0..*count {
                         let _ = held.add(modforge::item::create(def, 1, &[], 0.0, 0), def.max_stack);
                     }
                 }
@@ -441,11 +441,11 @@ pub fn populate_town_power(
             }
             let slots = items.0.def(kind).and_then(|d| d.storage).unwrap_or(0);
             let mut held = modforge::item::Inventory::new(slots);
-            for &(_, food, count) in crate::content::KITCHEN_FOOD.iter().filter(|(place, ..)| *place == kind) {
+            for (_, food, count) in crate::content::HOUSE_HOLDS.kitchen.iter().filter(|(place, ..)| *place == kind) {
                 let Some(def) = items.0.def(food) else {
                     continue;
                 };
-                let mut stack = modforge::item::create(def, count, &[], 0.0, 0);
+                let mut stack = modforge::item::create(def, *count, &[], 0.0, 0);
                 stack.made_day = today;
                 held.add(stack, def.max_stack);
             }

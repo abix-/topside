@@ -230,18 +230,32 @@ pub const WATER_TOWER: &str = "water tower";
 /// Claude's.
 pub const MEDICINE_CABINET: &str = "medicine cabinet";
 pub const FIRST_AID_KIT: &str = "first aid kit";
-pub const CABINET_HOLDS: [(&str, u32); 2] = [("bandage", 2), (FIRST_AID_KIT, 1)];
+/// What a house's boxes are found holding: content/house_holds.yaml's
+/// `house holds`.
+pub const HOUSE_HOLDS_FILE: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/house_holds.yaml");
+
+/// What `HOUSE_HOLDS_FILE` holds.
+#[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct HouseHolds {
+    #[serde(rename = "medicine cabinet")]
+    pub medicine_cabinet: Vec<(String, u32)>,
+    pub wardrobe: Vec<(String, String, u32)>,
+    pub storage: Vec<(String, String, u32)>,
+    pub kitchen: Vec<(String, String, u32)>,
+    pub safe: Vec<(String, u32)>,
+    pub dump: Vec<(String, u32)>,
+}
+
+pub static HOUSE_HOLDS: std::sync::LazyLock<HouseHolds> = std::sync::LazyLock::new(|| read(HOUSE_HOLDS_FILE, "house holds"));
 /// A house's clothing (topside-town "Everything works": "closets and
 /// dressers hold clothes; the washer and dryer clean them").
 pub const CLOSET: &str = "closet";
 pub const DRESSER: &str = "dresser";
 pub const WASHER: &str = "washer";
 pub const DRYER: &str = "dryer";
-/// What each is found holding (Claude's).
-pub const WARDROBE_HOLDS: [(&str, &str, u32); 3] = [(CLOSET, "shirt", 2), (DRESSER, "trousers", 2), (CLOSET, "boots", 1)];
 /// A house's storage (topside-town "Everything works": "pantries,
-/// cabinets, garages, attics and basements hold things"), and what each
-/// is found holding (Claude's).
+/// cabinets, garages, attics and basements hold things").
 pub const KITCHEN_CABINET: &str = "kitchen cabinet";
 pub const GARAGE_SHELF: &str = "garage shelf";
 /// The garage's workbench (a crafting bench) and toolbox (topside-town
@@ -250,19 +264,6 @@ pub const GARAGE_SHELF: &str = "garage shelf";
 pub const GARAGE_WORKBENCH: &str = "garage workbench";
 pub const TOOLBOX: &str = "toolbox";
 pub const WRENCH: &str = "wrench";
-pub const STORAGE_HOLDS: [(&str, &str, u32); 11] = [
-    (GARAGE_SHELF, CARROT_SEED, 3),
-    (GARAGE_SHELF, POTATO_SEED, 3),
-    (KITCHEN_CABINET, EXTINGUISHER, 1),
-    (KITCHEN_CABINET, "water bottle", 1),
-    (GARAGE_SHELF, "scrap", 3),
-    (GARAGE_SHELF, "pipe", 1),
-    (GARAGE_SHELF, "wooden handle", 1),
-    (TOOLBOX, WRENCH, 1),
-    (TOOLBOX, HAMMER, 1),
-    (TOOLBOX, "scrap", 2),
-    (GARAGE_SHELF, PROPANE_TANK, 1),
-];
 /// Soap carried doubles what a wash takes off (modforge hygiene).
 pub const SOAP: &str = "soap";
 /// How much the tower holds, in water barrels of 200 litres: 50, 10,000
@@ -492,7 +493,6 @@ pub const PLACE_STATIONS: [(&str, modforge::crafting::StationKind); 2] = [(STOVE
 pub const TRASH_CAN: &str = "trash can";
 pub const DUMP_PILE: &str = "dump pile";
 pub const COLLECTION_HOUR: f32 = 6.0;
-pub const DUMP_HOLDS: [(&str, u32); 3] = [("scrap", 6), ("cloth", 3), ("pipe", 1)];
 pub const MATCHES: &str = "matches";
 pub const EXTINGUISHER: &str = "extinguisher";
 pub const SMOKE_DETECTOR: &str = "smoke detector";
@@ -504,7 +504,6 @@ pub const HYDRANTS_APART: f32 = 90.0;
 /// What burns: the town's furniture and boxes.
 pub const BURNS: [&str; 11] = [COUCH, BED, CLOSET, DRESSER, KITCHEN_CABINET, GARAGE_SHELF, PANTRY, GARAGE_WORKBENCH, TOOLBOX, "storage box", SLEEPING_BAG];
 pub const KEYS: u32 = 128;
-pub const SAFE_HOLDS: [(&str, u32); 2] = [("shotgun shell", 6), ("scrap", 4)];
 pub fn front_lock(house: usize) -> u32 {
     2 * house as u32 + 1
 }
@@ -1271,7 +1270,6 @@ pub const COOKED_MEAT: &str = "cooked meat";
 pub const COLD: [(&str, f32); 2] = [(FRIDGE, 0.75), (FREEZER, 1.0)];
 /// What a house's kitchen is found holding: (where, what, how many).
 /// Claude's.
-pub const KITCHEN_FOOD: [(&str, &str, u32); 4] = [(PANTRY, "canned food", 3), (FRIDGE, RAW_MEAT, 2), (PANTRY, SOAP, 1), (PANTRY, MATCHES, 1)];
 /// What spoiled food becomes.
 pub const ROTTEN_FOOD: &str = "rotten food";
 

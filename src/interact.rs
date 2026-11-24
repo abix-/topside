@@ -396,9 +396,9 @@ pub fn populate_town_water(
         // The medicine cabinet is a box, found with what treats wounds.
         if kind == crate::content::MEDICINE_CABINET {
             let mut held = item::Inventory::new(def.storage.unwrap_or(0));
-            for &(name, count) in &crate::content::CABINET_HOLDS {
+            for (name, count) in &crate::content::HOUSE_HOLDS.medicine_cabinet {
                 if let Some(medicine) = items.0.def(name) {
-                    let _ = held.add(item::create(medicine, count, &[], 0.0, 0), medicine.max_stack);
+                    let _ = held.add(item::create(medicine, *count, &[], 0.0, 0), medicine.max_stack);
                 }
             }
             commands.entity(made).insert((Container(held), Interactable { kind: InteractKind::Container }));

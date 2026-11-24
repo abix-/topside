@@ -1,0 +1,42 @@
+# What a house's boxes are found holding (topside-town "Everything
+# works"), read by content's `HOUSE_HOLDS`. Each row the box, the item and
+# how many; the medicine cabinet's, the safe's and a dump pile's rows the
+# item and how many. Every row is Claude's, for the operator to change.
+house holds:
+  # The medicine cabinet, found with what treats wounds.
+  medicine cabinet:
+    - [bandage, 2]
+    - [first aid kit, 1]
+  # The closets and dressers.
+  wardrobe:
+    - [closet, shirt, 2]
+    - [dresser, trousers, 2]
+    - [closet, boots, 1]
+  # The pantries, cabinets and garages.
+  storage:
+    - [garage shelf, carrot seed, 3]
+    - [garage shelf, potato seed, 3]
+    - [kitchen cabinet, extinguisher, 1]
+    - [kitchen cabinet, water bottle, 1]
+    - [garage shelf, scrap, 3]
+    - [garage shelf, pipe, 1]
+    - [garage shelf, wooden handle, 1]
+    - [toolbox, wrench, 1]
+    - [toolbox, hammer, 1]
+    - [toolbox, scrap, 2]
+    - [garage shelf, propane tank, 1]
+  # The kitchen.
+  kitchen:
+    - [pantry, canned food, 3]
+    - [fridge, raw meat, 2]
+    - [pantry, soap, 1]
+    - [pantry, matches, 1]
+  # The safe, locked (Works 14).
+  safe:
+    - [shotgun shell, 6]
+    - [scrap, 4]
+  # A dump pile's junk (Works 17).
+  dump:
+    - [scrap, 6]
+    - [cloth, 3]
+    - [pipe, 1]
