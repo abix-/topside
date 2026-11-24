@@ -1,28 +1,29 @@
 # The types of storm (modforge `storm::StormType`; todo "Storm 3",
-# topside-town "The storms": "there should be different types of
-# storms, and maybe we could colorize that... Maybe there's different
-# types of storms that changes what re-rolls"). Read by content's
-# `STORM_TYPES`. Each has its `name`, its sky's colour while it warns
-# (`warning`) and while it rages (`storm`), each [red, green, blue, how
-# much it covers] from 0 to 1, and any of `kills` (whoever is in the open
-# dies; true when left out), `rolls` (what it rolls anew when it passes:
-# Reality, World; nothing when left out), `from_storm` (the least storm
-# it can be, 0 the first; 0 when left out), `weight` (how likely against
-# the others, 100 when left out) and `learned_by` (the content/tech.yaml
-# topic that teaches what it does; until it is researched the player is
-# told only that the sky has changed: todo "Storm 6").
+# topside-town "The storms"). Read by content's `STORM_TYPES`. Each has
+# its `name`, its sky's colour while it warns (`warning`) and while it
+# rages (`storm`), each [red, green, blue, how much it covers] from 0 to
+# 1, and any of `kills` (whoever is in the open dies; true when left
+# out), `rolls` (what it rolls anew when it passes: Reality, World;
+# nothing when left out), `from_storm` (the least storm it can be, 0 the
+# first; 0 when left out), `weight` (how likely against the others, 100
+# when left out) and `learned_by` (the content/tech.yaml topic that
+# teaches what it does; until it is researched the player is told only
+# that the sky has changed: todo "Storm 6").
 #
-# The first storm is always the still storm, the only type that can come
-# first, as
-# topside-town "The first shock" has it: it kills whoever is outside and
-# leaves the world as it was. The names, colours and odds are Claude's,
-# for the operator to change.
+# The three types are the operator's (2026-11-24): "there would be
+# normal storms, which is just rain and thunder and shit. Next day
+# everything's fine and haha, it's a joke kind of. And then there's the
+# kill everyone on the surface one, and then there's the wipe the
+# surface, right, and regenerate it... the bunkers are taken and moved to
+# a new place, and a new world is generated around it." The first storm
+# kills everyone outside and leaves the world as it was (topside-town
+# "The first shock"), so only the killing storm can come first. The
+# names, colours and odds are Claude's.
 types:
-  # Kills whoever is outside; the world stays as it was.
-  - {name: still storm, warning: [0.7, 0.3, 0.05, 0.3], storm: [0.95, 0.93, 0.88, 0.85], rolls: [], learned_by: still storm study}
-  # The world rolled anew in another reality (the storm as it was).
-  - {name: shift storm, warning: [0.45, 0.1, 0.6, 0.3], storm: [0.85, 0.75, 0.95, 0.85], rolls: [Reality, World], from_storm: 1, learned_by: shift storm study}
-  # Another reality on the same ground: what stands stays, the rules change.
-  - {name: green storm, warning: [0.15, 0.55, 0.2, 0.3], storm: [0.75, 0.95, 0.75, 0.85], rolls: [Reality], from_storm: 1, weight: 60, learned_by: green storm study}
-  # The world rolled anew, the reality kept.
-  - {name: red storm, warning: [0.65, 0.05, 0.05, 0.3], storm: [0.95, 0.75, 0.7, 0.85], rolls: [World], from_storm: 1, weight: 60, learned_by: red storm study}
+  # Rain and thunder; the next day everything is fine.
+  - {name: normal storm, warning: [0.2, 0.25, 0.35, 0.3], storm: [0.3, 0.35, 0.45, 0.6], kills: false, from_storm: 1, learned_by: normal storm study}
+  # Kills everyone on the surface; the world stays as it was.
+  - {name: killing storm, warning: [0.7, 0.3, 0.05, 0.3], storm: [0.95, 0.93, 0.88, 0.85], learned_by: killing storm study}
+  # Wipes the surface: the bunkers are moved to a new world made around
+  # them, and the next episode starts.
+  - {name: wiping storm, warning: [0.45, 0.1, 0.6, 0.3], storm: [0.85, 0.75, 0.95, 0.85], rolls: [Reality, World], from_storm: 1, learned_by: wiping storm study}

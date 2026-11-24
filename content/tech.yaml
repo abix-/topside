@@ -54,10 +54,9 @@ topics:
   # topside-town "The storms": "You don't understand the storm until you
   # get to research down"); content/storm_types.yaml names them. Costs
   # and needs are Claude's.
-  - {name: still storm study, cost: [[scrap, 10], [note, 1]]}
-  - {name: shift storm study, cost: [[scrap, 20], [note, 2]], needs: [still storm study]}
-  - {name: green storm study, cost: [[scrap, 20], [note, 2]], needs: [still storm study]}
-  - {name: red storm study, cost: [[scrap, 20], [note, 2]], needs: [still storm study]}
+  - {name: killing storm study, cost: [[scrap, 10], [note, 1]]}
+  - {name: normal storm study, cost: [[scrap, 10], [note, 1]], needs: [killing storm study]}
+  - {name: wiping storm study, cost: [[scrap, 20], [note, 2]], needs: [killing storm study]}
 
   # Tier 4: what raiders fear.
   - {name: assault weapons, tier: 4, cost: [[high quality metal, 20], [gears, 10]], needs: [semi automatics, rifles], unlocks: [semi automatic rifle]}
