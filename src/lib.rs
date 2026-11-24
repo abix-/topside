@@ -231,6 +231,10 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind, port: u16
     // Avian 3D is the one physics system. Bodies are kinematic and walk
     // the ground; nothing falls yet (one floor, flat ground).
     app.add_plugins(avian3d::prelude::PhysicsPlugins::default());
+    // No body is dynamic and none makes contacts (people are kinematic,
+    // moved by `player::movement`; everything else is static), so the
+    // solver's substeps have nothing to solve: one, not Avian's six.
+    app.insert_resource(avian3d::prelude::SubstepCount(1));
     // Before each physics step Avian needs every body's GlobalTransform
     // current (its transform_to_position reads it), and by default it
     // propagates every transform tree to get it: a person who moved has
