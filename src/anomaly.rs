@@ -178,13 +178,24 @@ pub fn burn(
     layers: Res<crate::content::LayerRegistryRes>,
     damage: Res<DamageRegistryRes>,
     anomalies: Query<&Transform, With<Anomaly>>,
-    mut actors: Query<(&Transform, &Protection, &Equipment, &mut Health, Option<&mut Persona>), (Without<Dead>, Without<Anomaly>)>,
+    mut actors: Query<(Entity, &Transform, &Protection, &Equipment, &mut Health, Option<&mut Persona>), (Without<Dead>, Without<Anomaly>)>,
 ) {
     let Some(def) = damage.0.def(ANOMALY) else {
         return;
     };
+    if anomalies.is_empty() {
+        return;
+    }
+    // Only those whose ground cell an anomaly reaches (`ai::Near`).
+    let who: Vec<(Entity, Vec3)> = actors.iter().map(|(e, at, ..)| (e, at.translation)).collect();
+    let near = crate::ai::Near::new(who.iter().map(|(_, at)| *at));
+    let mut reached = Vec::new();
     for anomaly in &anomalies {
-        for (at, own, worn, mut health, mut memory) in &mut actors {
+        near.within(anomaly.translation, ANOMALY_RADIUS, &mut reached);
+        for found in reached.iter().map(|&i| who[i].0) {
+            let Ok((_, at, own, worn, mut health, mut memory)) = actors.get_mut(found) else {
+                continue;
+            };
             let inside = at.translation.ground().distance(anomaly.translation.ground()) < ANOMALY_RADIUS
                 && (at.translation.y - anomaly.translation.y).abs() < DEPTH;
             if !inside || health.0.current <= 0.0 {
