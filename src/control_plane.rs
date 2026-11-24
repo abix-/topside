@@ -1734,7 +1734,7 @@ pub fn publish(
                 "step_worst_ms": laps.step_worst_ms,
                 "step_worst_tick": laps.step_worst_tick,
                 "over_budget": laps.over_budget,
-                "over_budget_steps": laps.over_budget_steps.iter().map(|(t, ms)| json!({"tick": t, "ms": ms})).collect::<Vec<_>>(),
+                "over_budget_steps": laps.over_budget_steps,
                 "steps_per_frame": laps.steps_per_frame,
                 "budget_ms": crate::profile::BUDGET_MS,
                 "people": actors.0.live_count(),

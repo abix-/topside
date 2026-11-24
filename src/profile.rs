@@ -159,6 +159,16 @@ const SMOOTHING: f64 = 1.0 / 30.0;
 /// reads as about 16 and fades); what the parts counted (people walking,
 /// ways searched); the whole step, from the start of FixedFirst to the end
 /// of FixedLast, average and worst; and how many fixed steps a frame ran.
+/// One step over the budget: its tick, its ms, its costliest parts, and
+/// the units each costly system worked in it.
+#[derive(Clone, serde::Serialize)]
+pub struct OverBudget {
+    pub tick: u64,
+    pub ms: f64,
+    pub parts: Vec<(&'static str, f64)>,
+    pub units: Vec<(&'static str, f64)>,
+}
+
 #[derive(Resource, Default)]
 pub struct Laps {
     mark: Option<Instant>,
@@ -179,9 +189,14 @@ pub struct Laps {
     /// The tick that worst step ran.
     pub step_worst_tick: u64,
     /// The steps over the budget (1/60 s) since the world was made ready:
-    /// how many, and the first `OVER_KEPT` of them, each its tick and ms.
+    /// how many, and the first `OVER_KEPT` of them, each its tick, ms, its
+    /// costliest parts, and its units.
     pub over_budget: u64,
-    pub over_budget_steps: Vec<(u64, f64)>,
+    pub over_budget_steps: Vec<OverBudget>,
+    /// Every part recorded this step so far, in ms.
+    this_step: Vec<(&'static str, f64)>,
+    /// Each count's last value, in `counts`' order.
+    counts_now: Vec<f64>,
     /// Fixed steps run this frame, so far.
     steps_this_frame: u32,
     /// Fixed steps a frame, averaged over frames.
@@ -197,6 +212,7 @@ impl Laps {
     /// A part's time this step, in ms: a whole system (`lap`) or a part
     /// inside one, timed where it runs; its worst kept too.
     pub fn record(&mut self, name: &'static str, ms: f64) {
+        self.this_step.push((name, ms));
         match self.part_of.get(name) {
             Some(&(i, _)) => {
                 let mean = &mut self.mean_ms[i].1;
@@ -237,10 +253,12 @@ impl Laps {
             Some(&i) => {
                 let mean = &mut self.counts[i].1;
                 *mean += (n - *mean) * SMOOTHING;
+                self.counts_now[i] = n;
             }
             None => {
                 self.count_of.insert(name, self.counts.len());
                 self.counts.push((name, n));
+                self.counts_now.push(n);
             }
         }
     }
@@ -274,6 +292,7 @@ pub fn start_step(mut laps: ResMut<Laps>) {
     laps.mark = Some(now);
     laps.step_start = Some(now);
     laps.steps_this_frame += 1;
+    laps.this_step.clear();
 }
 
 /// The end of the fixed step, last in FixedLast: the whole step's time.
@@ -287,7 +306,11 @@ pub fn finish_step(mut laps: ResMut<Laps>, tick: Res<crate::SimTick>) {
     if ms > BUDGET_MS {
         laps.over_budget += 1;
         if laps.over_budget_steps.len() < OVER_KEPT {
-            laps.over_budget_steps.push((tick.0, ms));
+            let mut parts = laps.this_step.clone();
+            parts.sort_by(|a, b| b.1.total_cmp(&a.1));
+            parts.truncate(3);
+            let units = laps.counts.iter().zip(&laps.counts_now).map(|((name, _), n)| (*name, *n)).collect();
+            laps.over_budget_steps.push(OverBudget { tick: tick.0, ms, parts, units });
         }
     }
 }

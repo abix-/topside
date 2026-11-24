@@ -14,7 +14,11 @@ def main() -> None:
         perf = json.load(f)
     print(f"step {perf['step_ms']:.2f} ms  worst {perf['step_worst_ms']:.2f} ms at tick {perf.get('step_worst_tick')}  steps a frame {perf['steps_per_frame']:.1f}")
     over = perf.get("over_budget_steps") or []
-    print(f"over budget: {perf.get('over_budget')}  " + " ".join(f"{s['tick']}:{s['ms']:.1f}" for s in over))
+    print(f"over budget: {perf.get('over_budget')}")
+    for s in over:
+        parts = ", ".join(f"{name} {ms:.1f}" for name, ms in s.get("parts", []))
+        units = dict(s.get("units", []))
+        print(f"  {s['tick']}: {s['ms']:.1f}  ({parts})  thinking {units.get('units: thinking', 0):.0f}")
     print("by worst:")
     for part in sorted(perf["parts"], key=lambda p: -(p["worst_ms"] or 0))[:count]:
         print(f"  {part['part']:<32} {part['ms']:7.2f} {part['worst_ms'] or 0:8.2f}")
