@@ -902,5 +902,11 @@ fn use_thing(
             thing.kind = InteractKind::Switch { on: !on };
             Some(Did::Done(format!("turned the {what} {}", if on { "off" } else { "on" })))
         }
+        // The key was carried: unlocked for good (Works 14).
+        InteractResult::Unlock(now) => {
+            thing.kind = now;
+            Some(Did::Done("unlocked it with its key".to_string()))
+        }
+        InteractResult::NeedsKey(_) => Some(Did::Failed("open it".to_string(), "it is locked".to_string())),
     }
 }

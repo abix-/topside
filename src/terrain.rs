@@ -158,6 +158,10 @@ pub struct ThingsMade {
     pub water: bool,
     /// The town's power: its substation and every house's wiring.
     pub power: bool,
+    /// The front doors locked once when made (Works 14), by ThingId, so
+    /// a load never locks one that was opened.
+    #[serde(default)]
+    pub locked: HashSet<u64>,
 }
 
 /// The chunks made when the game was saved (`Chunks::made` then). Saved;

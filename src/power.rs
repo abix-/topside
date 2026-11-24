@@ -119,6 +119,31 @@ pub struct WiredTo(#[entities] pub Entity);
 /// room's switch with its light, each through the one way a thing comes
 /// into the world. Once a world, as its people; after a load they are in
 /// the save.
+/// Each house's front door, once when it is made: locked with the
+/// house's lock (Works 14). A door the save brings back is never locked
+/// again (`ThingsMade::locked`).
+pub fn lock_front_doors(
+    world: Option<Res<crate::terrain::WorldRes>>,
+    mut things_made: ResMut<crate::terrain::ThingsMade>,
+    mut doors: Query<(&crate::interact::Door, &crate::interact::ThingId, &mut Interactable), Added<crate::interact::Door>>,
+) {
+    let Some(town) = world.as_ref().and_then(|w| w.world.town.as_ref()) else {
+        return;
+    };
+    if doors.is_empty() {
+        return;
+    }
+    let fronts: Vec<Vec2> = town.lots.iter().filter(|l| l.house).map(|l| l.at + modforge::house::front_door(l.front)).collect();
+    for (door, id, mut thing) in &mut doors {
+        if door.lying || !things_made.locked.insert(id.0) {
+            continue;
+        }
+        if let Some(house) = fronts.iter().position(|f| f.distance(door.closed_center) < 1.0) {
+            thing.kind = InteractKind::Locked { lock: crate::content::front_lock(house), door: true };
+        }
+    }
+}
+
 pub fn populate_town_power(
     mut commands: Commands,
     world: Res<crate::terrain::WorldRes>,
@@ -176,11 +201,29 @@ pub fn populate_town_power(
     let lamps = town.lots.iter().filter(|l| l.house).map(|l| modforge::house::home_spots(l.front).into_iter().map(|p| l.at + p + Vec2::new(0.8, 0.0)).collect::<Vec<_>>());
     let candles = town.lots.iter().filter(|l| l.house).map(|l| l.at + modforge::house::dining_table(l.front));
     let lights: Vec<(Vec<Vec2>, Vec2)> = lamps.zip(candles).collect();
-    let rooms_of = town.wiring().into_iter().zip(town.heating()).zip(lights).zip(town.kitchens()).zip(town.clothing()).zip(town.storage());
-    for ((((((breaker_at, rooms), heating), (lamps, candle)), kitchen), clothing), storage) in rooms_of {
+    let safes = town.lots.iter().filter(|l| l.house).map(|l| l.at + modforge::house::safe(l.front));
+    let rooms_of = town.wiring().into_iter().zip(town.heating()).zip(lights).zip(town.kitchens()).zip(town.clothing()).zip(town.storage()).zip(safes);
+    for (house, (((((((breaker_at, rooms), heating), (lamps, candle)), kitchen), clothing), storage), safe_at)) in rooms_of.enumerate() {
         let Some(breaker) = make(&mut commands, crate::content::BREAKER_BOX, breaker_at, Some(InteractKind::Switch { on: true })) else {
             continue;
         };
+        // Its safe, locked, found holding shells and scrap (Works 14).
+        let safe_lock = crate::content::safe_lock(house);
+        if let Some(made) = make(&mut commands, crate::content::SAFE, safe_at, Some(InteractKind::Locked { lock: safe_lock, door: false })) {
+            let mut held = modforge::item::Inventory::new(items.0.def(crate::content::SAFE).and_then(|d| d.storage).unwrap_or(0));
+            for &(thing, count) in &crate::content::SAFE_HOLDS {
+                if let Some(def) = items.0.def(thing) {
+                    let _ = held.add(modforge::item::create(def, count, &[], 0.0, 0), def.max_stack);
+                }
+            }
+            commands.entity(made).insert(Container(held));
+        }
+        // The keys: the front door's on the garage shelf, else in the
+        // kitchen cabinet; the safe's in the dresser.
+        let has_shelf = storage.iter().any(|(kind, _)| *kind == crate::content::GARAGE_SHELF);
+        let front_key_in = if has_shelf { crate::content::GARAGE_SHELF } else { crate::content::KITCHEN_CABINET };
+        let key = |lock: u32| items.0.def(&modforge::hud::key_for(lock)).map(|d| modforge::item::create(d, 1, &[], 0.0, 0));
+        let mut safe_key_put = false;
         // Its storage: boxes found holding things.
         for (kind, at) in storage {
             // The workbench is a crafting bench.
@@ -196,6 +239,9 @@ pub fn populate_town_power(
                 if let Some(def) = items.0.def(thing) {
                     let _ = held.add(modforge::item::create(def, count, &[], 0.0, 0), def.max_stack);
                 }
+            }
+            if kind == front_key_in && let Some(k) = key(crate::content::front_lock(house)) {
+                let _ = held.add(k, 1);
             }
             commands.entity(made).insert(Container(held));
         }
@@ -215,6 +261,10 @@ pub fn populate_town_power(
                         let _ = held.add(modforge::item::create(def, 1, &[], 0.0, 0), def.max_stack);
                     }
                 }
+            }
+            if kind == crate::content::DRESSER && !safe_key_put && let Some(k) = key(safe_lock) {
+                let _ = held.add(k, 1);
+                safe_key_put = true;
             }
             commands.entity(made).insert(Container(held));
         }

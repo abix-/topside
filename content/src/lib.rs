@@ -362,6 +362,21 @@ pub const FUEL: &str = "fuel";
 pub const PROPANE_TANK: &str = "propane tank";
 pub const GENERATOR_FUELS: [&str; 2] = [FUEL, PROPANE_TANK];
 pub const GAS_PUMP: &str = "gas pump";
+/// Security (topside-town "Everything works": "locks, keys, deadbolts,
+/// safes and the sheriff's armory"; Project Zomboid's house keys): each
+/// house's front door is locked, its key on the garage shelf (or the
+/// kitchen cabinet over a bunker); each house has a safe in its first
+/// bedroom, its key in the dresser, holding shells and scrap. House n's
+/// front door is lock 2n + 1, its safe 2n + 2. All Claude's.
+pub const SAFE: &str = "safe";
+pub const KEYS: u32 = 128;
+pub const SAFE_HOLDS: [(&str, u32); 2] = [("shotgun shell", 6), ("scrap", 4)];
+pub fn front_lock(house: usize) -> u32 {
+    2 * house as u32 + 1
+}
+pub fn safe_lock(house: usize) -> u32 {
+    2 * house as u32 + 2
+}
 pub const GENERATOR_DEF: modforge::power::GeneratorDef = modforge::power::GeneratorDef { output: 10.0, burn_secs: 600.0 };
 pub const WIRE_REACH: f32 = 12.0;
 /// The town's power (topside-town "Everything works": "the substation,
@@ -2119,6 +2134,7 @@ pub fn register_items(reg: &mut ItemRegistry) {
         building(FUEL, "A can of fuel, for a generator or a car.", ItemKind::Material, 20, None),
         building(PROPANE_TANK, "A propane tank, for a generator.", ItemKind::Material, 5, None),
         building(GAS_PUMP, "A gas pump. Cans of fuel are filled here.", ItemKind::Deployable, 1, Some(4)),
+        building(SAFE, "A safe. Its key opens it.", ItemKind::Deployable, 1, Some(4)),
         // The silo (todo 30; descriptions Claude's).
         building(SHOVEL, "A shovel. Strike the deepest floor of your bunker to dig a level down.", ItemKind::Tool, 1, None),
         building("crafting bench", "A bench folded for carrying. Set it down and craft at it.", ItemKind::Deployable, 1, None),
@@ -2414,6 +2430,15 @@ pub fn register_items(reg: &mut ItemRegistry) {
         // by scripts/models.py.
         item.picture = Some(item.name.clone());
         reg.register(item).expect("item defs must not collide");
+    }
+    // The keys, one to each lock (Works 14), drawn as one key.
+    for lock in 1..=KEYS {
+        let name = modforge::hud::key_for(lock);
+        let def = ItemDef {
+            picture: Some("key".to_string()),
+            ..building(&name, "A key. It opens one lock.", ItemKind::Material, 1, None)
+        };
+        reg.register(def).expect("a key is registered once");
     }
     // The base resources, Atlas's, and their kinds (topside Decisions
     // 2026-11-23): a recipe asking for a category takes any kind in it,
