@@ -264,6 +264,14 @@ pub const WATER_TOWER: &str = "water tower";
 pub const MEDICINE_CABINET: &str = "medicine cabinet";
 pub const FIRST_AID_KIT: &str = "first aid kit";
 pub const CABINET_HOLDS: [(&str, u32); 2] = [("bandage", 2), (FIRST_AID_KIT, 1)];
+/// A house's clothing (topside-town "Everything works": "closets and
+/// dressers hold clothes; the washer and dryer clean them").
+pub const CLOSET: &str = "closet";
+pub const DRESSER: &str = "dresser";
+pub const WASHER: &str = "washer";
+pub const DRYER: &str = "dryer";
+/// What each is found holding (Claude's).
+pub const WARDROBE_HOLDS: [(&str, &str, u32); 3] = [(CLOSET, "shirt", 2), (DRESSER, "trousers", 2), (CLOSET, "boots", 1)];
 /// Soap carried doubles what a wash takes off (modforge hygiene).
 pub const SOAP: &str = "soap";
 /// How much the tower holds, in water barrels of 200 litres: 50, 10,000
@@ -1974,7 +1982,11 @@ pub fn register_items(reg: &mut ItemRegistry) {
         building(THERMOSTAT, "The house's thermostat. On, the furnace and the air conditioner run.", ItemKind::Deployable, 1, None),
         building(COUCH, "A couch. Use it to sleep on; a bed rests better.", ItemKind::Source, 1, None),
         building(SLEEPING_BAG, "A sleeping bag. Carried, sleeping off a bed rests better.", ItemKind::Material, 1, None),
-        building(MEDICINE_CABINET, "A medicine cabinet over the bathroom sink.", ItemKind::Deployable, 1, Some(6)),
+        building(CLOSET, "A bedroom closet.", ItemKind::Deployable, 1, Some(8)),
+        building(DRESSER, "A dresser.", ItemKind::Deployable, 1, Some(6)),
+        building(WASHER, "A washing machine. With power, dirty clothes put in it come out washed and wet.", ItemKind::Deployable, 1, Some(4)),
+        building(DRYER, "A dryer. With power, wet clothes put in it come out clean.", ItemKind::Deployable, 1, Some(4)),
+        building(MEDICINE_CABINET,"A medicine cabinet over the bathroom sink.", ItemKind::Deployable, 1, Some(6)),
         ItemDef {
             food: Some(FoodStats { hunger: 0.0, thirst: 0.0, health: 60.0 }),
             ..building(FIRST_AID_KIT, "A first aid kit. Use it to treat bad wounds.", ItemKind::Medicine, 3, None)
@@ -2314,9 +2326,11 @@ pub fn register_items(reg: &mut ItemRegistry) {
     ];
     // What everyone wears (WORN): plain clothes, wearable and guarding
     // nothing.
-    let clothes = WORN.iter().map(|name| ItemDef {
-        name: name.to_string(),
+    // Each also dirty and washed wet (modforge hygiene: the washer and
+    // dryer clean them).
+    let clothes = WORN.iter().flat_map(|name| [name.to_string(), format!("dirty {name}"), format!("wet {name}")]).map(|name| ItemDef {
         description: format!("Plain {name}. Worn."),
+        name,
         unique: false,
         kind: ItemKind::Tool,
         max_stack: 1,

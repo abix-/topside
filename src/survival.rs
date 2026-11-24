@@ -127,20 +127,52 @@ pub fn rot(
     mut inventories: Query<&mut crate::actor::Inventory>,
     mut hotbars: Query<&mut crate::actor::Hotbar>,
     mut boxes: Query<(&mut crate::interact::Container, Option<&crate::interact::WorldItem>, Option<&crate::power::Powered>)>,
+    mut wearers: Query<(&mut Equipment, &Clean)>,
 ) {
     if tick.0 % 60 != 0 {
         return;
     }
     let today = today(&tick, *day);
     // A powered fridge or freezer keeps what is in it cold: it ages only
-    // part of this second (modforge `item::keep_cold`).
+    // part of this second (modforge `item::keep_cold`). A powered washer
+    // washes dirty clothes, a dryer dries wet ones (modforge `launder`).
     let second = 1.0 / day.0;
     for (mut held, item, powered) in &mut boxes {
-        let cold = item.and_then(|i| crate::content::COLD.iter().find(|(name, _)| *name == i.stack.item)).map(|(_, slows)| *slows);
-        if let (Some(slows), Some(true)) = (cold, powered.map(|p| p.0)) {
+        let on = powered.is_some_and(|p| p.0);
+        let name = item.map(|i| i.stack.item.as_str());
+        let cold = name.and_then(|n| crate::content::COLD.iter().find(|(c, _)| *c == n)).map(|(_, slows)| *slows);
+        if let (Some(slows), true) = (cold, on) {
             for stack in held.0.slots.iter_mut().flatten() {
                 modforge::item::keep_cold(stack, second, slows);
             }
+        }
+        let dry = match name {
+            Some(crate::content::WASHER) => Some(false),
+            Some(crate::content::DRYER) => Some(true),
+            _ => None,
+        };
+        if let (Some(dry), true) = (dry, on) {
+            for stack in held.0.slots.iter_mut().flatten() {
+                if let Some(done) = modforge::hygiene::launder(&stack.item, dry) {
+                    stack.item = done;
+                }
+            }
+        }
+    }
+    // Whoever is filthy dirties the clothes they wear.
+    for (mut worn, clean) in &mut wearers {
+        if !clean.0.filthy() {
+            continue;
+        }
+        for slot in 0..modforge::item::EQUIPMENT_SLOTS {
+            let Some(dirty) = worn.0.get(slot).filter(|s| crate::content::WORN.contains(&s.item.as_str())).and_then(|s| modforge::hygiene::soiled(&s.item)) else {
+                continue;
+            };
+            let mut stack = worn.0.take_off(slot);
+            if let Some(stack) = stack.as_mut() {
+                stack.item = dirty;
+            }
+            worn.0.swap_with(slot, &mut stack);
         }
     }
     let turn = |inventory: &mut modforge::item::Inventory| {

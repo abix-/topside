@@ -155,10 +155,30 @@ pub fn populate_town_power(
     let lamps = town.lots.iter().filter(|l| l.house).map(|l| modforge::house::home_spots(l.front).into_iter().map(|p| l.at + p + Vec2::new(0.8, 0.0)).collect::<Vec<_>>());
     let candles = town.lots.iter().filter(|l| l.house).map(|l| l.at + modforge::house::dining_table(l.front));
     let lights: Vec<(Vec<Vec2>, Vec2)> = lamps.zip(candles).collect();
-    for ((((breaker_at, rooms), heating), (lamps, candle)), kitchen) in town.wiring().into_iter().zip(town.heating()).zip(lights).zip(town.kitchens()) {
+    let rooms_of = town.wiring().into_iter().zip(town.heating()).zip(lights).zip(town.kitchens()).zip(town.clothing());
+    for (((((breaker_at, rooms), heating), (lamps, candle)), kitchen), clothing) in rooms_of {
         let Some(breaker) = make(&mut commands, crate::content::BREAKER_BOX, breaker_at, Some(InteractKind::Switch { on: true })) else {
             continue;
         };
+        // Its clothing: closets and dressers found holding clothes; the
+        // washer and the dryer on the house's breaker.
+        for (kind, at) in clothing {
+            let Some(made) = make(&mut commands, kind, at, Some(InteractKind::Container)) else {
+                continue;
+            };
+            if matches!(kind, crate::content::WASHER | crate::content::DRYER) {
+                commands.entity(made).insert(WiredTo(breaker));
+            }
+            let mut held = modforge::item::Inventory::new(items.0.def(kind).and_then(|d| d.storage).unwrap_or(0));
+            for &(_, cloth, count) in crate::content::WARDROBE_HOLDS.iter().filter(|(place, ..)| *place == kind) {
+                if let Some(def) = items.0.def(cloth) {
+                    for _ in 0..count {
+                        let _ = held.add(modforge::item::create(def, 1, &[], 0.0, 0), def.max_stack);
+                    }
+                }
+            }
+            commands.entity(made).insert(Container(held));
+        }
         // Its kitchen: the stove cooks; the pantry, the fridge and the
         // freezer are boxes, found holding food; the fridge and the
         // freezer are on the house's breaker.
@@ -262,7 +282,7 @@ pub fn lights(
             LAMP => wired.is_some_and(|b| modforge::power::lit(true, breaker_live(b.0), on(entity))),
             STREETLIGHT => night && has_grid(at.translation),
             // A fridge or a freezer is cold while its breaker is live.
-            crate::content::FRIDGE | crate::content::FREEZER => wired.is_some_and(|b| breaker_live(b.0)),
+            crate::content::FRIDGE | crate::content::FREEZER | crate::content::WASHER | crate::content::DRYER => wired.is_some_and(|b| breaker_live(b.0)),
             CANDLE => on(entity),
             _ => continue,
         };
