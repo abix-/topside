@@ -201,6 +201,14 @@ pub fn populate_town_power(
     let lamps = town.lots.iter().filter(|l| l.house).map(|l| modforge::house::home_spots(l.front).into_iter().map(|p| l.at + p + Vec2::new(0.8, 0.0)).collect::<Vec<_>>());
     let candles = town.lots.iter().filter(|l| l.house).map(|l| l.at + modforge::house::dining_table(l.front));
     let lights: Vec<(Vec<Vec2>, Vec2)> = lamps.zip(candles).collect();
+    // A smoke detector in each house's hall, and a hydrant each 90 m of
+    // street (Works 15).
+    for lot in town.lots.iter().filter(|l| l.house) {
+        make(&mut commands, crate::content::SMOKE_DETECTOR, lot.at + modforge::house::smoke_detector(lot.front), None);
+    }
+    for at in town.streetlights(crate::content::HYDRANTS_APART) {
+        make(&mut commands, crate::content::HYDRANT, at + Vec2::new(1.5, 0.0), None);
+    }
     let safes = town.lots.iter().filter(|l| l.house).map(|l| l.at + modforge::house::safe(l.front));
     let rooms_of = town.wiring().into_iter().zip(town.heating()).zip(lights).zip(town.kitchens()).zip(town.clothing()).zip(town.storage()).zip(safes);
     for (house, (((((((breaker_at, rooms), heating), (lamps, candle)), kitchen), clothing), storage), safe_at)) in rooms_of.enumerate() {

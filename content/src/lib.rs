@@ -283,7 +283,8 @@ pub const GARAGE_SHELF: &str = "garage shelf";
 pub const GARAGE_WORKBENCH: &str = "garage workbench";
 pub const TOOLBOX: &str = "toolbox";
 pub const WRENCH: &str = "wrench";
-pub const STORAGE_HOLDS: [(&str, &str, u32); 8] = [
+pub const STORAGE_HOLDS: [(&str, &str, u32); 9] = [
+    (KITCHEN_CABINET, EXTINGUISHER, 1),
     (KITCHEN_CABINET, "water bottle", 1),
     (GARAGE_SHELF, "scrap", 3),
     (GARAGE_SHELF, "pipe", 1),
@@ -369,6 +370,25 @@ pub const GAS_PUMP: &str = "gas pump";
 /// bedroom, its key in the dresser, holding shells and scrap. House n's
 /// front door is lock 2n + 1, its safe 2n + 2. All Claude's.
 pub const SAFE: &str = "safe";
+/// Fire (topside-town "Everything works": "fire spreads; smoke
+/// detectors, extinguishers, hydrants and the fire station fight it";
+/// Project Zomboid's fire): matches in hand set a burnable thing alight
+/// with E; it catches what burns within 2 m after 20 s and is gone after
+/// 3 minutes; each house's smoke detector sounds while a fire is within
+/// 10 m; an extinguisher in hand, E, puts out every fire within 3 m; a
+/// hydrant, E, every fire within 25 m (its hose). One extinguisher in
+/// each kitchen cabinet, matches in each pantry, a hydrant each 90 m of
+/// street. All Claude's.
+pub const MATCHES: &str = "matches";
+pub const EXTINGUISHER: &str = "extinguisher";
+pub const SMOKE_DETECTOR: &str = "smoke detector";
+pub const HYDRANT: &str = "hydrant";
+pub const FIRE: modforge::fire::FireDef = modforge::fire::FireDef { spread_after: 20.0, spread_reach: 2.0, burns_for: 180.0, smoke_reach: 10.0 };
+pub const EXTINGUISHER_REACH: f32 = 3.0;
+pub const HOSE_REACH: f32 = 25.0;
+pub const HYDRANTS_APART: f32 = 90.0;
+/// What burns: the town's furniture and boxes.
+pub const BURNS: [&str; 11] = [COUCH, BED, CLOSET, DRESSER, KITCHEN_CABINET, GARAGE_SHELF, PANTRY, GARAGE_WORKBENCH, TOOLBOX, "storage box", SLEEPING_BAG];
 pub const KEYS: u32 = 128;
 pub const SAFE_HOLDS: [(&str, u32); 2] = [("shotgun shell", 6), ("scrap", 4)];
 pub fn front_lock(house: usize) -> u32 {
@@ -1182,7 +1202,7 @@ pub const COOKED_MEAT: &str = "cooked meat";
 pub const COLD: [(&str, f32); 2] = [(FRIDGE, 0.75), (FREEZER, 1.0)];
 /// What a house's kitchen is found holding: (where, what, how many).
 /// Claude's.
-pub const KITCHEN_FOOD: [(&str, &str, u32); 3] = [(PANTRY, "canned food", 3), (FRIDGE, RAW_MEAT, 2), (PANTRY, SOAP, 1)];
+pub const KITCHEN_FOOD: [(&str, &str, u32); 4] = [(PANTRY, "canned food", 3), (FRIDGE, RAW_MEAT, 2), (PANTRY, SOAP, 1), (PANTRY, MATCHES, 1)];
 /// What spoiled food becomes.
 pub const ROTTEN_FOOD: &str = "rotten food";
 
@@ -2135,6 +2155,10 @@ pub fn register_items(reg: &mut ItemRegistry) {
         building(PROPANE_TANK, "A propane tank, for a generator.", ItemKind::Material, 5, None),
         building(GAS_PUMP, "A gas pump. Cans of fuel are filled here.", ItemKind::Deployable, 1, Some(4)),
         building(SAFE, "A safe. Its key opens it.", ItemKind::Deployable, 1, Some(4)),
+        building(MATCHES, "A box of matches. Sets a thing alight.", ItemKind::Tool, 1, None),
+        building(EXTINGUISHER, "A fire extinguisher. Puts out the fires near.", ItemKind::Tool, 1, None),
+        building(SMOKE_DETECTOR, "A smoke detector. It sounds at a fire.", ItemKind::Deployable, 1, None),
+        building(HYDRANT, "A fire hydrant. Its hose puts out the fires around it.", ItemKind::Deployable, 1, None),
         // The silo (todo 30; descriptions Claude's).
         building(SHOVEL, "A shovel. Strike the deepest floor of your bunker to dig a level down.", ItemKind::Tool, 1, None),
         building("crafting bench", "A bench folded for carrying. Set it down and craft at it.", ItemKind::Deployable, 1, None),
