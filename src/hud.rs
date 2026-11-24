@@ -202,22 +202,22 @@ pub fn information(
         }
     }
     // Its affixes, each by name; the base's own rolled numbers have none
-    // (modforge `gear`), nor do the runes in it.
+    // (modforge `gear`), nor do what is in its sockets.
     let named: Vec<&str> = stack
         .affixes
         .iter()
         .map(|a| a.name.as_str())
-        .filter(|n| !n.is_empty() && !stack.sockets.runes.iter().any(|r| r == n) && stack.sockets.word.as_deref() != Some(*n))
+        .filter(|n| !n.is_empty() && !stack.sockets.filled.iter().any(|r| r == n) && stack.sockets.word.as_deref() != Some(*n))
         .collect();
     if !named.is_empty() {
         lines.push(format!("Affixes {}", named.join(", ")));
     }
-    // Its sockets, the runes in them and the rune word they made.
+    // Its sockets, what is in them and the word they made.
     if stack.sockets.count > 0 {
-        let free = stack.sockets.count as usize - stack.sockets.runes.len();
+        let free = stack.sockets.count as usize - stack.sockets.filled.len();
         lines.push(format!("Sockets {} ({free} free)", stack.sockets.count));
-        if !stack.sockets.runes.is_empty() {
-            lines.push(format!("Runes {}", stack.sockets.runes.join(", ")));
+        if !stack.sockets.filled.is_empty() {
+            lines.push(format!("In them {}", stack.sockets.filled.join(", ")));
         }
         if let Some(word) = &stack.sockets.word {
             lines.push(format!("Rune word {word}"));

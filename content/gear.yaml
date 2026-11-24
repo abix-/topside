@@ -3,16 +3,22 @@
 # each thing, and then each particular item might have a modifier or more
 # on it"; "the rune word system, where you had some things that had
 # sockets, and then you could put in a series of rune words in order to
-# make a particular cool effect"). Read by content's `gear`.
+# make a particular cool effect"; "How much did Diablo 2 plus expansion
+# have? That's the model that we want, and then we want to go double
+# that"; "Maybe some are runes and some are modules, and some do one type
+# of thing and others do other types of things"). Read by content's
+# `GEAR`.
 #
 # Every number written [least, most] is rolled between the two when the
-# piece is found. `reach` (metres), `spread` (degrees) and `delay`
-# (seconds) are added to the item's own; `power` is how much harder hits
-# land in hundredths (10 is a tenth harder); `armor` is added to what a
-# worn piece guards.
+# piece is found or put in. `reach` (metres), `spread` (degrees) and
+# `delay` (seconds) are added to the item's own; `power` is how much harder
+# hits land in hundredths (10 is a tenth harder); `armor` is added to what
+# a worn piece guards.
 #
-# Every base, affix, rune, rune word, name and number here is Claude's
-# (2026-11-23), a start for the operator to change. The names are our own.
+# Diablo 2 with its expansion has 33 runes, and Resurrected lists 99 rune
+# words; double is 66 runes and about 200 words. Every base, affix,
+# family, socketable, word, name and number here is Claude's (2026-11-23),
+# a start for the operator to change. The names are our own.
 
 # How a found piece of gear comes, per mille: magic has one or two
 # affixes, rare three or four, the rest are plain and may have sockets.
@@ -22,26 +28,26 @@ odds:
 
 # An item as gear: its tier (1 up), its grade in the tier (0 the plain
 # one, then the stronger ones above it), its own numbers and the sockets a
-# plain one is found with, fewest and most.
+# plain one is found with, fewest and most (Diablo 2's go to 6).
 bases:
   - item: pipe
     rolls: {power: [-5, 10], delay: [-0.05, 0.05]}
-    sockets: [0, 3]
+    sockets: [0, 4]
   - item: wooden handle
     rolls: {power: [-5, 10], delay: [-0.05, 0.05]}
-    sockets: [0, 2]
+    sockets: [0, 3]
   - item: long pole
     rolls: {power: [-5, 10], reach: [-0.2, 0.2]}
-    sockets: [0, 3]
+    sockets: [0, 6]
   - item: pipe shotgun
     rolls: {power: [-5, 10], spread: [-2.0, 2.0]}
-    sockets: [0, 3]
+    sockets: [0, 6]
   - item: road sign vest
     rolls: {armor: [-5.0, 10.0]}
-    sockets: [0, 3]
+    sockets: [0, 6]
   - item: helmet
     rolls: {armor: [-5.0, 10.0]}
-    sockets: [0, 2]
+    sockets: [0, 3]
 
 # What a magic or rare piece rolls: the gear it goes on, the least tier of
 # spot it is found at, how likely against the others (100 when left out).
@@ -58,30 +64,315 @@ affixes:
   - {name: quick, on: [melee, gun], tier: 3, weight: 30, rolls: {delay: [-0.3, -0.15]}}
   - {name: fortified, on: [armor], tier: 3, weight: 30, rolls: {armor: [30.0, 50.0]}}
 
-# A rune: an item that goes in a socket, and what it adds there.
-runes:
-  - {item: bent rune, rolls: {power: [5, 5]}}
-  - {item: glass rune, rolls: {spread: [-1.0, -1.0], reach: [0.1, 0.1]}}
-  - {item: bone rune, rolls: {armor: [5.0, 5.0]}}
-  - {item: wire rune, rolls: {delay: [-0.05, -0.05]}}
-  - {item: ash rune, rolls: {power: [10, 10]}}
+# The families of socketables: each fits the gear named, every kind when
+# none is. Runes are old marks that make a blow land harder, faster or
+# longer; modules are lost technology that steadies a gun or hardens what
+# is worn.
+families:
+  - {name: rune}
+  - {name: module, on: [gun, armor]}
 
-# Runes put in a plain piece's sockets in this order, its sockets exactly
-# as many, make the rune word, its numbers on top of the runes'.
-rune words:
-  - name: Splinter
-    runes: [bent rune, wire rune]
-    on: [melee]
-    rolls: {power: [20, 35], delay: [-0.1, -0.05]}
-  - name: Long Sight
-    runes: [glass rune, glass rune, wire rune]
-    on: [gun]
-    rolls: {spread: [-6.0, -3.0], power: [10, 20]}
-  - name: Shell
-    runes: [bone rune, bone rune]
-    on: [armor]
-    rolls: {armor: [20.0, 35.0]}
-  - name: Cinder
-    runes: [ash rune, bent rune, ash rune]
-    on: [melee, gun]
-    rolls: {power: [40, 60]}
+# A socketable: its item, its family, and what it adds in a socket. In
+# each family, lowest first: each rarer and found deeper than the one
+# before, and three of one make one of the next at the bench.
+socketables:
+  - {item: ash rune, family: rune, rolls: {power: [3, 3]}}
+  - {item: bent rune, family: rune, rolls: {delay: [-0.01, -0.01]}}
+  - {item: bone rune, family: rune, rolls: {reach: [0.05, 0.05]}}
+  - {item: wire rune, family: rune, rolls: {power: [4, 4]}}
+  - {item: glass rune, family: rune, rolls: {delay: [-0.013, -0.013]}}
+  - {item: salt rune, family: rune, rolls: {reach: [0.065, 0.065]}}
+  - {item: rust rune, family: rune, rolls: {power: [6, 6]}}
+  - {item: tar rune, family: rune, rolls: {delay: [-0.016, -0.016]}}
+  - {item: flint rune, family: rune, rolls: {reach: [0.08, 0.08]}}
+  - {item: coal rune, family: rune, rolls: {power: [7, 7]}}
+  - {item: lead rune, family: rune, rolls: {delay: [-0.019, -0.019]}}
+  - {item: tin rune, family: rune, rolls: {reach: [0.095, 0.095]}}
+  - {item: moss rune, family: rune, rolls: {power: [9, 9]}}
+  - {item: clay rune, family: rune, rolls: {delay: [-0.022, -0.022]}}
+  - {item: reed rune, family: rune, rolls: {reach: [0.11, 0.11]}}
+  - {item: thorn rune, family: rune, rolls: {power: [10, 10]}}
+  - {item: hide rune, family: rune, rolls: {delay: [-0.025, -0.025]}}
+  - {item: horn rune, family: rune, rolls: {reach: [0.125, 0.125]}}
+  - {item: tusk rune, family: rune, rolls: {power: [12, 12]}}
+  - {item: fang rune, family: rune, rolls: {delay: [-0.028, -0.028]}}
+  - {item: claw rune, family: rune, rolls: {reach: [0.14, 0.14]}}
+  - {item: ember rune, family: rune, rolls: {power: [13, 13]}}
+  - {item: smoke rune, family: rune, rolls: {delay: [-0.031, -0.031]}}
+  - {item: frost rune, family: rune, rolls: {reach: [0.155, 0.155]}}
+  - {item: hail rune, family: rune, rolls: {power: [15, 15]}}
+  - {item: sleet rune, family: rune, rolls: {delay: [-0.034, -0.034]}}
+  - {item: gale rune, family: rune, rolls: {reach: [0.17, 0.17]}}
+  - {item: dust rune, family: rune, rolls: {power: [16, 16]}}
+  - {item: sand rune, family: rune, rolls: {delay: [-0.037, -0.037]}}
+  - {item: silt rune, family: rune, rolls: {reach: [0.185, 0.185]}}
+  - {item: slate rune, family: rune, rolls: {power: [18, 18]}}
+  - {item: shale rune, family: rune, rolls: {delay: [-0.04, -0.04]}}
+  - {item: quartz rune, family: rune, rolls: {reach: [0.2, 0.2]}}
+  - {item: mica rune, family: rune, rolls: {power: [19, 19]}}
+  - {item: jet rune, family: rune, rolls: {delay: [-0.043, -0.043]}}
+  - {item: amber rune, family: rune, rolls: {reach: [0.215, 0.215]}}
+  - {item: pitch rune, family: rune, rolls: {power: [21, 21]}}
+  - {item: resin rune, family: rune, rolls: {delay: [-0.046, -0.046]}}
+  - {item: sap rune, family: rune, rolls: {reach: [0.23, 0.23]}}
+  - {item: root rune, family: rune, rolls: {power: [22, 22]}}
+  - {item: bark rune, family: rune, rolls: {delay: [-0.049, -0.049]}}
+  - {item: husk rune, family: rune, rolls: {reach: [0.245, 0.245]}}
+  - {item: seed rune, family: rune, rolls: {power: [24, 24]}}
+  - {item: spore rune, family: rune, rolls: {delay: [-0.052, -0.052]}}
+  - {item: mold rune, family: rune, rolls: {reach: [0.26, 0.26]}}
+  - {item: marrow rune, family: rune, rolls: {power: [25, 25]}}
+  - {item: sinew rune, family: rune, rolls: {delay: [-0.055, -0.055]}}
+  - {item: vein rune, family: rune, rolls: {reach: [0.275, 0.275]}}
+  - {item: copper rune, family: rune, rolls: {power: [27, 27]}}
+  - {item: iron rune, family: rune, rolls: {delay: [-0.058, -0.058]}}
+  - {item: steel rune, family: rune, rolls: {reach: [0.29, 0.29]}}
+  - {item: chrome rune, family: rune, rolls: {power: [28, 28]}}
+  - {item: cobalt rune, family: rune, rolls: {delay: [-0.061, -0.061]}}
+  - {item: nickel rune, family: rune, rolls: {reach: [0.305, 0.305]}}
+  - {item: zinc rune, family: rune, rolls: {power: [30, 30]}}
+  - {item: static rune, family: rune, rolls: {delay: [-0.064, -0.064]}}
+  - {item: signal rune, family: rune, rolls: {reach: [0.32, 0.32]}}
+  - {item: pulse rune, family: rune, rolls: {power: [31, 31]}}
+  - {item: storm rune, family: rune, rolls: {delay: [-0.067, -0.067]}}
+  - {item: eye rune, family: rune, rolls: {reach: [0.335, 0.335]}}
+  - {item: void rune, family: rune, rolls: {power: [33, 33]}}
+  - {item: echo rune, family: rune, rolls: {delay: [-0.07, -0.07]}}
+  - {item: drift rune, family: rune, rolls: {reach: [0.35, 0.35]}}
+  - {item: veil rune, family: rune, rolls: {power: [34, 34]}}
+  - {item: crown rune, family: rune, rolls: {delay: [-0.073, -0.073]}}
+  - {item: end rune, family: rune, rolls: {reach: [0.365, 0.365]}}
+  - {item: lens module, family: module, rolls: {spread: [-0.4, -0.4]}}
+  - {item: gasket module, family: module, rolls: {armor: [3.0, 3.0]}}
+  - {item: spring module, family: module, rolls: {spread: [-0.6, -0.6]}}
+  - {item: fuse module, family: module, rolls: {armor: [5.5, 5.5]}}
+  - {item: valve module, family: module, rolls: {spread: [-0.8, -0.8]}}
+  - {item: magnet module, family: module, rolls: {armor: [8.0, 8.0]}}
+  - {item: relay module, family: module, rolls: {spread: [-1.0, -1.0]}}
+  - {item: diode module, family: module, rolls: {armor: [10.5, 10.5]}}
+  - {item: coil module, family: module, rolls: {spread: [-1.2, -1.2]}}
+  - {item: gear module, family: module, rolls: {armor: [13.0, 13.0]}}
+  - {item: piston module, family: module, rolls: {spread: [-1.4, -1.4]}}
+  - {item: antenna module, family: module, rolls: {armor: [15.5, 15.5]}}
+  - {item: servo module, family: module, rolls: {spread: [-1.6, -1.6]}}
+  - {item: battery module, family: module, rolls: {armor: [18.0, 18.0]}}
+  - {item: gyro module, family: module, rolls: {spread: [-1.8, -1.8]}}
+  - {item: sensor module, family: module, rolls: {armor: [20.5, 20.5]}}
+  - {item: motor module, family: module, rolls: {spread: [-2.0, -2.0]}}
+  - {item: capacitor module, family: module, rolls: {armor: [23.0, 23.0]}}
+  - {item: chip module, family: module, rolls: {spread: [-2.2, -2.2]}}
+  - {item: circuit module, family: module, rolls: {armor: [25.5, 25.5]}}
+  - {item: core module, family: module, rolls: {spread: [-2.4, -2.4]}}
+  - {item: reactor module, family: module, rolls: {armor: [28.0, 28.0]}}
+
+# Socketables put in a plain piece's sockets in this order, its sockets
+# exactly as many, make the word, its numbers on top of theirs. What to
+# call a word is the operator's (operator, 2026-11-24: "maybe we don't
+# call them rune words").
+words:
+  # Melee.
+  - {name: Splinter, socketables: [bent rune, wire rune], on: [melee], rolls: {power: [20, 30], delay: [-0.05, -0.02]}}
+  - {name: Cinder, socketables: [ash rune, coal rune, ash rune], on: [melee], rolls: {power: [30, 45]}}
+  - {name: Gnash, socketables: [fang rune, tusk rune], on: [melee], rolls: {power: [25, 40]}}
+  - {name: Long Arm, socketables: [bone rune, salt rune, reed rune], on: [melee], rolls: {reach: [0.3, 0.5]}}
+  - {name: Quickhand, socketables: [bent rune, glass rune, tar rune], on: [melee], rolls: {delay: [-0.15, -0.08]}}
+  - {name: Rotwood, socketables: [moss rune, clay rune], on: [melee], rolls: {power: [15, 25], delay: [-0.05, -0.03]}}
+  - {name: Thornback, socketables: [thorn rune, hide rune, thorn rune], on: [melee], rolls: {power: [30, 40]}}
+  - {name: Bramble, socketables: [thorn rune, reed rune], on: [melee], rolls: {reach: [0.2, 0.3], power: [10, 20]}}
+  - {name: Saltlick, socketables: [salt rune, rust rune], on: [melee], rolls: {power: [15, 25], reach: [0.1, 0.2]}}
+  - {name: Tinman, socketables: [tin rune, lead rune, tin rune], on: [melee], rolls: {power: [20, 30], delay: [-0.08, -0.04]}}
+  - {name: Hookjaw, socketables: [claw rune, fang rune, horn rune], on: [melee], rolls: {power: [35, 50], reach: [0.1, 0.2]}}
+  - {name: Ashfall, socketables: [ash rune, ember rune, smoke rune], on: [melee], rolls: {power: [40, 55]}}
+  - {name: Coalheart, socketables: [coal rune, coal rune, ember rune], on: [melee], rolls: {power: [45, 60]}}
+  - {name: Wrecker, socketables: [rust rune, flint rune, wire rune, rust rune], on: [melee], rolls: {power: [45, 65]}}
+  - {name: Gravedigger, socketables: [bone rune, clay rune, moss rune, bone rune], on: [melee], rolls: {reach: [0.3, 0.5], power: [20, 30]}}
+  - {name: Butcher, socketables: [tusk rune, claw rune], on: [melee], rolls: {power: [35, 45]}}
+  - {name: Flick, socketables: [glass rune, bent rune], on: [melee], rolls: {delay: [-0.12, -0.06]}}
+  - {name: Flintlock, socketables: [flint rune, flint rune, wire rune], on: [melee], rolls: {power: [30, 40], reach: [0.1, 0.15]}}
+  - {name: Knuckle, socketables: [lead rune, coal rune], on: [melee], rolls: {power: [25, 35]}}
+  - {name: Ratcatcher, socketables: [hide rune, fang rune, tar rune], on: [melee], rolls: {delay: [-0.15, -0.1], power: [10, 20]}}
+  - {name: Frostbite, socketables: [frost rune, hail rune], on: [melee], rolls: {power: [35, 50], reach: [0.15, 0.25]}}
+  - {name: Sleetfang, socketables: [sleet rune, fang rune, frost rune], on: [melee], rolls: {delay: [-0.2, -0.12], power: [20, 30]}}
+  - {name: Galecutter, socketables: [gale rune, sleet rune, gale rune], on: [melee], rolls: {reach: [0.4, 0.6], delay: [-0.1, -0.05]}}
+  - {name: Duststorm, socketables: [dust rune, sand rune, silt rune], on: [melee], rolls: {power: [40, 55], delay: [-0.1, -0.05]}}
+  - {name: Sandpaper, socketables: [sand rune, sand rune], on: [melee], rolls: {delay: [-0.12, -0.08]}}
+  - {name: Mudlark, socketables: [silt rune, clay rune, moss rune], on: [melee], rolls: {reach: [0.3, 0.45]}}
+  - {name: Slatebreaker, socketables: [slate rune, shale rune, slate rune], on: [melee], rolls: {power: [55, 70]}}
+  - {name: Quarry, socketables: [quartz rune, slate rune, shale rune, quartz rune], on: [melee], rolls: {power: [50, 65], reach: [0.3, 0.4]}}
+  - {name: Glint, socketables: [mica rune, jet rune], on: [melee], rolls: {power: [30, 45], delay: [-0.1, -0.05]}}
+  - {name: Amberlock, socketables: [amber rune, resin rune, amber rune], on: [melee], rolls: {reach: [0.45, 0.6], power: [20, 30]}}
+  - {name: Pitchfork, socketables: [pitch rune, pitch rune, reed rune], on: [melee], rolls: {power: [50, 65], reach: [0.2, 0.3]}}
+  - {name: Sapper, socketables: [sap rune, root rune, sap rune], on: [melee], rolls: {reach: [0.5, 0.7]}}
+  - {name: Taproot, socketables: [root rune, bark rune, root rune], on: [melee], rolls: {power: [45, 60], delay: [-0.12, -0.06]}}
+  - {name: Husker, socketables: [husk rune, seed rune], on: [melee], rolls: {reach: [0.35, 0.5], power: [20, 30]}}
+  - {name: Mildew, socketables: [spore rune, mold rune, spore rune], on: [melee], rolls: {delay: [-0.2, -0.14], power: [25, 35]}}
+  - {name: Bloom, socketables: [seed rune, spore rune, seed rune, mold rune], on: [melee], rolls: {power: [55, 75]}}
+  - {name: Marrowsplit, socketables: [marrow rune, bone rune, marrow rune], on: [melee], rolls: {power: [60, 80]}}
+  - {name: Sinewbow, socketables: [sinew rune, sinew rune, vein rune], on: [melee], rolls: {delay: [-0.25, -0.18]}}
+  - {name: Bloodline, socketables: [vein rune, marrow rune, sinew rune, vein rune], on: [melee], rolls: {power: [65, 85], delay: [-0.12, -0.06]}}
+  - {name: Copperhead, socketables: [copper rune, fang rune], on: [melee], rolls: {power: [50, 65], delay: [-0.1, -0.06]}}
+  - {name: Ironside, socketables: [iron rune, steel rune, iron rune], on: [melee], rolls: {power: [60, 75], reach: [0.3, 0.4]}}
+  - {name: Steelwind, socketables: [steel rune, gale rune, steel rune, sleet rune], on: [melee], rolls: {reach: [0.7, 0.9], delay: [-0.15, -0.1]}}
+  - {name: Chromejaw, socketables: [chrome rune, tusk rune, chrome rune], on: [melee], rolls: {power: [70, 85]}}
+  - {name: Cobalt Edge, socketables: [cobalt rune, steel rune], on: [melee], rolls: {delay: [-0.2, -0.14], power: [30, 40]}}
+  - {name: Nickel and Dime, socketables: [nickel rune, nickel rune, zinc rune], on: [melee], rolls: {reach: [0.5, 0.7], power: [30, 40]}}
+  - {name: Zinc Fever, socketables: [zinc rune, ember rune, zinc rune], on: [melee], rolls: {power: [75, 90]}}
+  - {name: Static Touch, socketables: [static rune, wire rune, static rune], on: [melee], rolls: {delay: [-0.3, -0.22]}}
+  - {name: Lightning Rod, socketables: [signal rune, static rune, pulse rune, storm rune], on: [melee], rolls: {power: [80, 100], delay: [-0.2, -0.12]}}
+  - {name: Pulsebeat, socketables: [pulse rune, pulse rune], on: [melee], rolls: {power: [60, 75]}}
+  - {name: Stormcaller, socketables: [storm rune, gale rune, storm rune, hail rune, storm rune], on: [melee], rolls: {delay: [-0.35, -0.25], power: [50, 60]}}
+  - {name: Evil Eye, socketables: [eye rune, void rune], on: [melee], rolls: {reach: [0.6, 0.8], power: [40, 55]}}
+  - {name: Voidmaw, socketables: [void rune, fang rune, void rune, claw rune], on: [melee], rolls: {power: [100, 125]}}
+  - {name: Echo Chamber, socketables: [echo rune, echo rune, echo rune], on: [melee], rolls: {delay: [-0.35, -0.25]}}
+  - {name: Drifter, socketables: [drift rune, sand rune, drift rune], on: [melee], rolls: {reach: [0.8, 1.0]}}
+  - {name: Veilpiercer, socketables: [veil rune, eye rune, veil rune, signal rune], on: [melee], rolls: {power: [90, 110], reach: [0.4, 0.6]}}
+  - {name: Crown of Teeth, socketables: [crown rune, fang rune, tusk rune, claw rune, crown rune], on: [melee], rolls: {power: [110, 140]}}
+  - {name: The End, socketables: [end rune, void rune, crown rune, echo rune, veil rune, end rune], on: [melee], rolls: {power: [150, 200], delay: [-0.4, -0.3], reach: [0.6, 0.9]}}
+  - {name: Last Light, socketables: [ember rune, crown rune, end rune], on: [melee], rolls: {power: [100, 130]}}
+  - {name: Widowmaker, socketables: [void rune, marrow rune, sinew rune, end rune], on: [melee], rolls: {power: [120, 150]}}
+  - {name: Kingslayer, socketables: [crown rune, steel rune, chrome rune, crown rune], on: [melee], rolls: {power: [110, 135], reach: [0.4, 0.6]}}
+  - {name: Hammerfall, socketables: [lead rune, iron rune, lead rune, coal rune], on: [melee], rolls: {power: [70, 90], delay: [0.05, 0.1]}}
+  - {name: Featherweight, socketables: [bent rune, glass rune, sand rune, smoke rune], on: [melee], rolls: {delay: [-0.25, -0.18]}}
+  - {name: Reacher, socketables: [bone rune, salt rune, flint rune, tin rune, reed rune], on: [melee], rolls: {reach: [0.7, 1.0]}}
+  - {name: Scrapper, socketables: [rust rune, wire rune, rust rune, tin rune], on: [melee], rolls: {power: [40, 55], delay: [-0.08, -0.04]}}
+  - {name: Hunger, socketables: [fang rune, marrow rune, vein rune], on: [melee], rolls: {power: [65, 80]}}
+  - {name: Harvest, socketables: [seed rune, root rune, bark rune, husk rune, sap rune], on: [melee], rolls: {power: [60, 80], reach: [0.5, 0.7]}}
+  - {name: Smokestack, socketables: [smoke rune, coal rune, smoke rune], on: [melee], rolls: {delay: [-0.15, -0.1], power: [25, 35]}}
+  - {name: Wildfire, socketables: [ember rune, gale rune, ember rune, dust rune], on: [melee], rolls: {power: [70, 90]}}
+  - {name: Gravel, socketables: [slate rune, sand rune, shale rune, silt rune], on: [melee], rolls: {power: [55, 70], delay: [-0.1, -0.05]}}
+  - {name: Old Faithful, socketables: [ash rune, ash rune, ash rune], on: [melee], rolls: {power: [25, 35]}}
+  # Guns.
+  - {name: Long Sight, socketables: [lens module, lens module, relay module], on: [gun], rolls: {spread: [-6.0, -3.0], power: [10, 20]}}
+  - {name: Choke, socketables: [valve module, gasket module], on: [gun], rolls: {spread: [-4.0, -2.0]}}
+  - {name: Kickback, socketables: [spring module, piston module, spring module], on: [gun], rolls: {power: [30, 45], spread: [1.0, 2.0]}}
+  - {name: Hair Trigger, socketables: [spring module, fuse module], on: [gun], rolls: {delay: [-0.2, -0.1]}}
+  - {name: Deadeye, socketables: [lens module, eye rune, lens module], on: [gun], rolls: {spread: [-10.0, -6.0], power: [30, 40]}}
+  - {name: Buckshot, socketables: [ash rune, coal rune, valve module], on: [gun], rolls: {power: [30, 45], spread: [1.0, 3.0]}}
+  - {name: Sawn Off, socketables: [rust rune, flint rune], on: [gun], rolls: {power: [35, 50], reach: [-3.0, -1.0], spread: [2.0, 4.0]}}
+  - {name: Coilgun, socketables: [coil module, coil module, magnet module, coil module], on: [gun], rolls: {power: [70, 90], spread: [-4.0, -2.0]}}
+  - {name: Railway, socketables: [magnet module, coil module, magnet module, relay module, magnet module], on: [gun], rolls: {power: [90, 115], reach: [5.0, 10.0]}}
+  - {name: Relay Race, socketables: [relay module, diode module, relay module], on: [gun], rolls: {delay: [-0.25, -0.15]}}
+  - {name: Short Circuit, socketables: [fuse module, diode module], on: [gun], rolls: {power: [30, 45], delay: [-0.1, -0.05]}}
+  - {name: Overclock, socketables: [chip module, circuit module, chip module], on: [gun], rolls: {delay: [-0.35, -0.25]}}
+  - {name: Hot Barrel, socketables: [ember rune, valve module, ember rune], on: [gun], rolls: {power: [45, 60]}}
+  - {name: Steady Hand, socketables: [gyro module, gasket module, gyro module], on: [gun], rolls: {spread: [-8.0, -5.0]}}
+  - {name: Spotter, socketables: [sensor module, lens module, antenna module], on: [gun], rolls: {spread: [-7.0, -4.0], reach: [3.0, 6.0]}}
+  - {name: Long Haul, socketables: [antenna module, relay module, antenna module, lens module], on: [gun], rolls: {reach: [8.0, 14.0]}}
+  - {name: Servo Lock, socketables: [servo module, gyro module, servo module], on: [gun], rolls: {spread: [-10.0, -7.0], delay: [-0.1, -0.05]}}
+  - {name: Motorhead, socketables: [motor module, piston module, motor module], on: [gun], rolls: {delay: [-0.3, -0.2], power: [20, 30]}}
+  - {name: Capacitor Bank, socketables: [capacitor module, battery module, capacitor module], on: [gun], rolls: {power: [60, 80]}}
+  - {name: Core Breach, socketables: [core module, reactor module], on: [gun], rolls: {power: [90, 120]}}
+  - {name: Meltdown, socketables: [reactor module, core module, reactor module, ember rune], on: [gun], rolls: {power: [120, 150], spread: [2.0, 4.0]}}
+  - {name: Whisper, socketables: [gasket module, lens module], on: [gun], rolls: {spread: [-3.0, -1.0], delay: [-0.05, -0.02]}}
+  - {name: Peashooter, socketables: [tin rune, spring module], on: [gun], rolls: {delay: [-0.12, -0.06]}}
+  - {name: Blunderbuss, socketables: [lead rune, valve module, lead rune, piston module], on: [gun], rolls: {power: [60, 80], spread: [3.0, 5.0]}}
+  - {name: Scattergun, socketables: [sand rune, valve module, dust rune], on: [gun], rolls: {power: [40, 55], spread: [3.0, 5.0]}}
+  - {name: "Sniper's Nest", socketables: [lens module, sensor module, gyro module, servo module, lens module], on: [gun], rolls: {spread: [-14.0, -10.0], reach: [10.0, 15.0]}}
+  - {name: Tracker, socketables: [sensor module, eye rune], on: [gun], rolls: {spread: [-6.0, -4.0], power: [20, 30]}}
+  - {name: Ghost Signal, socketables: [signal rune, antenna module, static rune], on: [gun], rolls: {delay: [-0.2, -0.12], spread: [-4.0, -2.0]}}
+  - {name: Feedback, socketables: [static rune, coil module, pulse rune], on: [gun], rolls: {power: [55, 70]}}
+  - {name: Thunderclap, socketables: [storm rune, magnet module, storm rune], on: [gun], rolls: {power: [80, 100]}}
+  - {name: Hollow Point, socketables: [void rune, fuse module, chip module], on: [gun], rolls: {power: [70, 90]}}
+  - {name: Drift Shot, socketables: [drift rune, gyro module], on: [gun], rolls: {reach: [6.0, 10.0], spread: [-3.0, -1.0]}}
+  - {name: Echo Round, socketables: [echo rune, relay module, echo rune], on: [gun], rolls: {delay: [-0.3, -0.2]}}
+  - {name: Veiled, socketables: [veil rune, gasket module, veil rune], on: [gun], rolls: {spread: [-9.0, -6.0], power: [30, 45]}}
+  - {name: Crown Jewel, socketables: [crown rune, lens module, chip module, crown rune], on: [gun], rolls: {power: [100, 130], spread: [-6.0, -3.0]}}
+  - {name: Endgame, socketables: [end rune, core module, reactor module, circuit module, end rune], on: [gun], rolls: {power: [150, 190], spread: [-6.0, -3.0], delay: [-0.2, -0.1]}}
+  - {name: Junk Rifle, socketables: [rust rune, spring module, fuse module], on: [gun], rolls: {power: [25, 35], reach: [2.0, 4.0]}}
+  - {name: Pipe Dream, socketables: [valve module, piston module, valve module], on: [gun], rolls: {power: [40, 55], delay: [-0.08, -0.04]}}
+  - {name: Grease Monkey, socketables: [gasket module, spring module, gear module, gasket module], on: [gun], rolls: {delay: [-0.2, -0.12]}}
+  - {name: Clockwork, socketables: [gear module, gear module, spring module, gear module], on: [gun], rolls: {delay: [-0.3, -0.2], spread: [-3.0, -1.0]}}
+  - {name: Gearbox, socketables: [gear module, piston module, gear module], on: [gun], rolls: {power: [45, 60], delay: [-0.1, -0.05]}}
+  - {name: Battery Acid, socketables: [battery module, iron rune], on: [gun], rolls: {power: [55, 70]}}
+  - {name: Dynamo, socketables: [motor module, coil module, magnet module], on: [gun], rolls: {power: [60, 75], delay: [-0.12, -0.06]}}
+  - {name: Circuit Breaker, socketables: [circuit module, fuse module, circuit module], on: [gun], rolls: {power: [70, 85], delay: [-0.15, -0.1]}}
+  - {name: Chipshot, socketables: [chip module, lens module], on: [gun], rolls: {spread: [-6.0, -4.0], delay: [-0.1, -0.05]}}
+  - {name: Ironsight, socketables: [iron rune, lens module, iron rune], on: [gun], rolls: {spread: [-7.0, -5.0], power: [30, 40]}}
+  - {name: Steel Rain, socketables: [steel rune, valve module, steel rune, piston module], on: [gun], rolls: {power: [80, 100], spread: [2.0, 3.0]}}
+  - {name: Chrome Dome, socketables: [chrome rune, sensor module], on: [gun], rolls: {power: [50, 65], spread: [-4.0, -2.0]}}
+  - {name: Cobalt Blue, socketables: [cobalt rune, coil module, cobalt rune], on: [gun], rolls: {delay: [-0.3, -0.2], power: [30, 40]}}
+  - {name: Nickelback, socketables: [nickel rune, spring module], on: [gun], rolls: {reach: [5.0, 8.0]}}
+  - {name: Zinc Plated, socketables: [zinc rune, gasket module, zinc rune], on: [gun], rolls: {power: [70, 85]}}
+  - {name: Pulse Rifle, socketables: [pulse rune, capacitor module, pulse rune, battery module], on: [gun], rolls: {power: [90, 110], delay: [-0.15, -0.1]}}
+  - {name: Eye of the Storm, socketables: [eye rune, storm rune, sensor module], on: [gun], rolls: {spread: [-10.0, -7.0], power: [50, 60]}}
+  - {name: Antennae, socketables: [antenna module, antenna module], on: [gun], rolls: {reach: [6.0, 10.0]}}
+  - {name: Diode Array, socketables: [diode module, diode module, diode module, diode module], on: [gun], rolls: {delay: [-0.3, -0.2]}}
+  - {name: Fusebox, socketables: [fuse module, fuse module, fuse module], on: [gun], rolls: {power: [40, 55], delay: [-0.1, -0.05]}}
+  - {name: Valve Job, socketables: [valve module, valve module], on: [gun], rolls: {spread: [-3.0, -1.0], power: [15, 25]}}
+  - {name: Lensflare, socketables: [lens module, ember rune, lens module], on: [gun], rolls: {power: [40, 50], spread: [-5.0, -3.0]}}
+  - {name: Magnetar, socketables: [magnet module, magnet module, core module], on: [gun], rolls: {power: [90, 110]}}
+  - {name: Reactor Heart, socketables: [reactor module, marrow rune, reactor module], on: [gun], rolls: {power: [110, 140]}}
+  - {name: Spark Plug, socketables: [fuse module, ember rune], on: [gun], rolls: {power: [25, 35]}}
+  - {name: Scope Creep, socketables: [lens module, lens module, lens module, lens module], on: [gun], rolls: {spread: [-12.0, -8.0]}}
+  - {name: Rattler, socketables: [spring module, fang rune, spring module], on: [gun], rolls: {delay: [-0.2, -0.12], power: [15, 25]}}
+  - {name: Bolt Action, socketables: [piston module, gyro module], on: [gun], rolls: {spread: [-6.0, -3.0], delay: [0.05, 0.1]}}
+  - {name: Repeater, socketables: [motor module, gear module, motor module, servo module], on: [gun], rolls: {delay: [-0.4, -0.3]}}
+  # What is worn.
+  - {name: Shell, socketables: [gasket module, gasket module], on: [armor], rolls: {armor: [20.0, 35.0]}}
+  - {name: Platemail, socketables: [gear module, magnet module, gear module], on: [armor], rolls: {armor: [40.0, 55.0]}}
+  - {name: Hidebound, socketables: [hide rune, hide rune, hide rune], on: [armor], rolls: {armor: [25.0, 40.0]}}
+  - {name: Bonewall, socketables: [bone rune, gasket module, bone rune], on: [armor], rolls: {armor: [30.0, 45.0]}}
+  - {name: Scrapmail, socketables: [rust rune, fuse module, tin rune], on: [armor], rolls: {armor: [20.0, 30.0]}}
+  - {name: Roadwarden, socketables: [fuse module, magnet module], on: [armor], rolls: {armor: [30.0, 40.0]}}
+  - {name: Pillbox, socketables: [battery module, gear module, battery module], on: [armor], rolls: {armor: [55.0, 70.0]}}
+  - {name: Bunker, socketables: [reactor module, gear module, reactor module, battery module], on: [armor], rolls: {armor: [90.0, 115.0]}}
+  - {name: Faraday, socketables: [antenna module, circuit module, antenna module], on: [armor], rolls: {armor: [50.0, 65.0]}}
+  - {name: Insulated, socketables: [gasket module, diode module, gasket module], on: [armor], rolls: {armor: [35.0, 50.0]}}
+  - {name: Ironclad, socketables: [iron rune, gear module, iron rune], on: [armor], rolls: {armor: [50.0, 65.0]}}
+  - {name: Steelskin, socketables: [steel rune, magnet module, steel rune, gear module], on: [armor], rolls: {armor: [70.0, 90.0]}}
+  - {name: Chrome Plated, socketables: [chrome rune, capacitor module], on: [armor], rolls: {armor: [55.0, 70.0]}}
+  - {name: Cobalt Shell, socketables: [cobalt rune, battery module, cobalt rune], on: [armor], rolls: {armor: [65.0, 80.0]}}
+  - {name: Nickel Coat, socketables: [nickel rune, fuse module], on: [armor], rolls: {armor: [35.0, 45.0]}}
+  - {name: Zinc Ward, socketables: [zinc rune, circuit module, zinc rune], on: [armor], rolls: {armor: [75.0, 90.0]}}
+  - {name: Static Field, socketables: [static rune, capacitor module, static rune], on: [armor], rolls: {armor: [60.0, 75.0]}}
+  - {name: Signal Jammer, socketables: [signal rune, antenna module, sensor module], on: [armor], rolls: {armor: [55.0, 70.0]}}
+  - {name: Pulse Shield, socketables: [pulse rune, core module, pulse rune], on: [armor], rolls: {armor: [85.0, 105.0]}}
+  - {name: Stormwall, socketables: [storm rune, reactor module, storm rune, gear module], on: [armor], rolls: {armor: [100.0, 125.0]}}
+  - {name: Watcher, socketables: [eye rune, sensor module], on: [armor], rolls: {armor: [40.0, 55.0]}}
+  - {name: Void Mantle, socketables: [void rune, core module, void rune], on: [armor], rolls: {armor: [100.0, 120.0]}}
+  - {name: Echo Plate, socketables: [echo rune, gear module, echo rune], on: [armor], rolls: {armor: [70.0, 85.0]}}
+  - {name: Driftwood, socketables: [drift rune, bark rune], on: [armor], rolls: {armor: [40.0, 50.0]}}
+  - {name: Veilguard, socketables: [veil rune, circuit module, veil rune, capacitor module], on: [armor], rolls: {armor: [95.0, 115.0]}}
+  - {name: Crowned, socketables: [crown rune, reactor module, crown rune], on: [armor], rolls: {armor: [120.0, 145.0]}}
+  - {name: Last Wall, socketables: [end rune, core module, reactor module, core module, end rune], on: [armor], rolls: {armor: [160.0, 200.0]}}
+  - {name: Mossback, socketables: [moss rune, gasket module], on: [armor], rolls: {armor: [15.0, 25.0]}}
+  - {name: Claybody, socketables: [clay rune, clay rune], on: [armor], rolls: {armor: [15.0, 20.0]}}
+  - {name: Thornskin, socketables: [thorn rune, hide rune, gasket module], on: [armor], rolls: {armor: [25.0, 35.0]}}
+  - {name: Hornplate, socketables: [horn rune, gear module], on: [armor], rolls: {armor: [30.0, 40.0]}}
+  - {name: Tuskguard, socketables: [tusk rune, magnet module, tusk rune], on: [armor], rolls: {armor: [40.0, 50.0]}}
+  - {name: Fangward, socketables: [fang rune, fuse module], on: [armor], rolls: {armor: [25.0, 35.0]}}
+  - {name: Clawmark, socketables: [claw rune, gasket module, claw rune], on: [armor], rolls: {armor: [35.0, 45.0]}}
+  - {name: Emberguard, socketables: [ember rune, valve module], on: [armor], rolls: {armor: [35.0, 45.0]}}
+  - {name: Smokescreen, socketables: [smoke rune, gasket module, smoke rune], on: [armor], rolls: {armor: [35.0, 50.0]}}
+  - {name: Frostcoat, socketables: [frost rune, battery module], on: [armor], rolls: {armor: [40.0, 55.0]}}
+  - {name: Hailstone, socketables: [hail rune, gear module, hail rune], on: [armor], rolls: {armor: [45.0, 60.0]}}
+  - {name: Sleetcloak, socketables: [sleet rune, gasket module], on: [armor], rolls: {armor: [35.0, 45.0]}}
+  - {name: Galeforce, socketables: [gale rune, motor module, gale rune], on: [armor], rolls: {armor: [45.0, 60.0]}}
+  - {name: Dust Jacket, socketables: [dust rune, fuse module], on: [armor], rolls: {armor: [30.0, 40.0]}}
+  - {name: Sandbag, socketables: [sand rune, sand rune, sand rune], on: [armor], rolls: {armor: [40.0, 55.0]}}
+  - {name: Siltwall, socketables: [silt rune, gear module, silt rune], on: [armor], rolls: {armor: [45.0, 60.0]}}
+  - {name: Slateplate, socketables: [slate rune, magnet module, slate rune], on: [armor], rolls: {armor: [55.0, 70.0]}}
+  - {name: Shale Shell, socketables: [shale rune, battery module], on: [armor], rolls: {armor: [45.0, 55.0]}}
+  - {name: Quartz Ward, socketables: [quartz rune, circuit module, quartz rune], on: [armor], rolls: {armor: [60.0, 75.0]}}
+  - {name: Mica Scale, socketables: [mica rune, gasket module, mica rune], on: [armor], rolls: {armor: [50.0, 65.0]}}
+  - {name: Jet Black, socketables: [jet rune, chip module], on: [armor], rolls: {armor: [50.0, 60.0]}}
+  - {name: Amberwall, socketables: [amber rune, resin rune, amber rune], on: [armor], rolls: {armor: [55.0, 70.0]}}
+  - {name: Pitch Dark, socketables: [pitch rune, sensor module], on: [armor], rolls: {armor: [50.0, 60.0]}}
+  - {name: Resin Seal, socketables: [resin rune, gasket module, resin rune], on: [armor], rolls: {armor: [55.0, 70.0]}}
+  - {name: Sapwood, socketables: [sap rune, bark rune], on: [armor], rolls: {armor: [45.0, 55.0]}}
+  - {name: Rootbound, socketables: [root rune, gear module, root rune], on: [armor], rolls: {armor: [60.0, 75.0]}}
+  - {name: Barkskin, socketables: [bark rune, bark rune, bark rune], on: [armor], rolls: {armor: [60.0, 80.0]}}
+  - {name: Chaff, socketables: [husk rune, gasket module], on: [armor], rolls: {armor: [45.0, 55.0]}}
+  - {name: Seedvault, socketables: [seed rune, battery module, seed rune], on: [armor], rolls: {armor: [65.0, 80.0]}}
+  - {name: Sporecloud, socketables: [spore rune, valve module, spore rune], on: [armor], rolls: {armor: [60.0, 75.0]}}
+  - {name: Mouldering, socketables: [mold rune, gasket module], on: [armor], rolls: {armor: [50.0, 60.0]}}
+  - {name: Marrowguard, socketables: [marrow rune, gear module, marrow rune], on: [armor], rolls: {armor: [75.0, 90.0]}}
+  - {name: Sinewmesh, socketables: [sinew rune, sinew rune, gasket module], on: [armor], rolls: {armor: [70.0, 85.0]}}
+  - {name: Veinwork, socketables: [vein rune, circuit module, vein rune], on: [armor], rolls: {armor: [75.0, 90.0]}}
+  - {name: Copper Wire, socketables: [copper rune, antenna module], on: [armor], rolls: {armor: [55.0, 65.0]}}
+  # Any weapon.
+  - {name: Old Ways, socketables: [ash rune, bone rune, ash rune], on: [melee, gun], rolls: {power: [25, 35]}}
+  - {name: Grudge, socketables: [rust rune, coal rune, flint rune], on: [melee, gun], rolls: {power: [35, 50]}}
+  - {name: Spite, socketables: [fang rune, ember rune], on: [melee, gun], rolls: {power: [35, 45]}}
+  - {name: Forsaken, socketables: [void rune, echo rune], on: [melee, gun], rolls: {power: [70, 90]}}
+  - {name: Homecoming, socketables: [crown rune, root rune, bone rune], on: [melee, gun, armor], rolls: {power: [60, 80], armor: [20.0, 30.0]}}

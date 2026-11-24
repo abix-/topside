@@ -43,9 +43,4 @@ loot:
     - {item: pipe shotgun, layers: [pipe barrel, wooden grip, wooden stock], weight: 1, min_danger: 3}
     - {item: pipe shotgun, layers: [short pipe barrel, taped grip], weight: 1, min_danger: 3}
     - {item: pipe shotgun, layers: [pipe barrel, taped grip, wooden stock, nail sight], weight: 1, min_danger: 4}
-    # Runes (content/gear.yaml; weights and dangers Claude's).
-    - {item: bent rune, weight: 2, min_danger: 1}
-    - {item: wire rune, weight: 2, min_danger: 1}
-    - {item: bone rune, weight: 1, min_danger: 2}
-    - {item: glass rune, weight: 1, min_danger: 2}
-    - {item: ash rune, weight: 1, min_danger: 3}
+    # Runes are added from content/gear.yaml (content's `loot_table`).

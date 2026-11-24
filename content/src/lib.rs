@@ -89,6 +89,22 @@ impl Default for RecipeRegistryRes {
         for def in read_list::<RecipeDef>(RECIPES_FILE, "recipes") {
             reg.register(def).expect("recipe registered once");
         }
+        // Three of a socketable make one of the next in its family at the
+        // bench (Diablo 2's Horadric Cube; the three and the bench are
+        // Claude's).
+        for family in &GEAR.families {
+            for pair in GEAR.family(&family.name).windows(2) {
+                reg.register(RecipeDef {
+                    name: format!("{} from {}", pair[1].item, pair[0].item),
+                    inputs: vec![(pair[0].item.clone(), 3)],
+                    output: (pair[1].item.clone(), 1),
+                    layers: Vec::new(),
+                    station: modforge::crafting::StationKind::CraftingBench,
+                    craft_time: 0.0,
+                })
+                .expect("recipe registered once");
+            }
+        }
         Self(reg)
     }
 }
@@ -108,7 +124,26 @@ pub const LOOT_FILE: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/loot.yaml");
 
 /// What a monument's box can hold, from `LOOT_FILE`.
 pub fn loot_table() -> LootTable {
-    read(LOOT_FILE, "loot")
+    let mut table: LootTable = read(LOOT_FILE, "loot");
+    // Every socketable in content/gear.yaml, each in its family rarer than
+    // the one before and found only from deeper danger (Diablo 2's runes:
+    // the higher, the rarer). The weights and dangers are Claude's.
+    for family in &GEAR.families {
+        let members = GEAR.family(&family.name);
+        let count = members.len() as u32;
+        let band = count.div_ceil(6).max(1);
+        for (rank, s) in members.into_iter().enumerate() {
+            let rank = rank as u32;
+            table.entries.push(modforge::loot::LootEntry {
+                item: s.item.clone(),
+                layers: Vec::new(),
+                count: (1, 1),
+                weight: (count - rank).div_ceil(band),
+                min_danger: 1 + rank / band,
+            });
+        }
+    }
+    table
 }
 
 /// One game day in real seconds (the 3D game's Valheim-scale pacing;
@@ -1975,6 +2010,20 @@ pub fn register_items(reg: &mut ItemRegistry) {
             ..building(&name, "A key. It opens one lock.", ItemKind::Material, 1, None)
         };
         reg.register(def).expect("a key is registered once");
+    }
+    // Every socketable in content/gear.yaml is an item, drawn as one of its
+    // family (todo "Tiered loot"; Diablo 2's runes are items that stack).
+    for family in &GEAR.families {
+        let members = GEAR.family(&family.name);
+        let count = members.len();
+        for (rank, s) in members.into_iter().enumerate() {
+            let words = format!("A {}, {} of {count}. Drag it onto gear with sockets.", family.name, rank + 1);
+            let def = ItemDef {
+                picture: Some(family.name.clone()),
+                ..building(&s.item, &words, ItemKind::Material, 20, None)
+            };
+            reg.register(def).expect("a socketable is registered once");
+        }
     }
     // The base resources, Atlas's, and their kinds (topside Decisions
     // 2026-11-23): a recipe asking for a category takes any kind in it,
