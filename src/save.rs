@@ -100,6 +100,7 @@ saved! {
         crate::building::Planning,
         crate::turret::Turret,
         crate::exposure::Exposure,
+        crate::survival::Clean,
         crate::power::Generator,
         crate::vehicle::Vehicle,
         crate::vehicle::Riding,

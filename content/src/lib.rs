@@ -257,6 +257,8 @@ pub const SINK: &str = "sink";
 pub const SHOWER: &str = "shower";
 pub const TOILET: &str = "toilet";
 pub const WATER_TOWER: &str = "water tower";
+/// Soap carried doubles what a wash takes off (modforge hygiene).
+pub const SOAP: &str = "soap";
 /// How much the tower holds, in water barrels of 200 litres: 50, 10,000
 /// litres for the town (Claude's; a real town's tower holds far more).
 pub const WATER_TOWER_BARRELS: usize = 50;
@@ -1098,7 +1100,7 @@ pub const COOKED_MEAT: &str = "cooked meat";
 pub const COLD: [(&str, f32); 2] = [(FRIDGE, 0.75), (FREEZER, 1.0)];
 /// What a house's kitchen is found holding: (where, what, how many).
 /// Claude's.
-pub const KITCHEN_FOOD: [(&str, &str, u32); 2] = [(PANTRY, "canned food", 3), (FRIDGE, RAW_MEAT, 2)];
+pub const KITCHEN_FOOD: [(&str, &str, u32); 3] = [(PANTRY, "canned food", 3), (FRIDGE, RAW_MEAT, 2), (PANTRY, SOAP, 1)];
 /// What spoiled food becomes.
 pub const ROTTEN_FOOD: &str = "rotten food";
 
@@ -1965,7 +1967,8 @@ pub fn register_items(reg: &mut ItemRegistry) {
         building(THERMOSTAT, "The house's thermostat. On, the furnace and the air conditioner run.", ItemKind::Deployable, 1, None),
         building(COUCH, "A couch. Use it to sleep on; a bed rests better.", ItemKind::Source, 1, None),
         building(SLEEPING_BAG, "A sleeping bag. Carried, sleeping off a bed rests better.", ItemKind::Material, 1, None),
-        building(PANTRY,"A kitchen pantry. Food keeps here as it would anywhere.", ItemKind::Deployable, 1, Some(12)),
+        building(SOAP, "A bar of soap. Carried, a wash gets you twice as clean.", ItemKind::Material, 5, None),
+        building(PANTRY, "A kitchen pantry. Food keeps here as it would anywhere.", ItemKind::Deployable, 1, Some(12)),
         building(FRIDGE, "A fridge. With power, food in it keeps four times as long.", ItemKind::Deployable, 1, Some(12)),
         building(FREEZER, "A freezer. With power, food in it does not spoil.", ItemKind::Deployable, 1, Some(12)),
         building(STOVE, "A kitchen stove. Food is cooked on it.", ItemKind::Deployable, 1, None),

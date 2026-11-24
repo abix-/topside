@@ -95,6 +95,29 @@ pub fn today(tick: &SimTick, day: Day) -> f32 {
     Day::secs(tick) / day.0
 }
 
+/// How clean one person is (saved; modforge hygiene).
+#[derive(Component, Default, Clone, Copy, serde::Serialize, serde::Deserialize, Reflect)]
+#[reflect(opaque, Component, Serialize, Deserialize)]
+pub struct Clean(pub modforge::hygiene::Hygiene);
+
+/// Every step everyone living gets a little dirtier (topside-town
+/// "Everything works"); washing is `interact::interact_on_use`'s.
+pub fn get_dirty(
+    mut commands: Commands,
+    time: Res<Time<Fixed>>,
+    day: Res<Day>,
+    mut people: Query<(Entity, Option<&mut Clean>), (With<crate::actor::Actor>, Without<Dead>, Without<crate::vehicle::Vehicle>)>,
+) {
+    for (person, clean) in &mut people {
+        match clean {
+            Some(mut clean) => clean.0.live(time.delta_secs() / day.0),
+            None => {
+                commands.entity(person).insert(Clean::default());
+            }
+        }
+    }
+}
+
 /// Once a second, food kept past its days turns rotten wherever it is
 /// held: an inventory, a hotbar or a box (design.md "Survival
 /// pressures": food spoils over time; modforge `item::spoiled`).

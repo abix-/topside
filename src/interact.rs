@@ -633,7 +633,7 @@ pub fn interact_on_use(
         (
             (Entity, &Transform, &ThisTick, &mut Inventory, &mut Hud, &mut OpenContainer, &mut OpenStation),
             (&mut Persona, &mut Health, &Facing, Option<&crate::talk::LookingAt>, Option<&crate::actor::Actor>, Option<&mut crate::actor::Hotbar>),
-            Option<&mut crate::actor::ActorCondition>,
+            (Option<&mut crate::actor::ActorCondition>, Option<&mut crate::survival::Clean>),
         ),
         Without<Dead>,
     >,
@@ -648,7 +648,7 @@ pub fn interact_on_use(
     // in one tick, who gets it is the same after a load.
     let order = crate::actor::in_actor_order(people.iter().map(|((me, ..), (.., actor, _), _)| (actor.map(|a| a.0), me)));
     for entity in order {
-        let Ok(((me, person, this_tick, mut inventory, mut hud, mut open, mut station), (mut mind, mut health, facing, looking, _, mut hotbar), mut condition)) =
+        let Ok(((me, person, this_tick, mut inventory, mut hud, mut open, mut station), (mut mind, mut health, facing, looking, _, mut hotbar), (mut condition, mut clean))) =
             people.get_mut(entity)
         else {
             continue;
@@ -758,6 +758,18 @@ pub fn interact_on_use(
                         continue;
                     }
                     eat_from_source(&item.stack.item, &registry, &mut mind, &mut health, tick.0);
+                    // A shower washes all of one, a sink hands and face,
+                    // soap carried doubling it (modforge hygiene).
+                    let wash = match item.stack.item.as_str() {
+                        crate::content::SHOWER => Some(modforge::hygiene::Wash::Whole),
+                        crate::content::SINK => Some(modforge::hygiene::Wash::Hands),
+                        _ => None,
+                    };
+                    if let (Some(wash), Some(clean)) = (wash, clean.as_mut()) {
+                        let soap = inventory.0.count_of(crate::content::SOAP) > 0;
+                        clean.0.wash(wash, soap);
+                        mind.0.memory.did(Did::Done(format!("washed at the {}", item.stack.item)), tick.0);
+                    }
                 }
             }
             continue;
