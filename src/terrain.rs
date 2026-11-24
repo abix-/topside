@@ -23,8 +23,14 @@ use crate::content::{BUNKER_AT, BiomeRegistryRes, MonumentRegistryRes, WorldKind
 use crate::model::Model;
 use crate::{Ground as _, WorldSeed, on_ground};
 
-/// How tall water stands as a body: it stops a person, and is seen over.
+/// How tall water stands as a body: it keeps the way-finding mesh off it,
+/// and is seen over.
 const WATER_HEIGHT: f32 = 1.0;
+
+/// A chunk's water body: a body moving goes through it, swimming
+/// (`player::movement`, todo Secrets 2).
+#[derive(Component)]
+pub struct Water;
 /// How tall cliffs, trees, and rocks stand as a body: over the eyes, so
 /// they hide what is past them.
 const SOLID_HEIGHT: f32 = 4.0;
@@ -488,7 +494,9 @@ pub fn make_chunks(
         chunks.roads += chunk.ground.iter().filter(|g| **g == Ground::Road).count();
         chunks.ground.insert(key, chunk.ground.to_vec());
         let first = chunk.first();
-        body(&mut commands, key, &runs_of(first, &chunk.ground, |_, g| g == Ground::Water), 0.0, WATER_HEIGHT, false);
+        if let Some(water) = body(&mut commands, key, &runs_of(first, &chunk.ground, |_, g| g == Ground::Water), 0.0, WATER_HEIGHT, false) {
+            commands.entity(water).insert(Water);
+        }
         let mut solid = runs_of(first, &chunk.ground, |_, g| matches!(g, Ground::Cliff | Ground::OutOfMap));
         solid.extend(chunk.things.iter().filter(|t| t.source.is_none()).map(|t| t.rect()));
         body(&mut commands, key, &solid, 0.0, SOLID_HEIGHT, true);

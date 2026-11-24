@@ -170,6 +170,11 @@ pub fn aim(
 pub const CLIMB: f32 = 0.35;
 /// Metres per second, per second, down.
 const GRAVITY: f32 = 9.81;
+/// How fast a jump leaves the ground, metres per second up: about 0.6 m
+/// high (Claude's; todo Secrets 2).
+const JUMP_SPEED: f32 = 3.5;
+/// How much of walking speed a swim is (Claude's).
+const SWIM_SPEED: f32 = 0.5;
 
 /// How fast a body is falling, metres per second down; zero standing on
 /// something (the 3D game's `Fall`).
@@ -189,6 +194,7 @@ pub fn movement(
     time: Res<Time<Fixed>>,
     move_and_slide: MoveAndSlide,
     below: Query<&crate::structure::Below>,
+    (waters, chunks): (Query<Entity, With<crate::terrain::Water>>, Res<crate::terrain::Chunks>),
     mut actors: Query<
         (
             Entity,
@@ -206,10 +212,13 @@ pub fn movement(
 ) {
     let config = MoveAndSlideConfig::default();
     let dt = time.delta_secs();
+    // Water stops no one: they swim through it (todo Secrets 2).
+    let waters: Vec<Entity> = waters.iter().collect();
     for (entity, this_tick, shape, personality, firing, rolling, mut transform, mut fall, vehicle) in &mut actors {
         // Swift people walk faster, slow ones slower; a vehicle goes at
-        // its own speed (todo 57).
-        let kind = vehicle.map_or(1.0, |v| v.def().speed);
+        // its own speed (todo 57); in water, at SWIM_SPEED of it.
+        let swimming = chunks.ground_at(modforge::walk::cell_of(transform.translation.ground())) == Some(modforge::ground::Ground::Water);
+        let kind = vehicle.map_or(1.0, |v| v.def().speed) * if swimming { SWIM_SPEED } else { 1.0 };
         let speed = WALK_SPEED * personality.map_or(1.0, |p| p.0.personality.speed_mult()) * kind;
         // Mid roll: faster, along the direction it started with. Committed
         // to a swing: no walking until it ends.
@@ -224,11 +233,16 @@ pub fn movement(
                 }
             }
         };
+        // A jump from standing on something (todo Secrets 2): rising at
+        // JUMP_SPEED, a fall upward (`Fall` below zero) that gravity turns.
+        if fall.0 == 0.0 && ActionQueue::has(&this_tick.0, Action::Jump) {
+            fall.0 = -JUMP_SPEED;
+        }
         // Standing still on something costs nothing.
         if velocity == Vec2::ZERO && fall.0 == 0.0 {
             continue;
         }
-        let filter = SpatialQueryFilter::from_excluded_entities([entity]);
+        let filter = SpatialQueryFilter::from_excluded_entities(std::iter::once(entity).chain(waters.iter().copied()));
         let start = transform.translation;
         let slide = |from: Vec3| {
             move_and_slide
@@ -255,6 +269,24 @@ pub fn movement(
         // Fall this tick, then land on the first thing under the feet: on
         // the ground the cast reaches a step down, in the air only as far
         // as the fall.
+        // Rising: up as far as nothing stops the head, then the fall.
+        if fall.0 < 0.0 {
+            let up = -fall.0 * dt;
+            centre.y += match move_and_slide.cast_move(shape, centre, Quat::IDENTITY, Vec3::Y * up, 0.0, &filter) {
+                Some(hit) => {
+                    fall.0 = 0.0;
+                    hit.distance
+                }
+                None => up,
+            };
+            // At the top it is falling, never standing in the air.
+            fall.0 += GRAVITY * dt;
+            if fall.0 == 0.0 {
+                fall.0 = f32::EPSILON;
+            }
+            transform.translation = centre;
+            continue;
+        }
         let airborne = fall.0 > 0.0;
         fall.0 += GRAVITY * dt;
         let reach = if airborne { fall.0 * dt } else { CLIMB + (centre.y - start.y).max(0.0) + fall.0 * dt };

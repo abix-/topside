@@ -54,6 +54,7 @@ fn key_of(code: KeyCode) -> Option<Key> {
         KeyCode::Escape => Key::Escape,
         KeyCode::Enter => Key::Enter,
         KeyCode::Space => Key::Space,
+        KeyCode::KeyC => Key::C,
         KeyCode::ShiftLeft => Key::ShiftLeft,
         KeyCode::ShiftRight => Key::ShiftRight,
         KeyCode::Digit1 => Key::Digit1,
@@ -245,7 +246,7 @@ pub fn input_to_actions(
             other => other,
         };
         let allowed = match action {
-            Action::Move { .. } | Action::Attack | Action::Roll => in_world,
+            Action::Move { .. } | Action::Attack | Action::Roll | Action::Jump => in_world,
             Action::Use
             | Action::Inventory
             | Action::Cancel

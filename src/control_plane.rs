@@ -169,6 +169,7 @@ fn key_code(name: &str) -> Option<KeyCode> {
         "Escape" => KeyCode::Escape,
         "Enter" => KeyCode::Enter,
         "Space" => KeyCode::Space,
+        "C" => KeyCode::KeyC,
         "1" => KeyCode::Digit1,
         "2" => KeyCode::Digit2,
         "3" => KeyCode::Digit3,
