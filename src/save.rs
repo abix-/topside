@@ -206,6 +206,11 @@ pub struct Header {
     pub world: String,
     pub shifts: u32,
     pub tick: u64,
+    /// The town's: the game's own seed and how many houses stand over a
+    /// bunker (topside-town "The bunkers"). An older save has none and
+    /// keeps the running game's.
+    #[serde(default)]
+    pub town: Option<(u64, u32)>,
 }
 
 /// How a save's first line begins.
@@ -219,6 +224,7 @@ impl Header {
             world: format!("{:?}", world.resource::<crate::content::WorldKind>()).to_lowercase(),
             shifts: world.resource::<crate::storm::StormRes>().shifts,
             tick: world.resource::<SimTick>().0,
+            town: Some((world.resource::<crate::RunSeed>().0, world.resource::<crate::BunkerCount>().0)),
         }
     }
 
@@ -244,6 +250,10 @@ fn roll_saved_world(world: &mut World, header: &Header) {
     world.resource_mut::<crate::WorldSeed>().0 = header.seed;
     if let Some(kind) = crate::content::WorldKind::from_name(&header.world) {
         world.insert_resource(kind);
+    }
+    if let Some((run, bunkers)) = header.town {
+        world.resource_mut::<crate::RunSeed>().0 = run;
+        world.insert_resource(crate::BunkerCount(bunkers));
     }
     let pieces: Vec<Entity> = world
         .query_filtered::<Entity, (With<crate::terrain::WorldPiece>, Without<Save>)>()

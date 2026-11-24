@@ -234,15 +234,19 @@ pub fn roll(
     kind: Res<WorldKind>,
     biomes: Res<BiomeRegistryRes>,
     monuments: Res<MonumentRegistryRes>,
+    (run, count): (Res<crate::RunSeed>, Res<crate::BunkerCount>),
 ) {
     // The seed in the log, so any world can be rolled again.
-    info!("rolling the {:?} world from seed {}", *kind, seed.0);
-    let world = roll_world2d(*kind, seed.0, &biomes.0, &monuments.monuments).expect("the ground def names registered biomes");
+    info!("rolling the {:?} world from seed {}, the town from {} with {} bunkers", *kind, seed.0, run.0, count.0);
+    let world = roll_world2d(*kind, seed.0, (run.0, count.0), &biomes.0, &monuments.monuments)
+        .expect("the ground def names registered biomes");
+    // The world's bunkers, the player's first.
+    let bunkers = world.bunkers.iter().skip(1).map(|c| c.at).collect();
     commands.insert_resource(WorldRes {
         world,
         seed: seed.0,
         bunker: BUNKER_AT,
-        bunkers: kind.other_bunkers(),
+        bunkers,
     });
     commands.insert_resource(Chunks::default());
     commands.insert_resource(NewSites::default());

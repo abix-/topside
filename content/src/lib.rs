@@ -919,10 +919,11 @@ impl WorldKind {
         }
     }
 
-    /// Where the other bunkers stand.
+    /// Where the other bunkers stand in a world with no town; the small
+    /// world's are under its houses (`Town::bunkers`).
     pub fn other_bunkers(self) -> Vec<Vec2> {
         match self {
-            Self::Small => SMALL_OTHER_BUNKERS.to_vec(),
+            Self::Small => Vec::new(),
             Self::Big => OTHER_BUNKERS.to_vec(),
         }
     }
@@ -994,15 +995,6 @@ pub fn small_ground_def() -> GroundDef {
     }
 }
 
-/// The small world's other bunkers (operator, 2026-09-25: "lets do 5
-/// bunkers. each with 5 people"), round the player's, clear of the sites.
-pub const SMALL_OTHER_BUNKERS: [Vec2; 5] = [
-    Vec2::new(300.0, 0.0),
-    Vec2::new(-300.0, 0.0),
-    Vec2::new(0.0, 320.0),
-    Vec2::new(0.0, -300.0),
-    Vec2::new(300.0, -300.0),
-];
 
 /// The small world's topside people, placed by world generation on open
 /// land (operator, 2026-09-25: "another 25 nuetral topside creatures. and
@@ -1219,6 +1211,11 @@ pub fn house_def() -> HouseDef {
     }
 }
 
+/// How many of the town's houses stand over a bunker, the player's among
+/// them, unless a new game is given another count (operator, 2026-11-23:
+/// "let's start with 10% of the houses will have bunkers, so 5 houses").
+pub const DEFAULT_BUNKERS: u32 = 5;
+
 /// How far a small site keeps from the town's square, metres; a site
 /// nearer is left out until Tier 3 stands the old monuments in the town.
 /// Claude's, for the operator to change.
@@ -1233,11 +1230,16 @@ pub const DOOR_GAP: (Vec2, f32, f32) = (Vec2::new(-300.0, 300.0), 100.0, 10.0);
 
 /// The world a seed gives (design.md "2D world generation"): the ground,
 /// the sites (rolled in the big world, placed by hand in the small one),
-/// and every bunker on its cleared ground. The one way a world is made,
-/// for the game and for the tests.
+/// and every bunker on its cleared ground, the player's first. The small
+/// world's town is laid from `town`, its seed and how many of its houses
+/// stand over a bunker: the town's seed is the game's own, so a storm,
+/// rolling the ground again, leaves the town and its bunkers where they
+/// are (topside-town "The bunkers"). The one way a world is made, for the
+/// game and for the tests.
 pub fn roll_world2d(
     kind: WorldKind,
     seed: u64,
+    town: (u64, u32),
     biomes: &BiomeRegistry,
     monuments: &MonumentRegistry,
 ) -> Result<World2d, String> {
@@ -1246,8 +1248,13 @@ pub fn roll_world2d(
         WorldKind::Big => ground_def(),
     };
     let ground = GroundGen::new(def, seed, biomes)?;
-    let clearings: Vec<Clearing> = std::iter::once(BUNKER_AT)
-        .chain(kind.other_bunkers())
+    let town = (kind == WorldKind::Small).then(|| Town::around(&small_town_def(), BUNKER_AT, town.0, town.1));
+    let at: Vec<Vec2> = match &town {
+        Some(t) => t.bunkers(),
+        None => std::iter::once(BUNKER_AT).chain(kind.other_bunkers()).collect(),
+    };
+    let clearings: Vec<Clearing> = at
+        .into_iter()
         .map(|at| Clearing {
             at,
             radius: BUNKER_CLEAR,
@@ -1255,7 +1262,6 @@ pub fn roll_world2d(
         })
         .collect();
     let keep_clear = clearings.iter().map(|c| (c.at, c.radius)).collect();
-    let town = (kind == WorldKind::Small).then(|| Town::around(&small_town_def(), BUNKER_AT, seed));
     let off_town = |at: Vec2| {
         town.as_ref().is_none_or(|t| {
             let (lo, hi) = t.bounds();
@@ -1375,8 +1381,9 @@ pub fn bunker_faction(i: usize) -> String {
 /// them changes that, todo 11t). The topside hostiles are hostile to
 /// everyone.
 pub fn register_factions(reg: &mut FactionRegistry) {
-    // Enough for the other bunkers of either world.
-    let most = OTHER_BUNKERS.len().max(SMALL_OTHER_BUNKERS.len());
+    // Enough for the other bunkers of either world: the small world's
+    // can be any of its houses.
+    let most = OTHER_BUNKERS.len().max(small_town_def().houses as usize);
     let bunkers = (0..most).map(|i| (bunker_faction(i), FactionKind::Builder));
     for (name, kind) in [
         (PLAYER_FACTION.to_string(), FactionKind::Player),

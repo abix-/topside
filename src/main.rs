@@ -3,7 +3,8 @@
 //! it so every run is the same world). `--world small` (the default,
 //! design.md "The small world first") or `--world big` picks the world.
 //! `--port N` is the control plane's port (15703 when not given), so two
-//! games can run side by side.
+//! games can run side by side. `--bunkers N` is how many of the town's
+//! houses stand over a bunker in a new game (5 when not given).
 
 // One window, the default for every program: no console window beside it.
 // Debug builds keep the console for their output.
@@ -34,5 +35,12 @@ fn main() {
         Some(name) => WorldKind::from_name(name).unwrap_or_else(|| panic!("no world '{name}': small or big")),
     };
     let port = value("--port").map(|p| p.parse().unwrap_or_else(|_| panic!("--port {p}: a port number"))).unwrap_or(topside::control_plane::DEFAULT_PORT);
-    topside::build_app(false, seed, world, port).run();
+    // How many of the town's houses stand over a bunker, this new game's
+    // (topside-town "The bunkers"); a loaded save keeps its own.
+    let bunkers = value("--bunkers").map(|n| n.parse().unwrap_or_else(|_| panic!("--bunkers {n}: a count")));
+    let mut app = topside::build_app(false, seed, world, port);
+    if let Some(n) = bunkers {
+        app.insert_resource(topside::BunkerCount(n));
+    }
+    app.run();
 }

@@ -98,6 +98,18 @@ pub struct WorldSeed(pub u64);
 #[reflect(opaque, Resource, Serialize, Deserialize)]
 pub struct RunSeed(pub u64);
 
+/// How many of the town's houses stand over a bunker, chosen when a new
+/// game starts (`--bunkers`), the player's among them (topside-town "The
+/// bunkers"); fixed for the game, kept in its saves.
+#[derive(Resource, Clone, Copy)]
+pub struct BunkerCount(pub u32);
+
+impl Default for BunkerCount {
+    fn default() -> Self {
+        Self(content::DEFAULT_BUNKERS)
+    }
+}
+
 /// The reality the world is in now (realities.md), with its rules: the
 /// first registered until a storm hands over another.
 #[derive(Resource, Clone, serde::Serialize, serde::Deserialize, Reflect)]
@@ -232,6 +244,7 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind, port: u16
     app.insert_resource(Time::<Fixed>::from_hz(60.0));
     app.insert_resource(WorldSeed(seed));
     app.insert_resource(RunSeed(seed));
+    app.init_resource::<BunkerCount>();
     app.insert_resource(world);
     app.init_resource::<SimTick>();
     app.init_resource::<content::RealityRegistryRes>();
