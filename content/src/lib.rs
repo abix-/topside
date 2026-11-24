@@ -16,16 +16,11 @@ use modforge::actor::{ActorDef, ActorRegistry, BodyLook, LookDef};
 use modforge::biome::{BiomeDef, BiomeRegistry};
 use modforge::combat::{DamageDef, DamageRegistry};
 use modforge::faction::{FactionDef, FactionKind, FactionRegistry};
-use modforge::memory::GoodFor;
-use modforge::survival::Need;
 use modforge::item::{Armor, ItemDef, ItemKind, ItemRegistry, LayerDef, LayerRegistry, Note};
 use modforge::monument::Roll;
 use modforge::reality::{RealityDef, RealityRegistry};
 use modforge::storyteller::{EpisodeDef, EpisodeRegistry, LineDef, When};
-use modforge::monument::{
-    Arrangement, BuildingRegistry, BuildingSize, BuildingSlot, BuildingTypeDef,
-    MonumentRegistry, MonumentTypeDef, PropDef,
-};
+use modforge::monument::{BuildingRegistry, BuildingTypeDef, MonumentRegistry, MonumentTypeDef};
 use modforge::crafting::{RecipeDef, RecipeRegistry, StationKind};
 use modforge::loot::LootTable;
 use modforge::storm::StormDef;
@@ -2090,106 +2085,74 @@ pub const RESOURCES: [(&str, &[&str]); 7] = [
     ("hide", &["hide", "pelt"]),
 ];
 
-const CONCRETE: &[Rgb] = &[[0.45, 0.45, 0.47], [0.5, 0.48, 0.45], [0.38, 0.4, 0.42]];
-const WOOD_COLOURS: &[Rgb] = &[[0.45, 0.32, 0.18], [0.55, 0.45, 0.2], [0.35, 0.25, 0.15]];
-const STEEL: &[Rgb] = &[[0.3, 0.32, 0.35], [0.25, 0.3, 0.4], [0.5, 0.2, 0.15]];
-const CLEAN: &[Rgb] = &[[0.8, 0.82, 0.85], [0.6, 0.7, 0.75], [0.3, 0.5, 0.6]];
+/// Where the building types are: content/buildings.yaml, its `buildings`
+/// a list of modforge `monument::BuildingTypeDef` and its `palettes` the
+/// colours they are drawn from, by name.
+pub const BUILDINGS_FILE: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/buildings.yaml");
+
+/// What `BUILDINGS_FILE` holds.
+#[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+struct BuildingsFile {
+    palettes: std::collections::BTreeMap<String, Vec<Rgb>>,
+    buildings: Vec<BuildingTypeDef>,
+}
+
+/// `BUILDINGS_FILE`, read the first time it is asked for. A file that
+/// does not read stops the game at once, naming it.
+static BUILDINGS: std::sync::LazyLock<BuildingsFile> = std::sync::LazyLock::new(|| {
+    let text = std::fs::read_to_string(BUILDINGS_FILE).unwrap_or_else(|e| panic!("{BUILDINGS_FILE}: {e}"));
+    serde_yaml::from_str(&text).unwrap_or_else(|e| panic!("{BUILDINGS_FILE}: {e}"))
+});
 
 /// The model a wall tile is drawn with, by what it is made of (design.md
 /// "Walls and floors by what they are made of"), read from its colour:
 /// the bunker's concrete and the concrete palette are concrete, the wood
 /// palette wood, the stone palette stone; the rest are the plain wall.
 pub fn wall_model(color: Rgb) -> &'static str {
-    if color == CONCRETE_WALL || CONCRETE.contains(&color) {
+    let made_of = |palette: &str| BUILDINGS.palettes.get(palette).is_some_and(|p| p.contains(&color));
+    if color == CONCRETE_WALL || made_of("concrete") {
         "wall concrete"
-    } else if WOOD_COLOURS.contains(&color) {
+    } else if made_of("wood") {
         "wall wood"
-    } else if STONE_COLOURS.contains(&color) {
+    } else if made_of("stone") {
         "wall stone"
     } else {
         "wall"
     }
 }
 
-/// Stone buildings' colours (todo 15d2; Claude's: the lighthouse is
-/// built of stone, for the operator to change).
-const STONE_COLOURS: &[Rgb] = &[[0.55, 0.53, 0.5], [0.48, 0.47, 0.45], [0.6, 0.58, 0.52]];
-
-/// The building types (design.md "Building types"): small, medium,
-/// large, each with the parameter ranges that change on every roll:
-/// columns and rows of rooms per floor, floors, room footprint,
-/// height, window, clutter, and light chances, palette. Floors top
-/// out at two until multi-flight stairwells land.
+/// The building types, from `BUILDINGS_FILE`.
 pub fn register_buildings(reg: &mut BuildingRegistry) {
-    use BuildingSize::*;
-    struct Spec {
-        name: &'static str,
-        size: BuildingSize,
-        columns: (u32, u32),
-        rows: (u32, u32),
-        floors: (u32, u32),
-        basements: (u32, u32),
-        width: (f32, f32),
-        length: (f32, f32),
-        height: (f32, f32),
-        windows: u64,
-        clutter: u64,
-        lights: u64,
-        damage: u64,
-        carve: u64,
-        palette: &'static [Rgb],
-    }
-    // Columns: name, size, columns, rows, floors up, floors down,
-    // room width, room length, floor height, window / clutter /
-    // light / damage / carve chances per mille, palette.
-    let buildings = [
-        // Small: one or two rooms, one floor.
-        Spec { name: "gas station", size: Small, columns: (1, 2), rows: (1, 1), floors: (1, 1), basements: (0, 0), width: (5.0, 8.0), length: (5.0, 7.0), height: (2.8, 3.4), windows: 600, clutter: 500, lights: 800, damage: 150, carve: 0, palette: STEEL },
-        Spec { name: "convenience store", size: Small, columns: (2, 3), rows: (1, 1), floors: (1, 1), basements: (0, 1), width: (5.0, 7.0), length: (6.0, 9.0), height: (2.8, 3.4), windows: 500, clutter: 700, lights: 800, damage: 150, carve: 0, palette: CONCRETE },
-        Spec { name: "water well", size: Small, columns: (1, 1), rows: (1, 1), floors: (1, 1), basements: (0, 0), width: (3.5, 4.5), length: (3.5, 4.5), height: (2.6, 3.2), windows: 0, clutter: 300, lights: 0, damage: 300, carve: 0, palette: CONCRETE },
-        Spec { name: "guard tower", size: Small, columns: (1, 1), rows: (1, 1), floors: (3, 5), basements: (0, 0), width: (3.5, 4.0), length: (5.0, 6.0), height: (2.8, 3.2), windows: 800, clutter: 200, lights: 600, damage: 100, carve: 0, palette: WOOD_COLOURS},
-        Spec { name: "shack", size: Small, columns: (1, 1), rows: (1, 1), floors: (1, 1), basements: (0, 0), width: (4.0, 6.0), length: (4.0, 6.0), height: (2.5, 3.0), windows: 400, clutter: 500, lights: 800, damage: 350, carve: 0, palette: WOOD_COLOURS},
-        Spec { name: "lighthouse", size: Small, columns: (1, 1), rows: (1, 1), floors: (5, 8), basements: (0, 0), width: (4.0, 5.0), length: (5.0, 6.0), height: (2.8, 3.2), windows: 500, clutter: 200, lights: 500, damage: 100, carve: 0, palette: STONE_COLOURS},
-        // Medium: two to six rooms, one to three floors.
-        Spec { name: "warehouse", size: Medium, columns: (2, 3), rows: (1, 2), floors: (1, 1), basements: (0, 0), width: (8.0, 12.0), length: (10.0, 16.0), height: (4.5, 6.0), windows: 300, clutter: 800, lights: 600, damage: 200, carve: 200, palette: STEEL },
-        Spec { name: "office building", size: Medium, columns: (2, 3), rows: (1, 2), floors: (2, 4), basements: (0, 1), width: (5.0, 6.0), length: (6.0, 8.0), height: (2.8, 3.4), windows: 800, clutter: 600, lights: 400, damage: 150, carve: 200, palette: CONCRETE },
-        Spec { name: "workshop", size: Medium, columns: (2, 3), rows: (1, 1), floors: (1, 1), basements: (0, 0), width: (6.0, 8.0), length: (7.0, 10.0), height: (3.5, 4.5), windows: 400, clutter: 900, lights: 600, damage: 200, carve: 0, palette: STEEL },
-        Spec { name: "barracks", size: Medium, columns: (2, 3), rows: (1, 2), floors: (1, 2), basements: (0, 0), width: (5.0, 6.0), length: (7.0, 9.0), height: (2.8, 3.2), windows: 500, clutter: 700, lights: 500, damage: 150, carve: 200, palette: WOOD_COLOURS},
-        Spec { name: "lab", size: Medium, columns: (2, 2), rows: (1, 2), floors: (1, 2), basements: (1, 3), width: (5.0, 7.0), length: (6.0, 8.0), height: (2.8, 3.2), windows: 300, clutter: 800, lights: 600, damage: 100, carve: 100, palette: CLEAN },
-        Spec { name: "supermarket", size: Medium, columns: (2, 3), rows: (1, 2), floors: (1, 1), basements: (0, 0), width: (10.0, 14.0), length: (10.0, 14.0), height: (3.5, 4.5), windows: 200, clutter: 900, lights: 500, damage: 200, carve: 200, palette: CONCRETE },
-        // Large: twenty or more rooms (operator, 2026-08-20: "each
-        // with 20+ rooms"), up to ten floors up or down or both
-        // (operator: "up to 10 floors up OR down like a bunker",
-        // "BOTH up and down"). Minimum grids keep the room count
-        // past twenty even after carving.
-        Spec { name: "hangar", size: Large, columns: (3, 4), rows: (4, 4), floors: (2, 3), basements: (0, 0), width: (8.0, 12.0), length: (8.0, 12.0), height: (5.0, 7.0), windows: 100, clutter: 600, lights: 200, damage: 150, carve: 100, palette: STEEL },
-        Spec { name: "industrial plant", size: Large, columns: (4, 5), rows: (3, 4), floors: (2, 4), basements: (0, 2), width: (6.0, 9.0), length: (6.0, 9.0), height: (4.0, 5.5), windows: 300, clutter: 900, lights: 250, damage: 250, carve: 150, palette: STEEL },
-        Spec { name: "silo", size: Large, columns: (3, 4), rows: (4, 4), floors: (1, 2), basements: (4, 10), width: (4.0, 6.0), length: (4.0, 6.0), height: (2.8, 3.2), windows: 100, clutter: 500, lights: 300, damage: 100, carve: 100, palette: CONCRETE },
-        Spec { name: "dock building", size: Large, columns: (4, 5), rows: (3, 3), floors: (2, 2), basements: (0, 0), width: (5.0, 7.0), length: (6.0, 9.0), height: (3.5, 4.5), windows: 400, clutter: 700, lights: 200, damage: 300, carve: 150, palette: WOOD_COLOURS},
-        Spec { name: "apartment block", size: Large, columns: (4, 5), rows: (3, 4), floors: (3, 10), basements: (0, 1), width: (4.5, 6.0), length: (5.0, 7.0), height: (2.8, 3.2), windows: 700, clutter: 700, lights: 200, damage: 200, carve: 150, palette: CONCRETE },
-        Spec { name: "hospital", size: Large, columns: (4, 6), rows: (3, 4), floors: (3, 6), basements: (1, 2), width: (5.0, 7.0), length: (5.0, 7.0), height: (3.0, 3.4), windows: 500, clutter: 800, lights: 250, damage: 150, carve: 100, palette: CLEAN },
-        Spec { name: "bunker complex", size: Large, columns: (3, 5), rows: (3, 4), floors: (1, 1), basements: (5, 10), width: (4.5, 6.5), length: (5.0, 7.0), height: (2.6, 3.0), windows: 0, clutter: 700, lights: 400, damage: 50, carve: 100, palette: CONCRETE },
-    ]
-    .map(|s| BuildingTypeDef {
-        name: s.name.to_string(),
-        size: s.size,
-        columns: s.columns,
-        rows: s.rows,
-        floors: s.floors,
-        basements: s.basements,
-        width: s.width,
-        length: s.length,
-        height: s.height,
-        windows: s.windows,
-        clutter: s.clutter,
-        lights: s.lights,
-        damage: s.damage,
-        carve: s.carve,
-        palette: s.palette.to_vec(),
-    });
-    for building in buildings {
+    for building in BUILDINGS.buildings.iter().cloned() {
         reg.register(building).expect("building type defs must not collide");
     }
+}
+
+/// Where the monument types are: content/monuments.yaml, its
+/// `monuments` a list of modforge `monument::MonumentTypeDef`, its `name
+/// words` what their rolled names are made from, and its `lists` the
+/// building lists named in them.
+pub const MONUMENTS_FILE: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/monuments.yaml");
+
+/// What `MONUMENTS_FILE` holds.
+#[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+struct MonumentsFile {
+    #[serde(rename = "name words")]
+    name_words: NameWords,
+    /// Written once and named in each monument; read there.
+    #[allow(dead_code)]
+    lists: serde_yaml::Value,
+    monuments: Vec<MonumentTypeDef>,
+}
+
+/// A rolled monument name's words: one of each, then its suffix.
+#[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+struct NameWords {
+    first: Vec<String>,
+    second: Vec<String>,
 }
 
 /// The monument types (design.md "Monument types", Rust's adapted):
@@ -2197,259 +2160,10 @@ pub fn register_buildings(reg: &mut BuildingRegistry) {
 /// how dangerous, whether a gated room waits at the back, and the
 /// word that ends its rolled name.
 pub fn register_monuments(reg: &mut MonumentRegistry, buildings: &BuildingRegistry) {
-    use Arrangement::*;
-    reg.set_name_words(
-        [
-            "Ash", "Rust", "Hollow", "Grey", "Salt", "Cinder", "Dust", "Black", "Cold", "Broken",
-            "Iron", "Sour", "Dead", "Low", "Far",
-        ]
-        .map(String::from)
-        .to_vec(),
-        [
-            "fall", "ridge", "water", "field", "mark", "reach", "pass", "well", "brook", "gate",
-            "fork", "hill", "marsh", "bend", "row",
-        ]
-        .map(String::from)
-        .to_vec(),
-    );
-    let small = ["gas station", "convenience store", "water well", "guard tower", "shack", "lighthouse"];
-    let medium = ["warehouse", "office building", "workshop", "barracks", "lab", "supermarket"];
-    let small_or_medium = ["gas station", "shack", "guard tower", "warehouse", "workshop", "office building"];
-    let slot = |choices: &[&str], min, max| BuildingSlot {
-        choices: choices.iter().map(|c| c.to_string()).collect(),
-        min,
-        max,
-    };
-    let def = |name: &str, slots: Vec<BuildingSlot>, arrangement, danger, gated, suffix: &str| {
-        MonumentTypeDef {
-            name: name.to_string(),
-            slots,
-            arrangement,
-            danger,
-            gated,
-            suffix: suffix.to_string(),
-            // Big monuments keep 180 m from each other.
-            spacing: 180.0,
-            // The launch site's gantry stands in its yard, the big thing
-            // seen from the bunker door (design.md "The first hour").
-            props: match name {
-                "launch site" => vec![PropDef {
-                    size: Vec3::new(6.6, 60.0, 6.6),
-                    color: [0.55, 0.55, 0.58],
-                    count: (1, 1),
-                    radius: 0.0,
-                    picture: Some("gantry".to_string()),
-                    centred: false,
-                }],
-                _ => vec![],
-            },
-            // Walls and a roof: the people who live there rest and
-            // feel safe there.
-            good_for: GoodFor::new(&[(Need::Rest, 100.0), (Need::Safety, 60.0)]),
-            // The tallest thing there (design.md "The triangle
-            // rule"): the launch site's gantry is the landmark seen
-            // from the bunker door; the power plant's stacks and the
-            // city's towers are next.
-            height: match name {
-                "launch site" => 60.0,
-                "power plant" => 35.0,
-                "ruined city" => 30.0,
-                "research station" | "military outpost" => 12.0,
-                _ => 8.0,
-            },
-        }
-    };
-    // Minor sites (design.md: "something worth stopping for every 30
-    // seconds"): props around a loot box, no buildings, close spacing.
-    // Each prop is drawn as its picture, rendered by scripts/models.py to
-    // its size here.
-    let prop = |picture: &str, size: [f32; 3], color: Rgb, count: (u32, u32), radius: f32| PropDef {
-        size: Vec3::from(size),
-        color,
-        count,
-        radius,
-        picture: Some(picture.to_string()),
-        centred: false,
-    };
-    let minor = |name: &str, danger, suffix: &str, props: Vec<PropDef>| MonumentTypeDef {
-        name: name.to_string(),
-        slots: vec![],
-        arrangement: Clustered,
-        danger,
-        gated: false,
-        suffix: suffix.to_string(),
-        spacing: 60.0,
-        props,
-        // A camp is a place to sleep; a wreck or a grave is not.
-        good_for: if name == "campsite" {
-            GoodFor::new(&[(Need::Rest, 100.0), (Need::Safety, 30.0)])
-        } else {
-            GoodFor::default()
-        },
-        // Low things, hidden behind any rise.
-        height: 2.0,
-    };
-    let monuments = [
-        def("roadside stop", vec![slot(&small, 1, 2)], AlongRoad, 1, false, "Stop"),
-        def(
-            "airfield",
-            vec![slot(&["hangar"], 1, 1), slot(&small_or_medium, 1, 2)],
-            AlongRoad,
-            3,
-            true,
-            "Airfield",
-        ),
-        def(
-            "power plant",
-            vec![slot(&["industrial plant"], 1, 1), slot(&medium, 1, 3)],
-            Clustered,
-            4,
-            true,
-            "Plant",
-        ),
-        def(
-            "train yard",
-            vec![slot(&["warehouse"], 1, 2), slot(&small, 1, 2)],
-            AlongRoad,
-            2,
-            false,
-            "Yard",
-        ),
-        def(
-            "military outpost",
-            vec![slot(&["barracks"], 1, 1), slot(&["guard tower"], 1, 2)],
-            AroundYard,
-            3,
-            true,
-            "Outpost",
-        ),
-        def(
-            "research station",
-            vec![slot(&["lab"], 1, 1), slot(&medium, 1, 2)],
-            AroundYard,
-            3,
-            true,
-            "Station",
-        ),
-        def(
-            "harbor",
-            vec![slot(&["dock building"], 1, 1), slot(&["warehouse"], 1, 2)],
-            AlongRoad,
-            2,
-            false,
-            "Harbor",
-        ),
-        def("junkyard", vec![slot(&["shack", "workshop"], 2, 3)], Clustered, 1, false, "Junkyard"),
-        def(
-            "sewer",
-            vec![slot(&["silo"], 1, 1), slot(&["shack"], 1, 1)],
-            Clustered,
-            3,
-            true,
-            "Sewer",
-        ),
-        def(
-            "launch site",
-            vec![
-                slot(&["hangar"], 1, 1),
-                slot(&["industrial plant"], 1, 1),
-                slot(&medium, 1, 2),
-            ],
-            AroundYard,
-            5,
-            true,
-            "Site",
-        ),
-        // The big one (operator, 2026-08-20: "a monument with 50
-        // buildings, each with 20+ rooms"): fifty large buildings
-        // on city blocks.
-        def(
-            "ruined city",
-            vec![slot(
-                &[
-                    "apartment block",
-                    "hospital",
-                    "industrial plant",
-                    "silo",
-                    "dock building",
-                    "bunker complex",
-                    "hangar",
-                ],
-                50,
-                50,
-            )],
-            Clustered,
-            4,
-            true,
-            "City",
-        ),
-        // The minor sites.
-        minor(
-            "wreck",
-            0,
-            "Wreck",
-            vec![
-                prop("car wreck", [4.2, 1.4, 1.9], [0.45, 0.2, 0.15], (1, 2), 4.0),
-                prop("barrel", [0.6, 0.9, 0.6], [0.3, 0.3, 0.32], (0, 3), 5.0),
-            ],
-        ),
-        minor(
-            "campsite",
-            1,
-            "Camp",
-            vec![
-                prop("tent", [2.4, 1.6, 2.4], [0.35, 0.3, 0.2], (1, 2), 4.0),
-                prop("fire pit", [1.0, 0.4, 1.0], [0.2, 0.2, 0.2], (1, 1), 2.5),
-                prop("crate", [0.5, 0.5, 0.5], [0.4, 0.32, 0.2], (1, 3), 3.5),
-            ],
-        ),
-        minor(
-            "supply drop",
-            1,
-            "Drop",
-            vec![
-                prop("supply crate", [1.6, 1.2, 1.6], [0.3, 0.4, 0.3], (1, 1), 1.5),
-                prop("parachute", [3.0, 0.1, 3.0], [0.6, 0.6, 0.62], (1, 1), 4.0),
-            ],
-        ),
-        minor(
-            "body",
-            0,
-            "Grave",
-            vec![
-                prop("grave", [1.8, 0.3, 0.6], [0.3, 0.28, 0.25], (1, 1), 1.5),
-                prop("stone", [0.5, 0.5, 0.5], [0.4, 0.4, 0.38], (0, 2), 3.0),
-            ],
-        ),
-        // A medium triangle (design.md "The triangle rule": "the hills,
-        // ridges, and wall runs that hide what is past them"): one long
-        // ridge, its size Claude's, for the operator to change.
-        MonumentTypeDef {
-            height: 10.0,
-            ..minor(
-                "ridge",
-                0,
-                "Ridge",
-                // On the site's middle, its box behind it.
-                vec![PropDef { centred: true, ..prop("ridge", [110.0, 10.0, 14.0], [0.42, 0.36, 0.28], (1, 1), 0.0) }],
-            )
-        },
-        // The Labyrinth's gate (todo 11v): no buildings, a locked gate
-        // across the corridor and a box behind it; turned across the
-        // corridor where it stands (structure::spawn_monuments). Its
-        // danger and spacing Claude's.
-        MonumentTypeDef {
-            spacing: 150.0,
-            height: 6.0,
-            ..minor(
-                GATE,
-                3,
-                "Gate",
-                vec![PropDef { centred: true, ..prop(GATE, [9.0, 6.0, 0.4], [0.3, 0.22, 0.18], (1, 1), 0.0) }],
-            )
-        },
-    ];
-    for monument in monuments {
+    let text = std::fs::read_to_string(MONUMENTS_FILE).unwrap_or_else(|e| panic!("{MONUMENTS_FILE}: {e}"));
+    let file: MonumentsFile = serde_yaml::from_str(&text).unwrap_or_else(|e| panic!("{MONUMENTS_FILE}: {e}"));
+    reg.set_name_words(file.name_words.first, file.name_words.second);
+    for monument in file.monuments {
         reg.register(monument, buildings)
             .expect("monument type defs must not collide or name unknown buildings");
     }

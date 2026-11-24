@@ -1,0 +1,49 @@
+# The building types (modforge `monument::BuildingTypeDef`; design.md
+# "Building types"): small, medium, large, each with the ranges that
+# change on every roll. Read by content's `register_buildings`. Each has
+# its `name`, `size` (Small, Medium, Large), `columns` and `rows` of rooms
+# per floor, `floors` up and `basements` down, room `width` and `length`
+# and floor `height` in metres (each least, most), the per mille chances
+# of a `windows` per outside wall, `clutter` and `lights` per room,
+# `damage` (a breach or a missing roof) and `carve` (a far corner room
+# cut away), and the `palette` its walls, floors and furniture are drawn
+# from.
+
+# The palettes, each named in the buildings below. A wall is drawn by
+# what it is made of, read from its palette (content's `wall_model`):
+# concrete, wood and stone; the rest are the plain wall.
+palettes:
+  concrete: &concrete [[0.45, 0.45, 0.47], [0.5, 0.48, 0.45], [0.38, 0.4, 0.42]]
+  wood: &wood [[0.45, 0.32, 0.18], [0.55, 0.45, 0.2], [0.35, 0.25, 0.15]]
+  steel: &steel [[0.3, 0.32, 0.35], [0.25, 0.3, 0.4], [0.5, 0.2, 0.15]]
+  clean: &clean [[0.8, 0.82, 0.85], [0.6, 0.7, 0.75], [0.3, 0.5, 0.6]]
+  # Stone buildings' colours (todo 15d2; Claude's: the lighthouse is
+  # built of stone, for the operator to change).
+  stone: &stone [[0.55, 0.53, 0.5], [0.48, 0.47, 0.45], [0.6, 0.58, 0.52]]
+
+buildings:
+  # Small: one or two rooms, one floor.
+  - {name: gas station, size: Small, columns: [1, 2], rows: [1, 1], floors: [1, 1], basements: [0, 0], width: [5.0, 8.0], length: [5.0, 7.0], height: [2.8, 3.4], windows: 600, clutter: 500, lights: 800, damage: 150, carve: 0, palette: *steel}
+  - {name: convenience store, size: Small, columns: [2, 3], rows: [1, 1], floors: [1, 1], basements: [0, 1], width: [5.0, 7.0], length: [6.0, 9.0], height: [2.8, 3.4], windows: 500, clutter: 700, lights: 800, damage: 150, carve: 0, palette: *concrete}
+  - {name: water well, size: Small, columns: [1, 1], rows: [1, 1], floors: [1, 1], basements: [0, 0], width: [3.5, 4.5], length: [3.5, 4.5], height: [2.6, 3.2], windows: 0, clutter: 300, lights: 0, damage: 300, carve: 0, palette: *concrete}
+  - {name: guard tower, size: Small, columns: [1, 1], rows: [1, 1], floors: [3, 5], basements: [0, 0], width: [3.5, 4.0], length: [5.0, 6.0], height: [2.8, 3.2], windows: 800, clutter: 200, lights: 600, damage: 100, carve: 0, palette: *wood}
+  - {name: shack, size: Small, columns: [1, 1], rows: [1, 1], floors: [1, 1], basements: [0, 0], width: [4.0, 6.0], length: [4.0, 6.0], height: [2.5, 3.0], windows: 400, clutter: 500, lights: 800, damage: 350, carve: 0, palette: *wood}
+  - {name: lighthouse, size: Small, columns: [1, 1], rows: [1, 1], floors: [5, 8], basements: [0, 0], width: [4.0, 5.0], length: [5.0, 6.0], height: [2.8, 3.2], windows: 500, clutter: 200, lights: 500, damage: 100, carve: 0, palette: *stone}
+  # Medium: two to six rooms, one to three floors.
+  - {name: warehouse, size: Medium, columns: [2, 3], rows: [1, 2], floors: [1, 1], basements: [0, 0], width: [8.0, 12.0], length: [10.0, 16.0], height: [4.5, 6.0], windows: 300, clutter: 800, lights: 600, damage: 200, carve: 200, palette: *steel}
+  - {name: office building, size: Medium, columns: [2, 3], rows: [1, 2], floors: [2, 4], basements: [0, 1], width: [5.0, 6.0], length: [6.0, 8.0], height: [2.8, 3.4], windows: 800, clutter: 600, lights: 400, damage: 150, carve: 200, palette: *concrete}
+  - {name: workshop, size: Medium, columns: [2, 3], rows: [1, 1], floors: [1, 1], basements: [0, 0], width: [6.0, 8.0], length: [7.0, 10.0], height: [3.5, 4.5], windows: 400, clutter: 900, lights: 600, damage: 200, carve: 0, palette: *steel}
+  - {name: barracks, size: Medium, columns: [2, 3], rows: [1, 2], floors: [1, 2], basements: [0, 0], width: [5.0, 6.0], length: [7.0, 9.0], height: [2.8, 3.2], windows: 500, clutter: 700, lights: 500, damage: 150, carve: 200, palette: *wood}
+  - {name: lab, size: Medium, columns: [2, 2], rows: [1, 2], floors: [1, 2], basements: [1, 3], width: [5.0, 7.0], length: [6.0, 8.0], height: [2.8, 3.2], windows: 300, clutter: 800, lights: 600, damage: 100, carve: 100, palette: *clean}
+  - {name: supermarket, size: Medium, columns: [2, 3], rows: [1, 2], floors: [1, 1], basements: [0, 0], width: [10.0, 14.0], length: [10.0, 14.0], height: [3.5, 4.5], windows: 200, clutter: 900, lights: 500, damage: 200, carve: 200, palette: *concrete}
+  # Large: twenty or more rooms (operator, 2026-08-20: "each with 20+
+  # rooms"), up to ten floors up or down or both (operator: "up to 10
+  # floors up OR down like a bunker", "BOTH up and down"). Minimum grids
+  # keep the room count past twenty even after carving.
+  - {name: hangar, size: Large, columns: [3, 4], rows: [4, 4], floors: [2, 3], basements: [0, 0], width: [8.0, 12.0], length: [8.0, 12.0], height: [5.0, 7.0], windows: 100, clutter: 600, lights: 200, damage: 150, carve: 100, palette: *steel}
+  - {name: industrial plant, size: Large, columns: [4, 5], rows: [3, 4], floors: [2, 4], basements: [0, 2], width: [6.0, 9.0], length: [6.0, 9.0], height: [4.0, 5.5], windows: 300, clutter: 900, lights: 250, damage: 250, carve: 150, palette: *steel}
+  - {name: silo, size: Large, columns: [3, 4], rows: [4, 4], floors: [1, 2], basements: [4, 10], width: [4.0, 6.0], length: [4.0, 6.0], height: [2.8, 3.2], windows: 100, clutter: 500, lights: 300, damage: 100, carve: 100, palette: *concrete}
+  - {name: dock building, size: Large, columns: [4, 5], rows: [3, 3], floors: [2, 2], basements: [0, 0], width: [5.0, 7.0], length: [6.0, 9.0], height: [3.5, 4.5], windows: 400, clutter: 700, lights: 200, damage: 300, carve: 150, palette: *wood}
+  - {name: apartment block, size: Large, columns: [4, 5], rows: [3, 4], floors: [3, 10], basements: [0, 1], width: [4.5, 6.0], length: [5.0, 7.0], height: [2.8, 3.2], windows: 700, clutter: 700, lights: 200, damage: 200, carve: 150, palette: *concrete}
+  - {name: hospital, size: Large, columns: [4, 6], rows: [3, 4], floors: [3, 6], basements: [1, 2], width: [5.0, 7.0], length: [5.0, 7.0], height: [3.0, 3.4], windows: 500, clutter: 800, lights: 250, damage: 150, carve: 100, palette: *clean}
+  - {name: bunker complex, size: Large, columns: [3, 5], rows: [3, 4], floors: [1, 1], basements: [5, 10], width: [4.5, 6.5], length: [5.0, 7.0], height: [2.6, 3.0], windows: 0, clutter: 700, lights: 400, damage: 50, carve: 100, palette: *concrete}

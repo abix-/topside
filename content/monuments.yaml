@@ -1,0 +1,179 @@
+# The monument types (modforge `monument::MonumentTypeDef`; design.md
+# "Monument types", Rust's adapted). Read by content's
+# `register_monuments`. Each has its `name`, `arrangement` (Clustered,
+# AlongRoad, AroundYard), `danger`, `suffix` (the word that ends its
+# rolled name), `spacing` (metres from any other site) and `height` (the
+# tallest thing there, design.md "The triangle rule"), and any of
+# `slots` (the building types it picks from, each least, most), `gated`
+# (a gated room waits at the back), `props` (each a picture rendered by
+# scripts/models.py to its `size`, its `colour`, `count`, `radius` out
+# from the middle, `centred` on the middle) and `good for` (the needs it
+# meets, for whoever knows it).
+
+# The words a monument's rolled name is made from: one of each, then
+# its suffix.
+name words:
+  first: [Ash, Rust, Hollow, Grey, Salt, Cinder, Dust, Black, Cold, Broken, Iron, Sour, Dead, Low, Far]
+  second: [fall, ridge, water, field, mark, reach, pass, well, brook, gate, fork, hill, marsh, bend, row]
+
+# The building lists the monuments pick from.
+lists:
+  small: &small [gas station, convenience store, water well, guard tower, shack, lighthouse]
+  medium: &medium [warehouse, office building, workshop, barracks, lab, supermarket]
+  small or medium: &small_or_medium [gas station, shack, guard tower, warehouse, workshop, office building]
+  # Walls and a roof: the people who live there rest and feel safe there.
+  shelter: &shelter {needs: [[Rest, 100.0], [Safety, 60.0]]}
+
+# The big monuments keep 180 m from each other. The launch site's gantry
+# is the landmark seen from the bunker door (design.md "The first
+# hour"); the power plant's stacks and the city's towers are next.
+monuments:
+  - {name: roadside stop, slots: [{choices: *small, min: 1, max: 2}], arrangement: AlongRoad, danger: 1, suffix: Stop, spacing: 180.0, height: 8.0, good for: *shelter}
+  - name: airfield
+    slots: [{choices: [hangar], min: 1, max: 1}, {choices: *small_or_medium, min: 1, max: 2}]
+    arrangement: AlongRoad
+    danger: 3
+    gated: true
+    suffix: Airfield
+    spacing: 180.0
+    height: 8.0
+    good for: *shelter
+  - name: power plant
+    slots: [{choices: [industrial plant], min: 1, max: 1}, {choices: *medium, min: 1, max: 3}]
+    arrangement: Clustered
+    danger: 4
+    gated: true
+    suffix: Plant
+    spacing: 180.0
+    height: 35.0
+    good for: *shelter
+  - name: train yard
+    slots: [{choices: [warehouse], min: 1, max: 2}, {choices: *small, min: 1, max: 2}]
+    arrangement: AlongRoad
+    danger: 2
+    suffix: Yard
+    spacing: 180.0
+    height: 8.0
+    good for: *shelter
+  - name: military outpost
+    slots: [{choices: [barracks], min: 1, max: 1}, {choices: [guard tower], min: 1, max: 2}]
+    arrangement: AroundYard
+    danger: 3
+    gated: true
+    suffix: Outpost
+    spacing: 180.0
+    height: 12.0
+    good for: *shelter
+  - name: research station
+    slots: [{choices: [lab], min: 1, max: 1}, {choices: *medium, min: 1, max: 2}]
+    arrangement: AroundYard
+    danger: 3
+    gated: true
+    suffix: Station
+    spacing: 180.0
+    height: 12.0
+    good for: *shelter
+  - name: harbor
+    slots: [{choices: [dock building], min: 1, max: 1}, {choices: [warehouse], min: 1, max: 2}]
+    arrangement: AlongRoad
+    danger: 2
+    suffix: Harbor
+    spacing: 180.0
+    height: 8.0
+    good for: *shelter
+  - {name: junkyard, slots: [{choices: [shack, workshop], min: 2, max: 3}], arrangement: Clustered, danger: 1, suffix: Junkyard, spacing: 180.0, height: 8.0, good for: *shelter}
+  - name: sewer
+    slots: [{choices: [silo], min: 1, max: 1}, {choices: [shack], min: 1, max: 1}]
+    arrangement: Clustered
+    danger: 3
+    gated: true
+    suffix: Sewer
+    spacing: 180.0
+    height: 8.0
+    good for: *shelter
+  - name: launch site
+    slots: [{choices: [hangar], min: 1, max: 1}, {choices: [industrial plant], min: 1, max: 1}, {choices: *medium, min: 1, max: 2}]
+    arrangement: AroundYard
+    danger: 5
+    gated: true
+    suffix: Site
+    spacing: 180.0
+    height: 60.0
+    # The gantry stands in its yard, the big thing seen from the bunker
+    # door.
+    props: [{size: [6.6, 60.0, 6.6], colour: [0.55, 0.55, 0.58], count: [1, 1], picture: gantry}]
+    good for: *shelter
+  # The big one (operator, 2026-08-20: "a monument with 50 buildings,
+  # each with 20+ rooms"): fifty large buildings on city blocks.
+  - name: ruined city
+    slots: [{choices: [apartment block, hospital, industrial plant, silo, dock building, bunker complex, hangar], min: 50, max: 50}]
+    arrangement: Clustered
+    danger: 4
+    gated: true
+    suffix: City
+    spacing: 180.0
+    height: 30.0
+    good for: *shelter
+  # The minor sites (design.md: "something worth stopping for every 30
+  # seconds"): props around a loot box, no buildings, close spacing, low
+  # things hidden behind any rise.
+  - name: wreck
+    arrangement: Clustered
+    danger: 0
+    suffix: Wreck
+    spacing: 60.0
+    height: 2.0
+    props:
+      - {picture: car wreck, size: [4.2, 1.4, 1.9], colour: [0.45, 0.2, 0.15], count: [1, 2], radius: 4.0}
+      - {picture: barrel, size: [0.6, 0.9, 0.6], colour: [0.3, 0.3, 0.32], count: [0, 3], radius: 5.0}
+  # A camp is a place to sleep; a wreck or a grave is not.
+  - name: campsite
+    arrangement: Clustered
+    danger: 1
+    suffix: Camp
+    spacing: 60.0
+    height: 2.0
+    props:
+      - {picture: tent, size: [2.4, 1.6, 2.4], colour: [0.35, 0.3, 0.2], count: [1, 2], radius: 4.0}
+      - {picture: fire pit, size: [1.0, 0.4, 1.0], colour: [0.2, 0.2, 0.2], count: [1, 1], radius: 2.5}
+      - {picture: crate, size: [0.5, 0.5, 0.5], colour: [0.4, 0.32, 0.2], count: [1, 3], radius: 3.5}
+    good for: {needs: [[Rest, 100.0], [Safety, 30.0]]}
+  - name: supply drop
+    arrangement: Clustered
+    danger: 1
+    suffix: Drop
+    spacing: 60.0
+    height: 2.0
+    props:
+      - {picture: supply crate, size: [1.6, 1.2, 1.6], colour: [0.3, 0.4, 0.3], count: [1, 1], radius: 1.5}
+      - {picture: parachute, size: [3.0, 0.1, 3.0], colour: [0.6, 0.6, 0.62], count: [1, 1], radius: 4.0}
+  - name: body
+    arrangement: Clustered
+    danger: 0
+    suffix: Grave
+    spacing: 60.0
+    height: 2.0
+    props:
+      - {picture: grave, size: [1.8, 0.3, 0.6], colour: [0.3, 0.28, 0.25], count: [1, 1], radius: 1.5}
+      - {picture: stone, size: [0.5, 0.5, 0.5], colour: [0.4, 0.4, 0.38], count: [0, 2], radius: 3.0}
+  # A medium triangle (design.md "The triangle rule": "the hills, ridges,
+  # and wall runs that hide what is past them"): one long ridge on the
+  # site's middle, its box behind it; its size Claude's, for the operator
+  # to change.
+  - name: ridge
+    arrangement: Clustered
+    danger: 0
+    suffix: Ridge
+    spacing: 60.0
+    height: 10.0
+    props: [{picture: ridge, size: [110.0, 10.0, 14.0], colour: [0.42, 0.36, 0.28], count: [1, 1], centred: true}]
+  # The Labyrinth's gate (todo 11v): no buildings, a locked gate across
+  # the corridor and a box behind it; turned across the corridor where it
+  # stands (structure::spawn_monuments). Its danger and spacing Claude's.
+  - name: gate
+    arrangement: Clustered
+    danger: 3
+    suffix: Gate
+    spacing: 150.0
+    height: 6.0
+    props: [{picture: gate, size: [9.0, 6.0, 0.4], colour: [0.3, 0.22, 0.18], count: [1, 1], centred: true}]
