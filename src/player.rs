@@ -285,16 +285,36 @@ pub fn respawn(
     beds_at: Query<&Transform, (With<crate::interact::WorldItem>, Without<Dead>)>,
     mut dead: Query<
         (
-            (Entity, &ThisTick, &mut Transform, Option<&crate::actor::Beds>, Option<&crate::actor::SpawnedAt>),
+            (Entity, &ThisTick, &mut Transform, Option<&crate::actor::Beds>, Option<&crate::actor::SpawnedAt>, Option<&mut crate::actor::BedCooldowns>),
             (&mut crate::actor::Persona, &mut Health),
         ),
         // Dead for good never comes back, the player too.
         (With<Dead>, Without<crate::actor::Gone>),
     >,
 ) {
-    for ((entity, this_tick, mut transform, beds, spawned), (mut person, mut health)) in &mut dead {
+    for ((entity, this_tick, mut transform, beds, spawned, cooldowns), (mut person, mut health)) in &mut dead {
         if !this_tick.0.iter().any(|s| matches!(s.action, Action::Respawn)) {
             continue;
+        }
+        // In the first bed of theirs not cooling (todo Bed 3, modforge
+        // `bed::wake_in_ready`); with beds but every one cooling, they
+        // wait, dead, until one is ready.
+        let ready_at = cooldowns.as_ref().map(|c| c.0.clone()).unwrap_or_default();
+        let held = beds.map(|b| b.standing_ids(&ids, &beds_at)).unwrap_or_default();
+        let bed = modforge::bed::wake_in_ready(&held, &ready_at, tick.0);
+        if bed.is_none() && !held.is_empty() {
+            continue;
+        }
+        if let Some((id, _)) = bed {
+            let ready = modforge::bed::ready_after(tick.0, crate::TICKS_A_SECOND);
+            match cooldowns {
+                Some(mut c) => {
+                    c.0.insert(id, ready);
+                }
+                None => {
+                    commands.entity(entity).insert(crate::actor::BedCooldowns([(id, ready)].into_iter().collect()));
+                }
+            }
         }
         // What they come back with: modforge's rule.
         modforge::survival::respawn(&mut health.0, &mut person.0.needs);
@@ -302,7 +322,7 @@ pub fn respawn(
         // In their bed (topside-town "Death and the bed", modforge
         // `bed::wake_in`); with none, where they were spawned (they come
         // back only where death does not stick).
-        let bed = beds.and_then(|b| modforge::bed::wake_in(&b.standing(&ids, &beds_at)));
+        let bed = bed.map(|(_, at)| at);
         transform.translation = match (bed, spawned) {
             (Some(bed), _) => bed + Vec3::Y * BODY_CENTRE,
             (None, Some(spawned)) => spawned.0 + Vec3::Y * BODY_CENTRE,

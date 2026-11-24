@@ -85,6 +85,7 @@ saved! {
         crate::actor::Map,
         crate::actor::Home,
         crate::actor::Beds,
+        crate::actor::BedCooldowns,
         crate::actor::Asked,
         crate::actor::SpawnedAt,
         crate::actor::Store,

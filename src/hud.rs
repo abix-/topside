@@ -1288,7 +1288,10 @@ pub fn hud_keys(
                     if let Some(stack) = drop_from(&mut holders, slot)
                         && let Some(def) = registry.0.def(&stack.item)
                     {
-                        crate::interact::spawn_item(&mut commands, &mut ids, def, stack, crate::interact::feet_of(at));
+                        let (made, _) = crate::interact::spawn_item(&mut commands, &mut ids, def, stack, crate::interact::feet_of(at));
+                        // A bed set down becomes theirs (todo Bed 3,
+                        // `actor::claim_beds`).
+                        commands.entity(made).insert(crate::actor::SetDownBy(entity));
                     }
                 }
                 // In the open box too: you eat what you need where it is.

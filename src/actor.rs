@@ -207,6 +207,42 @@ impl Beds {
             .map(|t| t.translation)
             .collect()
     }
+
+    /// Each bed still standing, its id and where their feet stand in it.
+    pub fn standing_ids(&self, ids: &crate::interact::ThingIds, things: &Query<&Transform, (With<crate::interact::WorldItem>, Without<Dead>)>) -> Vec<(u64, Vec3)> {
+        self.0
+            .iter()
+            .filter_map(|id| ids.get(*id).and_then(|e| things.get(e).ok()).map(|t| (*id, t.translation)))
+            .collect()
+    }
+}
+
+/// When each bed of theirs woken in is ready again, by its ThingId, the
+/// tick (todo Bed 3, modforge `bed::wake_in_ready`; saved).
+#[derive(Component, Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize, Reflect)]
+#[reflect(opaque, Component, Serialize, Deserialize)]
+pub struct BedCooldowns(pub std::collections::BTreeMap<u64, u64>);
+
+/// Who set a bed down, for one step: the bed becomes theirs (todo Bed 3).
+#[derive(Component, Debug, Clone, Copy)]
+pub struct SetDownBy(pub Entity);
+
+/// A bed or sleeping bag someone set down becomes one of their beds, up
+/// to modforge's limit (`bed::may_claim`); past it, it is only a bed to
+/// rest in (Claude's).
+pub fn claim_beds(mut commands: Commands, set: Query<(Entity, &SetDownBy, &crate::interact::WorldItem, &crate::interact::ThingId)>, mut owners: Query<&mut Beds>) {
+    for (bed, by, item, id) in &set {
+        commands.entity(bed).remove::<SetDownBy>();
+        if ![crate::content::BED, crate::content::SLEEPING_BAG].contains(&item.stack.item.as_str()) {
+            continue;
+        }
+        let Ok(mut beds) = owners.get_mut(by.0) else {
+            continue;
+        };
+        if modforge::bed::may_claim(beds.0.len()) && !beds.0.contains(&id.0) {
+            beds.0.push(id.0);
+        }
+    }
 }
 
 /// A bed made where `at` is, the feet's spot, through the one way a thing

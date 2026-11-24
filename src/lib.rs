@@ -92,6 +92,9 @@ pub const EYE_HEIGHT: f32 = 1.6;
 #[reflect(opaque, Resource, Serialize, Deserialize)]
 pub struct SimTick(pub u64);
 
+/// The ticks in one second of game time: the locked 60 UPS.
+pub const TICKS_A_SECOND: u64 = 60;
+
 /// The seed the world rolls from.
 #[derive(Resource)]
 pub struct WorldSeed(pub u64);
@@ -366,7 +369,7 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind, port: u16
                 (survival::survival_tick, survival::get_dirty, combat::worn_health),
                 survival::waste,
                 // Temperature and radiation, then the generators (todo 29).
-                (exposure::expose, power::run, (power::lights, power::flashlights), silo::dig, silo::rebuild, silo::set_down, skills::learn, vehicle::park).chain(),
+                (exposure::expose, power::run, (power::lights, power::flashlights), silo::dig, silo::rebuild, silo::set_down, actor::claim_beds, skills::learn, vehicle::park).chain(),
                 (survival::rot, event::leave_in_the_morning, storm_effect::fix_struck, event::lasting),
                 lap("survival"),
                 (
