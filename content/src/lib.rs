@@ -272,6 +272,13 @@ pub const WASHER: &str = "washer";
 pub const DRYER: &str = "dryer";
 /// What each is found holding (Claude's).
 pub const WARDROBE_HOLDS: [(&str, &str, u32); 3] = [(CLOSET, "shirt", 2), (DRESSER, "trousers", 2), (CLOSET, "boots", 1)];
+/// A house's storage (topside-town "Everything works": "pantries,
+/// cabinets, garages, attics and basements hold things"), and what each
+/// is found holding (Claude's).
+pub const KITCHEN_CABINET: &str = "kitchen cabinet";
+pub const GARAGE_SHELF: &str = "garage shelf";
+pub const STORAGE_HOLDS: [(&str, &str, u32); 4] =
+    [(KITCHEN_CABINET, "water bottle", 1), (GARAGE_SHELF, "scrap", 3), (GARAGE_SHELF, "pipe", 1), (GARAGE_SHELF, "wooden handle", 1)];
 /// Soap carried doubles what a wash takes off (modforge hygiene).
 pub const SOAP: &str = "soap";
 /// How much the tower holds, in water barrels of 200 litres: 50, 10,000
@@ -1982,7 +1989,9 @@ pub fn register_items(reg: &mut ItemRegistry) {
         building(THERMOSTAT, "The house's thermostat. On, the furnace and the air conditioner run.", ItemKind::Deployable, 1, None),
         building(COUCH, "A couch. Use it to sleep on; a bed rests better.", ItemKind::Source, 1, None),
         building(SLEEPING_BAG, "A sleeping bag. Carried, sleeping off a bed rests better.", ItemKind::Material, 1, None),
-        building(CLOSET, "A bedroom closet.", ItemKind::Deployable, 1, Some(8)),
+        building(KITCHEN_CABINET, "Kitchen cabinets.", ItemKind::Deployable, 1, Some(8)),
+        building(GARAGE_SHELF, "Garage shelves.", ItemKind::Deployable, 1, Some(12)),
+        building(CLOSET,"A bedroom closet.", ItemKind::Deployable, 1, Some(8)),
         building(DRESSER, "A dresser.", ItemKind::Deployable, 1, Some(6)),
         building(WASHER, "A washing machine. With power, dirty clothes put in it come out washed and wet.", ItemKind::Deployable, 1, Some(4)),
         building(DRYER, "A dryer. With power, wet clothes put in it come out clean.", ItemKind::Deployable, 1, Some(4)),

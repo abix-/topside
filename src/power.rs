@@ -155,11 +155,24 @@ pub fn populate_town_power(
     let lamps = town.lots.iter().filter(|l| l.house).map(|l| modforge::house::home_spots(l.front).into_iter().map(|p| l.at + p + Vec2::new(0.8, 0.0)).collect::<Vec<_>>());
     let candles = town.lots.iter().filter(|l| l.house).map(|l| l.at + modforge::house::dining_table(l.front));
     let lights: Vec<(Vec<Vec2>, Vec2)> = lamps.zip(candles).collect();
-    let rooms_of = town.wiring().into_iter().zip(town.heating()).zip(lights).zip(town.kitchens()).zip(town.clothing());
-    for (((((breaker_at, rooms), heating), (lamps, candle)), kitchen), clothing) in rooms_of {
+    let rooms_of = town.wiring().into_iter().zip(town.heating()).zip(lights).zip(town.kitchens()).zip(town.clothing()).zip(town.storage());
+    for ((((((breaker_at, rooms), heating), (lamps, candle)), kitchen), clothing), storage) in rooms_of {
         let Some(breaker) = make(&mut commands, crate::content::BREAKER_BOX, breaker_at, Some(InteractKind::Switch { on: true })) else {
             continue;
         };
+        // Its storage: boxes found holding things.
+        for (kind, at) in storage {
+            let Some(made) = make(&mut commands, kind, at, Some(InteractKind::Container)) else {
+                continue;
+            };
+            let mut held = modforge::item::Inventory::new(items.0.def(kind).and_then(|d| d.storage).unwrap_or(0));
+            for &(_, thing, count) in crate::content::STORAGE_HOLDS.iter().filter(|(place, ..)| *place == kind) {
+                if let Some(def) = items.0.def(thing) {
+                    let _ = held.add(modforge::item::create(def, count, &[], 0.0, 0), def.max_stack);
+                }
+            }
+            commands.entity(made).insert(Container(held));
+        }
         // Its clothing: closets and dressers found holding clothes; the
         // washer and the dryer on the house's breaker.
         for (kind, at) in clothing {
