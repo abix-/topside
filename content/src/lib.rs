@@ -660,7 +660,8 @@ pub const DINER: modforge::plan::PlanDef = modforge::plan::PlanDef {
 pub const PIZZA_PLACE: modforge::plan::PlanDef = modforge::plan::PlanDef {
     name: "pizza place",
     edge: false,
-    furniture_models: &[],
+    // Each drawn as its own model (todo Model 7; scripts/models.py).
+    furniture_models: &["cafe table", "cafe table", "lunch counter", "prep table", "pizza oven"],
     columns: &[7.0, 6.0],
     rows: &[6.0, 6.0],
     rooms: &[((0, 0), "tables"), ((1, 0), "front counter"), ((0, 1), "prep room"), ((1, 1), "pizza kitchen")],
