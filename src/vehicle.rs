@@ -68,7 +68,7 @@ pub fn park(
     let mut spots = vec![(0usize, world.bunker + Vec2::from(CAR_PARKED))];
     if let Some(town) = world.world.town.as_ref() {
         // Before the garage door, a few metres out.
-        let driveways = town.lots.iter().filter(|l| l.house).map(|l| l.at + modforge::house::driveway(l.front));
+        let driveways = town.fixed_houses().map(|(_, l)| l).map(|l| l.at + modforge::house::driveway(l.front));
         spots.extend(driveways.enumerate().map(|(i, at)| (crate::content::driveway(i), at)));
     }
     for (kind, at) in spots {

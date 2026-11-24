@@ -133,7 +133,7 @@ pub fn lock_front_doors(
     if doors.is_empty() {
         return;
     }
-    let fronts: Vec<Vec2> = town.lots.iter().filter(|l| l.house).map(|l| l.at + modforge::house::front_door(l.front)).collect();
+    let fronts: Vec<Vec2> = town.fixed_houses().map(|(_, l)| l).map(|l| l.at + modforge::house::front_door(l.front)).collect();
     for (door, id, mut thing) in &mut doors {
         if door.lying || !things_made.locked.insert(id.0) {
             continue;
@@ -217,17 +217,17 @@ pub fn populate_town_power(
     }
     // Each house's couch in its living room, slept on as a bed is
     // (topside-town "Everything works").
-    for lot in town.lots.iter().filter(|l| l.house) {
+    for lot in town.fixed_houses().map(|(_, l)| l) {
         make(&mut commands, crate::content::COUCH, lot.at + modforge::house::couch(lot.front), Some(InteractKind::Source));
     }
     // Each house's lamps, by where its people stand in the bedrooms and
     // the living room, and a candle on the dining table (Claude's).
-    let lamps = town.lots.iter().filter(|l| l.house).map(|l| modforge::house::home_spots(l.front).into_iter().map(|p| l.at + p + Vec2::new(0.8, 0.0)).collect::<Vec<_>>());
-    let candles = town.lots.iter().filter(|l| l.house).map(|l| l.at + modforge::house::dining_table(l.front));
+    let lamps = town.fixed_houses().map(|(_, l)| l).map(|l| modforge::house::home_spots(l.front).into_iter().map(|p| l.at + p + Vec2::new(0.8, 0.0)).collect::<Vec<_>>());
+    let candles = town.fixed_houses().map(|(_, l)| l).map(|l| l.at + modforge::house::dining_table(l.front));
     let lights: Vec<(Vec<Vec2>, Vec2)> = lamps.zip(candles).collect();
     // A smoke detector in each house's hall, and a hydrant each 90 m of
     // street (Works 15).
-    for lot in town.lots.iter().filter(|l| l.house) {
+    for lot in town.fixed_houses().map(|(_, l)| l) {
         make(&mut commands, crate::content::SMOKE_DETECTOR, lot.at + modforge::house::smoke_detector(lot.front), None);
         // Its garden beds, in the back yard (Works 18).
         for at in modforge::house::garden(lot.front) {
@@ -237,7 +237,7 @@ pub fn populate_town_power(
     // Each house's TV, radio and phone, off; its mailbox at the street,
     // holding a letter (Works 16).
     let letter = items.0.def("note");
-    for (house, lot) in town.lots.iter().filter(|l| l.house).enumerate() {
+    for (house, lot) in town.fixed_houses().map(|(_, l)| l).enumerate() {
         for (kind, at) in modforge::house::den(lot.front) {
             if kind == crate::content::TRASH_CAN {
                 if let Some(made) = make(&mut commands, kind, lot.at + at, Some(InteractKind::Container)) {
@@ -267,6 +267,7 @@ pub fn populate_town_power(
     // or a box found holding its stock.
     let mut graves = 0;
     for (place, thing, at) in town.place_things() {
+        let thing = thing.as_str();
         if let Some(&(_, station)) = crate::content::PLACE_STATIONS.iter().find(|(n, _)| *n == thing) {
             make(&mut commands, thing, at, Some(InteractKind::Station(station)));
             continue;
@@ -353,7 +354,7 @@ pub fn populate_town_power(
     for at in town.streetlights(crate::content::HYDRANTS_APART) {
         make(&mut commands, crate::content::HYDRANT, at + Vec2::new(1.5, 0.0), None);
     }
-    let safes = town.lots.iter().filter(|l| l.house).map(|l| l.at + modforge::house::safe(l.front));
+    let safes = town.fixed_houses().map(|(_, l)| l).map(|l| l.at + modforge::house::safe(l.front));
     let rooms_of = town.wiring().into_iter().zip(town.heating()).zip(lights).zip(town.kitchens()).zip(town.clothing()).zip(town.storage()).zip(safes);
     for (house, (((((((breaker_at, rooms), heating), (lamps, candle)), kitchen), clothing), storage), safe_at)) in rooms_of.enumerate() {
         let Some(breaker) = make(&mut commands, crate::content::BREAKER_BOX, breaker_at, Some(InteractKind::Switch { on: true })) else {

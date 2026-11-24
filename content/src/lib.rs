@@ -1507,8 +1507,29 @@ pub fn small_town_def() -> TownDef {
         places: places(),
         tiers: TIERS,
         usual_tiers: USUAL_TIERS.iter().map(|&(n, t)| (n.to_string(), t)).collect(),
+        pieces: PIECES.pieces.clone(),
+        briefs: PIECES.briefs.clone(),
     }
 }
+
+/// Where the room pieces and the places' briefs are: content/pieces.yaml
+/// (modforge `layout`).
+pub const PIECES_FILE: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/pieces.yaml");
+
+/// What `PIECES_FILE` holds.
+#[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+struct PiecesFile {
+    pieces: Vec<modforge::layout::RoomPiece>,
+    briefs: Vec<modforge::layout::Brief>,
+}
+
+/// `PIECES_FILE`, read the first time it is asked for. A file that does
+/// not read stops the game at once, naming it.
+static PIECES: std::sync::LazyLock<PiecesFile> = std::sync::LazyLock::new(|| {
+    let text = std::fs::read_to_string(PIECES_FILE).unwrap_or_else(|e| panic!("{PIECES_FILE}: {e}"));
+    serde_yaml::from_str(&text).unwrap_or_else(|e| panic!("{PIECES_FILE}: {e}"))
+});
 
 /// What the town's houses vary by (topside-town "The houses": "each
 /// varied by colour, rotation and small details"). The colours and

@@ -152,7 +152,7 @@ fn lay_down_history(
     let Some(town) = world.world.town.as_ref() else {
         return 0;
     };
-    let houses: Vec<&modforge::town::Lot> = town.lots.iter().filter(|l| l.house).collect();
+    let houses: Vec<(usize, &modforge::town::Lot)> = town.lots.iter().enumerate().filter(|(_, l)| l.house).collect();
     let ground = |t: &Transform| Vec2::new(t.translation.x, t.translation.z);
     let residents = town.residents();
     // The places: the town's houses, then where each one living out of the
@@ -164,7 +164,7 @@ fn lay_down_history(
     order.sort_by_key(|o| o.0);
     for (id, kind, faction, p) in order {
         let home = if residents.iter().any(|(_, r)| r.distance(p) < 0.5) {
-            houses.iter().enumerate().min_by(|a, b| a.1.at.distance(p).total_cmp(&b.1.at.distance(p))).map(|(i, _)| i)
+            houses.iter().enumerate().min_by(|a, b| a.1.1.at.distance(p).total_cmp(&b.1.1.at.distance(p))).map(|(i, _)| i)
         } else {
             camps.push(p);
             Some(houses.len() + camps.len() - 1)
@@ -173,10 +173,11 @@ fn lay_down_history(
             figures.push(modforge::history::Figure { id, kind, group: faction, home });
         }
     }
-    // Where a place is: a room of the house (`house::home_spots`), or the camp.
+    // Where a place is: a room of the house (the town's `home_spots`), or
+    // the camp.
     let place = |i: usize, id: u64| match houses.get(i) {
-        Some(lot) => {
-            let spots = modforge::house::home_spots(lot.front);
+        Some(&(index, lot)) => {
+            let spots = town.home_spots(index);
             lot.at + spots.get((id as usize) % spots.len().max(1)).copied().unwrap_or(Vec2::ZERO)
         }
         None => camps[i - houses.len()],
@@ -227,7 +228,7 @@ fn lay_down_history(
             }
             modforge::history::Event::Took { day, who, at } => {
                 // A box in the house, or within 10 m of the camp.
-                let near = |p: Vec2| houses.get(at).map_or_else(|| camps[at - houses.len()].distance(p) < 10.0, |lot| lot.covers(p));
+                let near = |p: Vec2| houses.get(at).map_or_else(|| camps[at - houses.len()].distance(p) < 10.0, |(_, lot)| lot.covers(p));
                 let Some((_, mut held)) = boxes.iter_mut().find(|(t, c)| near(ground(t)) && c.0.slots.iter().any(Option::is_some)) else {
                     continue;
                 };
