@@ -626,12 +626,46 @@ pub const DINER: modforge::plan::PlanDef = modforge::plan::PlanDef {
     furniture_color: [0.65, 0.2, 0.2],
     height: 3.2,
 };
-pub const PLACES: [modforge::plan::PlanDef; 6] = [GROCERY_STORE, CROP_FARM, CROP_FARM, LIVESTOCK_BARN, GRAIN_ELEVATOR, DINER];
+/// Place 6: the pizza place, on main street: the front counter, the few
+/// tables, the kitchen with its oven, the prep room and the cooler.
+pub const PIZZA_PLACE: modforge::plan::PlanDef = modforge::plan::PlanDef {
+    name: "pizza place",
+    edge: false,
+    columns: &[7.0, 6.0],
+    rows: &[6.0, 6.0],
+    rooms: &[((0, 0), "tables"), ((1, 0), "front counter"), ((0, 1), "prep room"), ((1, 1), "pizza kitchen")],
+    ways: &[((0, 0), East, false), ((1, 0), North, true), ((0, 1), East, true)],
+    exits: &[((0, 0), South, 1.2), ((0, 1), North, 1.2)],
+    furniture: &[
+        ("tables", [-0.25, -0.1], [1.0, 0.75, 1.0]),
+        ("tables", [0.25, -0.1], [1.0, 0.75, 1.0]),
+        ("front counter", [0.0, 0.1], [3.5, 1.1, 0.7]),
+        ("prep room", [0.0, -0.4], [4.0, 0.9, 0.8]),
+        ("pizza kitchen", [0.0, -0.4], [2.0, 1.2, 1.2]),
+    ],
+    things: &[
+        (CASH_REGISTER, "front counter", [0.3, 0.3]),
+        (PANTRY, "prep room", [0.3, 0.2]),
+        (FREEZER, "prep room", [-0.3, 0.2]),
+        (STOVE, "pizza kitchen", [0.0, 0.1]),
+    ],
+    outside: &[],
+    walls: &[[0.8, 0.65, 0.4], [0.6, 0.5, 0.35]],
+    floor: [0.7, 0.3, 0.25],
+    furniture_color: [0.4, 0.3, 0.25],
+    height: 3.0,
+};
+pub const FROZEN_PIZZA: &str = "frozen pizza";
+pub const PLACES: [modforge::plan::PlanDef; 7] = [GROCERY_STORE, CROP_FARM, CROP_FARM, LIVESTOCK_BARN, GRAIN_ELEVATOR, DINER, PIZZA_PLACE];
 /// The places whose garden beds are found sown and ripe, with what.
 pub const PLACE_SOWN: [(&str, &str); 1] = [("crop farm", POTATO_SEED)];
 /// What each place's boxes are found holding: the place, the box, the
 /// item and how many.
-pub const PLACE_HOLDS: [(&str, &str, &str, u32); 29] = [
+pub const PLACE_HOLDS: [(&str, &str, &str, u32); 33] = [
+    ("pizza place", CASH_REGISTER, "scrap", 1),
+    ("pizza place", PANTRY, GRAIN, 4),
+    ("pizza place", PANTRY, "canned food", 3),
+    ("pizza place", FREEZER, FROZEN_PIZZA, 6),
     ("diner", CASH_REGISTER, "scrap", 2),
     ("diner", PANTRY, "canned food", 4),
     ("diner", PANTRY, EGG, 6),
@@ -2475,6 +2509,10 @@ pub fn register_items(reg: &mut ItemRegistry) {
         building(HAY_BALE, "A hay bale.", ItemKind::Deployable, 1, Some(10)),
         building(BUTCHER_BLOCK, "A butcher block.", ItemKind::Deployable, 1, Some(6)),
         building(FEED, "Animal feed.", ItemKind::Material, 20, None),
+        ItemDef {
+            food: Some(FoodStats { hunger: 35.0, thirst: -3.0, health: 2.0 }),
+            ..building(FROZEN_PIZZA, "A frozen pizza.", ItemKind::Food, 6, None)
+        },
         building(GRAIN_HOPPER, "A grain bin's hopper.", ItemKind::Deployable, 1, Some(12)),
         ItemDef {
             food: Some(FoodStats { hunger: 5.0, thirst: -2.0, health: 0.0 }),
