@@ -1,0 +1,13 @@
+# Every faction (modforge `faction::FactionDef`; design.md): its `name`
+# and `kind`, what it wants (Hostile wants your stuff, Builder wants to
+# grow, Player is yours). Read by content's `register_factions`, which
+# adds one Builder faction for each other bunker. The raiders start
+# hostile; the scavengers, the wildlife and the townspeople start
+# neutral.
+
+factions:
+  - {name: player, kind: Player}
+  - {name: raiders, kind: Hostile}
+  - {name: scavengers, kind: Builder}
+  - {name: wildlife, kind: Builder}
+  - {name: townspeople, kind: Builder}

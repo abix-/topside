@@ -1885,20 +1885,15 @@ pub fn register_factions(reg: &mut FactionRegistry) {
     // Enough for the other bunkers of either world: the small world's
     // can be any of its houses.
     let most = OTHER_BUNKERS.len().max(small_town_def().houses as usize);
-    let bunkers = (0..most).map(|i| (bunker_faction(i), FactionKind::Builder));
-    for (name, kind) in [
-        (PLAYER_FACTION.to_string(), FactionKind::Player),
-        (RAIDERS.to_string(), FactionKind::Hostile),
-        (SCAVENGERS.to_string(), FactionKind::Builder),
-        (WILDLIFE.to_string(), FactionKind::Builder),
-        (TOWNSPEOPLE.to_string(), FactionKind::Builder),
-    ]
-    .into_iter()
-    .chain(bunkers)
-    {
-        reg.register(FactionDef { name, kind }).expect("faction registered once");
+    let bunkers = (0..most).map(|i| FactionDef { name: bunker_faction(i), kind: FactionKind::Builder });
+    for def in read_list::<FactionDef>(FACTIONS_FILE, "factions").into_iter().chain(bunkers) {
+        reg.register(def).expect("faction registered once");
     }
 }
+
+/// Where the factions are: content/factions.yaml, its `factions` a list
+/// of modforge `faction::FactionDef`.
+pub const FACTIONS_FILE: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/factions.yaml");
 
 /// Where the kinds of actor are: content/actors.yaml, its `actors` a list
 /// of modforge `actor::ActorDef`, each naming only what it has.
