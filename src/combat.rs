@@ -189,16 +189,20 @@ fn feel_hit(commands: &mut Commands, target: Entity, from: Vec2, to: Vec2, resul
 /// Everyone knocked back slides with the push, walls stopping them, until
 /// friction ends it.
 pub fn knock_back(
-    mut commands: Commands,
+    commands: ParallelCommands,
     time: Res<Time<Fixed>>,
     move_and_slide: MoveAndSlide,
     mut knocked: Query<(Entity, &Collider, &mut Transform, &mut Knocked), Without<Dead>>,
 ) {
     let dt = time.delta_secs();
-    for (entity, shape, mut transform, mut knocked) in &mut knocked {
+    // Each on its own core, as `player::movement`: each slide reads only
+    // the colliders the last physics step left.
+    knocked.par_iter_mut().for_each(|(entity, shape, mut transform, mut knocked)| {
         if knocked.0.length() < KNOCKBACK_STOP {
-            commands.entity(entity).remove::<Knocked>();
-            continue;
+            commands.command_scope(|mut commands| {
+                commands.entity(entity).remove::<Knocked>();
+            });
+            return;
         }
         let filter = SpatialQueryFilter::from_excluded_entities([entity]);
         let to = move_and_slide
@@ -215,7 +219,7 @@ pub fn knock_back(
             .position;
         transform.translation = on_ground(to.ground(), transform.translation.y);
         knocked.0 *= (1.0 - KNOCKBACK_FRICTION * dt).max(0.0);
-    }
+    });
 }
 
 /// The white shell a hit person's body flashes in.
