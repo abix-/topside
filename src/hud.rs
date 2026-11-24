@@ -1408,6 +1408,7 @@ pub fn setup_station(mut commands: Commands) {
 /// recipe the inventory can pay for is lit.
 pub fn render_station(
     recipes: Res<RecipeRegistryRes>,
+    items: Res<crate::content::ItemRegistryRes>,
     research: (Res<crate::research::TechTreeRes>, Res<crate::research::Researched>),
     stations: Query<(&crate::interact::Interactable, &Transform, Option<&crate::power::Powered>)>,
     players: Query<(&Inventory, &OpenStation, &Transform, Option<&crate::actor::Persona>), With<Player>>,
@@ -1440,7 +1441,7 @@ pub fn render_station(
         let (line, can) = match entry {
             crate::research::Row::Recipe(recipe) => {
                 let takes: Vec<String> = recipe.inputs.iter().map(|(item, n)| format!("{item} x{n}")).collect();
-                (format!("{} x{}  <-  {}", recipe.output.0, recipe.output.1, takes.join(", ")), can_craft(recipe, &inventory.0))
+                (format!("{} x{}  <-  {}", recipe.output.0, recipe.output.1, takes.join(", ")), can_craft(recipe, &inventory.0, &items.0))
             }
             crate::research::Row::Topic(topic) => {
                 let cost = crate::skills::research_cost(tree.0.cost(topic, &known), skills);

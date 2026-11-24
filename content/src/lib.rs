@@ -106,6 +106,11 @@ impl Default for RecipeRegistryRes {
             bench("pipe", &[("scrap", 3)], ("pipe", 1)),
             made("spiked bat", &[("wooden handle", 1), ("scrap", 2)], ("wooden handle", 1), &["nails"]),
             made("sharpened road sign", &[("pipe", 1), ("scrap", 3)], ("pipe", 1), &["sharpened road sign"]),
+            // A category asked for and a kind asked for (topside Decisions
+            // 2026-11-23): rope from any fiber, a bandage from cotton only.
+            // Claude's.
+            bench("rope", &[("fiber", 3)], ("rope", 1)),
+            bench("cotton bandage", &[("cotton", 2)], ("bandage", 1)),
         ] {
             reg.register(def).expect("recipe registered once");
         }
@@ -2223,7 +2228,43 @@ pub fn register_items(reg: &mut ItemRegistry) {
         item.picture = Some(item.name.clone());
         reg.register(item).expect("item defs must not collide");
     }
+    // The base resources, Atlas's, and their kinds (topside Decisions
+    // 2026-11-23): a recipe asking for a category takes any kind in it,
+    // one asking for a kind takes only that (Minecraft's item tags).
+    for (category, kinds) in RESOURCES {
+        for kind in kinds.iter().filter(|k| reg.def(k).is_none()) {
+            let def = ItemDef {
+                picture: Some(kind.to_string()),
+                ..building(kind, &format!("{kind}, for crafting and building."), ItemKind::Material, 100, None)
+            };
+            reg.register(def).expect("a resource is registered once");
+        }
+        reg.categorize(category, kinds);
+    }
+    // What fiber makes.
+    if reg.def("rope").is_none() {
+        let rope = ItemDef {
+            picture: Some("rope".to_string()),
+            ..building("rope", "Rope twisted from fiber.", ItemKind::Material, 20, None)
+        };
+        reg.register(rope).expect("rope is registered once");
+    }
 }
+
+/// Atlas's base resources, each a category and the kinds in it (topside
+/// Decisions 2026-11-23: "trees and rocks and fiber and metal and oil and
+/// all the various resource types... multiple types of fiber"). The kinds
+/// are Claude's, after Atlas's (its woods, its stones, its fibers, its
+/// metals, its oils), for the operator to change.
+pub const RESOURCES: [(&str, &[&str]); 7] = [
+    ("wood", &[WOOD, "softwood", "hardwood"]),
+    ("stone", &[STONE, "flint", "granite"]),
+    ("fiber", &["plant fiber", "hemp fiber", "cotton"]),
+    ("thatch", &["thatch", "reeds"]),
+    ("metal", &["scrap", "iron ore", "copper ore"]),
+    ("oil", &["crude oil", "animal fat"]),
+    ("hide", &["hide", "pelt"]),
+];
 
 const CONCRETE: &[Rgb] = &[[0.45, 0.45, 0.47], [0.5, 0.48, 0.45], [0.38, 0.4, 0.42]];
 const WOOD_COLOURS: &[Rgb] = &[[0.45, 0.32, 0.18], [0.55, 0.45, 0.2], [0.35, 0.25, 0.15]];
@@ -2653,7 +2694,9 @@ pub fn register_biomes(reg: &mut BiomeRegistry) {
             ],
             npcs: vec!["scavenger".to_string(), "hunter".to_string()],
             wildlife: vec!["deer".to_string(), "wolf".to_string()],
-            harvest: vec!["scrap".to_string(), "cloth".to_string()],
+            // Two kinds of fiber gathered in two places (topside Decisions
+            // 2026-11-23, Atlas's resources; where each grows is Claude's).
+            harvest: vec!["scrap".to_string(), "cloth".to_string(), "plant fiber".to_string()],
         },
         BiomeDef {
             name: "wasteland".to_string(),
@@ -2733,7 +2776,7 @@ pub fn register_biomes(reg: &mut BiomeRegistry) {
             // Claude's (todo 32), for the operator to change.
             npcs: vec!["wanderer".to_string()],
             wildlife: vec!["wolf".to_string()],
-            harvest: vec!["cloth".to_string()],
+            harvest: vec!["cloth".to_string(), "hemp fiber".to_string()],
         },
     ];
     for biome in biomes {
