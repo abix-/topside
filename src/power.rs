@@ -8,7 +8,7 @@
 use bevy::prelude::*;
 use modforge::power::Burning;
 
-use crate::content::{FUEL, GENERATOR, GENERATOR_DEF, RESEARCH_DRAW, WIRE_REACH};
+use crate::content::{GENERATOR, GENERATOR_DEF, RESEARCH_DRAW, WIRE_REACH};
 use crate::interact::{Container, Interactable, ThingId, WorldItem};
 use modforge::crafting::StationKind;
 use modforge::hud::InteractKind;
@@ -72,9 +72,14 @@ pub fn run(
             commands.entity(entity).insert(Generator::default());
             continue;
         };
-        let (used, on) = generator.0.run(&GENERATOR_DEF, fuel.0.count_of(FUEL), time.delta_secs());
+        // A gas can or a propane tank, whichever is in it (Works 12).
+        let fuels = crate::content::GENERATOR_FUELS;
+        let held: u32 = fuels.iter().map(|f| fuel.0.count_of(f)).sum();
+        let (used, on) = generator.0.run(&GENERATOR_DEF, held, time.delta_secs());
         for _ in 0..used {
-            fuel.0.take_one(FUEL);
+            if let Some(f) = fuels.iter().find(|f| fuel.0.count_of(f) > 0) {
+                fuel.0.take_one(f);
+            }
         }
         if on {
             running.push((id.0, at.translation, GENERATOR_DEF.output));
@@ -141,6 +146,22 @@ pub fn populate_town_power(
         Some(made)
     };
     make(&mut commands, crate::content::SUBSTATION, town.substation(), None);
+    // The gas pumps, two on the first main street lot until Place 11
+    // builds the gas station, each a store of fuel cans (Works 12).
+    if let (Some(lot), Some(can)) = (town.lots.iter().find(|l| l.part == modforge::town::Part::MainStreet && !l.house), items.0.def(crate::content::FUEL)) {
+        for side in [-2.0, 2.0] {
+            let at = lot.at + lot.front * (lot.size.y / 2.0 - 2.0) + lot.front.perp() * side;
+            let Some(pump) = make(&mut commands, crate::content::GAS_PUMP, at, Some(InteractKind::Container)) else {
+                continue;
+            };
+            let mut held = modforge::item::Inventory::new(items.0.def(crate::content::GAS_PUMP).and_then(|d| d.storage).unwrap_or(0));
+            // Full: a stack of cans in each slot.
+            for _ in 0..held.slots.len() {
+                let _ = held.add(modforge::item::create(can, can.max_stack, &[], 0.0, 0), can.max_stack);
+            }
+            commands.entity(pump).insert(Container(held));
+        }
+    }
     // The streets' lights, one each 30 m (Claude's).
     for at in town.streetlights(30.0) {
         make(&mut commands, crate::content::STREETLIGHT, at, None);
@@ -282,7 +303,7 @@ pub fn lights(
         .filter_map(|(_, item, at, .., fuel)| match item.stack.item.as_str() {
             crate::content::SUBSTATION => Some((at.translation, crate::content::LINES_REACH)),
             // A generator runs while it has fuel (modforge `Burning::run`).
-            GENERATOR if fuel.is_some_and(|f| f.0.count_of(FUEL) > 0) => Some((at.translation, WIRE_REACH)),
+            GENERATOR if fuel.is_some_and(|f| crate::content::GENERATOR_FUELS.iter().any(|k| f.0.count_of(k) > 0)) => Some((at.translation, WIRE_REACH)),
             _ => None,
         })
         .collect();

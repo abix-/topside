@@ -283,7 +283,7 @@ pub const GARAGE_SHELF: &str = "garage shelf";
 pub const GARAGE_WORKBENCH: &str = "garage workbench";
 pub const TOOLBOX: &str = "toolbox";
 pub const WRENCH: &str = "wrench";
-pub const STORAGE_HOLDS: [(&str, &str, u32); 7] = [
+pub const STORAGE_HOLDS: [(&str, &str, u32); 8] = [
     (KITCHEN_CABINET, "water bottle", 1),
     (GARAGE_SHELF, "scrap", 3),
     (GARAGE_SHELF, "pipe", 1),
@@ -291,6 +291,7 @@ pub const STORAGE_HOLDS: [(&str, &str, u32); 7] = [
     (TOOLBOX, WRENCH, 1),
     (TOOLBOX, HAMMER, 1),
     (TOOLBOX, "scrap", 2),
+    (GARAGE_SHELF, PROPANE_TANK, 1),
 ];
 /// Soap carried doubles what a wash takes off (modforge hygiene).
 pub const SOAP: &str = "soap";
@@ -330,6 +331,15 @@ pub const CAR_FUEL: f32 = 120.0;
 pub const CAR_REPAIR: (&str, u32) = ("scrap", 3);
 pub const GENERATOR: &str = "generator";
 pub const FUEL: &str = "fuel";
+/// Fuel (topside-town "Everything works": "gas pumps, gas cans, propane
+/// tanks and firewood fuel generators, stoves and vehicles"; Project
+/// Zomboid's): a generator burns a can of fuel or a propane tank; a car
+/// takes the fuel; fires burn wood (Works 3). The gas station's pumps
+/// are a store of fuel cans, standing on the first main street lot until
+/// Place 11 builds the gas station. Claude's.
+pub const PROPANE_TANK: &str = "propane tank";
+pub const GENERATOR_FUELS: [&str; 2] = [FUEL, PROPANE_TANK];
+pub const GAS_PUMP: &str = "gas pump";
 pub const GENERATOR_DEF: modforge::power::GeneratorDef = modforge::power::GeneratorDef { output: 10.0, burn_secs: 600.0 };
 pub const WIRE_REACH: f32 = 12.0;
 /// The town's power (topside-town "Everything works": "the substation,
@@ -2081,7 +2091,9 @@ pub fn register_items(reg: &mut ItemRegistry) {
         building(TURRET, "A shotgun on a stand. Set it down and it guards the spot, loaded with your shells.", ItemKind::Deployable, 1, None),
         // Power (todo 29; descriptions and the 4 slots Claude's).
         building(GENERATOR, "A fuel generator. Fill it with fuel and it powers what is wired near it.", ItemKind::Deployable, 1, Some(4)),
-        building(FUEL, "A can of fuel, for a generator.", ItemKind::Material, 20, None),
+        building(FUEL, "A can of fuel, for a generator or a car.", ItemKind::Material, 20, None),
+        building(PROPANE_TANK, "A propane tank, for a generator.", ItemKind::Material, 5, None),
+        building(GAS_PUMP, "A gas pump. Cans of fuel are filled here.", ItemKind::Deployable, 1, Some(4)),
         // The silo (todo 30; descriptions Claude's).
         building(SHOVEL, "A shovel. Strike the deepest floor of your bunker to dig a level down.", ItemKind::Tool, 1, None),
         building("crafting bench", "A bench folded for carrying. Set it down and craft at it.", ItemKind::Deployable, 1, None),
