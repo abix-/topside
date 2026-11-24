@@ -672,6 +672,7 @@ pub fn station_of(item: &str) -> Option<StationKind> {
     match item {
         "crafting bench" => Some(StationKind::CraftingBench),
         "research station" => Some(StationKind::ResearchStation),
+        "furnace kit" => Some(StationKind::Furnace),
         _ => None,
     }
 }

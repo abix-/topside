@@ -236,6 +236,10 @@ fn boxes(kind: Kind) -> Vec<(Vec3, Vec3)> {
             (Vec3::new(-1.0, 1.5, 0.0), Vec3::new(1.0, 1.0, t)),
             (Vec3::new(1.0, 1.5, 0.0), Vec3::new(1.0, 1.0, t)),
         ],
+        // A waist-high wall (Atlas's railing).
+        Kind::Railing => vec![(Vec3::new(0.0, 0.5, 0.0), Vec3::new(w, 1.0, t))],
+        // A post up the middle of the cell (Atlas's pillar).
+        Kind::Pillar => vec![(Vec3::new(0.0, h / 2.0, 0.0), Vec3::new(0.4, h, 0.4))],
         // Steps up to the next level, one cell long.
         Kind::Stairs => (0..6).map(|i| {
             let step = h / 6.0;
@@ -270,7 +274,7 @@ fn drawn_as(kind: Kind, grade: Grade, centre: Vec3, size: Vec3) -> (Model, Trans
             Model("furniture".to_string()),
             Transform::from_translation(bottom).with_scale(Vec3::new(size.x / 0.9, size.y / FURNITURE_HEIGHT, size.z / 0.9)),
         ),
-        Kind::Wall | Kind::Doorway | Kind::Window => {
+        Kind::Wall | Kind::Doorway | Kind::Window | Kind::Railing | Kind::Pillar => {
             (Model(wall_of(grade).to_string()), Transform::from_translation(bottom).with_scale(Vec3::new(size.x, size.y / WALL_HEIGHT, size.z)))
         }
     }

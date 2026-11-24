@@ -45,7 +45,8 @@ biomes:
     monuments: [roadside stop, airfield, train yard, launch site, wreck, body, gate, supply drop]
     npcs: [raider, wanderer]
     wildlife: [rat]
-    harvest: [scrap]
+    # Sulfur ore in the waste's rock (Rust's sulfur nodes; todo "Recipes").
+    harvest: [scrap, sulfur ore]
   - name: ruins
     ground: [0.4, 0.4, 0.42]
     scatter:
@@ -56,7 +57,7 @@ biomes:
     monuments: [ruined city, power plant, sewer, harbor, wreck, campsite, body, gate]
     npcs: [raider, scavenger, militia]
     wildlife: [rat, crow]
-    harvest: [scrap, pipe, cloth]
+    harvest: [scrap, pipe, cloth, sulfur ore]
   # The small world's ground (design.md "The small world first"): grass
   # with only wells and berry bushes on it (a livable world). Its sites
   # are placed by hand.

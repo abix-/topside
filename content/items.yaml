@@ -250,6 +250,7 @@ items:
   # Refined materials.
   - {name: charcoal, description: "Burnt wood, for gunpowder.", kind: Material, max_stack: 100}
   - {name: sulfur, description: "Yellow stone, for gunpowder.", kind: Material, max_stack: 100}
+  - {name: sulfur ore, description: "Yellow-streaked rock. Smelt it in a furnace for sulfur.", kind: Material, max_stack: 100}
   - {name: gunpowder, description: "Black powder, for ammunition and explosives.", kind: Material, max_stack: 100}
   - {name: metal fragments, description: "Smelted metal, for tools and weapons.", kind: Material, max_stack: 100}
   - {name: high quality metal, description: "Refined metal, for the best gear.", kind: Material, max_stack: 100}

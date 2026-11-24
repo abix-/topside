@@ -38,7 +38,7 @@ topics:
   - {name: crossbows, tier: 2, cost: [[metal fragments, 10], [rope, 4]], needs: [hunting], unlocks: [crossbow, crossbow bolts]}
   - {name: leatherworking, tier: 2, cost: [[leather, 6]], needs: [hide working], unlocks: [leather jacket, leather trousers]}
   - {name: scrap armor, tier: 2, cost: [[scrap, 20]], needs: [smelting], unlocks: [wood chestplate, road sign kilt, coffee can helmet]}
-  - {name: furnaces, tier: 2, cost: [[stone, 20], [metal fragments, 10]], needs: [smelting], unlocks: [furnace kit]}
+  - {name: furnaces, tier: 2, cost: [[stone, 20], [metal fragments, 10]], needs: [smelting], unlocks: [furnace kit, smelted metal fragments]}
   - {name: black powder, tier: 2, cost: [[charcoal, 20], [metal fragments, 10]], needs: [smelting], unlocks: [sulfur, gunpowder, shotgun shells]}
   - {name: pistols, tier: 2, cost: [[metal fragments, 25], [gunpowder, 5]], needs: [black powder], unlocks: [revolver, pistol ammo]}
   - {name: machining, tier: 2, cost: [[metal fragments, 20], [nails, 10]], needs: [metal tools], unlocks: [gears]}

@@ -2,7 +2,7 @@
 # `RecipeRegistryRes`. A recipe has its `name`, `inputs` (each an item
 # and how many it takes), `output` (the item and how many it makes) and
 # `station` (CraftingBench, ChemistryTable, ElectronicsWorkbench,
-# ArmoryBench, ResearchStation, Stove), and any of `layers` (the layers
+# ArmoryBench, ResearchStation, Stove, Furnace), and any of `layers` (the layers
 # the output is made with) and `craft_time` (seconds, none when left
 # out).
 
@@ -73,14 +73,17 @@ recipes:
   - {name: road sign kilt, inputs: [[scrap, 8], [leather, 2]], output: [road sign kilt, 1], station: CraftingBench, craft_time: 6.0, tier: 2}
   - {name: coffee can helmet, inputs: [[metal fragments, 10], [leather, 1]], output: [coffee can helmet, 1], station: CraftingBench, craft_time: 6.0, tier: 2}
   - {name: furnace kit, inputs: [[stone, 30], [wood, 10], [glue, 2]], output: [furnace kit, 1], station: CraftingBench, craft_time: 10.0, tier: 2}
-  - {name: sulfur, inputs: [[stone, 3], [oil, 1]], output: [sulfur, 1], station: Stove, craft_time: 4.0, tier: 2}
+  # The furnace (Rust's): sulfur ore and metal smelted there, quicker and
+  # with no charcoal; high quality metal only there.
+  - {name: sulfur, inputs: [[sulfur ore, 2]], output: [sulfur, 1], station: Furnace, craft_time: 3.0, tier: 2}
+  - {name: smelted metal fragments, inputs: [[metal, 2]], output: [metal fragments, 1], station: Furnace, craft_time: 2.0, tier: 2}
   - {name: gunpowder, inputs: [[charcoal, 3], [sulfur, 2]], output: [gunpowder, 1], station: CraftingBench, craft_time: 3.0, tier: 2}
   - {name: shotgun shells, inputs: [[metal fragments, 1], [gunpowder, 1]], output: [shotgun shell, 2], station: CraftingBench, craft_time: 2.0, tier: 2}
   - {name: revolver, inputs: [[pipe, 1], [metal fragments, 10], [cloth, 2]], output: [revolver, 1], station: CraftingBench, craft_time: 10.0, tier: 2}
   - {name: pistol ammo, inputs: [[metal fragments, 1], [gunpowder, 1]], output: [pistol ammo, 4], station: CraftingBench, craft_time: 2.0, tier: 2}
   - {name: gears, inputs: [[metal fragments, 8]], output: [gears, 1], station: CraftingBench, craft_time: 5.0, tier: 2}
   # Tier 3: refined metal.
-  - {name: high quality metal, inputs: [[metal fragments, 5], [charcoal, 2]], output: [high quality metal, 1], station: Stove, craft_time: 6.0, tier: 3}
+  - {name: high quality metal, inputs: [[metal fragments, 5], [charcoal, 2]], output: [high quality metal, 1], station: Furnace, craft_time: 6.0, tier: 3}
   - {name: metal spring, inputs: [[high quality metal, 1]], output: [metal spring, 1], station: CraftingBench, craft_time: 4.0, tier: 3}
   - {name: metal chestplate, inputs: [[high quality metal, 8], [leather, 4]], output: [metal chestplate, 1], station: CraftingBench, craft_time: 12.0, tier: 3}
   - {name: metal facemask, inputs: [[high quality metal, 6], [leather, 2]], output: [metal facemask, 1], station: CraftingBench, craft_time: 10.0, tier: 3}
