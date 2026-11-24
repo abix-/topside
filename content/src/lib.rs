@@ -974,34 +974,27 @@ impl Default for LayerRegistryRes {
 /// and spread, the stock spread, the grip speed, the sight reach. Each
 /// is drawn as its own model over its item. Tuning.
 pub fn register_layers(reg: &mut LayerRegistry) {
-    let layer = |name: &str, slot: &str, damage: Option<&str>, reach, spread_degrees, delay| LayerDef {
-        name: name.to_string(),
-        slot: slot.to_string(),
-        damage: damage.map(String::from),
-        reach,
-        spread_degrees,
-        delay,
-        picture: Some(name.to_string()),
-    };
-    let heads = [
-        ("nails", "nail hit"),
-        ("scrap blade", "blade cut"),
-        ("axe head", "axe chop"),
-        ("spear point", "spear thrust"),
-        ("sharpened road sign", "sign cut"),
-    ]
-    .map(|(name, damage)| layer(name, "head", Some(damage), 0.0, 0.0, 0.0));
-    let gun_parts = [
-        layer("pipe barrel", "barrel", None, 20.0, -3.0, 0.0),
-        layer("short pipe barrel", "barrel", None, 5.0, 2.0, 0.0),
-        layer("wooden grip", "grip", None, 0.0, 0.0, -0.1),
-        layer("taped grip", "grip", None, 0.0, 0.0, -0.2),
-        layer("wooden stock", "stock", None, 0.0, -2.0, 0.0),
-        layer("nail sight", "sight", None, 5.0, 0.0, 0.0),
-    ];
-    for def in heads.into_iter().chain(gun_parts) {
-        reg.register(def).expect("layer registered once");
+    for def in read_list::<LayerDef>(LAYERS_FILE, "layers") {
+        let picture = Some(def.picture.clone().unwrap_or_else(|| def.name.clone()));
+        reg.register(LayerDef { picture, ..def }).expect("layer registered once");
     }
+}
+
+/// Where the layers are: content/layers.yaml, its `layers` a list of
+/// modforge `item::LayerDef`, each naming only what it has.
+pub const LAYERS_FILE: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/layers.yaml");
+
+/// The one list `key` in the content file `path`, each entry read as a
+/// `T` naming only what it has. A file that does not read, has no `key`,
+/// or has anything else in it stops the game at once, naming it.
+pub fn read_list<T: serde::de::DeserializeOwned>(path: &str, key: &str) -> Vec<T> {
+    let text = std::fs::read_to_string(path).unwrap_or_else(|e| panic!("{path}: {e}"));
+    let mut file: std::collections::BTreeMap<String, serde_yaml::Value> = serde_yaml::from_str(&text).unwrap_or_else(|e| panic!("{path}: {e}"));
+    let list = file.remove(key).unwrap_or_else(|| panic!("{path}: no {key}"));
+    if let Some(other) = file.keys().next() {
+        panic!("{path}: {other} is not {key}");
+    }
+    serde_yaml::from_value(list).unwrap_or_else(|e| panic!("{path}: {key}: {e}"))
 }
 
 /// The layers an item lies in the starting bunker with: the pipe shotgun
@@ -1916,14 +1909,7 @@ pub const ACTORS_FILE: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/actors.yaml"
 /// the turret and the cars, from `ACTORS_FILE`. A file that does not read
 /// stops the game at once, naming it.
 pub fn register_actors(reg: &mut ActorRegistry) {
-    let text = std::fs::read_to_string(ACTORS_FILE).unwrap_or_else(|e| panic!("{ACTORS_FILE}: {e}"));
-    let mut file: std::collections::BTreeMap<String, serde_yaml::Value> = serde_yaml::from_str(&text).unwrap_or_else(|e| panic!("{ACTORS_FILE}: {e}"));
-    let actors = file.remove("actors").unwrap_or_else(|| panic!("{ACTORS_FILE}: no actors"));
-    if let Some(key) = file.keys().next() {
-        panic!("{ACTORS_FILE}: {key} is not actors");
-    }
-    let defs: Vec<ActorDef> = serde_yaml::from_value(actors).unwrap_or_else(|e| panic!("{ACTORS_FILE}: actors: {e}"));
-    for def in defs {
+    for def in read_list::<ActorDef>(ACTORS_FILE, "actors") {
         reg.register(def).expect("actor registered once");
     }
 }
@@ -1935,14 +1921,7 @@ pub const DAMAGE_FILE: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/damage.yaml"
 /// Every kind of hurt in `DAMAGE_FILE`. A file that does not read stops
 /// the game at once, naming it.
 pub fn register_damage(reg: &mut DamageRegistry) {
-    let text = std::fs::read_to_string(DAMAGE_FILE).unwrap_or_else(|e| panic!("{DAMAGE_FILE}: {e}"));
-    let mut file: std::collections::BTreeMap<String, serde_yaml::Value> = serde_yaml::from_str(&text).unwrap_or_else(|e| panic!("{DAMAGE_FILE}: {e}"));
-    let damage = file.remove("damage").unwrap_or_else(|| panic!("{DAMAGE_FILE}: no damage"));
-    if let Some(key) = file.keys().next() {
-        panic!("{DAMAGE_FILE}: {key} is not damage");
-    }
-    let defs: Vec<DamageDef> = serde_yaml::from_value(damage).unwrap_or_else(|e| panic!("{DAMAGE_FILE}: damage: {e}"));
-    for def in defs {
+    for def in read_list::<DamageDef>(DAMAGE_FILE, "damage") {
         reg.register(def).expect("damage defs must not collide");
     }
 }
@@ -2088,13 +2067,7 @@ pub const ITEMS_FILE: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/items.yaml");
 /// Every item in `ITEMS_FILE`, in its order. A file that does not read
 /// stops the game at once, naming it.
 pub fn items() -> Vec<ItemDef> {
-    let text = std::fs::read_to_string(ITEMS_FILE).unwrap_or_else(|e| panic!("{ITEMS_FILE}: {e}"));
-    let mut file: std::collections::BTreeMap<String, serde_yaml::Value> = serde_yaml::from_str(&text).unwrap_or_else(|e| panic!("{ITEMS_FILE}: {e}"));
-    let items = file.remove("items").unwrap_or_else(|| panic!("{ITEMS_FILE}: no items"));
-    if let Some(key) = file.keys().next() {
-        panic!("{ITEMS_FILE}: {key} is not items");
-    }
-    serde_yaml::from_value(items).unwrap_or_else(|e| panic!("{ITEMS_FILE}: items: {e}"))
+    read_list(ITEMS_FILE, "items")
 }
 
 pub fn register_items(reg: &mut ItemRegistry) {

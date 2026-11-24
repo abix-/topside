@@ -1,0 +1,25 @@
+# Every layer an item carries on top of itself (modforge
+# `item::LayerDef`; design.md "What 2D changes"): the first heads and the
+# first gun's parts. Read by content's `register_layers`. A layer has its
+# `name` and `slot` (an item takes it only when its `layer_slots` names
+# the slot), and any of `damage` (the damage it lands in place of the
+# item's own), `reach` (metres added), `spread_degrees` (added) and
+# `delay` (seconds between shots added). Each is drawn as the model named
+# after it, over its item. Tuning.
+
+layers:
+  # A head lands its own damage; a handle with no head hits with the
+  # handle.
+  - {name: nails, slot: head, damage: nail hit}
+  - {name: scrap blade, slot: head, damage: blade cut}
+  - {name: axe head, slot: head, damage: axe chop}
+  - {name: spear point, slot: head, damage: spear thrust}
+  - {name: sharpened road sign, slot: head, damage: sign cut}
+  # A gun's part adds to its numbers: the barrel reach and spread, the
+  # stock spread, the grip speed, the sight reach.
+  - {name: pipe barrel, slot: barrel, reach: 20.0, spread_degrees: -3.0}
+  - {name: short pipe barrel, slot: barrel, reach: 5.0, spread_degrees: 2.0}
+  - {name: wooden grip, slot: grip, delay: -0.1}
+  - {name: taped grip, slot: grip, delay: -0.2}
+  - {name: wooden stock, slot: stock, spread_degrees: -2.0}
+  - {name: nail sight, slot: sight, reach: 5.0}
