@@ -2007,7 +2007,7 @@ pub fn register_items(reg: &mut ItemRegistry) {
     // The base resources, Atlas's, and their kinds (topside Decisions
     // 2026-11-23): a recipe asking for a category takes any kind in it,
     // one asking for a kind takes only that (Minecraft's item tags).
-    for Resource { category, kinds } in RESOURCES.iter() {
+    for BaseResource { category, kinds } in RESOURCES.iter() {
         let kinds: Vec<&str> = kinds.iter().map(String::as_str).collect();
         for kind in kinds.iter() {
             if reg.def(kind).is_some() {
@@ -2038,12 +2038,12 @@ pub const RESOURCES_FILE: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/resources
 /// One category of resource and its kinds.
 #[derive(serde::Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct Resource {
+pub struct BaseResource {
     pub category: String,
     pub kinds: Vec<String>,
 }
 
-pub static RESOURCES: std::sync::LazyLock<Vec<Resource>> = std::sync::LazyLock::new(|| read_list(RESOURCES_FILE, "resources"));
+pub static RESOURCES: std::sync::LazyLock<Vec<BaseResource>> = std::sync::LazyLock::new(|| read_list(RESOURCES_FILE, "resources"));
 
 /// Where the building types are: content/buildings.yaml, its `buildings`
 /// a list of modforge `monument::BuildingTypeDef` and its `palettes` the
