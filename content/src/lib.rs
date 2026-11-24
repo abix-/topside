@@ -10,6 +10,7 @@ use modforge::worldgen::{BiomeRule, Generator, WorldDef};
 use modforge::ground::{ClimateRule, Ground, GroundDef, GroundGen};
 use modforge::places::{Places, SiteKind};
 use modforge::world2d::{Clearing, World2d};
+use modforge::town::{Town, TownDef};
 use modforge::actor::{ActorDef, ActorRegistry, Behaviour, BodyLook, LookDef};
 use modforge::biome::{BiomeDef, BiomeRegistry, ScatterDef};
 use modforge::combat::{DamageDef, DamageRegistry, DamageType, Falloff};
@@ -1171,6 +1172,29 @@ pub fn site_kinds(monuments: &MonumentRegistry) -> Vec<SiteKind> {
 /// Where the player's bunker stands.
 pub const BUNKER_AT: Vec2 = Vec2::ZERO;
 
+/// The small world's town (topside-town, operator 2026-11-23: "let's just
+/// start with 50 houses"), laid around the player's bunker so it stands
+/// under a house. The 50 houses are the operator's; every size here is
+/// Claude's, for the operator to change.
+pub fn small_town_def() -> TownDef {
+    TownDef {
+        houses: 50,
+        lot: Vec2::new(20.0, 30.0),
+        street: 8.0,
+        main_lots: 8,
+        main_lot: Vec2::new(25.0, 40.0),
+        cul_de_sacs: (2, 4),
+        cul_de_sac_lots: 3,
+        edge_lots: 2,
+        edge_lot: Vec2::new(40.0, 60.0),
+    }
+}
+
+/// How far a small site keeps from the town's square, metres; a site
+/// nearer is left out until Tier 3 stands the old monuments in the town.
+/// Claude's, for the operator to change.
+pub const TOWN_CLEAR: f32 = 40.0;
+
 /// The gap through the trees from the player's bunker toward the launch
 /// site's gantry (SMALL_SITES), so the door opens on the big thing on the
 /// horizon; past its end the trees hide it as the player walks (design.md
@@ -1202,16 +1226,32 @@ pub fn roll_world2d(
         })
         .collect();
     let keep_clear = clearings.iter().map(|c| (c.at, c.radius)).collect();
+    let town = (kind == WorldKind::Small).then(|| Town::around(&small_town_def(), BUNKER_AT, seed));
+    let off_town = |at: Vec2| {
+        town.as_ref().is_none_or(|t| {
+            let (lo, hi) = t.bounds();
+            at.clamp(lo, hi).distance(at) > TOWN_CLEAR
+        })
+    };
     let places = match kind {
-        WorldKind::Small => Places::new(Vec::new(), keep_clear)
-            .with_fixed(SMALL_SITES.iter().map(|(m, [x, y])| (m.to_string(), Vec2::new(*x, *y))).collect()),
+        WorldKind::Small => Places::new(Vec::new(), keep_clear).with_fixed(
+            SMALL_SITES
+                .iter()
+                .map(|(m, [x, y])| (m.to_string(), Vec2::new(*x, *y)))
+                .filter(|(_, at)| off_town(*at))
+                .collect(),
+        ),
         WorldKind::Big => Places::new(site_kinds(monuments), keep_clear),
     };
     let people = match kind {
         WorldKind::Small => SMALL_TOPSIDE_PEOPLE.iter().map(|(d, n)| (d.to_string(), *n)).collect(),
         WorldKind::Big => Vec::new(),
     };
-    Ok(World2d::new(ground, places, clearings).with_people(people))
+    let world = World2d::new(ground, places, clearings).with_people(people);
+    Ok(match town {
+        Some(t) => world.with_town(t),
+        None => world,
+    })
 }
 
 /// The actor registry as an app resource: every NPC spawned through
