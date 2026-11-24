@@ -1,0 +1,115 @@
+# The church and the cemetery and every thing in them (todo Model 20 and
+# Model 21), built by scripts/models.py.
+#
+# The furniture at the sizes content's church and cemetery plans give it
+# (each pew 3 m by 0.6 m and 0.9 m tall, the altar 2 m by 0.8 m and 1 m
+# tall, the pastor's desk 1.4 m by 0.7 m, the fellowship kitchen's counter
+# 4 m by 0.7 m, the vestry's robe rack 3 m by 0.5 m and 1.9 m tall, the
+# groundskeeper's shelves 3.5 m by 0.5 m and 1.6 m tall), long side along
+# x, front to -y, as the clinic's. The candle, closet, pantry, stove, store
+# shelf, office desk, toolbox and grave are the house's, the grocery's and
+# bought.yaml's. Sizes and colours are Claude's.
+
+colours:
+  pew wood: [0.42, 0.28, 0.16]
+  altar cloth: [0.9, 0.88, 0.8]
+  altar gold: [0.82, 0.66, 0.25]
+  robe black: [0.12, 0.12, 0.14]
+  robe purple: [0.4, 0.2, 0.45]
+  robe white: [0.9, 0.9, 0.88]
+  hymnal: [0.45, 0.12, 0.12]
+  laminate: [0.78, 0.76, 0.7]
+  dark wood: [0.3, 0.2, 0.12]
+  pot: [0.5, 0.42, 0.3]
+
+models:
+  pew:
+    about: a wooden church pew, 3 m long, a seat, a tall back and carved ends, hymnals on the rack behind it.
+    parts:
+      - box: [3.0, 0.4, 0.05]
+        at: [0, 0, 0.45]
+        colour: pew wood
+      - box: [3.0, 0.05, 0.5]
+        at: [0, 0.22, 0.7]
+        colour: pew wood
+      - for: {x: [-1.48, 1.48]}
+        parts:
+          - box: [0.05, 0.6, 0.95]
+            at: [x, 0.05, 0.475]
+            colour: dark wood
+      - box: [2.9, 0.12, 0.04]
+        at: [0, 0.3, 0.8]
+        colour: pew wood
+      - for: {i: range(4)}
+        parts:
+          - box: [0.15, 0.08, 0.22]
+            at: [-1.05 + 0.7 * i, 0.3, 0.93]
+            colour: hymnal
+
+  altar:
+    about: the altar, 2 m wide and 1 m tall, a white cloth over dark wood, a gold cross on it.
+    parts:
+      - box: [2.0, 0.8, 0.95]
+        at: [0, 0, 0.475]
+        colour: dark wood
+      - box: [2.04, 0.84, 0.03]
+        at: [0, 0, 0.965]
+        colour: altar cloth
+      - box: [0.6, 0.02, 0.6]
+        at: [0, -0.41, 0.6]
+        colour: altar cloth
+      - box: [0.05, 0.05, 0.45]
+        at: [0, 0.2, 1.205]
+        colour: altar gold
+      - box: [0.25, 0.05, 0.05]
+        at: [0, 0.2, 1.3]
+        colour: altar gold
+
+  pastor's desk:
+    about: the pastor's writing desk, 1.4 m wide, dark wood on turned legs, an open book on it.
+    parts:
+      - box: [1.4, 0.7, 0.05]
+        at: [0, 0, 0.73]
+        colour: dark wood
+      - for: {x: [-0.65, 0.65], y: [-0.3, 0.3]}
+        parts:
+          - box: [0.06, 0.06, 0.7]
+            at: [x, y, 0.35]
+            colour: dark wood
+      - box: [0.4, 0.3, 0.03]
+        at: [0, 0, 0.77]
+        colour: altar cloth
+
+  fellowship counter:
+    about: the fellowship kitchen's counter, 4 m along the wall, laminate over wood cabinets, a coffee urn on it.
+    parent: counter run
+    params: {length: 4.0, depth: 0.7, height: 0.9, front: wood, top: laminate}
+    parts:
+      - cylinder: [0.15, 0.45]
+        at: [1.4, 0, 1.125]
+        colour: steel
+
+  robe rack:
+    about: the vestry's rack, 3 m long and 1.9 m tall, robes hung along its rail.
+    parts:
+      - for: {x: [-1.45, 1.45]}
+        parts:
+          - box: [0.05, 0.5, 0.05]
+            at: [x, 0, 0.025]
+            colour: dark steel
+          - box: [0.05, 0.05, 1.9]
+            at: [x, 0, 0.95]
+            colour: dark steel
+      - box: [3.0, 0.04, 0.04]
+        at: [0, 0, 1.85]
+        colour: dark steel
+      - for: {i: range(8)}
+        parts:
+          - box: [0.3, 0.35, 1.25]
+            at: [-1.2 + 0.34 * i, 0, 1.2]
+            colour: [robe black, robe purple, robe white][i % 3]
+
+  groundskeeper's shelves:
+    about: the groundskeeper's shed shelves, 3.5 m long and 1.6 m tall, pots, bags of seed and tins of paint.
+    parent: shelving
+    params: {length: 3.5, depth: 0.5, height: 1.6, goods: [pot, burlap, green, white], frame: wood}
