@@ -30,6 +30,7 @@ pub fn tend(
     items: Res<crate::content::ItemRegistryRes>,
     mut people: Query<(&mut ThisTick, &Transform, &Facing, &mut Inventory, &mut Hotbar, &mut Persona), Without<Dead>>,
     beds: Query<(Entity, &Transform, &WorldItem, Option<&Growing>), Without<ThisTick>>,
+    index: Res<crate::interact::ThingIndex>,
 ) {
     let today = crate::survival::today(&tick, *day);
     for (mut this_tick, at, facing, mut inventory, mut hotbar, mut mind) in &mut people {
@@ -38,8 +39,10 @@ pub fn tend(
         }
         let feet = at.translation.ground();
         let ahead = feet + facing.direction();
-        let bed = beds
-            .iter()
+        // Only the things filed round them (`interact::ThingIndex`).
+        let bed = index
+            .near(at.translation)
+            .filter_map(|e| beds.get(e).ok())
             .filter(|(_, t, w, _)| w.stack.item == GARDEN_BED && t.translation.ground().distance(feet) <= REACH)
             .min_by(|a, b| a.1.translation.ground().distance(ahead).total_cmp(&b.1.translation.ground().distance(ahead)));
         let Some((bed, _, _, growing)) = bed else {

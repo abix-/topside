@@ -487,6 +487,7 @@ pub fn look_at(
     people: Query<(&Actor, &Name), Without<Dead>>,
     things: Query<(Entity, Option<&crate::interact::Door>, &Transform), (With<crate::interact::Interactable>, Without<Player>)>,
     (stores, containers): (Query<&crate::actor::Store>, Query<&crate::interact::Container>),
+    thing_index: Res<crate::interact::ThingIndex>,
 ) {
     let (Ok((eye, eyes)), Ok((me, body, facing, mut looking, mut hud))) = (eyes.single(), players.single_mut()) else {
         return;
@@ -503,7 +504,7 @@ pub fn look_at(
     // The thing E would use (interact::pointed_thing, a step ahead of where
     // they face), and how far it is along the ground.
     let feet = crate::interact::feet_of(body);
-    let thing = crate::interact::pointed_thing(feet, feet.ground() + ground, things.iter());
+    let thing = crate::interact::pointed_thing(feet, feet.ground() + ground, thing_index.near(feet).filter_map(|e| things.get(e).ok()));
     let thing_away = thing
         .and_then(|e| things.get(e).ok())
         .map(|(_, door, at)| crate::interact::use_point(door, at).ground().distance(feet.ground()));

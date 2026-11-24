@@ -145,6 +145,7 @@ pub fn use_television(
     mut people: Query<(Entity, &mut ThisTick, &Transform, &Facing, &Hotbar, &mut Inventory, Option<&Watching>, Option<&Npc>, Has<Player>), Without<Dead>>,
     tvs: Query<(&Transform, &WorldItem), Without<ThisTick>>,
     bunkers: Query<(&Store, &Actor, &crate::actor::Home), (With<Npc>, Without<Dead>, Without<ThisTick>)>,
+    index: Res<crate::interact::ThingIndex>,
 ) {
     for (me, mut this_tick, at, facing, hotbar, mut inventory, watching, npc, is_player) in &mut people {
         if !this_tick.0.iter().any(|s| s.action == Action::Use) {
@@ -152,8 +153,10 @@ pub fn use_television(
         }
         let feet = at.translation.ground();
         let ahead = feet + facing.direction();
-        let near = tvs
-            .iter()
+        // Only the things filed round them (`interact::ThingIndex`).
+        let near = index
+            .near(at.translation)
+            .filter_map(|e| tvs.get(e).ok())
             .filter(|(t, item)| item.stack.item == TELEVISION && t.translation.ground().distance(feet) <= REACH)
             .any(|(t, _)| t.translation.ground().distance(ahead) <= REACH);
         if !near {
@@ -166,16 +169,12 @@ pub fn use_television(
         if paying && can_pay {
             // The other bunkers' channels, each by its store, in the order
             // of their people's least ActorId.
-            let mut channels: Vec<(Entity, modforge::actor::ActorId)> = Vec::new();
-            for (store, actor, home) in &bunkers {
-                if home.0.ground().distance(BUNKER_AT) < OURS {
-                    continue;
-                }
-                match channels.iter_mut().find(|(s, _)| *s == store.0) {
-                    Some((_, least)) => *least = (*least).min(actor.0),
-                    None => channels.push((store.0, actor.0)),
-                }
-            }
+            // Each store's people by ActorId, the first of each kept: its
+            // least. Each person's ActorId is their own, so the order is whole.
+            let mut channels: Vec<(Entity, modforge::actor::ActorId)> =
+                bunkers.iter().filter(|(.., home)| home.0.ground().distance(BUNKER_AT) >= OURS).map(|(store, actor, _)| (store.0, actor.0)).collect();
+            channels.sort_unstable();
+            channels.dedup_by_key(|(store, _)| *store);
             channels.sort_by_key(|(_, least)| *least);
             let now = watching.and_then(|w| w.0).and_then(|s| channels.iter().position(|(c, _)| *c == s));
             let Some(&(next, _)) = channels.get(now.map_or(0, |n| n + 1) % channels.len().max(1)) else {
@@ -206,26 +205,32 @@ pub fn on_air(
     tick: Res<SimTick>,
     mut state: ResMut<ShowRes>,
     items: Res<ItemRegistryRes>,
-    people: Query<(&Actor, &Persona, Has<Player>), Without<Dead>>,
+    people: Query<(&Actor, &Persona, Has<Player>), (Without<Dead>, Changed<Persona>)>,
     mut boxes: Query<(&ThingId, &Transform, &mut Container), Without<Actor>>,
 ) {
     let state = &mut *state;
+    // Only those whose memory was written since the last step: whoever
+    // did something this tick is among them.
     for (actor, persona, is_player) in &people {
         for (_, did) in persona.0.memory.done.iter().rev().take_while(|(t, _)| *t == tick.0) {
             state.show.saw(&SHOW, actor.0, did, tick.0);
         }
         // The challenge (todo Events 6): a kill before it ends pays a
-        // loot box at the door; past its end, it is failed.
-        if is_player && let Some((until, before)) = state.challenge {
-            if kills(persona) > before {
-                state.challenge = None;
-                state.show.say(&SHOW, "CHALLENGE DONE! a gift at the door".to_string());
-                commands.run_system_cached_with(crate::event::drop, (None, 1, REWARD_DANGER, modforge::event::Place::Door, tick.0));
-            } else if tick.0 > until {
-                state.challenge = None;
-                state.show.say(&SHOW, "challenge failed, boooo".to_string());
-            }
+        // loot box at the door.
+        if is_player && let Some((_, before)) = state.challenge
+            && kills(persona) > before
+        {
+            state.challenge = None;
+            state.show.say(&SHOW, "CHALLENGE DONE! a gift at the door".to_string());
+            commands.run_system_cached_with(crate::event::drop, (None, 1, REWARD_DANGER, modforge::event::Place::Door, tick.0));
         }
+    }
+    // Past its end, the challenge is failed.
+    if let Some((until, _)) = state.challenge
+        && tick.0 > until
+    {
+        state.challenge = None;
+        state.show.say(&SHOW, "challenge failed, boooo".to_string());
     }
     if tick.0 % 60 == 0 {
         state.show.fade(&SHOW);

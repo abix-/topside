@@ -305,6 +305,7 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind, port: u16
     app.init_resource::<nav::Walk>();
     app.init_resource::<sight::BunkerMaps>();
     app.init_resource::<nav::DoorIndex>();
+    app.init_resource::<interact::ThingIndex>();
     app.init_resource::<survival::Day>();
     app.init_resource::<content::RecipeRegistryRes>();
     app.init_resource::<storm::StormRes>();
@@ -370,7 +371,7 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind, port: u16
                 (trade::between_people, ai::warn_off).chain(),
                 lap("think"),
                 (input::drain_actions, lap("drain_actions"), hud::learn_hints, episode::cues.run_if(loading::awake), command::give, command::carry_out, ai::follow, ai::lead, save::save_at_steps).chain(),
-                (nav::record_solids, nav::record_doors),
+                (nav::record_solids, nav::record_doors, interact::record_things),
                 // Everyone sent somewhere walks the way on the navigation
                 // mesh (docs/pathing.md).
                 navmesh::walk,

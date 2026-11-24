@@ -217,13 +217,12 @@ pub fn survival_tick(
     // A vehicle has fuel in place of needs (todo 57).
     mut actors: Query<(&mut Persona, Option<&ActorCondition>, &Transform, Option<&crate::actor::Inventory>), (Without<Dead>, Without<crate::vehicle::Vehicle>)>,
     places: Query<(&crate::interact::WorldItem, &Transform), Without<Persona>>,
+    index: Res<crate::interact::ThingIndex>,
 ) {
     use crate::content::{COMFORT, GROUND_COMFORT, SLEEPING_BAG, SLEEPS_ON_REACH};
     let night = night(&tick, *day, &reality);
     let rates = day.rates();
     let comfort_of = |name: &str| COMFORT.iter().find(|(n, _)| *n == name).map(|(_, c)| *c);
-    // The beds and couches standing, each where and how well it rests.
-    let beds: Vec<(Vec3, f32)> = places.iter().filter_map(|(item, at)| comfort_of(&item.stack.item).map(|c| (at.translation, c))).collect();
     for (mut person, condition, at, carried) in &mut actors {
         let mut condition = condition.map_or_else(Condition::default, |c| c.0);
         condition.night = night;
@@ -233,7 +232,14 @@ pub fn survival_tick(
         }
         // Asleep on the best bed or couch in reach, else on a carried
         // sleeping bag, else on the ground (modforge `slept_on`).
-        let on_bed = beds.iter().filter(|(p, _)| p.distance(at.translation) <= SLEEPS_ON_REACH).map(|(_, c)| *c).fold(None, |best: Option<f32>, c| Some(best.map_or(c, |b| b.max(c))));
+        // Only the things filed round them (`interact::ThingIndex`, cells
+        // wider than the reach).
+        let on_bed = index
+            .near(at.translation)
+            .filter_map(|e| places.get(e).ok())
+            .filter(|(_, p)| p.translation.distance(at.translation) <= SLEEPS_ON_REACH)
+            .filter_map(|(item, _)| comfort_of(&item.stack.item))
+            .fold(None, |best: Option<f32>, c| Some(best.map_or(c, |b| b.max(c))));
         let bag = carried.filter(|i| i.0.count_of(SLEEPING_BAG) > 0).and_then(|_| comfort_of(SLEEPING_BAG));
         let comfort = on_bed.or(bag).unwrap_or(GROUND_COMFORT);
         person.0.needs.slept_on(rates, comfort, time.delta_secs());

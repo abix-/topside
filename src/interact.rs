@@ -428,6 +428,81 @@ impl Drawn {
 
 /// The thing a person at `feet` uses with E: within reach, the one nearest
 /// the point they aim at (`pointed`). Also what the prompt names.
+/// The side of one cell of `ThingIndex`, metres: twice the reach, so the
+/// cell someone stands in and the cells round it hold every thing in their
+/// reach.
+const THING_CELL: f32 = 2.0 * REACH;
+
+/// Every thing a person can use, filed by the ground cell of where it is
+/// used (`use_point`), so a use looks only at the cells round the user,
+/// never at every thing in the world (as `nav::DoorIndex` files doors).
+#[derive(Resource, Default)]
+pub struct ThingIndex {
+    by_cell: std::collections::HashMap<(i32, i32), Vec<Entity>>,
+    cell_of: std::collections::HashMap<Entity, (i32, i32)>,
+}
+
+impl ThingIndex {
+    fn cell(at: Vec2) -> (i32, i32) {
+        ((at.x / THING_CELL).floor() as i32, (at.y / THING_CELL).floor() as i32)
+    }
+
+    fn remove(&mut self, entity: Entity) {
+        if let Some(cell) = self.cell_of.remove(&entity)
+            && let Some(things) = self.by_cell.get_mut(&cell)
+            && let Some(i) = things.iter().position(|e| *e == entity)
+        {
+            things.swap_remove(i);
+        }
+    }
+
+    fn file(&mut self, entity: Entity, at: Vec2) {
+        let cell = Self::cell(at);
+        if self.cell_of.get(&entity) == Some(&cell) {
+            return;
+        }
+        self.remove(entity);
+        self.by_cell.entry(cell).or_default().push(entity);
+        self.cell_of.insert(entity, cell);
+    }
+
+    /// Every thing filed in the cells round `feet`: all those in reach,
+    /// and some a little farther.
+    pub fn near(&self, feet: Vec3) -> impl Iterator<Item = Entity> + '_ {
+        let c = Self::cell(feet.ground());
+        (c.1 - 1..=c.1 + 1)
+            .flat_map(move |y| (c.0 - 1..=c.0 + 1).map(move |x| (x, y)))
+            .filter_map(|cell| self.by_cell.get(&cell))
+            .flatten()
+            .copied()
+    }
+}
+
+/// Things that appear or move are filed where they are used now; things
+/// that go are dropped. Every thing used (`Interactable`) and every thing
+/// in the world (`WorldItem`: the beds, televisions and hydrants a Use
+/// reaches before `interact_on_use`).
+#[allow(clippy::type_complexity)]
+pub fn record_things(
+    mut index: ResMut<ThingIndex>,
+    moved: Query<
+        (Entity, Option<&Door>, &Transform),
+        (Or<(With<Interactable>, With<WorldItem>)>, Or<(Added<Interactable>, Added<WorldItem>, Changed<Transform>)>),
+    >,
+    still: Query<(), Or<(With<Interactable>, With<WorldItem>)>>,
+    (mut gone_used, mut gone_items): (RemovedComponents<Interactable>, RemovedComponents<WorldItem>),
+) {
+    for entity in gone_used.read().chain(gone_items.read()) {
+        // Dropped only once it is neither.
+        if !still.contains(entity) {
+            index.remove(entity);
+        }
+    }
+    for (entity, door, transform) in &moved {
+        index.file(entity, use_point(door, transform).ground());
+    }
+}
+
 pub fn pointed_thing<'a>(feet: Vec3, pointed: Vec2, things: impl Iterator<Item = (Entity, Option<&'a Door>, &'a Transform)>) -> Option<Entity> {
     things
         .map(|(e, door, t)| (e, use_point(door, t)))
@@ -654,6 +729,7 @@ pub fn interact_on_use(
     >,
     mut stores: Query<&mut Container>,
     names: Query<&Name>,
+    thing_index: Res<ThingIndex>,
 ) {
     // In ActorId order (authority.md rule 5): of two people using one thing
     // in one tick, who gets it is the same after a load.
@@ -700,7 +776,7 @@ pub fn interact_on_use(
         let feet = feet_of(person);
         let at = feet.ground();
         let pointed = ActionQueue::aim(&this_tick.0).map_or(at + facing.direction(), |(x, y)| Vec2::new(x, y));
-        let nearest = pointed_thing(feet, pointed, things.iter().map(|(e, _, door, _, t, _)| (e, door, t)));
+        let nearest = pointed_thing(feet, pointed, thing_index.near(feet).filter_map(|e| things.get(e).ok()).map(|(e, _, door, _, t, _)| (e, door, t)));
         let Some(Ok((entity, mut thing, door, item, transform, draws_from))) = nearest.map(|e| things.get_mut(e)) else {
             // Nothing to use in reach: a river's water pointed at is drunk
             // (design.md: rivers are drinkable), from the ground's level,
