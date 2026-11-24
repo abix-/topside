@@ -1,0 +1,881 @@
+# The town's places (topside-town "What the town has"), each a blueprint
+# that modforge's plan::build makes into a building: named rooms on a grid
+# of columns (west to east) and rows (front to back, the front toward its
+# street), the ways between rooms (from a room east or north, `door` when
+# one is hung, else an open way), the ways out (a room's outside wall and
+# the way's width), each room's furniture (where it sits as a share of the
+# room, -0.5 to 0.5 across and along, its size, and the model it is drawn
+# as; one with no model is a block), the things used in it (where each
+# stands as a share of the first room of that name), the things standing
+# outside (metres from the middle, +z its front), the wall colours one is
+# picked from, and its height. `edge` puts it at the edge of town, else on
+# main street. Sizes are metres, colours sRGB. Read by content's `places`.
+
+places:
+  grocery store:
+    about: 'Place 1: the grocery store: the sales floor with its aisles, the checkout at the front door, the office, the stockroom with the loading door at the back, the walk-in cooler and the restroom.'
+    columns: [12.0, 6.0, 4.0]
+    rows: [10.0, 6.0]
+    rooms:
+      - {at: [0, 0], name: sales floor}
+      - {at: [1, 0], name: checkout}
+      - {at: [2, 0], name: office}
+      - {at: [0, 1], name: stockroom}
+      - {at: [1, 1], name: cooler}
+      - {at: [2, 1], name: restroom}
+    ways:
+      - {from: [0, 0], side: east}
+      - {from: [1, 0], side: east, door: true}
+      - {from: [0, 0], side: north, door: true}
+      - {from: [0, 1], side: east, door: true}
+      - {from: [2, 0], side: north, door: true}
+    exits:
+      - {from: [1, 0], side: south, width: 2.4}
+      - {from: [0, 1], side: north, width: 3.0}
+    furniture:
+      - {room: sales floor, at: [-0.3, 0.0], size: [0.8, 1.6, 7.0], model: grocery aisle}
+      - {room: sales floor, at: [0.0, 0.0], size: [0.8, 1.6, 7.0], model: grocery aisle}
+      - {room: sales floor, at: [0.3, 0.0], size: [0.8, 1.6, 7.0], model: grocery aisle}
+      - {room: checkout, at: [0.0, 0.1], size: [3.0, 1.0, 0.8], model: checkout counter}
+      - {room: office, at: [0.0, -0.3], size: [1.4, 0.75, 0.7], model: work desk}
+      - {room: stockroom, at: [0.0, -0.4], size: [9.0, 2.0, 0.8], model: stock rack}
+      - {room: restroom, at: [0.3, -0.3], size: [0.4, 0.8, 0.65], model: toilet}
+    things:
+      - {thing: store shelf, room: sales floor, at: [-0.15, 0.0]}
+      - {thing: store shelf, room: sales floor, at: [0.15, 0.0]}
+      - {thing: store shelf, room: sales floor, at: [0.45, 0.0]}
+      - {thing: cash register, room: checkout, at: [0.0, 0.3]}
+      - {thing: office desk, room: office, at: [0.0, 0.0]}
+      - {thing: pallet, room: stockroom, at: [0.0, 0.2]}
+      - {thing: walk-in cooler, room: cooler, at: [0.0, 0.0]}
+    walls: [[0.75, 0.72, 0.62], [0.62, 0.66, 0.7], [0.7, 0.6, 0.52]]
+    floor: [0.8, 0.8, 0.78]
+    furniture colour: [0.55, 0.55, 0.58]
+    height: 3.6
+
+  crop farm:
+    about: "Place 2: a crop farm, at the edge of town: the farmhouse's kitchen and office, the tool shed and the seed store, with its fields behind, rows of beds found sown and ripe. Two stand (topside-town: 2 to 3)."
+    edge: true
+    columns: [6.0, 5.0]
+    rows: [6.0, 5.0]
+    rooms:
+      - {at: [0, 0], name: farm kitchen}
+      - {at: [1, 0], name: farm office}
+      - {at: [0, 1], name: tool shed}
+      - {at: [1, 1], name: seed store}
+    ways:
+      - {from: [0, 0], side: east, door: true}
+      - {from: [0, 0], side: north, door: true}
+      - {from: [0, 1], side: east, door: true}
+    exits:
+      - {from: [0, 0], side: south, width: 1.2}
+      - {from: [0, 1], side: west, width: 2.4}
+    furniture:
+      - {room: farm kitchen, at: [-0.4, 0.0], size: [0.6, 0.9, 2.2], model: kitchen counter}
+      - {room: farm office, at: [0.0, -0.3], size: [1.4, 0.75, 0.7], model: work desk}
+      - {room: tool shed, at: [0.0, -0.4], size: [4.0, 1.8, 0.6], model: tool rack}
+      - {room: seed store, at: [0.0, -0.4], size: [3.0, 1.6, 0.6], model: seed shelf}
+    things:
+      - {thing: pantry, room: farm kitchen, at: [0.3, -0.3]}
+      - {thing: office desk, room: farm office, at: [0.0, 0.0]}
+      - {thing: toolbox, room: tool shed, at: [0.3, 0.2]}
+      - {thing: seed bin, room: seed store, at: [0.0, 0.0]}
+    outside:
+      - {thing: garden bed, at: [-6.0, -12.0]}
+      - {thing: garden bed, at: [-3.0, -12.0]}
+      - {thing: garden bed, at: [0.0, -12.0]}
+      - {thing: garden bed, at: [3.0, -12.0]}
+      - {thing: garden bed, at: [6.0, -12.0]}
+      - {thing: garden bed, at: [-6.0, -16.0]}
+      - {thing: garden bed, at: [-3.0, -16.0]}
+      - {thing: garden bed, at: [0.0, -16.0]}
+      - {thing: garden bed, at: [3.0, -16.0]}
+      - {thing: garden bed, at: [6.0, -16.0]}
+    walls: [[0.7, 0.3, 0.25], [0.85, 0.82, 0.75]]
+    floor: [0.55, 0.42, 0.3]
+    furniture colour: [0.5, 0.38, 0.25]
+    height: 3.0
+
+  livestock barn:
+    about: "Place 3: the livestock barn, at the edge of town: the stalls, the hayloft's floor, the milk room, the tack room and the chicken coop."
+    edge: true
+    columns: [5.0, 8.0, 5.0]
+    rows: [8.0, 5.0]
+    rooms:
+      - {at: [0, 0], name: tack room}
+      - {at: [1, 0], name: stalls}
+      - {at: [2, 0], name: milk room}
+      - {at: [0, 1], name: chicken coop}
+      - {at: [1, 1], name: hay store}
+      - {at: [2, 1], name: butchery}
+    ways:
+      - {from: [0, 0], side: east, door: true}
+      - {from: [1, 0], side: east, door: true}
+      - {from: [1, 0], side: north}
+      - {from: [0, 1], side: east, door: true}
+      - {from: [1, 1], side: east, door: true}
+    exits:
+      - {from: [1, 0], side: south, width: 3.5}
+      - {from: [1, 1], side: north, width: 3.0}
+    furniture:
+      - {room: stalls, at: [-0.35, 0.0], size: [0.2, 1.4, 6.0], model: stall rail}
+      - {room: stalls, at: [0.35, 0.0], size: [0.2, 1.4, 6.0], model: stall rail}
+      - {room: tack room, at: [0.0, -0.4], size: [3.0, 1.8, 0.5], model: tack wall}
+      - {room: milk room, at: [0.0, -0.3], size: [1.5, 1.0, 0.8], model: milk tank}
+      - {room: chicken coop, at: [0.0, -0.35], size: [3.5, 1.0, 1.0], model: roost}
+      - {room: hay store, at: [0.0, 0.0], size: [5.0, 1.5, 2.0], model: hay stack}
+      - {room: butchery, at: [0.0, -0.3], size: [2.0, 0.9, 0.8], model: steel table}
+    things:
+      - {thing: feed trough, room: stalls, at: [0.0, -0.3]}
+      - {thing: toolbox, room: tack room, at: [0.3, 0.2]}
+      - {thing: milk can, room: milk room, at: [0.0, 0.2]}
+      - {thing: nest box, room: chicken coop, at: [0.0, 0.2]}
+      - {thing: hay bale, room: hay store, at: [0.3, 0.3]}
+      - {thing: butcher block, room: butchery, at: [0.0, 0.2]}
+    walls: [[0.62, 0.22, 0.18], [0.55, 0.45, 0.35]]
+    floor: [0.45, 0.38, 0.3]
+    furniture colour: [0.5, 0.38, 0.25]
+    height: 4.5
+
+  grain elevator:
+    about: "Place 4: the grain elevator and feed store, at the edge of town: the feed store's counter and its floor, the scale house, the two grain bins and the loading bay."
+    edge: true
+    columns: [7.0, 5.0, 5.0]
+    rows: [7.0, 6.0]
+    rooms:
+      - {at: [0, 0], name: feed store}
+      - {at: [1, 0], name: counter}
+      - {at: [2, 0], name: scale house}
+      - {at: [0, 1], name: loading bay}
+      - {at: [1, 1], name: grain bin}
+      - {at: [2, 1], name: second grain bin}
+    ways:
+      - {from: [0, 0], side: east}
+      - {from: [1, 0], side: east, door: true}
+      - {from: [0, 0], side: north, door: true}
+      - {from: [0, 1], side: east, door: true}
+      - {from: [1, 1], side: east, door: true}
+    exits:
+      - {from: [1, 0], side: south, width: 1.8}
+      - {from: [0, 1], side: west, width: 3.5}
+    furniture:
+      - {room: feed store, at: [0.0, 0.0], size: [0.8, 1.6, 4.5], model: feed aisle}
+      - {room: counter, at: [0.0, 0.1], size: [3.0, 1.0, 0.8], model: checkout counter}
+      - {room: scale house, at: [0.0, -0.3], size: [1.4, 0.75, 0.7], model: work desk}
+      - {room: grain bin, at: [0.0, 0.0], size: [3.5, 3.5, 3.5], model: grain bin}
+      - {room: second grain bin, at: [0.0, 0.0], size: [3.5, 3.5, 3.5], model: grain bin}
+    things:
+      - {thing: store shelf, room: feed store, at: [0.3, 0.0]}
+      - {thing: cash register, room: counter, at: [0.0, 0.3]}
+      - {thing: office desk, room: scale house, at: [0.0, 0.2]}
+      - {thing: pallet, room: loading bay, at: [0.0, 0.0]}
+      - {thing: grain hopper, room: grain bin, at: [0.0, 0.4]}
+      - {thing: grain hopper, room: second grain bin, at: [0.0, 0.4]}
+    walls: [[0.7, 0.7, 0.68], [0.6, 0.62, 0.6]]
+    floor: [0.6, 0.58, 0.55]
+    furniture colour: [0.6, 0.6, 0.62]
+    height: 5.0
+
+  diner:
+    about: 'Place 5: the diner, on main street: the dining room with its booths, the counter, the kitchen with its stove, the walk-in cooler, the office and the restroom.'
+    columns: [10.0, 5.0, 4.0]
+    rows: [8.0, 6.0]
+    rooms:
+      - {at: [0, 0], name: dining room}
+      - {at: [1, 0], name: counter}
+      - {at: [2, 0], name: restroom}
+      - {at: [0, 1], name: kitchen}
+      - {at: [1, 1], name: cooler}
+      - {at: [2, 1], name: office}
+    ways:
+      - {from: [0, 0], side: east}
+      - {from: [1, 0], side: east, door: true}
+      - {from: [0, 0], side: north, door: true}
+      - {from: [0, 1], side: east, door: true}
+      - {from: [1, 1], side: east, door: true}
+    exits:
+      - {from: [0, 0], side: south, width: 1.8}
+      - {from: [0, 1], side: west, width: 1.2}
+    furniture:
+      - {room: dining room, at: [-0.35, -0.2], size: [1.2, 0.75, 2.0], model: booth}
+      - {room: dining room, at: [0.0, -0.2], size: [1.2, 0.75, 2.0], model: booth}
+      - {room: dining room, at: [0.35, -0.2], size: [1.2, 0.75, 2.0], model: booth}
+      - {room: counter, at: [0.0, -0.1], size: [3.5, 1.1, 0.7], model: lunch counter}
+      - {room: kitchen, at: [-0.4, 0.0], size: [0.7, 0.9, 4.0], model: kitchen line}
+      - {room: kitchen, at: [0.3, -0.4], size: [3.0, 0.9, 0.7], model: prep counter}
+      - {room: office, at: [0.0, -0.3], size: [1.4, 0.75, 0.7], model: work desk}
+      - {room: restroom, at: [0.3, -0.3], size: [0.4, 0.8, 0.65], model: toilet}
+    things:
+      - {thing: cash register, room: counter, at: [0.3, 0.3]}
+      - {thing: pantry, room: kitchen, at: [0.3, 0.2]}
+      - {thing: stove, room: kitchen, at: [-0.1, -0.3]}
+      - {thing: walk-in cooler, room: cooler, at: [0.0, 0.0]}
+      - {thing: office desk, room: office, at: [0.0, 0.1]}
+    walls: [[0.85, 0.82, 0.78], [0.7, 0.2, 0.2]]
+    floor: [0.85, 0.85, 0.85]
+    furniture colour: [0.65, 0.2, 0.2]
+    height: 3.2
+
+  pizza place:
+    about: 'Place 6: the pizza place, on main street: the front counter, the few tables, the kitchen with its oven, the prep room and the cooler.'
+    columns: [7.0, 6.0]
+    rows: [6.0, 6.0]
+    rooms:
+      - {at: [0, 0], name: tables}
+      - {at: [1, 0], name: front counter}
+      - {at: [0, 1], name: prep room}
+      - {at: [1, 1], name: pizza kitchen}
+    ways:
+      - {from: [0, 0], side: east}
+      - {from: [1, 0], side: north, door: true}
+      - {from: [0, 1], side: east, door: true}
+    exits:
+      - {from: [0, 0], side: south, width: 1.2}
+      - {from: [0, 1], side: north, width: 1.2}
+    furniture:
+      - {room: tables, at: [-0.25, -0.1], size: [1.0, 0.75, 1.0], model: cafe table}
+      - {room: tables, at: [0.25, -0.1], size: [1.0, 0.75, 1.0], model: cafe table}
+      - {room: front counter, at: [0.0, 0.1], size: [3.5, 1.1, 0.7], model: lunch counter}
+      - {room: prep room, at: [0.0, -0.4], size: [4.0, 0.9, 0.8], model: prep table}
+      - {room: pizza kitchen, at: [0.0, -0.4], size: [2.0, 1.2, 1.2], model: pizza oven}
+    things:
+      - {thing: cash register, room: front counter, at: [0.3, 0.3]}
+      - {thing: pantry, room: prep room, at: [0.3, 0.2]}
+      - {thing: freezer, room: prep room, at: [-0.3, 0.2]}
+      - {thing: stove, room: pizza kitchen, at: [0.0, 0.1]}
+    walls: [[0.8, 0.65, 0.4], [0.6, 0.5, 0.35]]
+    floor: [0.7, 0.3, 0.25]
+    furniture colour: [0.4, 0.3, 0.25]
+    height: 3.0
+
+  cafe:
+    about: "Place 7: the cafe and bakery, on main street: the cafe's tables, the counter with its case, the bakery with its oven, and the store room."
+    columns: [7.0, 5.0]
+    rows: [6.0, 5.0]
+    rooms:
+      - {at: [0, 0], name: cafe tables}
+      - {at: [1, 0], name: cafe counter}
+      - {at: [0, 1], name: bakery}
+      - {at: [1, 1], name: store room}
+    ways:
+      - {from: [0, 0], side: east}
+      - {from: [1, 0], side: north, door: true}
+      - {from: [0, 1], side: east, door: true}
+    exits:
+      - {from: [0, 0], side: south, width: 1.2}
+    furniture:
+      - {room: cafe tables, at: [-0.25, 0.0], size: [0.8, 0.75, 0.8], model: cafe table}
+      - {room: cafe tables, at: [0.25, 0.0], size: [0.8, 0.75, 0.8], model: cafe table}
+      - {room: cafe counter, at: [0.0, 0.0], size: [3.0, 1.1, 0.7], model: cafe counter}
+      - {room: bakery, at: [0.0, -0.4], size: [4.5, 0.9, 0.8], model: baking bench}
+      - {room: store room, at: [0.0, -0.4], size: [3.0, 1.8, 0.5], model: store shelving}
+    things:
+      - {thing: cash register, room: cafe counter, at: [0.3, 0.3]}
+      - {thing: bakery case, room: cafe counter, at: [-0.3, -0.3]}
+      - {thing: stove, room: bakery, at: [0.3, 0.1]}
+      - {thing: pantry, room: store room, at: [0.0, 0.2]}
+    walls: [[0.9, 0.85, 0.7], [0.75, 0.8, 0.7]]
+    floor: [0.6, 0.45, 0.3]
+    furniture colour: [0.55, 0.4, 0.28]
+    height: 3.0
+
+  bar:
+    about: 'Place 8: the bar, on main street: the barroom with its bar and tables, the pool room, the back room, the cellar store and the restroom.'
+    columns: [9.0, 6.0, 4.0]
+    rows: [7.0, 5.0]
+    rooms:
+      - {at: [0, 0], name: barroom}
+      - {at: [1, 0], name: pool room}
+      - {at: [2, 0], name: restroom}
+      - {at: [0, 1], name: behind the bar}
+      - {at: [1, 1], name: back room}
+      - {at: [2, 1], name: beer store}
+    ways:
+      - {from: [0, 0], side: east}
+      - {from: [1, 0], side: east, door: true}
+      - {from: [0, 0], side: north}
+      - {from: [0, 1], side: east, door: true}
+      - {from: [1, 1], side: east, door: true}
+    exits:
+      - {from: [0, 0], side: south, width: 1.2}
+      - {from: [1, 1], side: north, width: 1.2}
+    furniture:
+      - {room: barroom, at: [0.0, 0.4], size: [7.0, 1.1, 0.6], model: bar counter}
+      - {room: barroom, at: [-0.3, -0.1], size: [1.0, 0.75, 1.0], model: cafe table}
+      - {room: barroom, at: [0.2, -0.1], size: [1.0, 0.75, 1.0], model: cafe table}
+      - {room: pool room, at: [0.0, 0.0], size: [2.5, 0.85, 1.4], model: pool table}
+      - {room: behind the bar, at: [0.0, -0.4], size: [7.0, 1.8, 0.5], model: back bar}
+      - {room: back room, at: [0.0, 0.0], size: [1.4, 0.75, 1.0], model: card table}
+      - {room: restroom, at: [0.3, -0.3], size: [0.4, 0.8, 0.65], model: toilet}
+    things:
+      - {thing: cash register, room: behind the bar, at: [0.4, 0.2]}
+      - {thing: liquor shelf, room: behind the bar, at: [-0.2, -0.2]}
+      - {thing: office desk, room: back room, at: [0.3, -0.3]}
+      - {thing: pallet, room: beer store, at: [0.0, 0.0]}
+    walls: [[0.35, 0.25, 0.2], [0.3, 0.32, 0.3]]
+    floor: [0.4, 0.28, 0.18]
+    furniture colour: [0.35, 0.22, 0.14]
+    height: 3.0
+
+  pump house:
+    about: "Place 9: the pump house, at the edge of town, with the water tower standing beside it: the pump room with the town's well pump, the chlorine room and the meter office."
+    edge: true
+    columns: [6.0, 4.0]
+    rows: [5.0, 4.0]
+    rooms:
+      - {at: [0, 0], name: pump room}
+      - {at: [1, 0], name: meter office}
+      - {at: [0, 1], name: chlorine room}
+      - {at: [1, 1], name: pipe store}
+    ways:
+      - {from: [0, 0], side: east, door: true}
+      - {from: [0, 0], side: north, door: true}
+      - {from: [1, 0], side: north, door: true}
+    exits:
+      - {from: [0, 0], side: south, width: 1.8}
+    furniture:
+      - {room: pump room, at: [-0.3, -0.2], size: [1.5, 1.2, 1.5], model: pump set}
+      - {room: meter office, at: [0.0, -0.3], size: [1.4, 0.75, 0.7], model: work desk}
+      - {room: chlorine room, at: [0.0, -0.4], size: [3.5, 1.2, 0.6], model: chemical shelf}
+      - {room: pipe store, at: [0.0, -0.4], size: [2.5, 1.0, 0.6], model: pipe rack}
+    things:
+      - {thing: water pump, room: pump room, at: [0.2, 0.2]}
+      - {thing: office desk, room: meter office, at: [0.0, 0.1]}
+      - {thing: toolbox, room: chlorine room, at: [0.3, 0.2]}
+      - {thing: pallet, room: pipe store, at: [0.0, 0.2]}
+    outside:
+      # The water tower's tap, at the foot of its legs behind the house.
+      - {thing: water tower tap, at: [0.0, -12.0]}
+    walls: [[0.7, 0.7, 0.72], [0.6, 0.65, 0.7]]
+    floor: [0.55, 0.55, 0.55]
+    furniture colour: [0.45, 0.5, 0.55]
+    height: 3.2
+
+  substation:
+    about: "Place 10: the power substation, at the edge of town: the control building's control room with its switch panel, the battery room and the store, with the transformers in the yard behind."
+    edge: true
+    columns: [6.0, 4.0]
+    rows: [5.0, 4.0]
+    rooms:
+      - {at: [0, 0], name: control room}
+      - {at: [1, 0], name: battery room}
+      - {at: [0, 1], name: relay room}
+      - {at: [1, 1], name: substation store}
+    ways:
+      - {from: [0, 0], side: east, door: true}
+      - {from: [0, 0], side: north, door: true}
+      - {from: [0, 1], side: east, door: true}
+    exits:
+      - {from: [0, 0], side: south, width: 1.2}
+      - {from: [0, 1], side: north, width: 1.2}
+    furniture:
+      - {room: control room, at: [0.0, -0.35], size: [4.5, 1.8, 0.6], model: control panel}
+      - {room: battery room, at: [0.0, -0.3], size: [3.0, 1.0, 0.8], model: battery rack}
+      - {room: relay room, at: [-0.35, 0.0], size: [0.6, 2.0, 3.0], model: relay cabinet}
+      - {room: substation store, at: [0.0, -0.4], size: [2.5, 1.6, 0.5], model: parts shelf}
+    things:
+      - {thing: substation switch, room: control room, at: [-0.3, -0.2]}
+      - {thing: substation switch, room: control room, at: [0.0, -0.2]}
+      - {thing: substation switch, room: control room, at: [0.3, -0.2]}
+      - {thing: office desk, room: control room, at: [0.0, 0.3]}
+      - {thing: toolbox, room: substation store, at: [0.0, 0.2]}
+    outside:
+      - {thing: transformer, at: [-4.0, -12.0]}
+      - {thing: transformer, at: [4.0, -12.0]}
+    walls: [[0.65, 0.66, 0.66], [0.75, 0.72, 0.6]]
+    floor: [0.5, 0.5, 0.5]
+    furniture colour: [0.45, 0.5, 0.45]
+    height: 3.2
+
+  gas station:
+    about: 'Place 11: the gas station, on main street: the shop with its shelves and counter, the garage bay with its bench, the office, the store and the restroom, with two pumps out front under the canopy.'
+    columns: [8.0, 7.0, 3.0]
+    rows: [6.0, 4.0]
+    rooms:
+      - {at: [0, 0], name: gas station shop}
+      - {at: [1, 0], name: garage bay}
+      - {at: [2, 0], name: restroom}
+      - {at: [0, 1], name: gas station office}
+      - {at: [1, 1], name: parts store}
+    ways:
+      - {from: [0, 0], side: east, door: true}
+      - {from: [0, 0], side: north, door: true}
+      - {from: [1, 0], side: north, door: true}
+      - {from: [1, 0], side: east, door: true}
+    exits:
+      - {from: [0, 0], side: south, width: 1.2}
+      - {from: [1, 0], side: south, width: 3.5}
+    furniture:
+      - {room: gas station shop, at: [0.0, 0.0], size: [0.8, 1.5, 3.5], model: shop aisle}
+      - {room: gas station shop, at: [-0.35, 0.3], size: [1.8, 1.0, 0.7], model: shop counter}
+      - {room: garage bay, at: [0.0, -0.4], size: [4.0, 0.9, 0.8], model: bay bench}
+      - {room: gas station office, at: [0.0, -0.3], size: [1.4, 0.75, 0.7], model: work desk}
+      - {room: parts store, at: [0.0, -0.4], size: [5.0, 1.8, 0.5], model: parts shelving}
+      - {room: restroom, at: [0.2, -0.3], size: [0.4, 0.8, 0.65], model: toilet}
+    things:
+      - {thing: store shelf, room: gas station shop, at: [0.25, 0.0]}
+      - {thing: cash register, room: gas station shop, at: [-0.35, 0.1]}
+      - {thing: office desk, room: gas station office, at: [0.0, 0.1]}
+      - {thing: toolbox, room: parts store, at: [0.3, 0.2]}
+      - {thing: pallet, room: parts store, at: [-0.3, 0.2]}
+    outside:
+      # The pumps out front, between the shop and the street.
+      - {thing: gas pump, at: [-3.0, 9.0]}
+      - {thing: gas pump, at: [3.0, 9.0]}
+    walls: [[0.85, 0.85, 0.85], [0.8, 0.75, 0.55]]
+    floor: [0.6, 0.6, 0.6]
+    furniture colour: [0.5, 0.5, 0.52]
+    height: 3.2
+
+  sewage pond:
+    about: "Place 12: the sewage pond's pump shed, at the edge of town, with the pond's lift pumps and the pond behind it."
+    edge: true
+    columns: [5.0, 4.0]
+    rows: [5.0]
+    rooms:
+      - {at: [0, 0], name: pump shed}
+      - {at: [1, 0], name: sewage tool room}
+    ways:
+      - {from: [0, 0], side: east, door: true}
+    exits:
+      - {from: [0, 0], side: south, width: 1.2}
+      - {from: [0, 0], side: north, width: 1.2}
+    furniture:
+      - {room: pump shed, at: [-0.3, -0.2], size: [1.5, 1.2, 1.5], model: pump set}
+      - {room: sewage tool room, at: [0.0, -0.4], size: [3.0, 1.6, 0.5], model: tool shelf}
+    things:
+      - {thing: sewage pump, room: pump shed, at: [0.2, 0.1]}
+      - {thing: toolbox, room: sewage tool room, at: [0.0, 0.2]}
+    outside:
+      # The pond behind the shed: its valve at the edge. The pond itself
+      # is not water drawn on the ground (Claude's).
+      - {thing: pond valve, at: [0.0, -10.0]}
+    walls: [[0.6, 0.62, 0.58]]
+    floor: [0.45, 0.45, 0.42]
+    furniture colour: [0.4, 0.42, 0.4]
+    height: 3.0
+
+  town dump:
+    about: "Place 13: the town dump, at the edge of town: its office and the scale shed, and the four piles behind (Works 17) where the trash truck takes the town's trash."
+    edge: true
+    columns: [5.0, 4.0]
+    rows: [4.0]
+    rooms:
+      - {at: [0, 0], name: dump office}
+      - {at: [1, 0], name: scale shed}
+    ways:
+      - {from: [0, 0], side: east, door: true}
+    exits:
+      - {from: [0, 0], side: south, width: 1.2}
+      - {from: [1, 0], side: north, width: 2.4}
+    furniture:
+      - {room: dump office, at: [0.0, -0.3], size: [1.4, 0.75, 0.7], model: work desk}
+      - {room: scale shed, at: [0.0, 0.0], size: [2.5, 0.3, 2.5], model: truck scale}
+    things:
+      - {thing: office desk, room: dump office, at: [0.0, 0.1]}
+      - {thing: toolbox, room: scale shed, at: [0.3, -0.3]}
+    outside:
+      - {thing: dump pile, at: [-7.5, -12.0]}
+      - {thing: dump pile, at: [-2.5, -12.0]}
+      - {thing: dump pile, at: [2.5, -12.0]}
+      - {thing: dump pile, at: [7.5, -12.0]}
+    walls: [[0.55, 0.5, 0.4], [0.5, 0.55, 0.5]]
+    floor: [0.45, 0.42, 0.38]
+    furniture colour: [0.42, 0.4, 0.36]
+    height: 2.8
+
+  clinic:
+    about: 'Place 14: the clinic and pharmacy, on main street: the waiting room and front desk, two exam rooms, the pharmacy counter and its shelves, the ward with its beds and the restroom.'
+    columns: [7.0, 5.0, 5.0]
+    rows: [6.0, 6.0]
+    rooms:
+      - {at: [0, 0], name: waiting room}
+      - {at: [1, 0], name: pharmacy}
+      - {at: [2, 0], name: restroom}
+      - {at: [0, 1], name: ward}
+      - {at: [1, 1], name: exam room}
+      - {at: [2, 1], name: second exam room}
+    ways:
+      - {from: [0, 0], side: east}
+      - {from: [1, 0], side: east, door: true}
+      - {from: [0, 0], side: north, door: true}
+      - {from: [0, 1], side: east, door: true}
+      - {from: [1, 1], side: east, door: true}
+    exits:
+      - {from: [0, 0], side: south, width: 1.8}
+      - {from: [1, 0], side: south, width: 1.2}
+    furniture:
+      - {room: waiting room, at: [-0.3, -0.2], size: [0.6, 0.45, 3.0]}
+      - {room: waiting room, at: [0.3, 0.2], size: [2.0, 1.1, 0.7]}
+      - {room: pharmacy, at: [0.0, 0.2], size: [3.5, 1.1, 0.6]}
+      - {room: exam room, at: [0.0, -0.2], size: [0.8, 0.9, 1.9]}
+      - {room: second exam room, at: [0.0, -0.2], size: [0.8, 0.9, 1.9]}
+      - {room: restroom, at: [0.3, -0.3], size: [0.4, 0.8, 0.65]}
+    things:
+      - {thing: office desk, room: waiting room, at: [0.3, 0.35]}
+      - {thing: pharmacy shelf, room: pharmacy, at: [0.0, -0.3]}
+      - {thing: cash register, room: pharmacy, at: [0.3, 0.3]}
+      - {thing: bed, room: ward, at: [-0.3, 0.0]}
+      - {thing: bed, room: ward, at: [0.3, 0.0]}
+      - {thing: medicine cabinet, room: exam room, at: [0.4, 0.3]}
+      - {thing: medicine cabinet, room: second exam room, at: [0.4, 0.3]}
+    walls: [[0.9, 0.9, 0.92], [0.75, 0.82, 0.85]]
+    floor: [0.85, 0.87, 0.88]
+    furniture colour: [0.7, 0.72, 0.75]
+    height: 3.0
+
+  fire station:
+    about: 'Place 15: the volunteer fire station, on main street: the engine bay with its big door, the gear room, the radio room, the bunk room and the kitchen.'
+    columns: [10.0, 6.0]
+    rows: [10.0, 5.0]
+    rooms:
+      - {at: [0, 0], name: engine bay}
+      - {at: [1, 0], name: gear room}
+      - {at: [0, 1], name: bunk room}
+      - {at: [1, 1], name: station kitchen}
+    ways:
+      - {from: [0, 0], side: east, door: true}
+      - {from: [0, 0], side: north, door: true}
+      - {from: [1, 0], side: north, door: true}
+    exits:
+      - {from: [0, 0], side: south, width: 4.0}
+      - {from: [1, 0], side: south, width: 1.2}
+    furniture:
+      # The engine: a block the size of a small truck (Claude's).
+      - {room: engine bay, at: [0.0, 0.0], size: [2.6, 2.8, 7.0]}
+      - {room: gear room, at: [0.0, -0.4], size: [4.5, 1.9, 0.5]}
+      - {room: bunk room, at: [-0.3, 0.0], size: [0.9, 0.6, 2.0]}
+      - {room: bunk room, at: [0.3, 0.0], size: [0.9, 0.6, 2.0]}
+      - {room: station kitchen, at: [0.0, -0.4], size: [4.0, 0.9, 0.7]}
+    things:
+      - {thing: gear locker, room: gear room, at: [-0.3, -0.2]}
+      - {thing: extinguisher, room: gear room, at: [0.3, 0.2]}
+      - {thing: extinguisher, room: engine bay, at: [0.4, 0.4]}
+      - {thing: radio, room: gear room, at: [0.4, -0.3]}
+      - {thing: bed, room: bunk room, at: [-0.3, 0.3]}
+      - {thing: stove, room: station kitchen, at: [0.3, -0.2]}
+      - {thing: pantry, room: station kitchen, at: [-0.3, -0.2]}
+    walls: [[0.7, 0.25, 0.2], [0.8, 0.78, 0.72]]
+    floor: [0.55, 0.55, 0.55]
+    furniture colour: [0.7, 0.15, 0.12]
+    height: 4.2
+
+  sheriff's office:
+    about: "Place 16: the sheriff's office, on main street: the front office with its counter, the sheriff's own office, the two cells, the evidence room and the armory, its gun locker under the sheriff's key."
+    columns: [7.0, 5.0, 4.0]
+    rows: [6.0, 5.0]
+    rooms:
+      - {at: [0, 0], name: front office}
+      - {at: [1, 0], name: sheriff's office}
+      - {at: [2, 0], name: armory}
+      - {at: [0, 1], name: evidence room}
+      - {at: [1, 1], name: cell}
+      - {at: [2, 1], name: second cell}
+    ways:
+      - {from: [0, 0], side: east, door: true}
+      - {from: [1, 0], side: east, door: true}
+      - {from: [0, 0], side: north, door: true}
+      - {from: [0, 1], side: east, door: true}
+      - {from: [1, 1], side: east, door: true}
+    exits:
+      - {from: [0, 0], side: south, width: 1.2}
+      - {from: [0, 1], side: west, width: 1.2}
+    furniture:
+      - {room: front office, at: [0.0, 0.2], size: [4.0, 1.1, 0.7]}
+      - {room: sheriff's office, at: [0.0, -0.2], size: [1.6, 0.75, 0.8]}
+      - {room: armory, at: [0.0, -0.4], size: [3.0, 1.9, 0.5]}
+      - {room: evidence room, at: [0.0, -0.4], size: [5.0, 1.8, 0.5]}
+      - {room: cell, at: [-0.3, 0.0], size: [0.8, 0.5, 2.0]}
+      - {room: second cell, at: [-0.3, 0.0], size: [0.8, 0.5, 2.0]}
+    things:
+      - {thing: office desk, room: front office, at: [0.3, 0.0]}
+      - {thing: sheriff's desk, room: sheriff's office, at: [0.0, 0.2]}
+      - {thing: gun locker, room: armory, at: [0.0, 0.1]}
+      - {thing: store shelf, room: evidence room, at: [0.0, 0.1]}
+    walls: [[0.75, 0.7, 0.6], [0.6, 0.62, 0.65]]
+    floor: [0.5, 0.48, 0.45]
+    furniture colour: [0.4, 0.38, 0.35]
+    height: 3.0
+
+  school:
+    about: "Place 17: the school, on a big lot at the edge of town (the main street lots are too small for it): the hall, three classrooms, the office, the nurse's room, the cafeteria and its kitchen, and the gym."
+    edge: true
+    columns: [8.0, 4.0, 8.0, 8.0]
+    rows: [7.0, 7.0, 10.0]
+    rooms:
+      - {at: [0, 0], name: classroom}
+      - {at: [1, 0], name: school office}
+      - {at: [2, 0], name: second classroom}
+      - {at: [3, 0], name: third classroom}
+      - {at: [0, 1], name: nurse's room}
+      - {at: [1, 1], name: school hall}
+      - {at: [2, 1], name: cafeteria}
+      - {at: [3, 1], name: school kitchen}
+      - {at: [0, 2], name: gym}
+      - {at: [1, 2], name: gym store}
+      - {at: [2, 2], name: library}
+      - {at: [3, 2], name: janitor's room}
+    ways:
+      - {from: [1, 0], side: north}
+      - {from: [0, 1], side: east, door: true}
+      - {from: [1, 1], side: east}
+      - {from: [2, 1], side: east, door: true}
+      - {from: [1, 1], side: north, door: true}
+      - {from: [0, 1], side: north}
+      - {from: [0, 0], side: north, door: true}
+      - {from: [2, 0], side: north, door: true}
+      - {from: [3, 0], side: north, door: true}
+      - {from: [1, 2], side: east, door: true}
+      - {from: [2, 2], side: east, door: true}
+    exits:
+      - {from: [1, 0], side: south, width: 2.4}
+      - {from: [0, 2], side: west, width: 2.4}
+    furniture:
+      - {room: classroom, at: [0.0, 0.0], size: [5.0, 0.75, 3.0]}
+      - {room: second classroom, at: [0.0, 0.0], size: [5.0, 0.75, 3.0]}
+      - {room: third classroom, at: [0.0, 0.0], size: [5.0, 0.75, 3.0]}
+      - {room: school office, at: [0.0, 0.2], size: [2.5, 1.1, 0.7]}
+      - {room: nurse's room, at: [-0.3, -0.2], size: [0.8, 0.6, 1.9]}
+      - {room: cafeteria, at: [0.0, 0.0], size: [5.0, 0.75, 1.0]}
+      - {room: school kitchen, at: [0.0, -0.4], size: [6.0, 0.9, 0.7]}
+      - {room: library, at: [0.0, -0.4], size: [6.0, 1.9, 0.5]}
+      - {room: janitor's room, at: [0.0, -0.4], size: [5.0, 1.6, 0.5]}
+    things:
+      - {thing: office desk, room: classroom, at: [0.0, -0.4]}
+      - {thing: office desk, room: second classroom, at: [0.0, -0.4]}
+      - {thing: office desk, room: third classroom, at: [0.0, -0.4]}
+      - {thing: office desk, room: school office, at: [0.0, -0.3]}
+      - {thing: medicine cabinet, room: nurse's room, at: [0.3, 0.3]}
+      - {thing: pantry, room: school kitchen, at: [-0.3, 0.2]}
+      - {thing: stove, room: school kitchen, at: [0.3, 0.2]}
+      - {thing: store shelf, room: gym store, at: [0.0, 0.0]}
+      - {thing: store shelf, room: library, at: [0.0, 0.2]}
+      - {thing: toolbox, room: janitor's room, at: [0.0, 0.2]}
+    walls: [[0.7, 0.45, 0.35], [0.8, 0.78, 0.7]]
+    floor: [0.72, 0.7, 0.62]
+    furniture colour: [0.55, 0.45, 0.32]
+    height: 3.2
+
+  town hall:
+    about: "Place 18: the post office and town hall, on main street: the post office's counter and its sorting room with the town's mail, the council room, the clerk's office with the town records, and the mayor's office."
+    columns: [7.0, 6.0, 6.0]
+    rows: [6.0, 6.0]
+    rooms:
+      - {at: [0, 0], name: post office}
+      - {at: [1, 0], name: town hall lobby}
+      - {at: [2, 0], name: clerk's office}
+      - {at: [0, 1], name: sorting room}
+      - {at: [1, 1], name: council room}
+      - {at: [2, 1], name: mayor's office}
+    ways:
+      - {from: [0, 0], side: east, door: true}
+      - {from: [1, 0], side: east, door: true}
+      - {from: [0, 0], side: north, door: true}
+      - {from: [1, 0], side: north}
+      - {from: [1, 1], side: east, door: true}
+    exits:
+      - {from: [0, 0], side: south, width: 1.2}
+      - {from: [1, 0], side: south, width: 1.8}
+    furniture:
+      - {room: post office, at: [0.0, 0.0], size: [4.0, 1.1, 0.7]}
+      - {room: sorting room, at: [0.0, -0.3], size: [5.0, 0.9, 0.8]}
+      - {room: clerk's office, at: [0.0, -0.3], size: [1.4, 0.75, 0.7]}
+      - {room: council room, at: [0.0, 0.0], size: [4.0, 0.75, 1.5]}
+      - {room: mayor's office, at: [0.0, -0.2], size: [1.6, 0.75, 0.8]}
+    things:
+      - {thing: cash register, room: post office, at: [0.3, 0.3]}
+      - {thing: mail sack, room: sorting room, at: [0.0, 0.2]}
+      - {thing: office desk, room: clerk's office, at: [0.0, 0.2]}
+      - {thing: records cabinet, room: clerk's office, at: [0.4, -0.4]}
+      - {thing: office desk, room: mayor's office, at: [0.0, 0.2]}
+      - {thing: phone, room: mayor's office, at: [0.4, -0.3]}
+    walls: [[0.82, 0.78, 0.7], [0.7, 0.55, 0.45]]
+    floor: [0.6, 0.5, 0.4]
+    furniture colour: [0.45, 0.33, 0.22]
+    height: 3.4
+
+  church:
+    about: "Place 19: the church, on main street: the nave with its pews, the altar, the vestry, the pastor's study and the fellowship kitchen."
+    columns: [5.0, 9.0, 5.0]
+    rows: [12.0, 5.0]
+    rooms:
+      - {at: [0, 0], name: pastor's study}
+      - {at: [1, 0], name: nave}
+      - {at: [2, 0], name: fellowship kitchen}
+      - {at: [0, 1], name: vestry}
+      - {at: [1, 1], name: altar}
+      - {at: [2, 1], name: church store}
+    ways:
+      - {from: [0, 0], side: east, door: true}
+      - {from: [1, 0], side: east, door: true}
+      - {from: [1, 0], side: north}
+      - {from: [0, 1], side: east, door: true}
+      - {from: [1, 1], side: east, door: true}
+    exits:
+      - {from: [1, 0], side: south, width: 2.4}
+    furniture:
+      - {room: nave, at: [-0.25, -0.1], size: [3.0, 0.9, 0.6]}
+      - {room: nave, at: [0.25, -0.1], size: [3.0, 0.9, 0.6]}
+      - {room: nave, at: [-0.25, 0.1], size: [3.0, 0.9, 0.6]}
+      - {room: nave, at: [0.25, 0.1], size: [3.0, 0.9, 0.6]}
+      - {room: nave, at: [-0.25, 0.3], size: [3.0, 0.9, 0.6]}
+      - {room: nave, at: [0.25, 0.3], size: [3.0, 0.9, 0.6]}
+      - {room: altar, at: [0.0, 0.0], size: [2.0, 1.0, 0.8]}
+      - {room: pastor's study, at: [0.0, -0.3], size: [1.4, 0.75, 0.7]}
+      - {room: fellowship kitchen, at: [0.0, -0.4], size: [4.0, 0.9, 0.7]}
+      - {room: vestry, at: [0.0, -0.4], size: [3.0, 1.9, 0.5]}
+    things:
+      - {thing: office desk, room: pastor's study, at: [0.0, 0.0]}
+      - {thing: candle, room: altar, at: [0.3, -0.2]}
+      - {thing: candle, room: altar, at: [-0.3, -0.2]}
+      - {thing: closet, room: vestry, at: [0.0, 0.2]}
+      - {thing: pantry, room: fellowship kitchen, at: [-0.3, -0.2]}
+      - {thing: stove, room: fellowship kitchen, at: [0.3, -0.2]}
+      - {thing: store shelf, room: church store, at: [0.0, 0.0]}
+    walls: [[0.92, 0.9, 0.85], [0.8, 0.78, 0.75]]
+    floor: [0.5, 0.38, 0.28]
+    furniture colour: [0.42, 0.3, 0.2]
+    height: 5.0
+
+  cemetery:
+    about: "Place 20: the cemetery, at the edge of town: the groundskeeper's shed, and the graves in rows behind it, each read for its stone."
+    edge: true
+    columns: [5.0]
+    rows: [4.0]
+    rooms:
+      - {at: [0, 0], name: groundskeeper's shed}
+    exits:
+      - {from: [0, 0], side: south, width: 1.2}
+    furniture:
+      - {room: groundskeeper's shed, at: [0.0, -0.4], size: [3.5, 1.6, 0.5]}
+    things:
+      - {thing: toolbox, room: groundskeeper's shed, at: [0.0, 0.1]}
+    outside:
+      - {thing: grave, at: [-9.0, -8.0]}
+      - {thing: grave, at: [-6.0, -8.0]}
+      - {thing: grave, at: [-3.0, -8.0]}
+      - {thing: grave, at: [3.0, -8.0]}
+      - {thing: grave, at: [6.0, -8.0]}
+      - {thing: grave, at: [9.0, -8.0]}
+      - {thing: grave, at: [-9.0, -13.0]}
+      - {thing: grave, at: [-6.0, -13.0]}
+      - {thing: grave, at: [-3.0, -13.0]}
+      - {thing: grave, at: [3.0, -13.0]}
+      - {thing: grave, at: [6.0, -13.0]}
+      - {thing: grave, at: [9.0, -13.0]}
+    walls: [[0.5, 0.45, 0.38]]
+    floor: [0.42, 0.38, 0.32]
+    furniture colour: [0.4, 0.36, 0.3]
+    height: 2.6
+
+  hardware store:
+    about: 'Place 21: the hardware store, on main street: the sales floor with its aisles and counter, the paint and key counter, the lumber yard room with its workbench, the stockroom and the office.'
+    columns: [10.0, 6.0]
+    rows: [9.0, 6.0]
+    rooms:
+      - {at: [0, 0], name: hardware floor}
+      - {at: [1, 0], name: hardware counter}
+      - {at: [0, 1], name: lumber room}
+      - {at: [1, 1], name: hardware office}
+    ways:
+      - {from: [0, 0], side: east}
+      - {from: [0, 0], side: north, door: true}
+      - {from: [1, 0], side: north, door: true}
+      - {from: [0, 1], side: east, door: true}
+    exits:
+      - {from: [0, 0], side: south, width: 1.8}
+      - {from: [0, 1], side: west, width: 3.0}
+    furniture:
+      - {room: hardware floor, at: [-0.25, 0.0], size: [0.8, 1.8, 6.0]}
+      - {room: hardware floor, at: [0.1, 0.0], size: [0.8, 1.8, 6.0]}
+      - {room: hardware counter, at: [0.0, 0.1], size: [3.5, 1.0, 0.7]}
+      - {room: lumber room, at: [0.0, -0.4], size: [8.0, 1.2, 1.0]}
+      - {room: hardware office, at: [0.0, -0.3], size: [1.4, 0.75, 0.7]}
+    things:
+      - {thing: store shelf, room: hardware floor, at: [-0.08, 0.0]}
+      - {thing: store shelf, room: hardware floor, at: [0.35, 0.0]}
+      - {thing: cash register, room: hardware counter, at: [0.3, 0.3]}
+      - {thing: garage workbench, room: lumber room, at: [0.3, 0.2]}
+      - {thing: pallet, room: lumber room, at: [-0.3, 0.2]}
+      - {thing: office desk, room: hardware office, at: [0.0, 0.1]}
+    walls: [[0.7, 0.3, 0.2], [0.75, 0.7, 0.6]]
+    floor: [0.6, 0.58, 0.55]
+    furniture colour: [0.55, 0.5, 0.42]
+    height: 3.6
+
+  mechanic's garage:
+    about: "Place 22: the mechanic's garage, on main street: two service bays with their big doors, the parts room, the office and the restroom."
+    columns: [7.0, 7.0, 5.0]
+    rows: [9.0, 4.0]
+    rooms:
+      - {at: [0, 0], name: service bay}
+      - {at: [1, 0], name: second service bay}
+      - {at: [2, 0], name: garage office}
+      - {at: [0, 1], name: parts room}
+      - {at: [1, 1], name: tire store}
+      - {at: [2, 1], name: restroom}
+    ways:
+      - {from: [0, 0], side: east}
+      - {from: [1, 0], side: east, door: true}
+      - {from: [0, 0], side: north, door: true}
+      - {from: [1, 0], side: north, door: true}
+      - {from: [2, 0], side: north, door: true}
+    exits:
+      - {from: [0, 0], side: south, width: 3.5}
+      - {from: [1, 0], side: south, width: 3.5}
+      - {from: [2, 0], side: south, width: 1.2}
+    furniture:
+      - {room: service bay, at: [0.0, -0.4], size: [4.0, 0.9, 0.7]}
+      - {room: second service bay, at: [0.0, -0.4], size: [4.0, 0.9, 0.7]}
+      - {room: garage office, at: [0.0, -0.2], size: [1.4, 0.75, 0.7]}
+      - {room: parts room, at: [0.0, -0.35], size: [5.0, 1.9, 0.5]}
+      - {room: tire store, at: [0.0, 0.0], size: [4.0, 1.0, 1.5]}
+      - {room: restroom, at: [0.3, -0.3], size: [0.4, 0.8, 0.65]}
+    things:
+      - {thing: garage workbench, room: service bay, at: [0.3, -0.2]}
+      - {thing: toolbox, room: second service bay, at: [0.3, -0.2]}
+      - {thing: cash register, room: garage office, at: [0.3, 0.3]}
+      - {thing: store shelf, room: parts room, at: [0.0, 0.3]}
+      - {thing: pallet, room: tire store, at: [0.3, 0.3]}
+    walls: [[0.6, 0.62, 0.65], [0.8, 0.75, 0.6]]
+    floor: [0.45, 0.45, 0.47]
+    furniture colour: [0.5, 0.2, 0.15]
+    height: 4.0
+
+  general store:
+    about: "Place 23: the general store, on main street: the shop floor with a bit of everything, the counter, the back store, the owner's office and the flat upstairs's stand-in, a back room with a bed."
+    columns: [9.0, 6.0]
+    rows: [8.0, 5.0]
+    rooms:
+      - {at: [0, 0], name: store floor}
+      - {at: [1, 0], name: store counter}
+      - {at: [0, 1], name: back store}
+      - {at: [1, 1], name: owner's room}
+    ways:
+      - {from: [0, 0], side: east}
+      - {from: [0, 0], side: north, door: true}
+      - {from: [1, 0], side: north, door: true}
+    exits:
+      - {from: [0, 0], side: south, width: 1.8}
+      - {from: [0, 1], side: west, width: 1.2}
+    furniture:
+      - {room: store floor, at: [-0.2, 0.0], size: [0.8, 1.6, 5.0]}
+      - {room: store floor, at: [0.2, 0.0], size: [0.8, 1.6, 5.0]}
+      - {room: store counter, at: [0.0, 0.1], size: [3.5, 1.0, 0.7]}
+      - {room: back store, at: [0.0, -0.4], size: [7.0, 1.9, 0.5]}
+      - {room: owner's room, at: [0.3, -0.3], size: [1.0, 0.75, 0.6]}
+    things:
+      - {thing: store shelf, room: store floor, at: [0.0, 0.0]}
+      - {thing: store shelf, room: store floor, at: [0.4, 0.0]}
+      - {thing: cash register, room: store counter, at: [0.3, 0.3]}
+      - {thing: pallet, room: back store, at: [0.0, 0.2]}
+      - {thing: bed, room: owner's room, at: [-0.3, 0.2]}
+      - {thing: dresser, room: owner's room, at: [0.3, 0.3]}
+    walls: [[0.8, 0.7, 0.5], [0.65, 0.72, 0.6]]
+    floor: [0.55, 0.42, 0.3]
+    furniture colour: [0.5, 0.38, 0.25]
+    height: 3.2
+
+# The places standing in the town, in the order they take their lots; a
+# place named twice stands twice (two crop farms).
+town: [grocery store, crop farm, crop farm, livestock barn, grain elevator, diner, pizza place, cafe, bar, pump house, substation, gas station, sewage pond, town dump, clinic, fire station, sheriff's office, school, town hall, church, cemetery, hardware store, mechanic's garage, general store]
