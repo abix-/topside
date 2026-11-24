@@ -689,12 +689,50 @@ pub const CAFE: modforge::plan::PlanDef = modforge::plan::PlanDef {
 };
 pub const BAKERY_CASE: &str = "bakery case";
 pub const BREAD: &str = "bread";
-pub const PLACES: [modforge::plan::PlanDef; 8] = [GROCERY_STORE, CROP_FARM, CROP_FARM, LIVESTOCK_BARN, GRAIN_ELEVATOR, DINER, PIZZA_PLACE, CAFE];
+/// Place 8: the bar, on main street: the barroom with its bar and
+/// tables, the pool room, the back room, the cellar store and the
+/// restroom.
+pub const BAR: modforge::plan::PlanDef = modforge::plan::PlanDef {
+    name: "bar",
+    edge: false,
+    columns: &[9.0, 6.0, 4.0],
+    rows: &[7.0, 5.0],
+    rooms: &[((0, 0), "barroom"), ((1, 0), "pool room"), ((2, 0), "restroom"), ((0, 1), "behind the bar"), ((1, 1), "back room"), ((2, 1), "beer store")],
+    ways: &[((0, 0), East, false), ((1, 0), East, true), ((0, 0), North, false), ((0, 1), East, true), ((1, 1), East, true)],
+    exits: &[((0, 0), South, 1.2), ((1, 1), North, 1.2)],
+    furniture: &[
+        ("barroom", [0.0, 0.4], [7.0, 1.1, 0.6]),
+        ("barroom", [-0.3, -0.1], [1.0, 0.75, 1.0]),
+        ("barroom", [0.2, -0.1], [1.0, 0.75, 1.0]),
+        ("pool room", [0.0, 0.0], [2.5, 0.85, 1.4]),
+        ("behind the bar", [0.0, -0.4], [7.0, 1.8, 0.5]),
+        ("back room", [0.0, 0.0], [1.4, 0.75, 1.0]),
+        ("restroom", [0.3, -0.3], [0.4, 0.8, 0.65]),
+    ],
+    things: &[
+        (CASH_REGISTER, "behind the bar", [0.4, 0.2]),
+        (LIQUOR_SHELF, "behind the bar", [-0.2, -0.2]),
+        (OFFICE_DESK, "back room", [0.3, -0.3]),
+        (PALLET, "beer store", [0.0, 0.0]),
+    ],
+    outside: &[],
+    walls: &[[0.35, 0.25, 0.2], [0.3, 0.32, 0.3]],
+    floor: [0.4, 0.28, 0.18],
+    furniture_color: [0.35, 0.22, 0.14],
+    height: 3.0,
+};
+pub const LIQUOR_SHELF: &str = "liquor shelf";
+pub const LIQUOR: &str = "bottle of liquor";
+pub const PLACES: [modforge::plan::PlanDef; 9] = [GROCERY_STORE, CROP_FARM, CROP_FARM, LIVESTOCK_BARN, GRAIN_ELEVATOR, DINER, PIZZA_PLACE, CAFE, BAR];
 /// The places whose garden beds are found sown and ripe, with what.
 pub const PLACE_SOWN: [(&str, &str); 1] = [("crop farm", POTATO_SEED)];
 /// What each place's boxes are found holding: the place, the box, the
 /// item and how many.
-pub const PLACE_HOLDS: [(&str, &str, &str, u32); 36] = [
+pub const PLACE_HOLDS: [(&str, &str, &str, u32); 40] = [
+    ("bar", CASH_REGISTER, "scrap", 2),
+    ("bar", LIQUOR_SHELF, LIQUOR, 6),
+    ("bar", OFFICE_DESK, "cloth", 1),
+    ("bar", PALLET, "water bottle", 6),
     ("cafe", CASH_REGISTER, "scrap", 1),
     ("cafe", BAKERY_CASE, BREAD, 6),
     ("cafe", PANTRY, GRAIN, 8),
@@ -2546,6 +2584,11 @@ pub fn register_items(reg: &mut ItemRegistry) {
         building(BUTCHER_BLOCK, "A butcher block.", ItemKind::Deployable, 1, Some(6)),
         building(FEED, "Animal feed.", ItemKind::Material, 20, None),
         building(BAKERY_CASE, "A bakery case.", ItemKind::Deployable, 1, Some(8)),
+        building(LIQUOR_SHELF, "The shelf behind the bar.", ItemKind::Deployable, 1, Some(8)),
+        ItemDef {
+            food: Some(FoodStats { hunger: 0.0, thirst: 5.0, health: -2.0 }),
+            ..building(LIQUOR, "A bottle of liquor.", ItemKind::Food, 4, None)
+        },
         ItemDef {
             food: Some(FoodStats { hunger: 20.0, thirst: -2.0, health: 2.0 }),
             ..building(BREAD, "A loaf of bread.", ItemKind::Food, 6, None)
