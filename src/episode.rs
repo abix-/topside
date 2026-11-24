@@ -260,6 +260,36 @@ pub fn place_things(
         let (Some(from), Some(to)) = (place(&thing.between.0), place(&thing.between.1)) else {
             continue;
         };
+        let middle = (from + to) / 2.0;
+        // In the town, the house nearest the middle (todo Town 5,
+        // topside-town "Why a town": "The first episode is in the town").
+        let house = world.world.town.as_ref().and_then(|town| town.house_nearest(middle).map(|i| town.lots[i].at));
+        if let Some(at) = house {
+            let thing_at = crate::structure::on_floor(at, 0.0);
+            let (made, id) = spawn_item(&mut commands, &mut ids, item_def, item::create(item_def, 1, &[], 0.0, 0), thing_at);
+            let store = thing.draws_from.as_deref().and_then(|part| episode.cast_as(part)).and_then(|id| people.iter().find(|(a, ..)| a.0 == id)).map(|(.., s)| s.0);
+            if let Some(store) = store {
+                commands.entity(made).insert(DrawsFrom(store));
+                let held = stores.get(store).map_or(0.0, |held| modforge::fluid::litres_in(&held.0));
+                commands.entity(store).insert(crate::interact::Drawn { held });
+            }
+            let ground = crate::on_ground(at, 0.0);
+            if let Some(finder) = thing.found_by.as_deref().and_then(|part| episode.cast_as(part))
+                && let Some((_, mut memory)) = memories.iter_mut().find(|(a, _)| a.0 == finder)
+            {
+                memory.0.memory.see(id.0, &thing.item, thing_at, tick.0);
+                memory.0.memory.visited(id.0, tick.0);
+                if thing.kept_quiet {
+                    memory.0.memory.keep_quiet(id.0);
+                }
+                memory.0.memory.see(site_key(at), TOWN_HOUSE, ground, tick.0);
+                memory.0.memory.visited(site_key(at), tick.0);
+            }
+            episode.things.push((thing.name.clone(), thing_at, id.0));
+            episode.things.push((format!("{} site", thing.name), ground, site_key(at)));
+            info!("{:?}: the {} stands in the town's house at {at}", episode.name, thing.name);
+            continue;
+        }
         let (biomes, monuments) = &registries;
         let r = modforge::world2d::Registries {
             biomes: &biomes.0,
@@ -274,7 +304,6 @@ pub fn place_things(
             .into_iter()
             .filter(|p| !p.rolled.members.is_empty())
             .collect();
-        let middle = (from + to) / 2.0;
         let Some(site) = sites.iter().min_by(|a, b| a.position.distance(middle).total_cmp(&b.position.distance(middle))) else {
             warn!("{:?}: no building between its places to put the {} in", episode.name, thing.name);
             episode.things.push((format!("no {}", thing.name), crate::on_ground(middle, 0.0), 0));
@@ -352,6 +381,10 @@ struct EpisodeFacts<'a> {
 /// How near the place an errand sends someone they have arrived, and how
 /// near a thing someone holding a place holds it, in metres.
 const ARRIVED: f32 = 4.0;
+
+/// What a town house an episode's thing stands in is known as, the
+/// {place} of "the way" (todo Town 5).
+const TOWN_HOUSE: &str = "house";
 
 /// How far from the bunker point, and how far below the ground, the player
 /// is home.
