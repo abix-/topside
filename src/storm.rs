@@ -83,6 +83,7 @@ pub fn storm(
     (episode, episodes, seed): (Res<Episode>, Res<EpisodeRegistryRes>, Res<WorldSeed>),
     shelters: Query<&Shelter>,
     mut actors: Query<(&Transform, &Protection, &Equipment, &mut Health, Option<&mut Persona>), Without<Dead>>,
+    mut events: ResMut<crate::event::EventsRes>,
 ) {
     let secs = Day::secs(&tick);
     if state.at.is_none() {
@@ -101,6 +102,14 @@ pub fn storm(
     let kills = kind.as_ref().is_none_or(|k| k.kills);
     // The deep storm reaches the bunkers' top level (todo "Storm effect 9").
     let deep = kind.as_ref().is_some_and(|k| k.does.contains(&modforge::storm::Effect::Deep));
+    // A storm that brings weather (the normal storm's rain) sets the one
+    // weather while it rages, as an event's does (src/event.rs).
+    if let (Some(weather), Some(at)) = (kind.as_ref().and_then(|k| k.weather), state.at)
+        && phase(&tick, *day, &state) == StormPhase::Storm
+        && events.weather(secs) != Some(weather)
+    {
+        events.lasting.push((modforge::event::Lasting::Weather(weather), at + day.storm().storm_secs));
+    }
     if kills
         && phase(&tick, *day, &state) == StormPhase::Storm
         && tick.0 % 60 == 0

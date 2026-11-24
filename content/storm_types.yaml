@@ -23,7 +23,7 @@
 # names, colours and odds are Claude's.
 types:
   # Rain and thunder; the next day everything is fine.
-  - {name: normal storm, warning: [0.2, 0.25, 0.35, 0.3], storm: [0.3, 0.35, 0.45, 0.6], kills: false, from_storm: 1, learned_by: normal storm study}
+  - {name: normal storm, warning: [0.2, 0.25, 0.35, 0.3], storm: [0.3, 0.35, 0.45, 0.6], kills: false, from_storm: 1, learned_by: normal storm study, weather: Rain}
   # Kills everyone on the surface; the world stays as it was.
   - {name: killing storm, warning: [0.7, 0.3, 0.05, 0.3], storm: [0.95, 0.93, 0.88, 0.85], learned_by: killing storm study}
   # Wipes the surface: the bunkers are moved to a new world made around
