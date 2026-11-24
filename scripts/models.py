@@ -3156,6 +3156,125 @@ def grain_hopper():
     return join(parts, "grain hopper")
 
 
+# -- the diner and the pizza place and every thing in them (todo Model 6, 7) ----
+#
+# Sizes are content's DINER and PIZZA_PLACE plans' (a booth 2 m by 1.2 m, the
+# lunch counter 3.5 m by 0.7 m and 1.1 m tall, the kitchen line 4 m, the
+# prep counter 3 m, the pizza place's tables 1 m square, its prep table
+# 4 m by 0.8 m, its oven 2 m by 1.2 m); the register, pantry, stove,
+# freezer, cooler and desks are the house's and the grocery's.
+
+
+def counter_run(name, length, depth, height, front, top):
+    """a counter of `length` on a plinth, its front panelled."""
+    parts = [box("body", (length, depth, height - 0.04), at=(0, 0, (height - 0.04) / 2), mat=front)]
+    parts.append(box("top", (length + 0.04, depth + 0.04, 0.04), at=(0, 0, height - 0.02), mat=top))
+    n = max(1, round(length / 0.8))
+    for i in range(n):
+        w = length / n
+        parts.append(box(f"panel {i}", (w - 0.06, 0.01, height - 0.25), at=(-length / 2 + w * (i + 0.5), -depth / 2 - 0.005, (height - 0.04) / 2), mat=top))
+    return parts
+
+
+def booth():
+    """a diner booth: a table between two red vinyl benches, 2 m long."""
+    c = store_colours()
+    vinyl = material("vinyl", (0.65, 0.12, 0.12))
+    parts = [box("table", (0.7, 1.2, 0.04), at=(0, 0, 0.74), mat=c["white"])]
+    parts.append(cylinder("post", 0.04, 0.72, sides=8, at=(0, 0, 0.36), mat=c["steel"]))
+    for s in (1, -1):
+        parts.append(box(f"seat {s}", (0.5, 1.2, 0.45), at=(s * 0.75, 0, 0.225), mat=vinyl))
+        parts.append(box(f"back {s}", (0.15, 1.2, 0.65), at=(s * 0.93, 0, 0.775), mat=vinyl))
+    return join(parts, "booth")
+
+
+def lunch_counter():
+    """the diner's counter: chrome trim and red stools along it, 3.5 m long."""
+    c = store_colours()
+    vinyl = material("vinyl", (0.65, 0.12, 0.12))
+    parts = counter_run("lunch counter", 3.5, 0.7, 1.1, c["white"], c["steel"])
+    for i in range(4):
+        x = -1.3 + 0.866 * i
+        parts.append(cylinder(f"stool post {i}", 0.03, 0.7, sides=8, at=(x, -0.65, 0.35), mat=c["steel"]))
+        parts.append(cylinder(f"stool {i}", 0.18, 0.08, sides=12, at=(x, -0.65, 0.74), mat=vinyl))
+    return join(parts, "lunch counter")
+
+
+def kitchen_line():
+    """the diner's cook line, 4 m: the griddle, the fryer and the warmer."""
+    c = store_colours()
+    parts = counter_run("kitchen line", 4.0, 0.7, 0.9, c["steel"], c["steel"])
+    parts.append(box("griddle", (1.2, 0.6, 0.04), at=(-1.2, 0, 0.92), mat=c["black"]))
+    parts.append(box("fryer", (0.5, 0.5, 0.12), at=(0.1, 0, 0.94), mat=c["dark steel"]))
+    parts.append(box("oil", (0.4, 0.4, 0.01), at=(0.1, 0, 1.0), mat=material("oil", (0.7, 0.55, 0.2))))
+    parts.append(box("warmer", (1.2, 0.3, 0.3), at=(1.2, 0.15, 1.2), mat=c["steel"]))
+    parts.append(box("hood", (4.0, 0.7, 0.4), at=(0, 0.05, 2.1), mat=c["steel"]))
+    return join(parts, "kitchen line")
+
+
+def prep_counter():
+    """a steel prep counter, 3 m, its cutting boards and bins."""
+    c = store_colours()
+    parts = counter_run("prep counter", 3.0, 0.7, 0.9, c["steel"], c["steel"])
+    parts.append(box("board", (0.6, 0.4, 0.03), at=(-0.8, 0, 0.915), mat=c["white"]))
+    for i in range(3):
+        parts.append(box(f"bin {i}", (0.3, 0.25, 0.12), at=(0.3 + 0.35 * i, 0.1, 0.96), mat=[c["green"], c["red"], c["yellow"]][i]))
+    return join(parts, "prep counter")
+
+
+def cafe_table():
+    """a square table, 1 m, with a chair at each side."""
+    c = store_colours()
+    parts = [box("top", (0.8, 0.8, 0.04), at=(0, 0, 0.74), mat=c["wood"])]
+    parts.append(cylinder("post", 0.04, 0.72, sides=8, at=(0, 0, 0.36), mat=c["black"]))
+    parts.append(box("foot", (0.45, 0.45, 0.03), at=(0, 0, 0.015), mat=c["black"]))
+    for i, (x, y) in enumerate([(0.42, 0), (-0.42, 0), (0, 0.42), (0, -0.42)]):
+        parts.append(box(f"seat {i}", (0.16, 0.16, 0.03), at=(x, y, 0.45), mat=c["red"]))
+        parts.append(cylinder(f"leg {i}", 0.02, 0.44, sides=6, at=(x, y, 0.22), mat=c["black"]))
+    return join(parts, "cafe table")
+
+
+def prep_table():
+    """the pizza place's make table, 4 m by 0.8 m: topping wells in a row, the
+    dough board, the cooler doors under it."""
+    c = store_colours()
+    parts = counter_run("prep table", 4.0, 0.8, 0.9, c["steel"], c["steel"])
+    for i in range(8):
+        parts.append(box(f"well {i}", (0.3, 0.2, 0.06), at=(-1.75 + 0.5 * i, 0.25, 0.93),
+                         mat=[c["red"], c["yellow"], c["green"], c["white"]][i % 4]))
+    parts.append(box("board", (1.4, 0.4, 0.03), at=(0.6, -0.1, 0.915), mat=c["wood"]))
+    parts.append(cylinder("dough", 0.18, 0.02, sides=14, at=(0.6, -0.1, 0.94), mat=material("dough", (0.92, 0.85, 0.7))))
+    return join(parts, "prep table")
+
+
+def pizza_oven():
+    """a deck pizza oven, 2 m by 1.2 m: two steel decks stacked on legs, their
+    doors and the flue."""
+    c = store_colours()
+    parts = []
+    for k in range(2):
+        z = 0.5 + 0.38 * k
+        parts.append(box(f"deck {k}", (2.0, 1.2, 0.34), at=(0, 0, z), mat=c["steel"]))
+        parts.append(box(f"door {k}", (1.6, 0.02, 0.18), at=(0, -0.61, z), mat=c["dark steel"]))
+        parts.append(box(f"handle {k}", (1.2, 0.04, 0.03), at=(0, -0.64, z + 0.06), mat=c["black"]))
+    for sx in (1, -1):
+        for sy in (1, -1):
+            parts.append(box(f"leg {sx} {sy}", (0.06, 0.06, 0.33), at=(sx * 0.95, sy * 0.55, 0.165), mat=c["dark steel"]))
+    parts.append(cylinder("flue", 0.1, 0.6, sides=10, at=(0.7, 0.4, 1.35), mat=c["dark steel"]))
+    return join(parts, "pizza oven")
+
+
+EATERIES = {
+    "booth": booth,
+    "lunch counter": lunch_counter,
+    "kitchen line": kitchen_line,
+    "prep counter": prep_counter,
+    "cafe table": cafe_table,
+    "prep table": prep_table,
+    "pizza oven": pizza_oven,
+}
+
+
 ELEVATOR = {
     "feed aisle": feed_aisle,
     "grain bin": grain_bin,
@@ -3222,6 +3341,7 @@ MODELS = {
     **FARM,
     **BARN,
     **ELEVATOR,
+    **EATERIES,
     "tree": tree,
     "rock": rock,
     # The wasteland's and the ruins' scatter, at their largest side as

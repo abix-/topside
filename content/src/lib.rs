@@ -625,7 +625,8 @@ pub const GRAIN: &str = "grain";
 pub const DINER: modforge::plan::PlanDef = modforge::plan::PlanDef {
     name: "diner",
     edge: false,
-    furniture_models: &[],
+    // Each drawn as its own model (todo Model 6; scripts/models.py).
+    furniture_models: &["booth", "booth", "booth", "lunch counter", "kitchen line", "prep counter", "work desk", "toilet"],
     columns: &[10.0, 5.0, 4.0],
     rows: &[8.0, 6.0],
     rooms: &[((0, 0), "dining room"), ((1, 0), "counter"), ((2, 0), "restroom"), ((0, 1), "kitchen"), ((1, 1), "cooler"), ((2, 1), "office")],
