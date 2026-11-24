@@ -64,6 +64,11 @@ pub fn expose(
     // a person.
     let mut weathers: Vec<(u16, modforge::weather::Weather)> = Vec::new();
     let mut near: Vec<(f32, f32, f32)> = Vec::with_capacity(heat.len());
+    // The heat by where it stands, and the farthest any reaches: each
+    // person looks only at the heat whose cells their reach covers.
+    let heat_at = crate::ai::Near::new(heat.iter().map(|h| h.0));
+    let farthest = heat.iter().map(|h| h.2).fold(0.0, f32::max);
+    let mut heat_near: Vec<usize> = Vec::new();
     // A tile's biome is the world's noise, the same for the whole world:
     // kept by tile until the world is rolled again (bounded by the tiles
     // people stand on).
@@ -95,7 +100,8 @@ pub fn expose(
         // Near a fire, a furnace or an AC, and wrapped in a blanket: only
         // the ones in reach warm (modforge `warmth_near`).
         near.clear();
-        near.extend(heat.iter().map(|(p, h, r)| (p.distance(at.translation), *h, *r)).filter(|(far, _, reach)| far < reach));
+        heat_at.within(at.translation, farthest, &mut heat_near);
+        near.extend(heat_near.iter().map(|&i| &heat[i]).map(|(p, h, r)| (p.distance(at.translation), *h, *r)).filter(|(far, _, reach)| far < reach));
         let blanket = if carried.is_some_and(|i| i.0.count_of(crate::content::BLANKET) > 0) { crate::content::BLANKET_WARMTH } else { 0.0 };
         let air = base_air + weather.map_or(0.0, |w| w.air()) + modforge::exposure::warmth_near(&near) + blanket;
         let base_radiation = if storm && !inside { STORM_RADIATION } else { 0.0 };
