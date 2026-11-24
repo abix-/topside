@@ -918,16 +918,29 @@ pub fn render_vitals(
     world: Option<Res<crate::terrain::WorldRes>>,
     biomes: Res<crate::content::BiomeRegistryRes>,
     mut texts: Query<&mut Text, With<VitalsText>>,
+    (seed, researched): (Res<crate::WorldSeed>, Res<crate::research::Researched>),
 ) {
     let (Ok((health, needs, exposure, at)), Ok(mut text)) = (players.single(), texts.single_mut()) else {
         return;
     };
-    let time = match crate::storm::phase(&tick, *day, &storms) {
+    let phase = crate::storm::phase(&tick, *day, &storms);
+    let time = match phase {
         StormPhase::Storm => "THE STORM",
         StormPhase::Warning => "The sky has changed",
         StormPhase::Calm if first_sky_change(&tick) => "The sky has changed",
         StormPhase::Calm if crate::survival::night(&tick, *day, &reality) => "Night",
         StormPhase::Calm => "Day",
+    };
+    // What the coming storm does, only once its research is done (todo
+    // "Storm 6"); until then the player knows nothing about it.
+    let known = researched.0.get(&crate::research::group_of(true, None));
+    let learned = crate::storm_type::coming(&storms, &seed)
+        .filter(|_| phase != StormPhase::Calm)
+        .filter(|k| k.learned_by.as_deref().is_some_and(|t| known.is_some_and(|known| known.level(t) > 0)))
+        .map(|k| k.says());
+    let time = match learned {
+        Some(says) => format!("{time}: {says}"),
+        None => time.to_string(),
     };
     // Temperature and radiation (todo 20) beside hunger and thirst.
     let exposure = exposure.map(|e| e.0).unwrap_or_default();

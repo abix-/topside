@@ -50,6 +50,15 @@ topics:
   - {name: semi automatics, tier: 3, cost: [[high quality metal, 8], [metal spring, 2]], needs: [pistols, refining], unlocks: [semi automatic body, semi automatic pistol]}
   - {name: rifles, tier: 3, cost: [[high quality metal, 8], [gears, 4]], needs: [refining, machining], unlocks: [rifle body, hunting rifle, rifle ammo]}
 
+  # The storms, each taught by its own study (todo "Storm 6",
+  # topside-town "The storms": "You don't understand the storm until you
+  # get to research down"); content/storm_types.yaml names them. Costs
+  # and needs are Claude's.
+  - {name: still storm study, cost: [[scrap, 10], [note, 1]]}
+  - {name: shift storm study, cost: [[scrap, 20], [note, 2]], needs: [still storm study]}
+  - {name: green storm study, cost: [[scrap, 20], [note, 2]], needs: [still storm study]}
+  - {name: red storm study, cost: [[scrap, 20], [note, 2]], needs: [still storm study]}
+
   # Tier 4: what raiders fear.
   - {name: assault weapons, tier: 4, cost: [[high quality metal, 20], [gears, 10]], needs: [semi automatics, rifles], unlocks: [semi automatic rifle]}
   - {name: demolition, tier: 4, cost: [[gunpowder, 50], [high quality metal, 10]], needs: [black powder, refining], unlocks: [explosives]}
