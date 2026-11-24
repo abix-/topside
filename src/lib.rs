@@ -30,6 +30,7 @@ pub mod player;
 pub mod prisoner;
 pub mod profile;
 pub mod radio;
+pub mod sound;
 pub mod raid;
 pub mod turret;
 pub mod weather;
@@ -385,6 +386,7 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind, port: u16
                         anomaly::flare,
                         secrets::place,
                         radio::clicks,
+                        sound::far_sounds,
                         episode::cast_episode,
                         episode::name_the_cast,
                         episode::place_things,
