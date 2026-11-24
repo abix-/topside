@@ -249,6 +249,13 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind, port: u16
     // moved by `player::movement`; everything else is static), so the
     // solver's substeps have nothing to solve: one, not Avian's six.
     app.insert_resource(avian3d::prelude::SubstepCount(1));
+    // Avian keeps its collider trees good by default on the shared async
+    // pool, cloning each tree with a moved collider, and the step waits for
+    // it at its end; that pool also builds the chunk meshes and Bevy's
+    // pipelines, so after a load the step waited up to 120 ms behind them
+    // for a reinsert of under 50 colliders (bench, 2026-11-24). Done in
+    // place in the step instead: Avian's own setting.
+    app.insert_resource(avian3d::collider_tree::ColliderTreeOptimization { use_async_tasks: false, ..default() });
     // Before each physics step Avian needs every body's GlobalTransform
     // current (its transform_to_position reads it), and by default it
     // propagates every transform tree to get it: a person who moved has
