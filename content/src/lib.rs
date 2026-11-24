@@ -517,12 +517,59 @@ pub const CROP_FARM: modforge::plan::PlanDef = modforge::plan::PlanDef {
     height: 3.0,
 };
 pub const SEED_BIN: &str = "seed bin";
-pub const PLACES: [modforge::plan::PlanDef; 3] = [GROCERY_STORE, CROP_FARM, CROP_FARM];
+/// Place 3: the livestock barn, at the edge of town: the stalls, the
+/// hayloft's floor, the milk room, the tack room and the chicken coop.
+pub const LIVESTOCK_BARN: modforge::plan::PlanDef = modforge::plan::PlanDef {
+    name: "livestock barn",
+    edge: true,
+    columns: &[5.0, 8.0, 5.0],
+    rows: &[8.0, 5.0],
+    rooms: &[((0, 0), "tack room"), ((1, 0), "stalls"), ((2, 0), "milk room"), ((0, 1), "chicken coop"), ((1, 1), "hay store"), ((2, 1), "butchery")],
+    ways: &[((0, 0), East, true), ((1, 0), East, true), ((1, 0), North, false), ((0, 1), East, true), ((1, 1), East, true)],
+    exits: &[((1, 0), South, 3.5), ((1, 1), North, 3.0)],
+    furniture: &[
+        ("stalls", [-0.35, 0.0], [0.2, 1.4, 6.0]),
+        ("stalls", [0.35, 0.0], [0.2, 1.4, 6.0]),
+        ("tack room", [0.0, -0.4], [3.0, 1.8, 0.5]),
+        ("milk room", [0.0, -0.3], [1.5, 1.0, 0.8]),
+        ("chicken coop", [0.0, -0.35], [3.5, 1.0, 1.0]),
+        ("hay store", [0.0, 0.0], [5.0, 1.5, 2.0]),
+        ("butchery", [0.0, -0.3], [2.0, 0.9, 0.8]),
+    ],
+    things: &[
+        (FEED_TROUGH, "stalls", [0.0, -0.3]),
+        (TOOLBOX, "tack room", [0.3, 0.2]),
+        (MILK_CAN, "milk room", [0.0, 0.2]),
+        (NEST_BOX, "chicken coop", [0.0, 0.2]),
+        (HAY_BALE, "hay store", [0.3, 0.3]),
+        (BUTCHER_BLOCK, "butchery", [0.0, 0.2]),
+    ],
+    outside: &[],
+    walls: &[[0.62, 0.22, 0.18], [0.55, 0.45, 0.35]],
+    floor: [0.45, 0.38, 0.3],
+    furniture_color: [0.5, 0.38, 0.25],
+    height: 4.5,
+};
+pub const FEED_TROUGH: &str = "feed trough";
+pub const MILK_CAN: &str = "milk can";
+pub const NEST_BOX: &str = "nest box";
+pub const HAY_BALE: &str = "hay bale";
+pub const BUTCHER_BLOCK: &str = "butcher block";
+pub const EGG: &str = "egg";
+pub const MILK: &str = "milk";
+pub const FEED: &str = "animal feed";
+pub const PLACES: [modforge::plan::PlanDef; 4] = [GROCERY_STORE, CROP_FARM, CROP_FARM, LIVESTOCK_BARN];
 /// The places whose garden beds are found sown and ripe, with what.
 pub const PLACE_SOWN: [(&str, &str); 1] = [("crop farm", POTATO_SEED)];
 /// What each place's boxes are found holding: the place, the box, the
 /// item and how many.
-pub const PLACE_HOLDS: [(&str, &str, &str, u32); 13] = [
+pub const PLACE_HOLDS: [(&str, &str, &str, u32); 19] = [
+    ("livestock barn", FEED_TROUGH, FEED, 6),
+    ("livestock barn", TOOLBOX, "cloth", 2),
+    ("livestock barn", MILK_CAN, MILK, 4),
+    ("livestock barn", NEST_BOX, EGG, 6),
+    ("livestock barn", HAY_BALE, FEED, 10),
+    ("livestock barn", BUTCHER_BLOCK, RAW_MEAT, 4),
     ("crop farm", PANTRY, "canned food", 2),
     ("crop farm", OFFICE_DESK, "cloth", 1),
     ("crop farm", TOOLBOX, WRENCH, 1),
@@ -2344,6 +2391,20 @@ pub fn register_items(reg: &mut ItemRegistry) {
         building(WALK_IN_COOLER, "A walk-in cooler.", ItemKind::Deployable, 1, Some(16)),
         building(OFFICE_DESK, "An office desk.", ItemKind::Deployable, 1, Some(6)),
         building(SEED_BIN, "A bin of seed.", ItemKind::Deployable, 1, Some(8)),
+        building(FEED_TROUGH, "A feed trough.", ItemKind::Deployable, 1, Some(6)),
+        building(MILK_CAN, "A milk can.", ItemKind::Deployable, 1, Some(4)),
+        building(NEST_BOX, "A row of nest boxes.", ItemKind::Deployable, 1, Some(6)),
+        building(HAY_BALE, "A hay bale.", ItemKind::Deployable, 1, Some(10)),
+        building(BUTCHER_BLOCK, "A butcher block.", ItemKind::Deployable, 1, Some(6)),
+        building(FEED, "Animal feed.", ItemKind::Material, 20, None),
+        ItemDef {
+            food: Some(FoodStats { hunger: 8.0, thirst: 0.0, health: 1.0 }),
+            ..building(EGG, "An egg. Better cooked.", ItemKind::Food, 12, None)
+        },
+        ItemDef {
+            food: Some(FoodStats { hunger: 6.0, thirst: 15.0, health: 1.0 }),
+            ..building(MILK, "A jug of milk.", ItemKind::Food, 4, None)
+        },
         building(TRASH_CAN, "A trash can. The truck takes what is in it to the dump.", ItemKind::Deployable, 1, Some(6)),
         building(DUMP_PILE, "A pile of the town's junk.", ItemKind::Deployable, 1, Some(24)),
         building(EXTINGUISHER, "A fire extinguisher. Puts out the fires near.", ItemKind::Tool, 1, None),
