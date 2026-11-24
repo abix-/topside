@@ -192,7 +192,9 @@ fn lay_down_history(
             continue;
         }
         if let Some((.., mut at, _, _, _, _, _)) = people.iter_mut().find(|p| p.0.0.0 == f.id) {
-            at.translation = crate::on_ground(place(end, f.id), 0.0);
+            // Their height kept: the body stands as `settle` stood it.
+            let to = place(end, f.id);
+            at.translation = crate::on_ground(to, at.translation.y);
         }
     }
     let kill = damage.0.def("kill");
