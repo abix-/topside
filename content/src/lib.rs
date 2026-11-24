@@ -257,6 +257,13 @@ pub const SINK: &str = "sink";
 pub const SHOWER: &str = "shower";
 pub const TOILET: &str = "toilet";
 pub const WATER_TOWER: &str = "water tower";
+/// A house's medicine cabinet and what it is found holding (topside-town
+/// "Everything works": "medicine cabinets ... and first aid kits treat
+/// wounds"; Project Zomboid's). What it holds and the kit's healing are
+/// Claude's.
+pub const MEDICINE_CABINET: &str = "medicine cabinet";
+pub const FIRST_AID_KIT: &str = "first aid kit";
+pub const CABINET_HOLDS: [(&str, u32); 2] = [("bandage", 2), (FIRST_AID_KIT, 1)];
 /// Soap carried doubles what a wash takes off (modforge hygiene).
 pub const SOAP: &str = "soap";
 /// How much the tower holds, in water barrels of 200 litres: 50, 10,000
@@ -1967,7 +1974,12 @@ pub fn register_items(reg: &mut ItemRegistry) {
         building(THERMOSTAT, "The house's thermostat. On, the furnace and the air conditioner run.", ItemKind::Deployable, 1, None),
         building(COUCH, "A couch. Use it to sleep on; a bed rests better.", ItemKind::Source, 1, None),
         building(SLEEPING_BAG, "A sleeping bag. Carried, sleeping off a bed rests better.", ItemKind::Material, 1, None),
-        building(SOAP, "A bar of soap. Carried, a wash gets you twice as clean.", ItemKind::Material, 5, None),
+        building(MEDICINE_CABINET, "A medicine cabinet over the bathroom sink.", ItemKind::Deployable, 1, Some(6)),
+        ItemDef {
+            food: Some(FoodStats { hunger: 0.0, thirst: 0.0, health: 60.0 }),
+            ..building(FIRST_AID_KIT, "A first aid kit. Use it to treat bad wounds.", ItemKind::Medicine, 3, None)
+        },
+        building(SOAP,"A bar of soap. Carried, a wash gets you twice as clean.", ItemKind::Material, 5, None),
         building(PANTRY, "A kitchen pantry. Food keeps here as it would anywhere.", ItemKind::Deployable, 1, Some(12)),
         building(FRIDGE, "A fridge. With power, food in it keeps four times as long.", ItemKind::Deployable, 1, Some(12)),
         building(FREEZER, "A freezer. With power, food in it does not spoil.", ItemKind::Deployable, 1, Some(12)),
