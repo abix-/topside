@@ -371,11 +371,6 @@ pub fn channel_of(thing: &str) -> Option<&'static [modforge::broadcast::Programm
         _ => None,
     }
 }
-pub const LETTERS: [&str; 3] = [
-    "Final notice. Your account is past due. Service will be cut off.",
-    "Dear neighbour, the block party is cancelled. Keep the kids in. Something is wrong with the sky.",
-    "If you find this, we went down to the shelter by the school. Come find us.",
-];
 /// Trash (topside-town "Everything works": "trash cans, the dump, septic
 /// and sewage"; Project Zomboid's bins): each house's trash can at the
 /// street; once a day at 6 the truck empties every can into the dump's
@@ -441,15 +436,6 @@ pub const PLACE_LOCKS: [(&str, u32); 1] = [(GUN_LOCKER, ARMORY_LOCK)];
 pub const MAIL_SACK: &str = "mail sack";
 pub const RECORDS_CABINET: &str = "records cabinet";
 pub const GRAVE: &str = "grave";
-/// What the graves' stones say, in turn. Every word is Claude's.
-pub const EPITAPHS: [&str; 6] = [
-    "Walter Pruitt. 1931 - 2004. He kept the elevator running.",
-    "Ada May Larkin. Beloved mother. Gone to her rest.",
-    "Here lies a stranger, found on the county road. Known to God.",
-    "Tom and Ruth Ecker. Together, as they were.",
-    "Danny Sheldrake. 1988 - 1997. Our boy.",
-    "Reverend Hal Ostrowski. He married half this town and buried the rest.",
-];
 
 /// Where the town's places are: content/places.yaml, each place a
 /// blueprint (modforge `plan::PlanDef`) keyed by its name, and `town`
@@ -496,114 +482,11 @@ pub const USUAL_TIERS: [(&str, u32); 9] = [
     ("fire station", 2),
 ];
 pub const PLACE_SOWN:[(&str, &str); 1] = [("crop farm", POTATO_SEED)];
-/// What each place's boxes are found holding: the place, the box, the
-/// item and how many.
-pub const PLACE_HOLDS: [(&str, &str, &str, u32); 104] = [
-    ("general store", SHELF, "canned food", 4),
-    ("general store", SHELF, "bandage", 2),
-    ("general store", SHELF, MATCHES, 2),
-    ("general store", SHELF, FLASHLIGHT, 1),
-    ("general store", CASH_REGISTER, "scrap", 2),
-    ("general store", PALLET, "water bottle", 8),
-    ("general store", DRESSER, "cloth", 3),
-    ("mechanic's garage", TOOLBOX, WRENCH, 2),
-    ("mechanic's garage", CASH_REGISTER, "scrap", 2),
-    ("mechanic's garage", SHELF, FUEL, 2),
-    ("mechanic's garage", SHELF, "pipe", 4),
-    ("mechanic's garage", PALLET, "scrap", 10),
-    ("hardware store", SHELF, HAMMER, 2),
-    ("hardware store", SHELF, WRENCH, 2),
-    ("hardware store", SHELF, "rope", 4),
-    ("hardware store", SHELF, MATCHES, 3),
-    ("hardware store", CASH_REGISTER, "scrap", 2),
-    ("hardware store", PALLET, WOOD, 20),
-    ("hardware store", PALLET, "pipe", 6),
-    ("cemetery", TOOLBOX, "rope", 1),
-    ("cemetery", TOOLBOX, "scrap", 2),
-    ("church", OFFICE_DESK, MATCHES, 1),
-    ("church", CLOSET, BLANKET, 2),
-    ("church", PANTRY, "canned food", 6),
-    ("church", PANTRY, "water bottle", 4),
-    ("church", SHELF, CANDLE, 4),
-    ("town hall", CASH_REGISTER, "scrap", 1),
-    ("town hall", OFFICE_DESK, "cloth", 1),
-    ("town hall", RECORDS_CABINET, "cloth", 2),
-    ("school", OFFICE_DESK, "cloth", 1),
-    ("school", MEDICINE_CABINET, "bandage", 4),
-    ("school", PANTRY, "canned food", 8),
-    ("school", SHELF, "rope", 2),
-    ("school", TOOLBOX, SOAP, 3),
-    ("school", TOOLBOX, WRENCH, 1),
-    ("sheriff's office", OFFICE_DESK, "cloth", 1),
-    ("sheriff's office", SHERIFFS_DESK, ARMORY_KEY, 1),
-    ("sheriff's office", GUN_LOCKER, "shotgun shell", 16),
-    ("sheriff's office", GUN_LOCKER, FLASHLIGHT, 1),
-    ("sheriff's office", SHELF, "scrap", 3),
-    ("fire station", GEAR_LOCKER, "road sign vest", 2),
-    ("fire station", GEAR_LOCKER, FLASHLIGHT, 2),
-    ("fire station", PANTRY, "canned food", 4),
-    ("clinic", OFFICE_DESK, "cloth", 1),
-    ("clinic", PHARMACY_SHELF, "bandage", 5),
-    ("clinic", PHARMACY_SHELF, FIRST_AID_KIT, 3),
-    ("clinic", CASH_REGISTER, "scrap", 1),
-    ("clinic", MEDICINE_CABINET, "bandage", 3),
-    ("clinic", MEDICINE_CABINET, SOAP, 2),
-    ("town dump", OFFICE_DESK, "cloth", 1),
-    ("town dump", TOOLBOX, "scrap", 4),
-    ("sewage pond", TOOLBOX, WRENCH, 1),
-    ("sewage pond", TOOLBOX, "pipe", 2),
-    ("gas station", SHELF, "canned food", 3),
-    ("gas station", SHELF, "water bottle", 3),
-    ("gas station", CASH_REGISTER, "scrap", 2),
-    ("gas station", TOOLBOX, WRENCH, 1),
-    ("gas station", PALLET, PROPANE_TANK, 2),
-    ("substation", OFFICE_DESK, "cloth", 1),
-    ("substation", TOOLBOX, WRENCH, 1),
-    ("substation", TRANSFORMER, "scrap", 6),
-    ("pump house", OFFICE_DESK, "cloth", 1),
-    ("pump house", TOOLBOX, WRENCH, 1),
-    ("pump house", PALLET, "pipe", 4),
-    ("bar", CASH_REGISTER, "scrap", 2),
-    ("bar", LIQUOR_SHELF, LIQUOR, 6),
-    ("bar", OFFICE_DESK, "cloth", 1),
-    ("bar", PALLET, "water bottle", 6),
-    ("cafe", CASH_REGISTER, "scrap", 1),
-    ("cafe", BAKERY_CASE, BREAD, 6),
-    ("cafe", PANTRY, GRAIN, 8),
-    ("pizza place", CASH_REGISTER, "scrap", 1),
-    ("pizza place", PANTRY, GRAIN, 4),
-    ("pizza place", PANTRY, "canned food", 3),
-    ("pizza place", FREEZER, FROZEN_PIZZA, 6),
-    ("diner", CASH_REGISTER, "scrap", 2),
-    ("diner", PANTRY, "canned food", 4),
-    ("diner", PANTRY, EGG, 6),
-    ("diner", WALK_IN_COOLER, RAW_MEAT, 6),
-    ("diner", OFFICE_DESK, "cloth", 1),
-    ("grain elevator", SHELF, FEED, 8),
-    ("grain elevator", CASH_REGISTER, "scrap", 2),
-    ("grain elevator", PALLET, FEED, 16),
-    ("grain elevator", GRAIN_HOPPER, GRAIN, 20),
-    ("grain elevator", SHELF, CARROT_SEED, 6),
-    ("livestock barn", FEED_TROUGH, FEED, 6),
-    ("livestock barn", TOOLBOX, "cloth", 2),
-    ("livestock barn", MILK_CAN, MILK, 4),
-    ("livestock barn", NEST_BOX, EGG, 6),
-    ("livestock barn", HAY_BALE, FEED, 10),
-    ("livestock barn", BUTCHER_BLOCK, RAW_MEAT, 4),
-    ("crop farm", PANTRY, "canned food", 2),
-    ("crop farm", OFFICE_DESK, "cloth", 1),
-    ("crop farm", TOOLBOX, WRENCH, 1),
-    ("crop farm", SEED_BIN, CARROT_SEED, 10),
-    ("crop farm", SEED_BIN, POTATO_SEED, 10),
-    ("grocery store", SHELF, "canned food", 6),
-    ("grocery store", SHELF, "water bottle", 4),
-    ("grocery store", SHELF, SOAP, 2),
-    ("grocery store", CASH_REGISTER, "scrap", 2),
-    ("grocery store", OFFICE_DESK, "cloth", 1),
-    ("grocery store", PALLET, "canned food", 12),
-    ("grocery store", WALK_IN_COOLER, RAW_MEAT, 6),
-    ("grocery store", PALLET, CARROT_SEED, 4),
-];
+/// What each place's boxes are found holding: content/place_holds.yaml's
+/// `place holds`, each row the place, the box, the item and how many.
+pub const PLACE_HOLDS_FILE: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/place_holds.yaml");
+pub static PLACE_HOLDS: std::sync::LazyLock<Vec<(String, String, String, u32)>> =
+    std::sync::LazyLock::new(|| read_list(PLACE_HOLDS_FILE, "place holds"));
 /// The things of places that are crafting stations, not boxes.
 pub const PLACE_STATIONS: [(&str, modforge::crafting::StationKind); 2] = [(STOVE, modforge::crafting::StationKind::Stove), (GARAGE_WORKBENCH, modforge::crafting::StationKind::CraftingBench)];
 pub const TRASH_CAN: &str = "trash can";
@@ -1017,13 +900,21 @@ pub fn plain_lines() -> Vec<LineDef> {
 /// `LINES_FILE`.
 pub const AGREES_TO_STAY: &str = "agrees to stay";
 
-/// The names people are given (everybody has a name; operator,
-/// 2026-09-27), one rolled for each person from who they are.
-pub const PERSON_NAMES: [&str; 40] = [
-    "Abel", "Ada", "Amos", "Bea", "Bram", "Cass", "Cole", "Dana", "Dex", "Edie", "Eli", "Faye", "Finn", "Gus",
-    "Hana", "Hank", "Ida", "Ike", "Jada", "Jude", "Kit", "Lena", "Lou", "Mae", "Milo", "Nell", "Ned", "Opal",
-    "Otis", "Pearl", "Quinn", "Rhea", "Rudy", "Sage", "Silas", "Tess", "Tobias", "Vera", "Wade", "Zelda",
-];
+/// The words found in the town: content/words.yaml's `words`, the names
+/// people are given (everybody has a name; operator, 2026-09-27), the
+/// letters and the epitaphs.
+pub const WORDS_FILE: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/words.yaml");
+
+/// What `WORDS_FILE` holds.
+#[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Words {
+    pub names: Vec<String>,
+    pub letters: Vec<String>,
+    pub epitaphs: Vec<String>,
+}
+
+pub static WORDS: std::sync::LazyLock<Words> = std::sync::LazyLock::new(|| read(WORDS_FILE, "words"));
 
 /// The reality registry as an app resource: the storm hands over one of
 /// these (realities.md).

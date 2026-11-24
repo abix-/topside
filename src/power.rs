@@ -258,7 +258,8 @@ pub fn populate_town_power(
             let mut held = modforge::item::Inventory::new(items.0.def(kind).and_then(|d| d.storage).unwrap_or(0));
             if let Some(def) = letter {
                 let mut stack = modforge::item::create(def, 1, &[], 0.0, 0);
-                let words = crate::content::LETTERS[house % crate::content::LETTERS.len()];
+                let letters = &crate::content::WORDS.letters;
+                let words = &letters[house % letters.len()];
                 stack.note = Some(modforge::item::Note { text: words.to_string(), signed: String::new() });
                 let _ = held.add(stack, 1);
             }
@@ -278,7 +279,8 @@ pub fn populate_town_power(
         if let (true, Some(def)) = (thing == crate::content::GRAVE, items.0.def(thing)) {
             if let Some(grave) = make(&mut commands, thing, at, Some(InteractKind::Read)) {
                 let mut stack = modforge::item::create(def, 1, &[], 0.0, 0);
-                let words = crate::content::EPITAPHS[graves % crate::content::EPITAPHS.len()];
+                let epitaphs = &crate::content::WORDS.epitaphs;
+                let words = &epitaphs[graves % epitaphs.len()];
                 stack.note = Some(modforge::item::Note { text: words.to_string(), signed: String::new() });
                 commands.entity(grave).insert(crate::interact::WorldItem { stack });
                 graves += 1;
@@ -332,7 +334,7 @@ pub fn populate_town_power(
         // The post office's mail sack, found holding the town's letters
         // (Works 16).
         if let (true, Some(def)) = (thing == crate::content::MAIL_SACK, letter) {
-            for words in crate::content::LETTERS {
+            for words in &crate::content::WORDS.letters {
                 let mut stack = modforge::item::create(def, 1, &[], 0.0, 0);
                 stack.note = Some(modforge::item::Note { text: words.to_string(), signed: String::new() });
                 let _ = held.add(stack, 1);
@@ -346,9 +348,9 @@ pub fn populate_town_power(
                 }
             }
         }
-        for &(_, _, item, count) in crate::content::PLACE_HOLDS.iter().filter(|(p, t, ..)| *p == place && *t == thing) {
+        for (_, _, item, count) in crate::content::PLACE_HOLDS.iter().filter(|(p, t, ..)| *p == place && *t == thing) {
             if let Some(def) = items.0.def(item) {
-                let _ = held.add(modforge::item::create(def, count, &[], 0.0, 0), def.max_stack);
+                let _ = held.add(modforge::item::create(def, *count, &[], 0.0, 0), def.max_stack);
             }
         }
         commands.entity(made).insert(Container(held));

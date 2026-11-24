@@ -396,7 +396,7 @@ pub fn spawn_person(
     // Everybody has a name (operator, 2026-09-27), rolled from who they
     // are: their Persona's, with Bevy's `Name` the entity's label for
     // Bevy's own tools.
-    let name = modforge::actor::roll_name(&crate::content::PERSON_NAMES, id, spawn.seed.0);
+    let name = modforge::actor::roll_name(&crate::content::WORDS.names.iter().map(String::as_str).collect::<Vec<_>>(), id, spawn.seed.0);
     spawn.commands.entity(entity).insert(Name::new(name.clone()));
     // Who they are: the one Persona, its appearance their body (Claude's).
     let persona = modforge::persona::Persona {
