@@ -523,8 +523,17 @@ pub fn populate_monuments(
 ) {
     let (world, biomes) = land;
     let due = std::mem::take(&mut monuments.1);
+    if due.is_empty() {
+        return;
+    }
+    // The boxes by ground cell (`ai::Near`), so each monument looks only
+    // at those round it.
+    let all: Vec<(u64, Vec3, &str)> = boxes.iter().map(|(id, t, item)| (id.0, t.translation, item.stack.item.as_str())).collect();
+    let near = crate::ai::Near::new(all.iter().map(|(_, at, _)| *at));
+    let mut round = Vec::new();
     for (at, monument) in due.into_iter().filter_map(|i| monuments.0.get(i)) {
-        let known = home_knowledge(*at, &monument.kind, &boxes, tick.0);
+        near.within(on_ground(*at, 0.0), HOME_BOXES_WITHIN, &mut round);
+        let known = home_knowledge(*at, &monument.kind, round.iter().map(|&i| all[i]), tick.0);
         for (k, spot) in monument.npc_spots.iter().enumerate() {
             // A spot with no danger is the biome's own people; a dangerous
             // one is by its danger (todo 33; Claude's split).
@@ -576,12 +585,8 @@ pub fn populate_topside_people(
         // are the people living in its houses (topside-town "The houses").
         let seed = modforge::ground::tile_hash(world.seed, modforge::walk::cell_of(at), 0xB10E + k as u64);
         let in_town = world.world.town.as_ref().is_some_and(|t| t.covers(at));
-        let name = if in_town {
-            name
-        } else {
-            crate::biome::who(crate::biome::at(&world, &biomes, at), &name, &registry, seed).to_string()
-        };
-        let Some(def) = registry.0.def(&name) else {
+        let name: &str = if in_town { &name } else { crate::biome::who(crate::biome::at(&world, &biomes, at), &name, &registry, seed) };
+        let Some(def) = registry.0.def(name) else {
             continue;
         };
         let Some(npc) = settle(&mut spawn, def, on_ground(at, 0.0), &known) else {
@@ -608,19 +613,15 @@ pub fn populate_topside_people(
 
 /// What someone found at the monument at `at` (of type `kind`) knows
 /// from the start: the place (by its site's key), and every box there,
-/// seen but not looked inside.
-pub fn home_knowledge(
-    at: Vec2,
-    kind: &str,
-    boxes: &Query<(&ThingId, &Transform, &WorldItem), With<Container>>,
-    now: u64,
-) -> modforge::memory::Memory {
+/// seen but not looked inside. `boxes` are those that may be near (each
+/// its id, where it rests and what it is); the distance is checked here.
+pub fn home_knowledge<'a>(at: Vec2, kind: &str, boxes: impl Iterator<Item = (u64, Vec3, &'a str)>, now: u64) -> modforge::memory::Memory {
     let mut known = modforge::memory::Memory::default();
     known.see(site_key(at), kind, on_ground(at, 0.0), now);
-    for (id, t, item) in boxes {
-        if t.translation.ground().distance(at) <= HOME_BOXES_WITHIN {
+    for (id, rests, item) in boxes {
+        if rests.ground().distance(at) <= HOME_BOXES_WITHIN {
             // Where the box rests, its height included.
-            known.see(id.0, &item.stack.item, t.translation, now);
+            known.see(id, item, rests, now);
         }
     }
     known
