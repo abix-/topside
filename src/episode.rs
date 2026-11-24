@@ -1,6 +1,8 @@
 //! The episode running now (episodes.md): started by the storm after the
 //! reality, its parts cast from the bunkers' people once they exist.
 
+use std::collections::HashMap;
+
 use bevy::prelude::*;
 use modforge::actor::ActorId;
 use modforge::storyteller::{CastBunker, cast};
@@ -167,9 +169,10 @@ pub fn cast_episode(
         return;
     }
     let mut bunkers: Vec<(Option<String>, CastBunker<ActorId>)> = Vec::new();
+    // Each faction's place in `bunkers`.
+    let mut bunker_of: std::collections::HashMap<Option<&str>, usize> = std::collections::HashMap::new();
     for (actor, npc, home) in &people {
-        let at = bunkers.iter().position(|(f, _)| *f == npc.faction);
-        let at = at.unwrap_or_else(|| {
+        let at = *bunker_of.entry(npc.faction.as_deref()).or_insert_with(|| {
             let player = npc.faction.as_deref() == Some(PLAYER_FACTION);
             bunkers.push((
                 npc.faction.clone(),
@@ -224,6 +227,31 @@ pub(crate) fn off_the_way(from: Vec2, to: Vec2, at: Vec2) -> (f32, f32) {
 /// name, and its site under "<name> site" (the lines' and pivot points'
 /// names for them).
 #[allow(clippy::too_many_arguments)]
+/// The one who found an episode's thing knows it, and the site it stands
+/// in, as been there: found, so never a thing they have yet to look at
+/// (the brain's look walked the one who found it out to it before the
+/// episode opened, the operator's playtest 2026-10-03). The sites on the
+/// way are what they saw walking before the player woke (todo 4b).
+fn found(
+    memories: &mut Query<(&Actor, &mut Persona)>,
+    finder: Option<ActorId>,
+    thing: &modforge::storyteller::ThingDef,
+    (key, thing_at): (u64, Vec3),
+    (site, kind, site_at): (u64, &str, Vec3),
+    now: u64,
+) {
+    let Some((_, mut memory)) = finder.and_then(|finder| memories.iter_mut().find(|(a, _)| a.0 == finder)) else {
+        return;
+    };
+    memory.0.memory.see(key, &thing.item, thing_at, now);
+    memory.0.memory.visited(key, now);
+    if thing.kept_quiet {
+        memory.0.memory.keep_quiet(key);
+    }
+    memory.0.memory.see(site, kind, site_at, now);
+    memory.0.memory.visited(site, now);
+}
+
 pub fn place_things(
     mut commands: Commands,
     tick: Res<crate::SimTick>,
@@ -274,17 +302,8 @@ pub fn place_things(
                 commands.entity(store).insert(crate::interact::Drawn { held });
             }
             let ground = crate::on_ground(at, 0.0);
-            if let Some(finder) = thing.found_by.as_deref().and_then(|part| episode.cast_as(part))
-                && let Some((_, mut memory)) = memories.iter_mut().find(|(a, _)| a.0 == finder)
-            {
-                memory.0.memory.see(id.0, &thing.item, thing_at, tick.0);
-                memory.0.memory.visited(id.0, tick.0);
-                if thing.kept_quiet {
-                    memory.0.memory.keep_quiet(id.0);
-                }
-                memory.0.memory.see(site_key(at), TOWN_HOUSE, ground, tick.0);
-                memory.0.memory.visited(site_key(at), tick.0);
-            }
+            let finder = thing.found_by.as_deref().and_then(|part| episode.cast_as(part));
+            found(&mut memories, finder, thing, (id.0, thing_at), (site_key(at), TOWN_HOUSE, ground), tick.0);
             episode.things.push((thing.name.clone(), thing_at, id.0));
             episode.things.push((format!("{} site", thing.name), ground, site_key(at)));
             info!("{:?}: the {} stands in the town's house at {at}", episode.name, thing.name);
@@ -323,23 +342,8 @@ pub fn place_things(
         }
         let key = id.0;
         let ground = |p: Vec2| crate::on_ground(p, 0.0);
-        if let Some(finder) = thing.found_by.as_deref().and_then(|part| episode.cast_as(part))
-            && let Some((_, mut memory)) = memories.iter_mut().find(|(a, _)| a.0 == finder)
-        {
-            // Found, so they have been there: never a thing they have yet
-            // to look at (the brain's look walked the one who found it out
-            // to it before the episode opened, the operator's playtest
-            // 2026-10-03).
-            memory.0.memory.see(key, &thing.item, thing_at, tick.0);
-            memory.0.memory.visited(key, tick.0);
-            if thing.kept_quiet {
-                memory.0.memory.keep_quiet(key);
-            }
-            // The site it stands in: been there too. The sites on the way
-            // are what they saw walking before the player woke (todo 4b).
-            memory.0.memory.see(site_key(site.position), &site.monument, ground(site.position), tick.0);
-            memory.0.memory.visited(site_key(site.position), tick.0);
-        }
+        let finder = thing.found_by.as_deref().and_then(|part| episode.cast_as(part));
+        found(&mut memories, finder, thing, (key, thing_at), (site_key(site.position), &site.monument, ground(site.position)), tick.0);
         episode.things.push((thing.name.clone(), thing_at, key));
         episode.things.push((format!("{} site", thing.name), ground(site.position), site_key(site.position)));
         info!("{:?}: the {} stands in the {} at {at}", episode.name, thing.name, site.monument);
@@ -563,22 +567,44 @@ impl EpisodeWorld<'_, '_> {
     fn facts<'a>(&'a self, episode: &'a Episode) -> Option<EpisodeFacts<'a>> {
         let def = episode.name.as_deref().and_then(|n| self.episodes.0.def(n))?;
         let all: Vec<_> = self.people.iter().collect();
-        let player = all.iter().find(|((.., is_player), _)| *is_player).map(|((_, a, ..), _)| a.0)?;
-        // Who leads or follows whom, both ways.
-        let pairs: Vec<(ActorId, ActorId)> = all
-            .iter()
-            .flat_map(|((_, a, ..), (following, leading, ..))| following.map(|f| (a.0, f.0)).into_iter().chain(leading.map(|l| (a.0, l.who))))
-            .collect();
         let faction_of = |npc: Option<&Npc>, is_player: bool| if is_player { Some(PLAYER_FACTION.to_string()) } else { npc.and_then(|n| n.faction.clone()) };
-        let living_of = |faction: &Option<String>| all.iter().filter(|((_, _, _, _, npc, dead, is_player), _)| !dead && faction_of(*npc, *is_player) == *faction).count() as u32;
-        let store_owner = |store: Entity| all.iter().find(|(_, (.., s, _, _))| s.is_some_and(|s| s.0 == store)).map(|((_, _, _, _, npc, _, is_player), _)| faction_of(*npc, *is_player));
+        // In one pass: the player; who leads or follows whom, both ways,
+        // each one's own first and then those with them, as found; how many
+        // of each faction live; and whose store is whose.
+        let mut player = None;
+        let mut with_of: HashMap<ActorId, Vec<ActorId>> = HashMap::new();
+        let mut led_by: Vec<(ActorId, ActorId)> = Vec::new();
+        let mut living: HashMap<Option<String>, u32> = HashMap::new();
+        let mut store_owners: HashMap<Entity, Option<String>> = HashMap::new();
+        for ((_, a, _, _, npc, dead, is_player), (following, leading, _, _, store, ..)) in &all {
+            if *is_player && player.is_none() {
+                player = Some(a.0);
+            }
+            for b in following.map(|f| f.0).into_iter().chain(leading.map(|l| l.who)) {
+                with_of.entry(a.0).or_default().push(b);
+                led_by.push((a.0, b));
+            }
+            if !dead || store.is_some() {
+                let faction = faction_of(*npc, *is_player);
+                if let Some(s) = store {
+                    store_owners.entry(s.0).or_insert_with(|| faction.clone());
+                }
+                if !dead {
+                    *living.entry(faction).or_default() += 1;
+                }
+            }
+        }
+        let player = player?;
+        for (a, b) in led_by {
+            with_of.entry(b).or_default().push(a);
+        }
         let people = all
             .iter()
             .map(|((entity, actor, at, memory, npc, dead, is_player), (_, _, holding, home, _, open, came_for))| {
                 let faction = faction_of(*npc, *is_player);
                 let open = open.and_then(|o| o.0).and_then(|e| self.stores.get(e).ok().map(|s| (e, s))).map(|(store, (held, drawn))| {
-                    let owner = store_owner(store).flatten();
-                    let living = living_of(&owner).max(1);
+                    let owner = store_owners.get(&store).cloned().flatten();
+                    let living = living.get(&owner).copied().unwrap_or(0).max(1);
                     modforge::storyteller::OpenStore {
                         theirs: owner.is_some() && owner == faction,
                         drawn_from: drawn.is_some(),
@@ -598,7 +624,7 @@ impl EpisodeWorld<'_, '_> {
                     faction,
                     player: *is_player,
                     came_for: came_for.map(|c| c.0),
-                    with: pairs.iter().filter(|(a, _)| *a == actor.0).map(|(_, b)| *b).chain(pairs.iter().filter(|(_, b)| *b == actor.0).map(|(a, _)| *a)).collect(),
+                    with: with_of.get(&actor.0).cloned().unwrap_or_default(),
                     holding: holding.map(|h| h.at),
                     home: home.map(|h| h.0),
                     open,
@@ -706,6 +732,15 @@ pub fn pivots_said(
 /// How far from a thing an errand's spot beside it is, in metres.
 const BESIDE: f32 = 2.0;
 
+/// Where an errand stands in its episode's list, by where it lies in the
+/// list (an errand is always one of the list's own); 0 for one that is
+/// not.
+fn errand_index(def: &modforge::storyteller::EpisodeDef, e: &modforge::storyteller::ErrandDef) -> usize {
+    let size = std::mem::size_of::<modforge::storyteller::ErrandDef>().max(1);
+    let offset = std::ptr::from_ref(e).addr().wrapping_sub(def.errands.as_ptr().addr()) / size;
+    if offset < def.errands.len() { offset } else { 0 }
+}
+
 /// Once a game second, the episode's errands (modforge `ErrandDef`, Skyrim's
 /// quest stages giving packages to aliases): each errand whose condition
 /// holds starts, now or the first game morning after (a named one opening
@@ -756,22 +791,24 @@ pub fn errands(
         let def = facts.def;
         // Each errand: when its condition first held, and whether it has
         // started (and not ended).
-        for (i, e) in def.errands.iter().enumerate() {
-            if !episode.held_since.iter().any(|(j, _)| *j == i) && holds(&e.when, &facts).is_some() {
-                held_now.push((i, now));
-            }
-        }
-        let held = |i: usize| episode.held_since.iter().chain(&held_now).find(|(j, _)| *j == i).map(|(_, t)| *t);
-        let started = |e: &modforge::storyteller::ErrandDef| {
-            let i = def.errands.iter().position(|o| std::ptr::eq(o, e)).unwrap_or(0);
+        // Whether an errand has started: its condition held long enough,
+        // and it has not ended.
+        let started_from = |e: &modforge::storyteller::ErrandDef, since: Option<u64>| {
             let ended = e.name.as_ref().is_some_and(|n| episode.windows.iter().any(|(w, _, end)| w == n && end.is_some()));
-            !ended && held(i).is_some_and(|t| now >= starts_at(e.at, t, day))
+            !ended && since.is_some_and(|t| now >= starts_at(e.at, t, day))
         };
         // A named errand's window opens once it has started with its
         // condition holding, and closes once its end holds, whatever its
         // condition does by then (the fight ends when one side is gone).
-        for e in def.errands.iter().filter(|e| started(e)) {
-            if let Some(name) = &e.name {
+        for (i, e) in def.errands.iter().enumerate() {
+            let mut since = episode.held_since.iter().find(|(j, _)| *j == i).map(|(_, t)| *t);
+            if since.is_none() && holds(&e.when, &facts).is_some() {
+                held_now.push((i, now));
+                since = Some(now);
+            }
+            if started_from(e, since)
+                && let Some(name) = &e.name
+            {
                 match episode.windows.iter().find(|(w, ..)| w == name) {
                     None if holds(&e.when, &facts).is_some() => opens.push(name.clone()),
                     Some((_, _, None)) if e.ends.as_ref().is_some_and(|c| holds(c, &facts).is_some()) => ends.push(name.clone()),
@@ -779,6 +816,8 @@ pub fn errands(
                 }
             }
         }
+        let held = |i: usize| episode.held_since.iter().chain(&held_now).find(|(j, _)| *j == i).map(|(_, t)| *t);
+        let started = |e: &modforge::storyteller::ErrandDef| started_from(e, held(errand_index(def, e)));
         // The spot beside a thing of the episode at a side of it.
         let beside = |thing: &str, side: f32| {
             let at = facts.thing_at(thing)?;
@@ -812,7 +851,7 @@ pub fn errands(
                     continue;
                 }
                 Some(ErrandAct::Order(order)) => {
-                    let i = def.errands.iter().position(|o| errand.is_some_and(|e| std::ptr::eq(o, e))).unwrap_or(0);
+                    let i = errand.map_or(0, |e| errand_index(def, e));
                     if episode.ordered.iter().any(|(j, who)| *j == i && *who == id) {
                         continue;
                     }
