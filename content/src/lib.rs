@@ -692,7 +692,8 @@ pub const FROZEN_PIZZA: &str = "frozen pizza";
 pub const CAFE: modforge::plan::PlanDef = modforge::plan::PlanDef {
     name: "cafe",
     edge: false,
-    furniture_models: &[],
+    // Each drawn as its own model (todo Model 8; scripts/models.py).
+    furniture_models: &["cafe table", "cafe table", "cafe counter", "baking bench", "store shelving"],
     columns: &[7.0, 5.0],
     rows: &[6.0, 5.0],
     rooms: &[((0, 0), "cafe tables"), ((1, 0), "cafe counter"), ((0, 1), "bakery"), ((1, 1), "store room")],
@@ -725,7 +726,8 @@ pub const BREAD: &str = "bread";
 pub const BAR: modforge::plan::PlanDef = modforge::plan::PlanDef {
     name: "bar",
     edge: false,
-    furniture_models: &[],
+    // Each drawn as its own model (todo Model 9; scripts/models.py).
+    furniture_models: &["bar counter", "cafe table", "cafe table", "pool table", "back bar", "card table", "toilet"],
     columns: &[9.0, 6.0, 4.0],
     rows: &[7.0, 5.0],
     rooms: &[((0, 0), "barroom"), ((1, 0), "pool room"), ((2, 0), "restroom"), ((0, 1), "behind the bar"), ((1, 1), "back room"), ((2, 1), "beer store")],

@@ -3264,6 +3264,176 @@ def pizza_oven():
     return join(parts, "pizza oven")
 
 
+def shelving(name, length, depth, height, goods, frame=None):
+    """open shelving of `length`, `depth` and `height`: four levels, each
+    lined with boxes in the colours of `goods`."""
+    c = store_colours()
+    frame = frame or c["dark steel"]
+    parts = []
+    for sx in (1, -1):
+        for sy in (1, -1):
+            parts.append(box(f"upright {sx} {sy}", (0.04, 0.04, height), at=(sx * (length / 2 - 0.02), sy * (depth / 2 - 0.02), height / 2), mat=frame))
+    levels = 4
+    for lv in range(levels):
+        z = 0.08 + (height - 0.15) / (levels - 1) * lv
+        parts.append(box(f"shelf {lv}", (length, depth, 0.03), at=(0, 0, z), mat=frame))
+        if lv == levels - 1:
+            continue
+        n = max(1, int(length / 0.45))
+        for i in range(n):
+            w = length / n
+            parts.append(box(f"goods {lv} {i}", (w - 0.08, depth - 0.1, 0.25), at=(-length / 2 + w * (i + 0.5), 0, z + 0.14),
+                             mat=goods[(lv + i) % len(goods)]))
+    return join(parts, name)
+
+
+# The cafe and bakery (todo Model 8): its counter 3 m by 0.7 m and 1.1 m
+# tall, the baking bench 4.5 m by 0.8 m, the store room's shelving 3 m by
+# 0.5 m and 1.8 m tall; its tables are the pizza place's.
+
+
+def cafe_counter():
+    """the cafe's counter: wood front, the espresso machine and cups on it."""
+    c = store_colours()
+    parts = counter_run("cafe counter", 3.0, 0.7, 1.1, c["wood"], c["white"])
+    parts.append(box("espresso", (0.6, 0.45, 0.45), at=(0.9, 0.05, 1.325), mat=c["steel"]))
+    parts.append(box("group", (0.4, 0.1, 0.08), at=(0.9, -0.2, 1.22), mat=c["black"]))
+    for i in range(4):
+        parts.append(cylinder(f"cup {i}", 0.04, 0.09, sides=10, at=(0.2 + 0.1 * i, 0.15, 1.145), mat=c["white"]))
+    return join(parts, "cafe counter")
+
+
+def baking_bench():
+    """the bakery's bench, 4.5 m: a floured wood top on steel, the mixer,
+    dough under cloth and loaf tins."""
+    c = store_colours()
+    flour = material("flour", (0.95, 0.94, 0.9))
+    parts = counter_run("baking bench", 4.5, 0.8, 0.9, c["steel"], c["wood"])
+    parts.append(box("flour", (1.2, 0.6, 0.005), at=(-1.2, 0, 0.903), mat=flour))
+    parts.append(box("mixer base", (0.4, 0.4, 0.5), at=(1.6, 0.1, 1.15), mat=c["white"]))
+    parts.append(cylinder("bowl", 0.18, 0.25, sides=14, at=(1.6, -0.05, 1.03), mat=c["steel"]))
+    for i in range(4):
+        parts.append(box(f"tin {i}", (0.28, 0.14, 0.08), at=(0.0 + 0.33 * i, 0.1, 0.94), mat=c["dark steel"]))
+        parts.append(box(f"loaf {i}", (0.26, 0.12, 0.06), at=(0.0 + 0.33 * i, 0.1, 1.0), mat=material("crust", (0.72, 0.5, 0.25))))
+    return join(parts, "baking bench")
+
+
+def store_shelving():
+    """the cafe's store room shelving, 3 m: flour sacks, tins and boxes."""
+    c = store_colours()
+    return shelving("store shelving", 3.0, 0.5, 1.8, [c["white"], c["cardboard"], c["yellow"]])
+
+
+def bakery_case():
+    """a glass bakery case on a wood base, loaves and pastries on its shelves."""
+    c = store_colours()
+    crust = material("crust", (0.72, 0.5, 0.25))
+    parts = [box("base", (1.4, 0.6, 0.7), at=(0, 0, 0.35), mat=c["wood"])]
+    parts.append(box("glass", (1.4, 0.6, 0.6), at=(0, 0, 1.0), mat=c["glass"]))
+    parts.append(box("top", (1.44, 0.64, 0.03), at=(0, 0, 1.315), mat=c["wood"]))
+    for lv, z in enumerate((0.75, 1.05)):
+        parts.append(box(f"shelf {lv}", (1.35, 0.55, 0.02), at=(0, 0, z), mat=c["white"]))
+        for i in range(5):
+            parts.append(box(f"bread {lv} {i}", (0.2, 0.12, 0.08), at=(-0.5 + 0.25 * i, -0.1, z + 0.05), mat=crust))
+    return join(parts, "bakery case")
+
+
+# The bar (todo Model 9): the bar 7 m by 0.6 m and 1.1 m tall, the back bar
+# 7 m by 0.5 m and 1.8 m tall, the pool table 2.5 m by 1.4 m, the back
+# room's card table 1.4 m by 1 m; its tables are the pizza place's.
+
+
+def bar_counter():
+    """the bar: a dark wood front with its brass foot rail, stools along it,
+    the taps on top, 7 m long."""
+    c = store_colours()
+    dark = material("bar wood", (0.3, 0.18, 0.1))
+    brass = material("bar brass", (0.75, 0.62, 0.3))
+    parts = counter_run("bar counter", 7.0, 0.6, 1.1, dark, dark)
+    parts.append(cylinder("foot rail", 0.025, 7.0, sides=8, along="X", at=(0, -0.4, 0.2), mat=brass))
+    for i in range(7):
+        x = -3.0 + 1.0 * i
+        parts.append(cylinder(f"stool post {i}", 0.03, 0.72, sides=8, at=(x, -0.6, 0.36), mat=c["black"]))
+        parts.append(cylinder(f"stool {i}", 0.18, 0.06, sides=12, at=(x, -0.6, 0.75), mat=dark))
+    for i in range(4):
+        parts.append(cylinder(f"tap {i}", 0.02, 0.3, sides=8, at=(1.5 + 0.15 * i, 0.15, 1.25), mat=brass))
+    return join(parts, "bar counter")
+
+
+def back_bar():
+    """the back bar, 7 m: mirrored shelves of bottles over closed cabinets."""
+    c = store_colours()
+    dark = material("bar wood", (0.3, 0.18, 0.1))
+    parts = [box("cabinets", (7.0, 0.5, 0.9), at=(0, 0, 0.45), mat=dark)]
+    parts.append(box("mirror", (6.8, 0.02, 0.8), at=(0, 0.23, 1.35), mat=c["glass"]))
+    bottles = [material("bottle green", (0.2, 0.45, 0.25)), material("bottle amber", (0.6, 0.35, 0.1)), c["white"]]
+    for lv, z in enumerate((0.95, 1.35)):
+        parts.append(box(f"shelf {lv}", (7.0, 0.25, 0.03), at=(0, 0.1, z), mat=dark))
+        for i in range(28):
+            parts.append(cylinder(f"bottle {lv} {i}", 0.035, 0.28, sides=8, at=(-3.38 + 0.25 * i, 0.1, z + 0.155), mat=bottles[(i + lv) % 3]))
+    parts.append(box("crown", (7.0, 0.5, 0.1), at=(0, 0, 1.75), mat=dark))
+    return join(parts, "back bar")
+
+
+def pool_table():
+    """a pool table, 2.5 m by 1.4 m: green felt in a wood rail on heavy legs,
+    two cues and the racked balls."""
+    c = store_colours()
+    dark = material("bar wood", (0.3, 0.18, 0.1))
+    parts = [box("bed", (2.5, 1.4, 0.2), at=(0, 0, 0.7), mat=dark)]
+    parts.append(box("felt", (2.3, 1.2, 0.02), at=(0, 0, 0.81), mat=material("felt", (0.1, 0.45, 0.2))))
+    for sx in (1, -1):
+        for sy in (1, -1):
+            parts.append(box(f"leg {sx} {sy}", (0.15, 0.15, 0.6), at=(sx * 1.05, sy * 0.5, 0.3), mat=dark))
+    for i in range(6):
+        parts.append(cylinder(f"ball {i}", 0.03, 0.06, sides=8, at=(0.6 + 0.06 * (i % 3), -0.1 + 0.06 * (i // 3), 0.85),
+                              mat=[c["red"], c["yellow"], c["green"]][i % 3]))
+    parts.append(cylinder("cue", 0.012, 1.4, sides=6, along="X", at=(-0.3, 0.3, 0.83), mat=c["wood"]))
+    return join(parts, "pool table")
+
+
+def card_table():
+    """the back room's card table, 1.4 m by 1 m: green baize, cards and chips,
+    a chair each side."""
+    c = store_colours()
+    parts = [box("top", (1.4, 1.0, 0.04), at=(0, 0, 0.74), mat=material("baize", (0.15, 0.4, 0.2)))]
+    parts += [box(f"leg {i}", (0.05, 0.05, 0.72), at=(sx * 0.62, sy * 0.42, 0.36), mat=c["wood"])
+              for i, (sx, sy) in enumerate([(1, 1), (1, -1), (-1, 1), (-1, -1)])]
+    for i in range(5):
+        parts.append(box(f"card {i}", (0.07, 0.1, 0.005), at=(-0.3 + 0.15 * i, 0.1 * (i % 2), 0.763), mat=c["white"]))
+        parts.append(cylinder(f"chips {i}", 0.02, 0.04 + 0.01 * i, sides=8, at=(-0.3 + 0.15 * i, -0.3, 0.78), mat=[c["red"], c["black"], c["white"]][i % 3]))
+    return join(parts, "card table")
+
+
+def liquor_shelf():
+    """a wooden shelf of liquor bottles, 1.2 m wide."""
+    c = store_colours()
+    dark = material("bar wood", (0.3, 0.18, 0.1))
+    bottles = [material("bottle green", (0.2, 0.45, 0.25)), material("bottle amber", (0.6, 0.35, 0.1)), c["glass"]]
+    parts = [box("back", (1.2, 0.04, 1.6), at=(0, 0.18, 0.8), mat=dark)]
+    for s in (1, -1):
+        parts.append(box(f"side {s}", (0.04, 0.4, 1.6), at=(s * 0.58, 0, 0.8), mat=dark))
+    for lv, z in enumerate((0.05, 0.55, 1.05, 1.55)):
+        parts.append(box(f"shelf {lv}", (1.2, 0.4, 0.03), at=(0, 0, z), mat=dark))
+        if lv < 3:
+            for i in range(8):
+                parts.append(cylinder(f"bottle {lv} {i}", 0.035, 0.3, sides=8, at=(-0.49 + 0.14 * i, 0, z + 0.165), mat=bottles[(i + lv) % 3]))
+    return join(parts, "liquor shelf")
+
+
+SHOPS = {
+    "cafe counter": cafe_counter,
+    "baking bench": baking_bench,
+    "store shelving": store_shelving,
+    "bakery case": bakery_case,
+    "bar counter": bar_counter,
+    "back bar": back_bar,
+    "pool table": pool_table,
+    "card table": card_table,
+    "liquor shelf": liquor_shelf,
+}
+
+
 EATERIES = {
     "booth": booth,
     "lunch counter": lunch_counter,
@@ -3342,6 +3512,7 @@ MODELS = {
     **BARN,
     **ELEVATOR,
     **EATERIES,
+    **SHOPS,
     "tree": tree,
     "rock": rock,
     # The wasteland's and the ruins' scatter, at their largest side as
