@@ -35,6 +35,10 @@ pub struct StormRes {
     pub shifts: u32,
     #[serde(default)]
     pub at: Option<f32>,
+    /// The reality the `storm` op named for the next shift; none leaves
+    /// the pick to the registry. Saved, so a loaded save shifts the same.
+    #[serde(default)]
+    pub reality: Option<String>,
 }
 
 /// With no episode running (none fits the reality), the storm comes a game
@@ -54,8 +58,8 @@ pub fn phase(tick: &SimTick, day: Day, storms: &StormRes) -> StormPhase {
 /// game on its next step.
 pub static STORM_NOW: AtomicBool = AtomicBool::new(false);
 
-/// The reality the `storm` op named for the next shift, taken when the
-/// world shifts; none leaves the pick to the registry.
+/// The reality the `storm` op named, taken into `StormRes` on the game's
+/// next step.
 pub static NEXT_REALITY: Mutex<Option<String>> = Mutex::new(None);
 
 /// Every fixed step: with no storm set, the running episode's is rolled
@@ -81,6 +85,9 @@ pub fn storm(
         let days = episode.name.as_deref().and_then(|n| episodes.0.def(n)).map_or(NO_EPISODE_STORM_IN, |d| d.storm_in);
         let from = episode.started as f32 / 60.0;
         state.at = Some(modforge::storm::storm_at(from, days, day.0, seed.0 ^ u64::from(state.shifts)));
+    }
+    if let Some(named) = NEXT_REALITY.lock().ok().and_then(|mut n| n.take()) {
+        state.reality = Some(named);
     }
     if STORM_NOW.swap(false, Ordering::Relaxed) && phase(&tick, *day, &state) == StormPhase::Calm {
         state.at = Some(day.storm().now(secs));
@@ -116,7 +123,7 @@ pub fn storm(
 /// built the first.
 pub fn shift_world(
     mut commands: Commands,
-    state: Res<StormRes>,
+    mut state: ResMut<StormRes>,
     mut seed: ResMut<WorldSeed>,
     pieces: Query<Entity, With<WorldPiece>>,
     lying: Query<(Entity, &Transform), With<WorldItem>>,
@@ -132,7 +139,7 @@ pub fn shift_world(
     // The storm hands over another reality (realities.md), picked from
     // the seed and the storm's number, never the one being left.
     // The reality the `storm` op named, if any; else the registry's pick.
-    let named = NEXT_REALITY.lock().ok().and_then(|mut n| n.take());
+    let named = state.reality.take();
     let next = match named.as_deref().and_then(|name| realities.0.def(name)) {
         Some(def) => Some(def),
         None => realities.0.pick(seed.0, state.shifts, &reality.0.name),

@@ -132,6 +132,36 @@ pub(crate) fn tap_mara_threatened() {
     drop(paused);
 }
 
+/// Two game seconds before a storm shifts the world: from the game's start,
+/// a storm brought by the `storm` op (with `args`, such as the reality it
+/// hands over) and played through its warning and 18 of its 20 seconds
+/// (content STORM). Called paused.
+fn storm_about_to_shift(name: &str, args: Json) {
+    start_from(name, || {
+        crate::opening::you_wake();
+        op_with("storm", args);
+        for _ in 0..90 {
+            step(SECOND);
+            if op("world")["storm"] == "storm" {
+                break;
+            }
+        }
+        assert_eq!(op("world")["storm"], "storm", "{name}: the storm never hit");
+        step(17 * SECOND);
+        assert_eq!(op("world")["storm"], "storm", "{name}: the storm ended before its last two seconds");
+    });
+}
+
+/// Just before a storm shifts the world.
+pub(crate) fn storm_about_to_shift_the_world() {
+    storm_about_to_shift("storm_about_to_shift", json!({}));
+}
+
+/// Just before a storm shifts the world into Loop.
+pub(crate) fn storm_about_to_shift_into_loop() {
+    storm_about_to_shift("storm_about_to_shift_into_loop", json!({"reality": "Loop"}));
+}
+
 /// Knowing the tap, just before Roxanne's store passes 10 days of water.
 pub(crate) fn tap_store_nine_days() {
     start_from("tap_store_nine_days", || {

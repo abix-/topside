@@ -29,19 +29,26 @@ fn the_storm_op_brings_the_storm_now() {
 
 #[test]
 fn the_storm_hurts_the_open_bunker_people_shelter_and_the_world_shifts() {
-    // From the game's start, a storm brought by the `storm` op and stepped
-    // through: it warns 60 game seconds and lasts 20 (content STORM).
+    // From just before the storm shifts the world, stepped to the shift.
     let _p = crate::endpoint::pause();
-    crate::opening::you_wake();
+    crate::saves::storm_about_to_shift_the_world();
     let before = op("world")["storms"].as_u64().unwrap_or(0);
-    op("storm");
-    for _ in 0..90 {
+    for _ in 0..10 {
         if op("world")["storms"].as_u64().unwrap_or(0) > before {
             break;
         }
         crate::endpoint::step(crate::opening::SECOND);
     }
-    let w = op("world");
+    // The new world's monuments are listed as their chunks are made, a
+    // set number a tick: a second at a time, at most ten.
+    let mut w = op("world");
+    for _ in 0..10 {
+        if w["monuments"].as_array().is_some_and(|m| !m.is_empty()) {
+            break;
+        }
+        crate::endpoint::step(crate::opening::SECOND);
+        w = op("world");
+    }
     let storms = w["storms"].as_u64().unwrap_or(0);
     let list = people();
     // Deaths of the storm, from each person's own memory.

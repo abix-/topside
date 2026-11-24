@@ -74,13 +74,12 @@ fn world_until(secs: u64, done: impl Fn(&serde_json::Value) -> bool) -> serde_js
 /// the death with ops, so it takes about half a minute.
 #[test]
 fn in_loop_the_killed_come_back_and_the_storm_takes_everything_topside() {
+    // From just before a storm into Loop shifts the world, stepped to the
+    // shift.
     let _p = crate::endpoint::pause();
-    crate::opening::you_wake();
+    crate::saves::storm_about_to_shift_into_loop();
     let before = op("world")["storms"].as_u64().unwrap_or(0);
-    eprintln!("storm op answered {}", op_with("storm", serde_json::json!({"reality": "Loop"})));
-    // The storm's own span: it warns 60 game seconds and lasts 20
-    // (content STORM), then the world shifts.
-    let w = world_until(90, |w| w["storms"].as_u64().unwrap_or(0) > before);
+    let w = world_until(10, |w| w["storms"].as_u64().unwrap_or(0) > before);
     assert_eq!(w["reality"]["name"], "Loop", "the storm op named Loop, yet the world is in {} (tick {})", w["reality"]["name"], w["tick"]);
     let list = people();
     let topside: Vec<_> = list.iter().filter(|p| !is_bunker_person(p)).collect();
