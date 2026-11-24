@@ -1108,12 +1108,55 @@ pub const CHURCH: modforge::plan::PlanDef = modforge::plan::PlanDef {
     furniture_color: [0.42, 0.3, 0.2],
     height: 5.0,
 };
-pub const PLACES: [modforge::plan::PlanDef; 20] = [GROCERY_STORE, CROP_FARM, CROP_FARM, LIVESTOCK_BARN, GRAIN_ELEVATOR, DINER, PIZZA_PLACE, CAFE, BAR, PUMP_HOUSE, SUBSTATION, GAS_STATION, SEWAGE_POND, TOWN_DUMP, CLINIC, FIRE_STATION, SHERIFFS_OFFICE, SCHOOL, TOWN_HALL, CHURCH];
+/// Place 20: the cemetery, at the edge of town: the groundskeeper's
+/// shed, and the graves in rows behind it, each read for its stone.
+pub const CEMETERY: modforge::plan::PlanDef = modforge::plan::PlanDef {
+    name: "cemetery",
+    edge: true,
+    columns: &[5.0],
+    rows: &[4.0],
+    rooms: &[((0, 0), "groundskeeper's shed")],
+    ways: &[],
+    exits: &[((0, 0), South, 1.2)],
+    furniture: &[("groundskeeper's shed", [0.0, -0.4], [3.5, 1.6, 0.5])],
+    things: &[(TOOLBOX, "groundskeeper's shed", [0.0, 0.1])],
+    outside: &[
+        (GRAVE, [-9.0, -8.0]),
+        (GRAVE, [-6.0, -8.0]),
+        (GRAVE, [-3.0, -8.0]),
+        (GRAVE, [3.0, -8.0]),
+        (GRAVE, [6.0, -8.0]),
+        (GRAVE, [9.0, -8.0]),
+        (GRAVE, [-9.0, -13.0]),
+        (GRAVE, [-6.0, -13.0]),
+        (GRAVE, [-3.0, -13.0]),
+        (GRAVE, [3.0, -13.0]),
+        (GRAVE, [6.0, -13.0]),
+        (GRAVE, [9.0, -13.0]),
+    ],
+    walls: &[[0.5, 0.45, 0.38]],
+    floor: [0.42, 0.38, 0.32],
+    furniture_color: [0.4, 0.36, 0.3],
+    height: 2.6,
+};
+pub const GRAVE: &str = "grave";
+/// What the graves' stones say, in turn. Every word is Claude's.
+pub const EPITAPHS: [&str; 6] = [
+    "Walter Pruitt. 1931 - 2004. He kept the elevator running.",
+    "Ada May Larkin. Beloved mother. Gone to her rest.",
+    "Here lies a stranger, found on the county road. Known to God.",
+    "Tom and Ruth Ecker. Together, as they were.",
+    "Danny Sheldrake. 1988 - 1997. Our boy.",
+    "Reverend Hal Ostrowski. He married half this town and buried the rest.",
+];
+pub const PLACES: [modforge::plan::PlanDef; 21] = [GROCERY_STORE, CROP_FARM, CROP_FARM, LIVESTOCK_BARN, GRAIN_ELEVATOR, DINER, PIZZA_PLACE, CAFE, BAR, PUMP_HOUSE, SUBSTATION, GAS_STATION, SEWAGE_POND, TOWN_DUMP, CLINIC, FIRE_STATION, SHERIFFS_OFFICE, SCHOOL, TOWN_HALL, CHURCH, CEMETERY];
 /// The places whose garden beds are found sown and ripe, with what.
 pub const PLACE_SOWN: [(&str, &str); 1] = [("crop farm", POTATO_SEED)];
 /// What each place's boxes are found holding: the place, the box, the
 /// item and how many.
-pub const PLACE_HOLDS: [(&str, &str, &str, u32); 83] = [
+pub const PLACE_HOLDS: [(&str, &str, &str, u32); 85] = [
+    ("cemetery", TOOLBOX, "rope", 1),
+    ("cemetery", TOOLBOX, "scrap", 2),
     ("church", OFFICE_DESK, MATCHES, 1),
     ("church", CLOSET, BLANKET, 2),
     ("church", PANTRY, "canned food", 6),
@@ -3013,7 +3056,8 @@ pub fn register_items(reg: &mut ItemRegistry) {
         building(BUTCHER_BLOCK, "A butcher block.", ItemKind::Deployable, 1, Some(6)),
         building(FEED, "Animal feed.", ItemKind::Material, 20, None),
         building(BAKERY_CASE, "A bakery case.", ItemKind::Deployable, 1, Some(8)),
-        building(MAIL_SACK, "A sack of the town's mail.", ItemKind::Deployable, 1, Some(8)),
+        building(GRAVE, "A grave and its stone.", ItemKind::Note, 1, None),
+        building(MAIL_SACK,"A sack of the town's mail.", ItemKind::Deployable, 1, Some(8)),
         building(RECORDS_CABINET, "The town's records.", ItemKind::Deployable, 1, Some(6)),
         building(SHERIFFS_DESK,"The sheriff's desk.", ItemKind::Deployable, 1, Some(6)),
         building(GUN_LOCKER, "A gun locker. Locked.", ItemKind::Deployable, 1, Some(8)),

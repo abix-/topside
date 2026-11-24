@@ -265,9 +265,21 @@ pub fn populate_town_power(
     }
     // Every place's things (topside-town "What the town has"): a station,
     // or a box found holding its stock.
+    let mut graves = 0;
     for (place, thing, at) in town.place_things() {
         if let Some(&(_, station)) = crate::content::PLACE_STATIONS.iter().find(|(n, _)| *n == thing) {
             make(&mut commands, thing, at, Some(InteractKind::Station(station)));
+            continue;
+        }
+        // A grave, read: its words are on it (Place 20).
+        if let (true, Some(def)) = (thing == crate::content::GRAVE, items.0.def(thing)) {
+            if let Some(grave) = make(&mut commands, thing, at, Some(InteractKind::Read)) {
+                let mut stack = modforge::item::create(def, 1, &[], 0.0, 0);
+                let words = crate::content::EPITAPHS[graves % crate::content::EPITAPHS.len()];
+                stack.note = Some(modforge::item::Note { text: words.to_string(), signed: String::new() });
+                commands.entity(grave).insert(crate::interact::WorldItem { stack });
+                graves += 1;
+            }
             continue;
         }
         // A switch (a substation's breaker, a radio), turned on and off;
