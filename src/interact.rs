@@ -657,7 +657,13 @@ pub fn interact_on_use(
 ) {
     // In ActorId order (authority.md rule 5): of two people using one thing
     // in one tick, who gets it is the same after a load.
-    let order = crate::actor::in_actor_order(people.iter().map(|((me, ..), (.., actor, _), _)| (actor.map(|a| a.0), me)));
+    // Only those who use or fill something this tick (few, most ticks).
+    let order = crate::actor::in_actor_order(
+        people
+            .iter()
+            .filter(|((_, _, this_tick, ..), ..)| this_tick.0.iter().any(|s| matches!(s.action, Action::Use | Action::Fill { .. })))
+            .map(|((me, ..), (.., actor, _), _)| (actor.map(|a| a.0), me)),
+    );
     for entity in order {
         let Ok(((me, person, this_tick, mut inventory, mut hud, mut open, mut station), (mut mind, mut health, facing, looking, _, mut hotbar), (mut condition, mut clean))) =
             people.get_mut(entity)
