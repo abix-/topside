@@ -505,12 +505,12 @@ places:
       - {from: [0, 0], side: south, width: 1.8}
       - {from: [1, 0], side: south, width: 1.2}
     furniture:
-      - {room: waiting room, at: [-0.3, -0.2], size: [0.6, 0.45, 3.0]}
-      - {room: waiting room, at: [0.3, 0.2], size: [2.0, 1.1, 0.7]}
-      - {room: pharmacy, at: [0.0, 0.2], size: [3.5, 1.1, 0.6]}
-      - {room: exam room, at: [0.0, -0.2], size: [0.8, 0.9, 1.9]}
-      - {room: second exam room, at: [0.0, -0.2], size: [0.8, 0.9, 1.9]}
-      - {room: restroom, at: [0.3, -0.3], size: [0.4, 0.8, 0.65]}
+      - {room: waiting room, at: [-0.3, -0.2], size: [0.6, 0.45, 3.0], model: waiting chairs}
+      - {room: waiting room, at: [0.3, 0.2], size: [2.0, 1.1, 0.7], model: front desk}
+      - {room: pharmacy, at: [0.0, 0.2], size: [3.5, 1.1, 0.6], model: pharmacy counter}
+      - {room: exam room, at: [0.0, -0.2], size: [0.8, 0.9, 1.9], model: exam table}
+      - {room: second exam room, at: [0.0, -0.2], size: [0.8, 0.9, 1.9], model: exam table}
+      - {room: restroom, at: [0.3, -0.3], size: [0.4, 0.8, 0.65], model: toilet}
     things:
       - {thing: office desk, room: waiting room, at: [0.3, 0.35]}
       - {thing: pharmacy shelf, room: pharmacy, at: [0.0, -0.3]}

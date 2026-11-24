@@ -1,0 +1,101 @@
+# The clinic and pharmacy and every thing in it (todo Model 15), built by
+# scripts/models.py.
+#
+# The furniture at the sizes content's clinic plan gives it (the waiting
+# room's row of chairs 3 m long, its front desk 2 m by 0.7 m and 1.1 m
+# tall, the pharmacy counter 3.5 m by 0.6 m, each exam table 1.9 m by
+# 0.8 m), long side along x, front to -y, as the grocery's. The beds, the
+# office desk, the cash register, the toilet and the medicine cabinets are
+# the house's and the grocery's. Sizes and colours are Claude's.
+
+colours:
+  clinic blue: [0.35, 0.55, 0.7]
+  vinyl: [0.25, 0.45, 0.55]
+  paper: [0.95, 0.95, 0.93]
+  pill white: [0.92, 0.92, 0.9]
+  pill orange: [0.8, 0.5, 0.2]
+
+models:
+  waiting chairs:
+    about: a row of five waiting room chairs, 3 m long, joined on one steel beam, blue vinyl seats and backs.
+    parts:
+      - box: [3.0, 0.08, 0.06]
+        at: [0, 0, 0.3]
+        colour: dark steel
+      - for: {x: [-1.3, 1.3]}
+        parts:
+          - box: [0.06, 0.45, 0.3]
+            at: [x, 0, 0.15]
+            colour: dark steel
+      - for: {i: range(5)}
+        let: {x: -1.2 + 0.6 * i}
+        parts:
+          - box: [0.52, 0.45, 0.06]
+            at: [x, 0, 0.42]
+            colour: vinyl
+          - box: [0.52, 0.05, 0.42]
+            at: [x, 0.21, 0.66]
+            colour: vinyl
+
+  front desk:
+    about: the clinic's front desk, 2 m wide, a tall front with a ledge for signing in and a low work top behind it.
+    parts:
+      - box: [2.0, 0.08, 1.1]
+        at: [0, -0.31, 0.55]
+        colour: clinic blue
+      - box: [2.0, 0.25, 0.04]
+        at: [0, -0.3, 1.12]
+        colour: white
+      - box: [2.0, 0.6, 0.04]
+        at: [0, 0.05, 0.74]
+        colour: white
+      - for: {x: [-0.97, 0.97]}
+        parts:
+          - box: [0.06, 0.6, 0.72]
+            at: [x, 0.05, 0.36]
+            colour: clinic blue
+      - box: [0.3, 0.22, 0.01]
+        at: [0.5, -0.3, 1.145]
+        colour: paper
+
+  pharmacy counter:
+    about: the pharmacy's counter, 3.5 m long, white with a blue kick plate, a glass top over shelves of boxed medicine.
+    parts:
+      - box: [3.5, 0.6, 0.1]
+        at: [0, 0, 0.05]
+        colour: clinic blue
+      - box: [3.5, 0.6, 0.85]
+        at: [0, 0, 0.525]
+        colour: white
+      - box: [3.4, 0.5, 0.03]
+        at: [0, 0, 0.965]
+        colour: glass
+      - for: {i: range(7)}
+        parts:
+          - box: [0.35, 0.3, 0.12]
+            at: [-1.5 + 0.5 * i, 0, 0.9]
+            colour: [pill white, pill orange, white][i % 3]
+
+  pharmacy shelf:
+    about: a single-sided pharmacy shelf of boxed and bottled medicine, 1.2 m wide and 1.8 m tall.
+    parent: stocked
+    params: {length: 1.2, depth: 0.45, levels: 5, top: 1.8, goods: [pill white, pill orange, white, clinic blue, red]}
+
+  exam table:
+    about: an exam table, 1.9 m long, a padded top on a steel base with a step and the roll of paper over it.
+    parts:
+      - box: [1.9, 0.8, 0.12]
+        at: [0, 0, 0.84]
+        colour: vinyl
+      - box: [1.7, 0.6, 0.78]
+        at: [0, 0, 0.39]
+        colour: steel
+      - box: [1.9, 0.6, 0.01]
+        at: [0, 0, 0.905]
+        colour: paper
+      - box: [0.5, 0.35, 0.2]
+        at: [0.4, -0.55, 0.1]
+        colour: dark steel
+      - box: [0.6, 0.8, 0.18]
+        at: [-0.75, 0, 0.99]
+        colour: vinyl
