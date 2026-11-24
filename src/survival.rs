@@ -165,7 +165,7 @@ pub fn rot(
             continue;
         }
         for slot in 0..modforge::item::EQUIPMENT_SLOTS {
-            let Some(dirty) = worn.0.get(slot).filter(|s| crate::content::WORN.contains(&s.item.as_str())).and_then(|s| modforge::hygiene::soiled(&s.item)) else {
+            let Some(dirty) = worn.0.get(slot).filter(|s| crate::content::WORN.contains(&s.item)).and_then(|s| modforge::hygiene::soiled(&s.item)) else {
                 continue;
             };
             let mut stack = worn.0.take_off(slot);

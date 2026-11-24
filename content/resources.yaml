@@ -1,0 +1,16 @@
+# Atlas's base resources, each a category and the kinds in it (topside
+# Decisions 2026-11-23: "trees and rocks and fiber and metal and oil and
+# all the various resource types... multiple types of fiber"). A recipe
+# asking for a category takes any kind in it, one asking for a kind takes
+# only that (Minecraft's item tags). A kind no other file makes is made
+# here as a material. Read by content's `register_items`. The kinds are
+# Claude's, after Atlas's (its woods, its stones, its fibers, its metals,
+# its oils), for the operator to change.
+resources:
+  - {category: wood, kinds: [wood, softwood, hardwood]}
+  - {category: stone, kinds: [stone, flint, granite]}
+  - {category: fiber, kinds: [plant fiber, hemp fiber, cotton]}
+  - {category: thatch, kinds: [thatch, reeds]}
+  - {category: metal, kinds: [scrap, iron ore, copper ore]}
+  - {category: oil, kinds: [crude oil, animal fat]}
+  - {category: hide, kinds: [hide, pelt]}

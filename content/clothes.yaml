@@ -1,0 +1,4 @@
+# What everyone wears, each a layer of their model (scripts/models.py
+# `WORN`). Each is made an item three times: plain, dirty and wet. Read by
+# content's `WORN`.
+clothes: [shirt, trousers, boots]

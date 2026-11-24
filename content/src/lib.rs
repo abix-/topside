@@ -50,9 +50,10 @@ pub const STARTING_ITEMS: [(&str, u32, u64, [f32; 2], Rgb); 8] = [
 /// How tall each level of the bunker you start in is, and the levels of
 /// its two rooms (design.md "The bunker you start in"): the surface room
 /// on the ground, the player's room below it.
-/// What every person wears from the start: a shirt, trousers and boots,
-/// each a layer of their model (scripts/models.py `WORN`).
-pub const WORN: [&str; 3] = ["shirt", "trousers", "boots"];
+/// What every person wears from the start, each a layer of their model
+/// (scripts/models.py `WORN`): content/clothes.yaml's `clothes`.
+pub const CLOTHES_FILE: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/clothes.yaml");
+pub static WORN: std::sync::LazyLock<Vec<String>> = std::sync::LazyLock::new(|| read(CLOTHES_FILE, "clothes"));
 
 pub const BUNKER_LEVEL: f32 = 3.0;
 pub const PLAYER_ROOM_FLOOR: f32 = -BUNKER_LEVEL;
@@ -2048,7 +2049,8 @@ pub fn register_items(reg: &mut ItemRegistry) {
     // The base resources, Atlas's, and their kinds (topside Decisions
     // 2026-11-23): a recipe asking for a category takes any kind in it,
     // one asking for a kind takes only that (Minecraft's item tags).
-    for (category, kinds) in RESOURCES {
+    for Resource { category, kinds } in RESOURCES.iter() {
+        let kinds: Vec<&str> = kinds.iter().map(String::as_str).collect();
         for kind in kinds.iter() {
             if reg.def(kind).is_some() {
                 continue;
@@ -2059,7 +2061,7 @@ pub fn register_items(reg: &mut ItemRegistry) {
             };
             reg.register(def).expect("a resource is registered once");
         }
-        reg.categorize(category, kinds);
+        reg.categorize(category, &kinds);
     }
     // What fiber makes.
     if reg.def("rope").is_none() {
@@ -2071,20 +2073,19 @@ pub fn register_items(reg: &mut ItemRegistry) {
     }
 }
 
-/// Atlas's base resources, each a category and the kinds in it (topside
-/// Decisions 2026-11-23: "trees and rocks and fiber and metal and oil and
-/// all the various resource types... multiple types of fiber"). The kinds
-/// are Claude's, after Atlas's (its woods, its stones, its fibers, its
-/// metals, its oils), for the operator to change.
-pub const RESOURCES: [(&str, &[&str]); 7] = [
-    ("wood", &[WOOD, "softwood", "hardwood"]),
-    ("stone", &[STONE, "flint", "granite"]),
-    ("fiber", &["plant fiber", "hemp fiber", "cotton"]),
-    ("thatch", &["thatch", "reeds"]),
-    ("metal", &["scrap", "iron ore", "copper ore"]),
-    ("oil", &["crude oil", "animal fat"]),
-    ("hide", &["hide", "pelt"]),
-];
+/// Atlas's base resources, each a category and the kinds in it:
+/// content/resources.yaml's `resources`.
+pub const RESOURCES_FILE: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/resources.yaml");
+
+/// One category of resource and its kinds.
+#[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Resource {
+    pub category: String,
+    pub kinds: Vec<String>,
+}
+
+pub static RESOURCES: std::sync::LazyLock<Vec<Resource>> = std::sync::LazyLock::new(|| read_list(RESOURCES_FILE, "resources"));
 
 /// Where the building types are: content/buildings.yaml, its `buildings`
 /// a list of modforge `monument::BuildingTypeDef` and its `palettes` the
