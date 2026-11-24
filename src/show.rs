@@ -38,6 +38,93 @@ const PICTURE: (u32, u32) = (480, 270);
 pub struct ShowRes {
     pub show: Show,
     pub owed: bool,
+    /// A challenge set (todo Events 6): the tick it ends and the
+    /// player's kills when it was set.
+    #[serde(default)]
+    pub challenge: Option<(u64, usize)>,
+}
+
+/// The challenge's reward: a loot box at the door, at this danger; how
+/// far the lure is heard, metres; how near the cliffhanger brings the
+/// storm, game hours (Claude's).
+const REWARD_DANGER: u32 = 5;
+const LURE_HEARD: f32 = 250.0;
+const CLIFFHANGER_HOURS: f32 = 1.0;
+
+/// The kills in a memory.
+fn kills(persona: &Persona) -> usize {
+    persona.0.memory.done.iter().filter(|(_, d)| matches!(d, modforge::memory::Did::Killed(_))).count()
+}
+
+/// The aliens' own doings (todo Events 6; modforge `event::Aliens`), each
+/// through the system that owns the thing: a challenge kept here and paid
+/// by `on_air`; a guest moved to the door, gone in the morning; the storm
+/// brought near; the enemies about given a move to the door (modforge
+/// `command`); a secret told to the player as a thing they know of.
+#[allow(clippy::type_complexity, clippy::too_many_arguments)]
+pub fn aliens(
+    In((what, seed)): In<(modforge::event::Aliens, u64)>,
+    mut commands: Commands,
+    (tick, day): (Res<SimTick>, Res<Day>),
+    mut state: ResMut<ShowRes>,
+    mut storms: ResMut<crate::storm::StormRes>,
+    shelters: Query<&crate::structure::Shelter>,
+    mut player: Query<(&Transform, &mut Persona), With<Player>>,
+    mut people: Query<(Entity, &Actor, &mut Transform, &crate::actor::Home, Option<&Store>), (With<Npc>, Without<Dead>, Without<Player>)>,
+    secrets: Query<(&ThingId, &Transform), (With<crate::secrets::Secret>, Without<Actor>, Without<Player>)>,
+) {
+    use modforge::event::Aliens;
+    let secs = Day::secs(&tick);
+    match what {
+        Aliens::Challenge => {
+            let before = player.single().map_or(0, |(_, p)| kills(p));
+            state.challenge = Some((tick.0 + (day.0 * 60.0) as u64, before));
+            state.show.say(&SHOW, "CHALLENGE: a kill before the day is out".to_string());
+        }
+        Aliens::Guest => {
+            let mut guests: Vec<(Entity, modforge::actor::ActorId)> = people
+                .iter()
+                .filter(|(.., home, store)| store.is_some() && home.0.ground().distance(BUNKER_AT) >= OURS)
+                .map(|(e, a, ..)| (e, a.0))
+                .collect();
+            guests.sort_by_key(|(_, id)| *id);
+            let pick = modforge::roll::salted_index(seed, 0x6E57, guests.len().max(1) as u64) as usize;
+            if let (Some(&(guest, _)), Some(at)) = (guests.get(pick), crate::event::spot(modforge::event::Place::Door, seed, 0, &shelters))
+                && let Ok((_, _, mut where_, ..)) = people.get_mut(guest)
+            {
+                where_.translation = at;
+                commands.entity(guest).insert(crate::event::TillMorning(crate::survival::today(&tick, *day) as u32));
+                state.show.say(&SHOW, "a SPECIAL GUEST from another channel!".to_string());
+            }
+        }
+        Aliens::Cliffhanger => {
+            let near = day.storm().now(secs) + CLIFFHANGER_HOURS * day.0 / 24.0;
+            storms.at = Some(storms.at.map_or(near, |at| at.min(near)));
+            state.show.say(&SHOW, "TO BE CONTINUED...".to_string());
+        }
+        Aliens::Lure => {
+            let door = crate::on_ground(BUNKER_AT, 0.0);
+            for (entity, _, at, _, store) in &people {
+                if store.is_none() && at.translation.ground().distance(BUNKER_AT) <= LURE_HEARD {
+                    let to = modforge::command::Point { x: door.x, y: door.y, z: door.z };
+                    commands.entity(entity).insert(crate::command::Commanded { left: [modforge::command::Command::MoveTo { to }].into(), started: false });
+                }
+            }
+        }
+        Aliens::Rumor => {
+            let Ok((at, mut persona)) = player.single_mut() else {
+                return;
+            };
+            let unknown = secrets
+                .iter()
+                .filter(|(id, _)| !persona.0.memory.knows(id.0))
+                .min_by(|a, b| a.1.translation.distance(at.translation).total_cmp(&b.1.translation.distance(at.translation)));
+            if let Some((id, there)) = unknown {
+                persona.0.memory.see(id.0, "storage box", there.translation, tick.0);
+                state.show.say(&SHOW, "psst... there's something out there".to_string());
+            }
+        }
+    }
 }
 
 /// On whoever watches a television: our own channel (None), or the other
@@ -115,16 +202,29 @@ pub fn use_television(
 /// and turns up in a loot box away from the player's bunker.
 #[allow(clippy::type_complexity)]
 pub fn on_air(
+    mut commands: Commands,
     tick: Res<SimTick>,
     mut state: ResMut<ShowRes>,
     items: Res<ItemRegistryRes>,
-    people: Query<(&Actor, &Persona), Without<Dead>>,
+    people: Query<(&Actor, &Persona, Has<Player>), Without<Dead>>,
     mut boxes: Query<(&ThingId, &Transform, &mut Container), Without<Actor>>,
 ) {
     let state = &mut *state;
-    for (actor, persona) in &people {
+    for (actor, persona, is_player) in &people {
         for (_, did) in persona.0.memory.done.iter().rev().take_while(|(t, _)| *t == tick.0) {
             state.show.saw(&SHOW, actor.0, did, tick.0);
+        }
+        // The challenge (todo Events 6): a kill before it ends pays a
+        // loot box at the door; past its end, it is failed.
+        if is_player && let Some((until, before)) = state.challenge {
+            if kills(persona) > before {
+                state.challenge = None;
+                state.show.say(&SHOW, "CHALLENGE DONE! a gift at the door".to_string());
+                commands.run_system_cached_with(crate::event::drop, (None, 1, REWARD_DANGER, modforge::event::Place::Door, tick.0));
+            } else if tick.0 > until {
+                state.challenge = None;
+                state.show.say(&SHOW, "challenge failed, boooo".to_string());
+            }
         }
     }
     if tick.0 % 60 == 0 {

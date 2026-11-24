@@ -16,6 +16,12 @@ use crate::terrain::{WorldPiece, WorldRes};
 #[reflect(opaque, Resource, Serialize, Deserialize)]
 pub struct SecretsPlaced(pub Option<u64>);
 
+/// A secret's box, for a rumor to tell of (todo Events 6, src/show.rs;
+/// saved).
+#[derive(Component, Clone, Copy, Default, serde::Serialize, serde::Deserialize, Reflect)]
+#[reflect(opaque, Component, Serialize, Deserialize)]
+pub struct Secret;
+
 /// How many chunks each way from the middle a world with no edge looks
 /// for its secrets (Claude's, for the operator to change).
 const NO_EDGE_CHUNKS: i32 = 8;
@@ -67,7 +73,7 @@ pub fn place(
         let contents = crate::structure::fill_box(&items, &layers, &table, box_def, danger, seed, today);
         let stack = modforge::item::create(box_def, 1, &[], 0.0, seed);
         let (made, _) = crate::interact::spawn_item(&mut commands, &mut ids, box_def, stack, crate::on_ground(at, 0.0));
-        commands.entity(made).insert((crate::interact::Container(contents), WorldPiece));
+        commands.entity(made).insert((crate::interact::Container(contents), WorldPiece, Secret));
         info!("secrets: a secret site at {at}");
     }
 }

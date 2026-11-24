@@ -25,7 +25,9 @@
 # high]}}` (a weather is everywhere while it lasts, doing what that
 # weather does: RadiationStorm, ColdSnap, HeatWave, Fog, Rain), `Spoil` (the food in the player's store goes bad),
 # `{Storm: <a storm effect>}` and `{Home: <trouble at home>}` (Fire,
-# Sickness, Flood, Breaks, FallOut, InLove; src/home.rs).
+# Sickness, Flood, Breaks, FallOut, InLove; src/home.rs) and `{Aliens:
+# <the show's doing>}` (Challenge, Guest, Cliffhanger, Lure, Rumor;
+# src/show.rs).
 #
 # The events are Claude's list the operator took (2026-11-24: "Let's
 # go."), from RimWorld's, Rust's, Project Zomboid's, 7 Days to Die's and
@@ -131,6 +133,19 @@ events:
     # Trouble at home.
     # The store's food goes bad (RimWorld's food rot).
     - {name: spoiled store, group: home, mood: Trouble, cost: 10, warnings: [None], from_episode: 1, weight: 50, does: [Spoil]}
+    # The aliens' own doings for the show (todo Events 6, src/show.rs).
+    # A challenge with a reward (Twitch's channel challenges).
+    - {name: challenge, group: the show, mood: Strange, cost: 5, warnings: [Broadcast], does: [{Aliens: Challenge}]}
+    # A rule changed for a day: the dark all day (Claude's rule).
+    - {name: no daylight, group: the show, mood: Strange, cost: 10, warnings: [Broadcast], from_episode: 1, does: [{Last: {what: Dark, hours: [24.0, 24.0]}}]}
+    # A special guest from another channel's bunker.
+    - {name: special guest, group: the show, mood: Strange, cost: 5, warnings: [Broadcast], does: [{Aliens: Guest}]}
+    # A cliffhanger: the storm brought near, the screen gone dark.
+    - {name: cliffhanger, group: the show, mood: Trouble, cost: 20, warnings: [Broadcast], from_episode: 1, weight: 30, does: [{Aliens: Cliffhanger}, {Last: {what: Dark, hours: [1.0, 1.0]}}]}
+    # A sound that pulls the enemies about to the door (7 Days to Die's screamer).
+    - {name: lure, group: the show, mood: Trouble, cost: 15, warnings: [Sound], from_episode: 1, does: [{Aliens: Lure}]}
+    # A rumor of a place: a secret told.
+    - {name: rumor, group: the show, mood: Gift, cost: 5, warnings: [None], does: [{Aliens: Rumor}]}
     # The rest of the trouble at home (todo Events 5, src/home.rs).
     # A short circuit sets something alight (RimWorld's short circuit).
     - {name: short circuit, group: home, mood: Trouble, cost: 10, warnings: [None], from_episode: 1, weight: 50, does: [{Home: Fire}]}

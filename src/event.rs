@@ -160,6 +160,8 @@ fn send(commands: &mut Commands, state: &mut EventsRes, event: Event, secs: f32,
                 Does::Storm(_) => {}
                 Does::Home(home) if k == 0 => commands.run_system_cached_with(crate::home::trouble, (*home, seed)),
                 Does::Home(_) => {}
+                Does::Aliens(what) if k == 0 => commands.run_system_cached_with(crate::show::aliens, (*what, seed)),
+                Does::Aliens(_) => {}
             }
         }
     }
@@ -168,7 +170,7 @@ fn send(commands: &mut Commands, state: &mut EventsRes, event: Event, secs: f32,
 /// The `n`th spot at `place`, rolled from `seed`: on open ground for the
 /// edge, the town and the door; inside and under the player's bunker by
 /// its levels.
-fn spot(place: Place, seed: u64, n: u32, shelters: &Query<&Shelter>) -> Option<Vec3> {
+pub(crate) fn spot(place: Place, seed: u64, n: u32, shelters: &Query<&Shelter>) -> Option<Vec3> {
     let roll = |k: u64| modforge::roll::salted_index(seed ^ u64::from(n) << 16, 0xE7_5070 + k, 10_001) as f32 / 10_000.0;
     let around = |far: (f32, f32)| {
         (0..16u64).find_map(|t| {
@@ -212,7 +214,7 @@ fn arrive(
 /// Things drop at `place`: `count` loot boxes filled at `danger`, or one
 /// stack of `count` of `item`.
 #[allow(clippy::too_many_arguments)]
-fn drop(
+pub(crate) fn drop(
     In((item, count, danger, place, seed)): In<(Option<String>, u32, u32, Place, u64)>,
     mut commands: Commands,
     mut ids: ResMut<ThingIssuer>,
