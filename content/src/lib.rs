@@ -589,7 +589,8 @@ pub const FEED: &str = "animal feed";
 pub const GRAIN_ELEVATOR: modforge::plan::PlanDef = modforge::plan::PlanDef {
     name: "grain elevator",
     edge: true,
-    furniture_models: &[],
+    // Each drawn as its own model (todo Model 5; scripts/models.py).
+    furniture_models: &["feed aisle", "checkout counter", "work desk", "grain bin", "grain bin"],
     columns: &[7.0, 5.0, 5.0],
     rows: &[7.0, 6.0],
     rooms: &[((0, 0), "feed store"), ((1, 0), "counter"), ((2, 0), "scale house"), ((0, 1), "loading bay"), ((1, 1), "grain bin"), ((2, 1), "second grain bin")],

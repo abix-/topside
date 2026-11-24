@@ -3100,6 +3100,69 @@ def butcher_block():
     return join(parts, "butcher block")
 
 
+# -- the grain elevator and every thing in it (todo Model 5) --------------------
+#
+# Sizes are content's GRAIN_ELEVATOR plan's (the feed store's aisle 4.5 m by
+# 0.8 m and 1.6 m tall, a grain bin 3.5 m across and tall); the counter,
+# desk, shelf, register and pallet are the grocery's. The hopper's are
+# Claude's.
+
+
+def feed_aisle():
+    """the feed store's aisle: shelves of feed sacks on both faces, 4.5 m long."""
+    c = store_colours()
+    burlap = material("burlap", (0.6, 0.5, 0.35))
+    parts = [box("back", (4.5, 0.04, 1.6), at=(0, 0, 0.8), mat=c["dark steel"])]
+    for lv, z in enumerate((0.1, 0.6, 1.1)):
+        for s in (1, -1):
+            parts.append(box(f"shelf {lv} {s}", (4.5, 0.37, 0.03), at=(0, s * 0.2, z), mat=c["steel"]))
+            for i in range(6):
+                parts.append(box(f"sack {lv} {s} {i}", (0.6, 0.3, 0.35), at=(-1.875 + 0.75 * i, s * 0.2, z + 0.19),
+                                 mat=burlap if (i + lv) % 2 else material("feed sack", (0.75, 0.7, 0.55))))
+    return join(parts, "feed aisle")
+
+
+def grain_bin():
+    """a corrugated steel grain bin, 3.5 m across and tall, its cone roof and
+    the ladder up its side."""
+    c = store_colours()
+    parts = [cylinder("wall", 1.75, 3.0, sides=20, at=(0, 0, 1.5), mat=c["steel"])]
+    for k in range(6):
+        parts.append(cylinder(f"ring {k}", 1.77, 0.04, sides=20, at=(0, 0, 0.25 + 0.5 * k), mat=c["dark steel"]))
+    bpy.ops.mesh.primitive_cone_add(vertices=20, radius1=1.8, depth=0.5, location=(0, 0, 3.25))
+    roof = bpy.context.active_object
+    roof.data.materials.append(c["steel"])
+    parts.append(roof)
+    for s in (1, -1):
+        parts.append(box(f"rail {s}", (0.04, 0.04, 3.0), at=(s * 0.2, -1.8, 1.5), mat=c["dark steel"]))
+    for k in range(10):
+        parts.append(box(f"rung {k}", (0.4, 0.03, 0.03), at=(0, -1.8, 0.2 + 0.3 * k), mat=c["dark steel"]))
+    return join(parts, "grain bin")
+
+
+def grain_hopper():
+    """a grain hopper: a steel funnel on legs, its chute and slide gate."""
+    c = store_colours()
+    bpy.ops.mesh.primitive_cone_add(vertices=4, radius1=0.7, radius2=0.12, depth=0.8, location=(0, 0, 1.0), rotation=(3.14159, 0, 0.785))
+    funnel = bpy.context.active_object
+    funnel.data.materials.append(c["steel"])
+    parts = [funnel]
+    parts.append(box("rim", (1.0, 1.0, 0.1), at=(0, 0, 1.45), mat=c["dark steel"]))
+    parts.append(cylinder("chute", 0.1, 0.4, sides=8, at=(0, 0, 0.45), mat=c["dark steel"]))
+    parts.append(box("gate", (0.25, 0.04, 0.12), at=(0, -0.12, 0.55), mat=c["red"]))
+    for sx in (1, -1):
+        for sy in (1, -1):
+            parts.append(box(f"leg {sx} {sy}", (0.06, 0.06, 1.45), at=(sx * 0.45, sy * 0.45, 0.725), mat=c["dark steel"]))
+    return join(parts, "grain hopper")
+
+
+ELEVATOR = {
+    "feed aisle": feed_aisle,
+    "grain bin": grain_bin,
+    "grain hopper": grain_hopper,
+}
+
+
 BARN = {
     "stall rail": stall_rail,
     "tack wall": tack_wall,
@@ -3158,6 +3221,7 @@ MODELS = {
     **GROCERY,
     **FARM,
     **BARN,
+    **ELEVATOR,
     "tree": tree,
     "rock": rock,
     # The wasteland's and the ruins' scatter, at their largest side as
