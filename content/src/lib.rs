@@ -788,7 +788,7 @@ pub const SUBSTATION: modforge::plan::PlanDef = modforge::plan::PlanDef {
 pub const SUBSTATION_SWITCH: &str = "substation switch";
 pub const TRANSFORMER: &str = "transformer";
 /// The things of places that are switches.
-pub const PLACE_SWITCHES: [&str; 6] = [SUBSTATION_SWITCH, SEWAGE_PUMP, POND_VALVE, RADIO_ITEM, TV, PHONE];
+pub const PLACE_SWITCHES: [&str; 7] = [SUBSTATION_SWITCH, SEWAGE_PUMP, POND_VALVE, RADIO_ITEM, TV, PHONE, CANDLE];
 /// Place 11: the gas station, on main street: the shop with its shelves
 /// and counter, the garage bay with its bench, the office, the store and
 /// the restroom, with two pumps out front under the canopy.
@@ -1071,12 +1071,54 @@ pub const TOWN_HALL: modforge::plan::PlanDef = modforge::plan::PlanDef {
 };
 pub const MAIL_SACK: &str = "mail sack";
 pub const RECORDS_CABINET: &str = "records cabinet";
-pub const PLACES: [modforge::plan::PlanDef; 19] = [GROCERY_STORE, CROP_FARM, CROP_FARM, LIVESTOCK_BARN, GRAIN_ELEVATOR, DINER, PIZZA_PLACE, CAFE, BAR, PUMP_HOUSE, SUBSTATION, GAS_STATION, SEWAGE_POND, TOWN_DUMP, CLINIC, FIRE_STATION, SHERIFFS_OFFICE, SCHOOL, TOWN_HALL];
+/// Place 19: the church, on main street: the nave with its pews, the
+/// altar, the vestry, the pastor's study and the fellowship kitchen.
+pub const CHURCH: modforge::plan::PlanDef = modforge::plan::PlanDef {
+    name: "church",
+    edge: false,
+    columns: &[5.0, 9.0, 5.0],
+    rows: &[12.0, 5.0],
+    rooms: &[((0, 0), "pastor's study"), ((1, 0), "nave"), ((2, 0), "fellowship kitchen"), ((0, 1), "vestry"), ((1, 1), "altar"), ((2, 1), "church store")],
+    ways: &[((0, 0), East, true), ((1, 0), East, true), ((1, 0), North, false), ((0, 1), East, true), ((1, 1), East, true)],
+    exits: &[((1, 0), South, 2.4)],
+    furniture: &[
+        ("nave", [-0.25, -0.1], [3.0, 0.9, 0.6]),
+        ("nave", [0.25, -0.1], [3.0, 0.9, 0.6]),
+        ("nave", [-0.25, 0.1], [3.0, 0.9, 0.6]),
+        ("nave", [0.25, 0.1], [3.0, 0.9, 0.6]),
+        ("nave", [-0.25, 0.3], [3.0, 0.9, 0.6]),
+        ("nave", [0.25, 0.3], [3.0, 0.9, 0.6]),
+        ("altar", [0.0, 0.0], [2.0, 1.0, 0.8]),
+        ("pastor's study", [0.0, -0.3], [1.4, 0.75, 0.7]),
+        ("fellowship kitchen", [0.0, -0.4], [4.0, 0.9, 0.7]),
+        ("vestry", [0.0, -0.4], [3.0, 1.9, 0.5]),
+    ],
+    things: &[
+        (OFFICE_DESK, "pastor's study", [0.0, 0.0]),
+        (CANDLE, "altar", [0.3, -0.2]),
+        (CANDLE, "altar", [-0.3, -0.2]),
+        (CLOSET, "vestry", [0.0, 0.2]),
+        (PANTRY, "fellowship kitchen", [-0.3, -0.2]),
+        (STOVE, "fellowship kitchen", [0.3, -0.2]),
+        (SHELF, "church store", [0.0, 0.0]),
+    ],
+    outside: &[],
+    walls: &[[0.92, 0.9, 0.85], [0.8, 0.78, 0.75]],
+    floor: [0.5, 0.38, 0.28],
+    furniture_color: [0.42, 0.3, 0.2],
+    height: 5.0,
+};
+pub const PLACES: [modforge::plan::PlanDef; 20] = [GROCERY_STORE, CROP_FARM, CROP_FARM, LIVESTOCK_BARN, GRAIN_ELEVATOR, DINER, PIZZA_PLACE, CAFE, BAR, PUMP_HOUSE, SUBSTATION, GAS_STATION, SEWAGE_POND, TOWN_DUMP, CLINIC, FIRE_STATION, SHERIFFS_OFFICE, SCHOOL, TOWN_HALL, CHURCH];
 /// The places whose garden beds are found sown and ripe, with what.
 pub const PLACE_SOWN: [(&str, &str); 1] = [("crop farm", POTATO_SEED)];
 /// What each place's boxes are found holding: the place, the box, the
 /// item and how many.
-pub const PLACE_HOLDS: [(&str, &str, &str, u32); 78] = [
+pub const PLACE_HOLDS: [(&str, &str, &str, u32); 83] = [
+    ("church", OFFICE_DESK, MATCHES, 1),
+    ("church", CLOSET, BLANKET, 2),
+    ("church", PANTRY, "canned food", 6),
+    ("church", PANTRY, "water bottle", 4),
+    ("church", SHELF, CANDLE, 4),
     ("town hall", CASH_REGISTER, "scrap", 1),
     ("town hall", OFFICE_DESK, "cloth", 1),
     ("town hall", RECORDS_CABINET, "cloth", 2),
