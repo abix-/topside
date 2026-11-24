@@ -1,0 +1,131 @@
+# The bought models, built by scripts/models.py: Quaternius's Stylized
+# Nature MegaKit (CC0, scripts/megakit/License_Standard.txt) and Kenney's
+# kits (CC0, scripts/kenney-<kit>), each in its own flat colours or all in
+# one. Each at its largest side as content/src/lib.rs sizes it; an item at
+# the game's size for it (src/interact.rs ITEM_SIZE 0.35 and
+# DEPLOYABLE_SIZE 0.7; change both together).
+
+models:
+  tree:
+    about: a broadleaf tree, Quaternius's CommonTree_1, in grey-brown bark and green leaves; the leaf cards keep their leaf shapes.
+    parts:
+      - file: scripts/megakit/CommonTree_1.gltf
+        colours:
+          Bark: [0.36, 0.31, 0.26]
+          Leaves: {colour: [0.18, 0.32, 0.12], cut: true}
+
+  rock:
+    about: the forest's rock, Quaternius's Rock_Medium_1, 0.8 m across, in its grey.
+    parts:
+      - file: scripts/megakit/Rock_Medium_1.gltf
+        colours: {Rocks: [0.4, 0.4, 0.35]}
+    size: 0.8
+
+  berry bush:
+    about: a berry bush, Quaternius's flowering bush, its flowers the berries, 1.0 m across.
+    parts:
+      - file: scripts/megakit/Bush_Common_Flowers.gltf
+        colours:
+          Leaves: {colour: [0.18, 0.32, 0.12], cut: true}
+          Flowers: {colour: [0.55, 0.15, 0.3], cut: true}
+    size: 1.0
+
+  fallen log:
+    about: the wasteland's fallen log, lying along x.
+    parts:
+      - file: scripts/kenney-survival/tree-log.glb
+        colours: {colormap: [0.5, 0.42, 0.32]}
+    size: 1.2
+    turn: 90
+
+  broken wall:
+    about: the ruins' broken wall.
+    parts:
+      - file: scripts/kenney-graveyard/stone-wall-damaged.glb
+        colours: {colormap: [0.45, 0.43, 0.4]}
+    size: 2.0
+
+  car wreck:
+    about: a wrecked car, Kenney's sedan all in rust, lying along x, 4.2 m long.
+    parts:
+      - file: scripts/kenney-car/sedan.glb
+        colours: {colormap: [0.45, 0.2, 0.15]}
+    size: 4.2
+    turn: 90
+
+  barrel:
+    parts:
+      - file: scripts/kenney-survival/barrel.glb
+        colours: {colormap: own}
+    size: 0.9
+
+  tent:
+    parts:
+      - file: scripts/kenney-survival/tent.glb
+        colours: {colormap: own}
+    size: 2.4
+
+  fire pit:
+    parts:
+      - file: scripts/kenney-survival/campfire-pit.glb
+        colours: {colormap: own}
+    size: 1.0
+
+  crate:
+    parts:
+      - file: scripts/kenney-survival/box.glb
+        colours: {colormap: own}
+    size: 0.5
+
+  supply crate:
+    parts:
+      - file: scripts/kenney-survival/box-large.glb
+        colours: {colormap: own}
+    size: 1.6
+
+  grave:
+    parts:
+      - file: scripts/kenney-graveyard/grave.glb
+        colours: {colormap: own}
+    size: 1.8
+
+  stone:
+    parts:
+      - file: scripts/kenney-graveyard/gravestone-broken.glb
+        colours: {colormap: own}
+    size: 0.5
+
+  canned food:
+    parts:
+      - file: scripts/kenney-food/can.glb
+        colours: {colormap: own}
+    size: 0.35
+    icon: true
+
+  water bottle:
+    parts:
+      - file: scripts/kenney-survival/bottle.glb
+        colours: {colormap: own}
+    size: 0.35
+    icon: true
+
+  storage box:
+    parts:
+      - file: scripts/kenney-survival/box.glb
+        colours: {colormap: own}
+    size: 0.7
+    icon: true
+
+  scrap:
+    parts:
+      - file: scripts/kenney-survival/metal-panel-screws-half.glb
+        colours: {colormap: own}
+    size: 0.35
+    icon: true
+
+  cloth:
+    parts:
+      - file: scripts/kenney-survival/bedroll-packed.glb
+        colours: {colormap: own}
+    size: 0.35
+    icon: true

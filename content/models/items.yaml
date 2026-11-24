@@ -1,0 +1,191 @@
+# Items, named as in content/src/lib.rs, built by scripts/models.py, each
+# with its icon. Every item lies on the ground at the game's size for it
+# (src/interact.rs ITEM_SIZE 0.35; change both together). The bought items
+# are in bought.yaml; the weapons, in layers, are still in models.py.
+
+colours:
+  hull: [0.8, 0.3, 0.2]
+  shell brass: [0.75, 0.6, 0.25]
+  bolt steel: [0.55, 0.56, 0.58]
+  paper: [0.85, 0.82, 0.7]
+  ink: [0.2, 0.2, 0.25]
+  door paint: [0.35, 0.4, 0.35]
+  door bolt: [0.55, 0.55, 0.58]
+  scratch: [0.8, 0.78, 0.7]
+  earth: [0.42, 0.36, 0.28]
+  ridge grass: [0.3, 0.42, 0.22]
+  radio case: [0.3, 0.25, 0.2]
+  grille: [0.15, 0.15, 0.15]
+  dial: [0.8, 0.75, 0.6]
+  gauze: [0.9, 0.88, 0.84]
+  sign: [0.2, 0.5, 0.2]
+  border: [0.9, 0.9, 0.88]
+  strap: [0.18, 0.16, 0.14]
+
+models:
+  shotgun shell:
+    about: three shotgun shells side by side, red hulls on brass bases.
+    parts:
+      - for: {i: range(3)}
+        let: {y: (i - 1) * 0.03}
+        parts:
+          - cylinder: [0.012, 0.055]
+            along: X
+            at: [0, y, 0]
+            colour: hull
+          - cylinder: [0.0125, 0.014]
+            along: X
+            at: [-0.034, y, 0]
+            colour: shell brass
+    size: 0.35
+    icon: true
+
+  bolt:
+    about: a bolt (design.md "Maze, mined", the bolt you throw ahead), a steel shank with a six-sided head and a nut near its end.
+    parts:
+      - cylinder: [0.006, 0.07]
+        along: X
+        colour: bolt steel
+      - cylinder: [0.012, 0.008]
+        sides: 6
+        along: X
+        at: [-0.039, 0, 0]
+        colour: bolt steel
+      - cylinder: [0.011, 0.008]
+        sides: 6
+        along: X
+        at: [0.025, 0, 0]
+        colour: bolt steel
+    size: 0.105
+    icon: true
+
+  note:
+    about: a note, a sheet of paper with lines of writing.
+    parts:
+      - box: [0.2, 0.26, 0.004]
+        colour: paper
+      - for: {i: range(5)}
+        parts:
+          - box: [0.14 - (i % 2) * 0.03, 0.008, 0.001]
+            at: [0, 0.08 - i * 0.04, 0.0025]
+            colour: ink
+    size: 0.35
+    icon: true
+
+  bolted door:
+    about: a door standing in the room, its bolt shot, scratches in its paint low down (design.md "The first hour"); door sized, not item sized; the bolt on the +y face, toward the room.
+    parts:
+      - box: [0.8, 0.05, 1.9]
+        at: [0, 0, 0.95]
+        colour: door paint
+      - box: [0.22, 0.04, 0.04]
+        at: [0.25, 0.045, 1.0]
+        colour: door bolt
+      - box: [0.06, 0.05, 0.08]
+        at: [0.38, 0.045, 1.0]
+        colour: door bolt
+      - for: {i: range(6)}
+        parts:
+          - box: [0.012, 0.004, 0.35]
+            at: [-0.25 + i * 0.09, 0.027, 0.3 + (i % 3) * 0.05]
+            rotation: [0, 0.15 * (i % 2 * 2 - 1) * 180 / pi, 0]
+            colour: scratch
+    size: 1.9
+    icon: true
+
+  ridge:
+    about: a long earth ridge, stepped up to a grassy top, between the bunker door and the gantry (design.md "The first hour"), 110 m long, 14 m deep, 10 m high (content register_monuments).
+    parts:
+      - box: [110.0, 14.0, 4.0]
+        at: [0, 0, 2.0]
+        colour: earth
+      - box: [100.0, 9.0, 3.5]
+        at: [0, 0, 5.75]
+        colour: earth
+      - box: [88.0, 4.5, 2.5]
+        at: [0, 0, 8.75]
+        colour: ridge grass
+    size: 110.0
+    icon: true
+
+  radio:
+    about: a radio, a box with a speaker grille, a dial and an aerial.
+    parts:
+      - box: [0.3, 0.12, 0.18]
+        at: [0, 0, 0.09]
+        colour: radio case
+      - box: [0.14, 0.004, 0.12]
+        at: [-0.06, -0.061, 0.09]
+        colour: grille
+      - cylinder: [0.03, 0.01]
+        along: Y
+        at: [0.08, -0.062, 0.09]
+        colour: dial
+      - cylinder: [0.004, 0.3]
+        at: [0.12, 0.03, 0.33]
+        colour: grille
+    size: 0.35
+    icon: true
+
+  bandage:
+    about: a bandage, a white roll with its loose end lying out.
+    parts:
+      - cylinder: [0.035, 0.07]
+        along: Y
+        colour: gauze
+      - box: [0.12, 0.06, 0.004]
+        at: [0.09, 0, -0.033]
+        colour: gauze
+    size: 0.35
+    icon: true
+
+  folded:
+    about: clothes folded flat on the ground, a cloth square with its fold, in rgb.
+    template: true
+    params: {rgb: [0.42, 0.4, 0.33]}
+    parts:
+      - box: [0.3, 0.25, 0.04]
+        colour: rgb
+      - box: [0.3, 0.01, 0.002]
+        at: [0, 0, 0.021]
+        colour: "[rgb[0] * 0.7, rgb[1] * 0.7, rgb[2] * 0.7]"
+    size: 0.35
+
+  shirt:
+    parent: folded
+    params: {rgb: [0.42, 0.4, 0.33]}
+    icon: true
+
+  trousers:
+    parent: folded
+    params: {rgb: [0.25, 0.27, 0.3]}
+    icon: true
+
+  boots:
+    parent: folded
+    params: {rgb: [0.22, 0.16, 0.11]}
+    icon: true
+
+  road sign vest:
+    about: the road sign vest, a green road sign with a white border, worn on two straps.
+    let: {w: 0.42, h: 0.5}
+    parts:
+      - box: [w, h, 0.03]
+        colour: sign
+      - for: {y: "[h / 2 - 0.02, -h / 2 + 0.02]"}
+        parts:
+          - box: [w, 0.02, 0.002]
+            at: [0, y, 0.016]
+            colour: border
+      - for: {x: "[-w / 2 + 0.02, w / 2 - 0.02]"}
+        parts:
+          - box: [0.02, h, 0.002]
+            at: [x, 0, 0.016]
+            colour: border
+      - for: {x: [-0.12, 0.12]}
+        parts:
+          - box: [0.07, 0.16, 0.02]
+            at: [x, h / 2 + 0.06, 0]
+            colour: strap
+    size: 0.35
+    icon: true

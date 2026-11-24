@@ -261,6 +261,12 @@ class Builder:
         self.mats = {}
 
     def colour(self, name, colours):
+        if isinstance(name, (list, tuple)):
+            # A colour worked out from the params, its sRGB numbers.
+            key = ("rgb", tuple(name))
+            if key not in self.mats:
+                self.mats[key] = material(" ".join(f"{c:.3f}" for c in name), tuple(name))
+            return self.mats[key]
         c = colours.get(name)
         if c is None:
             sys.exit(f"ERROR: no colour named {name!r}")
@@ -310,7 +316,8 @@ class Builder:
                 continue
             if "if" in p and not worked(p["if"], env):
                 continue
-            out.append(self.part(p, env, colours, f"{name} {i}"))
+            made = self.part(p, env, colours, f"{name} {i}")
+            out.extend(made if isinstance(made, list) else [made])
 
     def each(self, loops, k, p, env, colours, name, out):
         if k == len(loops):
@@ -347,6 +354,28 @@ class Builder:
             bpy.ops.mesh.primitive_torus_add(major_radius=major, minor_radius=minor, major_segments=worked(p.get("sides", 12), env),
                                              minor_segments=6, location=at, rotation=rotation)
             return _named(label, mat)
+        if "ico" in p:
+            bpy.ops.mesh.primitive_ico_sphere_add(radius=worked(p["ico"], env), subdivisions=worked(p.get("subdivisions", 2), env),
+                                                  location=at, rotation=rotation)
+            return _named(label, mat)
+        if "file" in p:
+            # A bought model (a Kenney kit, Quaternius's), its materials by
+            # the start of their names: `own` keeps the model's own picture,
+            # a colour's name or sRGB numbers paint it all that colour, and
+            # `cut` keeps the picture's see-through parts (leaf cards).
+            looks = {}
+            for start, look in (p.get("colours") or {}).items():
+                look = look if isinstance(look, dict) else {"colour": look}
+                c = look.get("colour", "own")
+                if isinstance(c, str) and c != "own":
+                    c = colours.get(c) if c in colours else sys.exit(f"ERROR: {label}: no colour named {c!r}")
+                    c = c["rgb"] if isinstance(c, dict) else c
+                looks[start] = (None if c == "own" else tuple(c), bool(look.get("cut")))
+            meshes = load(ROOT / p["file"], looks)
+            if "at" in p:
+                for m in meshes:
+                    m.location = at
+            return meshes
         if "sphere" in p:
             bpy.ops.mesh.primitive_uv_sphere_add(radius=worked(p["sphere"], env), segments=worked(p.get("sides", 8), env), ring_count=6,
                                                  location=at, rotation=rotation)
@@ -407,7 +436,7 @@ def export(obj, name):
 # slot (design.md: the inventory screen, item icons rendered from the
 # models): seen from the front and above, on nothing.
 
-ICONS = ROOT / "assets" / "icons"
+ICONS = Path(os.environ["TOPSIDE_ICONS_OUT"]) if os.environ.get("TOPSIDE_ICONS_OUT") else ROOT / "assets" / "icons"
 ICON_PIXELS = 128
 # Where the icon camera looks from: in front (-y) and above.
 ICON_VIEW = (0.0, -1.0, 0.7)
@@ -460,49 +489,6 @@ def icon(frame, shown, name):
     scene.render.filepath = str(out)
     bpy.ops.render.render(write_still=True)
     print(f"{name}: icon -> {out}")
-
-
-# -- the models --------------------------------------------------------------
-
-
-# Quaternius's Stylized Nature MegaKit, the free Standard version (CC0,
-# scripts/megakit/License_Standard.txt), from
-# https://quaternius.itch.io/stylized-nature-megakit. Only the files the
-# models below use are kept; their bark pictures are left out, since the
-# cel shade replaces them.
-MEGAKIT = Path(__file__).resolve().parent / "megakit"
-
-
-def tree():
-    """a broadleaf tree: Quaternius's CommonTree_1, in grey-brown bark and
-    green leaves; the leaf cards keep their leaf shapes."""
-    colours = {"Bark": ((0.36, 0.31, 0.26), False), "Leaves": ((0.18, 0.32, 0.12), True)}
-    return join(load(MEGAKIT / "CommonTree_1.gltf", colours), "tree")
-
-
-def rock():
-    """the forest's rock: Quaternius's Rock_Medium_1, 0.8 m across (the
-    forest rock in content/src/lib.rs), in its grey."""
-    colours = {"Rocks": ((0.4, 0.4, 0.35), False)}
-    return join(load(MEGAKIT / "Rock_Medium_1.gltf", colours), "rock", size=0.8)
-
-
-# -- items ---------------------------------------------------------------------
-#
-# Every item lies on the ground at the game's size for it (src/interact.rs
-# ITEM_SIZE and DEPLOYABLE_SIZE; change both together), its picture named
-# after it (content/src/lib.rs). Items come from Kenney's CC0 kits in their
-# own flat colours, or are built here from shapes in the colours content
-# gives them.
-ITEM = 0.35
-DEPLOYABLE = 0.7
-
-
-def kenney(kit, model, name, size=ITEM, rgb=None, turn=0):
-    """a model from one of Kenney's kits (scripts/kenney-<kit>, CC0), in
-    its own flat colours, or all in `rgb`; turned `turn` degrees about
-    upright, so it lies the way content sizes it."""
-    return join(load(ROOT / "scripts" / f"kenney-{kit}" / f"{model}.glb", {"colormap": (rgb, False)}), name, size, turn)
 
 
 # -- weapons, in layers ----------------------------------------------------------
@@ -753,232 +739,6 @@ def weapons():
         layered(handle, parts, {head: put_on(length, radius) for head, put_on in HEADS.items()}, 0.0)
     clear()
     layered("pipe shotgun", pipe_shotgun_body(), {name: build() for name, build in GUN_PARTS.items()}, 0.0)
-
-
-def shotgun_shell():
-    """three shotgun shells side by side: red hulls on brass bases."""
-    hull = material("hull", (0.8, 0.3, 0.2))
-    brass = material("brass", (0.75, 0.6, 0.25))
-    parts = []
-    for i in range(3):
-        y = (i - 1) * 0.03
-        parts.append(cylinder(f"hull_{i}", 0.012, 0.055, along="X", at=(0, y, 0), mat=hull))
-        parts.append(cylinder(f"base_{i}", 0.0125, 0.014, along="X", at=(-0.034, y, 0), mat=brass))
-    return join(parts, "shotgun shell", ITEM)
-
-
-def bolt():
-    """a bolt (design.md "Maze, mined": the bolt you throw ahead): a steel
-    shank with a six-sided head and a nut near its end."""
-    steel = material("steel", (0.55, 0.56, 0.58))
-    parts = [
-        cylinder("shank", 0.006, 0.07, along="X", at=(0, 0, 0), mat=steel),
-        cylinder("head", 0.012, 0.008, sides=6, along="X", at=(-0.039, 0, 0), mat=steel),
-        cylinder("nut", 0.011, 0.008, sides=6, along="X", at=(0.025, 0, 0), mat=steel),
-    ]
-    return join(parts, "bolt", ITEM * 0.3)
-
-
-def note():
-    """a note: a sheet of paper with lines of writing."""
-    paper = material("paper", (0.85, 0.82, 0.7))
-    ink = material("ink", (0.2, 0.2, 0.25))
-    parts = [box("sheet", (0.2, 0.26, 0.004), mat=paper)]
-    for i in range(5):
-        parts.append(box(f"line_{i}", (0.14 - (i % 2) * 0.03, 0.008, 0.001), at=(0, 0.08 - i * 0.04, 0.0025), mat=ink))
-    return join(parts, "note", ITEM)
-
-
-def bolted_door():
-    """a door standing in the room, its bolt shot, scratches in its paint
-    low down (design.md "The first hour": "a door bolted from the inside
-    with scratches on it"). Door sized, not item sized."""
-    paint = material("door paint", (0.35, 0.4, 0.35))
-    steel = material("bolt", (0.55, 0.55, 0.58))
-    bare = material("scratch", (0.8, 0.78, 0.7))
-    parts = [box("panel", (0.8, 0.05, 1.9), at=(0, 0, 0.95), mat=paint)]
-    # On the +y face: the game's -z, toward the room from where the
-    # door stands in it (QUESTION_AT).
-    parts.append(box("bolt", (0.22, 0.04, 0.04), at=(0.25, 0.045, 1.0), mat=steel))
-    parts.append(box("keeper", (0.06, 0.05, 0.08), at=(0.38, 0.045, 1.0), mat=steel))
-    for i in range(6):
-        x = -0.25 + i * 0.09
-        parts.append(box(f"scratch_{i}", (0.012, 0.004, 0.35), at=(x, 0.027, 0.3 + (i % 3) * 0.05), rotation=(0, 0.15 * (i % 2 * 2 - 1), 0), mat=bare))
-    return join(parts, "bolted door", 1.9)
-
-
-def ridge():
-    """a long earth ridge, stepped up to a grassy top: the medium triangle
-    between the bunker door and the gantry (design.md "The first hour"),
-    110 m long, 14 m deep, 10 m high (content `register_monuments`)."""
-    earth = material("earth", (0.42, 0.36, 0.28))
-    grass = material("ridge grass", (0.3, 0.42, 0.22))
-    parts = [
-        box("base", (110.0, 14.0, 4.0), at=(0, 0, 2.0), mat=earth),
-        box("middle", (100.0, 9.0, 3.5), at=(0, 0, 5.75), mat=earth),
-        box("top", (88.0, 4.5, 2.5), at=(0, 0, 8.75), mat=grass),
-    ]
-    return join(parts, "ridge", 110.0)
-
-
-def radio():
-    """a radio: a box with a speaker grille, a dial and an aerial."""
-    case = material("radio case", (0.3, 0.25, 0.2))
-    grille = material("grille", (0.15, 0.15, 0.15))
-    dial = material("dial", (0.8, 0.75, 0.6))
-    parts = [box("case", (0.3, 0.12, 0.18), at=(0, 0, 0.09), mat=case)]
-    parts.append(box("grille", (0.14, 0.004, 0.12), at=(-0.06, -0.061, 0.09), mat=grille))
-    parts.append(cylinder("dial", 0.03, 0.01, along="Y", at=(0.08, -0.062, 0.09), mat=dial))
-    parts.append(cylinder("aerial", 0.004, 0.3, along="Z", at=(0.12, 0.03, 0.33), mat=grille))
-    return join(parts, "radio", ITEM)
-
-
-def bandage():
-    """a bandage: a white roll with its loose end lying out."""
-    cloth = material("gauze", (0.9, 0.88, 0.84))
-    parts = [
-        cylinder("roll", 0.035, 0.07, along="Y", mat=cloth),
-        box("end", (0.12, 0.06, 0.004), at=(0.09, 0, -0.033), mat=cloth),
-    ]
-    return join(parts, "bandage", ITEM)
-
-
-def folded(name, rgb):
-    """clothes folded flat on the ground: a cloth square with its fold."""
-    cloth = material(name, rgb)
-    fold = material(f"{name} fold", tuple(c * 0.7 for c in rgb))
-    parts = [
-        box("cloth", (0.3, 0.25, 0.04), mat=cloth),
-        box("fold", (0.3, 0.01, 0.002), at=(0, 0, 0.021), mat=fold),
-    ]
-    return join(parts, name, ITEM)
-
-
-def road_sign_vest():
-    """the road sign vest: a green road sign with a white border, worn on
-    two straps."""
-    sign = material("sign", (0.2, 0.5, 0.2))
-    white = material("border", (0.9, 0.9, 0.88))
-    strap = material("strap", (0.18, 0.16, 0.14))
-    w, h = 0.42, 0.5
-    parts = [
-        box("plate", (w, h, 0.03), mat=sign),
-        box("top", (w, 0.02, 0.002), at=(0, h / 2 - 0.02, 0.016), mat=white),
-        box("bottom", (w, 0.02, 0.002), at=(0, -h / 2 + 0.02, 0.016), mat=white),
-        box("left", (0.02, h, 0.002), at=(-w / 2 + 0.02, 0, 0.016), mat=white),
-        box("right", (0.02, h, 0.002), at=(w / 2 - 0.02, 0, 0.016), mat=white),
-        box("strap_l", (0.07, 0.16, 0.02), at=(-0.12, h / 2 + 0.06, 0), mat=strap),
-        box("strap_r", (0.07, 0.16, 0.02), at=(0.12, h / 2 + 0.06, 0), mat=strap),
-    ]
-    return join(parts, "road sign vest", ITEM)
-
-
-# -- the minor sites' props ----------------------------------------------------
-#
-# Each at its largest side as content/src/lib.rs sizes it (the minor
-# sites' `prop`); change both together.
-
-
-def berry_bush():
-    """a berry bush: Quaternius's flowering bush, its flowers the berries,
-    1.0 m across (content/src/lib.rs)."""
-    colours = {"Leaves": ((0.18, 0.32, 0.12), True), "Flowers": ((0.55, 0.15, 0.3), True)}
-    return join(load(MEGAKIT / "Bush_Common_Flowers.gltf", colours), "berry bush", 1.0)
-
-
-def scorched_ground():
-    """the burner anomaly's tell (design.md "Maze, mined": scorched
-    ground): a black burn 4 m across (content's ANOMALY_RADIUS), ringed
-    in brown, with grey ash in the middle, lying flat on the ground."""
-    burn = material("burn", (0.06, 0.05, 0.04))
-    ring = material("singed", (0.3, 0.2, 0.1))
-    ash = material("ash", (0.5, 0.5, 0.48))
-    parts = [
-        cylinder("ring", 2.0, 0.02, sides=16, at=(0, 0, 0.01), mat=ring),
-        cylinder("burn", 1.7, 0.03, sides=14, at=(0, 0, 0.015), mat=burn),
-    ]
-    for i in range(5):
-        a = i * math.tau / 5 + 0.4
-        parts.append(cylinder(f"ash_{i}", 0.25, 0.04, sides=6, at=(0.6 * math.cos(a), 0.6 * math.sin(a), 0.02), mat=ash))
-    return join(parts, "scorched ground")
-
-
-def well():
-    """a well: a ring of stones round dark water, two posts and a crossbar,
-    Kenney's bucket hanging from it, 1.4 m across (content/src/lib.rs)."""
-    stone = material("stone", (0.45, 0.47, 0.5))
-    water = material("water", (0.12, 0.18, 0.28))
-    wood = material("wood", (0.4, 0.28, 0.16))
-    parts = [cylinder("water", 0.5, 0.05, sides=12, at=(0, 0, 0.5), mat=water)]
-    for i in range(12):
-        a = i * math.tau / 12
-        parts.append(box(f"stone_{i}", (0.3, 0.16, 0.55), at=(0.58 * math.cos(a), 0.58 * math.sin(a), 0.275), rotation=(0, 0, a + math.pi / 2), mat=stone))
-    for x in (-0.6, 0.6):
-        parts.append(box("post", (0.08, 0.08, 1.3), at=(x, 0, 0.65), mat=wood))
-    parts.append(box("bar", (1.3, 0.07, 0.07), at=(0, 0, 1.25), mat=wood))
-    bucket = load(ROOT / "scripts" / "kenney-survival" / "bucket.glb", {"colormap": (None, False)})
-    for b in bucket:
-        b.location = (0, 0, 0.8)
-    return join(parts + bucket, "well", 1.4)
-
-
-def tap():
-    """The Tap's tap (content/episodes/the-tap.yaml): a rusty pipe up out of
-    the floor, a valve wheel on it, a spout bent over a drain with water
-    running. Its look is Claude's (2026-11-19), for the operator to change.
-    1.1 m tall."""
-    rust = material("rust", (0.42, 0.24, 0.14))
-    iron = material("iron", (0.3, 0.3, 0.32))
-    water = material("water", (0.3, 0.45, 0.7))
-    parts = [
-        cylinder("drain", 0.28, 0.06, sides=12, at=(0.25, 0, 0.03), mat=iron),
-        cylinder("pipe", 0.05, 1.0, at=(0, 0, 0.5), mat=rust),
-        cylinder("spout", 0.045, 0.3, along="X", at=(0.13, 0, 0.95), mat=rust),
-        cylinder("lip", 0.045, 0.12, at=(0.27, 0, 0.9), mat=rust),
-        cylinder("valve", 0.12, 0.03, along="Y", at=(0, -0.09, 0.7), mat=iron),
-        cylinder("stem", 0.02, 0.1, along="Y", at=(0, -0.05, 0.7), mat=iron),
-        cylinder("running", 0.02, 0.8, at=(0.27, 0, 0.44), mat=water),
-    ]
-    return join(parts, "tap", 1.1)
-
-
-def pellet():
-    """a shotgun pellet in flight (src/combat.rs), drawn 0.18 m across so it
-    can be seen."""
-    bpy.ops.mesh.primitive_ico_sphere_add(subdivisions=2, radius=0.09)
-    return join([_named("pellet", material("brass", (1.0, 0.85, 0.3)))], "pellet")
-
-
-def parachute():
-    """a supply drop's parachute lying flat: a canvas disc with its seams."""
-    canvas = material("canvas", (0.6, 0.6, 0.62))
-    seam = material("seam", (0.45, 0.45, 0.47))
-    parts = [cylinder("canopy", 1.5, 0.05, sides=16, mat=canvas)]
-    for i in range(8):
-        a = i * math.pi / 8
-        parts.append(box(f"seam_{i}", (3.0, 0.03, 0.01), at=(0, 0, 0.03), rotation=(0, 0, a), mat=seam))
-    return join(parts, "parachute", 3.0)
-
-
-def gantry():
-    """the launch site's gantry, the big thing on the horizon (design.md
-    "The first hour"): a steel lattice tower 60 m tall, four legs braced
-    every six metres, a red light-band at its top."""
-    steel = material("steel", (0.55, 0.55, 0.58))
-    red = material("band", (0.7, 0.2, 0.15))
-    w, h, step = 6.0, 60.0, 6.0
-    parts = []
-    for x in (-w / 2, w / 2):
-        for y in (-w / 2, w / 2):
-            parts.append(box("leg", (0.5, 0.5, h), at=(x, y, h / 2), mat=steel))
-    for i in range(1, int(h / step) + 1):
-        z = i * step
-        for side, (sx, sy) in enumerate([(w, 0.3), (w, 0.3), (0.3, w), (0.3, w)]):
-            x = 0 if side < 2 else (-w / 2 if side == 2 else w / 2)
-            y = (-w / 2 if side == 0 else w / 2) if side < 2 else 0
-            parts.append(box("brace", (sx, sy, 0.3), at=(x, y, z), mat=steel))
-    parts.append(box("band", (w + 0.6, w + 0.6, 2.0), at=(0, 0, h - 1.0), mat=red))
-    return join(parts, "gantry")
 
 
 # -- the mustang ---------------------------------------------------------------
@@ -2054,140 +1814,6 @@ def mustang():
     return car
 
 
-# -- buildings -----------------------------------------------------------------
-#
-# A building is drawn a tile at a time (src/structure.rs): every piece is
-# one tile (a metre) across, near white, and the game tints it the
-# building's colour. Heights as src/structure.rs stands them (WALL_HEIGHT,
-# FURNITURE_HEIGHT); change both together.
-WALL_HEIGHT = 3.0
-FURNITURE_HEIGHT = 0.9
-LIGHT = (0.92, 0.92, 0.92)
-
-
-def wall():
-    """one tile of wall: a block WALL_HEIGHT tall."""
-    return join([box("block", (1.0, 1.0, WALL_HEIGHT), mat=material("wall", LIGHT))], "wall")
-
-
-def wall_concrete():
-    """one tile of poured concrete wall (design.md "Walls and floors by
-    what they are made of"): the block with the dark seams between its
-    pours running round it, and the form-tie holes in rows between them,
-    so it reads apart from the tiled floor."""
-    seam = material("pour seam", (0.6, 0.6, 0.6))
-    hole = material("tie hole", (0.3, 0.3, 0.3))
-    parts = [box("block", (1.0, 1.0, WALL_HEIGHT), mat=material("wall", LIGHT))]
-    pours = 4
-    for i in range(1, pours):
-        z = WALL_HEIGHT * i / pours
-        parts.append(box(f"seam_{i}", (1.008, 1.008, 0.025), at=(0, 0, z), mat=seam))
-    for i in range(pours):
-        z = WALL_HEIGHT * (i + 0.5) / pours
-        for x in (-0.25, 0.25):
-            for k, (sx, sy, at) in enumerate([(0.05, 1.008, (x, 0, z)), (1.008, 0.05, (0, x, z))]):
-                parts.append(box(f"hole_{i}_{x}_{k}", (sx, sy, 0.05), at=at, mat=hole))
-    return join(parts, "wall concrete")
-
-
-def wall_wood():
-    """one tile of wooden wall: the block faced in upright planks, dark
-    gaps between them."""
-    gap = material("plank gap", (0.45, 0.45, 0.45))
-    parts = [box("block", (1.0, 1.0, WALL_HEIGHT), mat=material("wall", LIGHT))]
-    for i in range(1, 5):
-        x = -0.5 + i * 0.2
-        parts.append(box(f"gap_x_{i}", (0.02, 1.008, WALL_HEIGHT), at=(x, 0, WALL_HEIGHT / 2), mat=gap))
-        parts.append(box(f"gap_y_{i}", (1.008, 0.02, WALL_HEIGHT), at=(0, x, WALL_HEIGHT / 2), mat=gap))
-    return join(parts, "wall wood")
-
-
-def wall_stone():
-    """one tile of stone wall: the block laid in courses of stones, the
-    mortar lines between courses and the joints staggered course to
-    course."""
-    mortar = material("mortar", (0.55, 0.55, 0.52))
-    parts = [box("block", (1.0, 1.0, WALL_HEIGHT), mat=material("wall", LIGHT))]
-    courses = 8
-    for i in range(1, courses):
-        z = WALL_HEIGHT * i / courses
-        parts.append(box(f"course_{i}", (1.008, 1.008, 0.025), at=(0, 0, z), mat=mortar))
-    for i in range(courses):
-        z = WALL_HEIGHT * (i + 0.5) / courses
-        x = 0.0 if i % 2 else 0.5
-        h = WALL_HEIGHT / courses
-        parts.append(box(f"joint_x_{i}", (0.025, 1.008, h), at=(x - 0.25, 0, z), mat=mortar))
-        parts.append(box(f"joint_y_{i}", (1.008, 0.025, h), at=(0, x - 0.25, z), mat=mortar))
-    return join(parts, "wall stone")
-
-
-def furniture():
-    """one tile of furniture (shelves, a counter): a block a little smaller
-    than its tile."""
-    return join([box("block", (0.9, 0.9, FURNITURE_HEIGHT), mat=material("furniture", LIGHT))], "furniture")
-
-
-DOOR = (0.35, 0.25, 0.15)  # modforge structure.rs DOOR_COLOR
-
-
-def door():
-    """one tile of a closed door: a wooden panel across the tile, as tall
-    as a wall, with its planks and a handle."""
-    wood = material("door", DOOR)
-    dark = material("plank", (0.25, 0.18, 0.1))
-    metal = material("handle", (0.6, 0.6, 0.6))
-    parts = [box("panel", (1.0, 0.12, WALL_HEIGHT), at=(0, 0, WALL_HEIGHT / 2), mat=wood)]
-    for i in range(1, 4):
-        parts.append(box(f"plank_{i}", (0.015, 0.125, WALL_HEIGHT * 0.95), at=(-0.5 + i * 0.25, 0, WALL_HEIGHT / 2), mat=dark))
-    parts.append(box("handle", (0.06, 0.16, 0.04), at=(0.35, 0, WALL_HEIGHT * 0.55), mat=metal))
-    return join(parts, "door")
-
-
-def steel_door():
-    """one tile of a closed steel door, the bunker's (design.md "Built in
-    1 m blocks, doors as blocks"): a grey steel panel across the tile, as
-    tall as a wall, with raised bands across it and a heavy lever handle.
-    Made the wooden door's size; the game stretches both to the doorway."""
-    steel = material("steel", (0.42, 0.44, 0.46))
-    band = material("band", (0.3, 0.32, 0.34))
-    metal = material("handle", (0.7, 0.7, 0.68))
-    parts = [box("panel", (1.0, 0.12, WALL_HEIGHT), at=(0, 0, WALL_HEIGHT / 2), mat=steel)]
-    for i, z in enumerate((0.15, 0.5, 0.85)):
-        parts.append(box(f"band_{i}", (0.96, 0.15, 0.08), at=(0, 0, WALL_HEIGHT * z), mat=band))
-    parts.append(box("handle", (0.2, 0.18, 0.05), at=(0.32, 0, WALL_HEIGHT * 0.5), mat=metal))
-    return join(parts, "steel door")
-
-
-def gate():
-    """the Labyrinth's locked gate (todo 11v): rusted iron bars across a
-    whole corridor, 9 m between its walls and 6 m high (Claude's), on two
-    heavy posts, with a chained lock in the middle. Its ground point is
-    its middle, the bars along x."""
-    iron = material("iron", (0.3, 0.22, 0.18))
-    post = material("post", (0.22, 0.2, 0.2))
-    chain = material("chain", (0.6, 0.6, 0.58))
-    width, height = 9.0, 6.0
-    parts = [box(f"post_{i}", (0.4, 0.4, height), at=(x, 0, height / 2), mat=post) for i, x in enumerate((-width / 2, width / 2))]
-    for i in range(19):
-        x = -width / 2 + 0.45 + i * (width - 0.9) / 18
-        parts.append(box(f"bar_{i}", (0.08, 0.08, height * 0.95), at=(x, 0, height * 0.95 / 2), mat=iron))
-    for i, z in enumerate((0.3, height / 2, height - 0.3)):
-        parts.append(box(f"rail_{i}", (width, 0.12, 0.15), at=(0, 0, z), mat=iron))
-    parts.append(box("lock", (0.4, 0.3, 0.5), at=(0, 0, height * 0.45), mat=chain))
-    return join(parts, "gate")
-
-
-def floor():
-    """one tile of floor, with darker seams along its edges so the tiles
-    show."""
-    tile = material("floor", LIGHT)
-    seam = material("seam", (0.75, 0.75, 0.75))
-    parts = [box("tile", (1.0, 1.0, 0.02), mat=tile)]
-    for i, (w, h, x, y) in enumerate([(1.0, 0.03, 0, 0.485), (1.0, 0.03, 0, -0.485), (0.03, 1.0, 0.485, 0), (0.03, 1.0, -0.485, 0)]):
-        parts.append(box(f"seam_{i}", (w, h, 0.004), at=(x, y, 0.011), mat=seam))
-    return join(parts, "floor")
-
-
 # -- people ------------------------------------------------------------------
 #
 # People are built from pieces (design.md "What 2D changes"): one model per
@@ -2456,83 +2082,14 @@ GROCERY = {}  # content/models/grocery.yaml
 SETS = {"person": people, "weapons": weapons}
 
 
-# Items, named as in content/src/lib.rs: each also gets its icon.
-ITEMS = {
-    "bolt": bolt,
-    "note": note,
-    "bolted door": bolted_door,
-    "radio": radio,
-    "ridge": ridge,
-    "canned food": lambda: kenney("food", "can", "canned food"),
-    "water bottle": lambda: kenney("survival", "bottle", "water bottle"),
-    "bandage": bandage,
-    "storage box": lambda: kenney("survival", "box", "storage box", DEPLOYABLE),
-    "scrap": lambda: kenney("survival", "metal-panel-screws-half", "scrap"),
-    "cloth": lambda: kenney("survival", "bedroll-packed", "cloth"),
-    "shotgun shell": shotgun_shell,
-    "road sign vest": road_sign_vest,
-    "shirt": lambda: folded("shirt", (0.42, 0.4, 0.33)),
-    "trousers": lambda: folded("trousers", (0.25, 0.27, 0.3)),
-    "boots": lambda: folded("boots", (0.22, 0.16, 0.11)),
-}
-
+# Every other model is described in content/models/*.yaml.
 MODELS = {
-    **ITEMS,
-    **HOUSE,
-    **GROCERY,
-    **FARM,
-    **BARN,
-    **ELEVATOR,
-    **EATERIES,
-    **SHOPS,
-    **UTILITIES,
-    **PLACES,
-    "tree": tree,
-    "rock": rock,
-    # The wasteland's and the ruins' scatter, at their largest side as
-    # content/src/lib.rs sizes them.
-    "fallen log": lambda: kenney("survival", "tree-log", "fallen log", 1.2, rgb=(0.5, 0.42, 0.32), turn=90),
-    "broken wall": lambda: kenney("graveyard", "stone-wall-damaged", "broken wall", 2.0, rgb=(0.45, 0.43, 0.4)),
-    # What people eat and drink from where it stands.
-    "berry bush": berry_bush,
-    "well": well,
-    "tap": tap,
-    # An anomaly's tell.
-    "scorched ground": scorched_ground,
-    # What flies.
-    "pellet": pellet,
-    # Buildings, a tile at a time (src/structure.rs).
-    "wall": wall,
-    "wall concrete": wall_concrete,
-    "wall wood": wall_wood,
-    "wall stone": wall_stone,
-    "furniture": furniture,
-    "floor": floor,
-    "door": door,
-    "steel door": steel_door,
-    "gate": gate,
-    # The minor sites' props, named as in content/src/lib.rs.
-    # A wrecked car: Kenney's sedan all in rust, lying along x (4.2 m long).
-    "car wreck": lambda: kenney("car", "sedan", "car wreck", 4.2, rgb=(0.45, 0.2, 0.15), turn=90),
-    "barrel": lambda: kenney("survival", "barrel", "barrel", 0.9),
-    "tent": lambda: kenney("survival", "tent", "tent", 2.4),
-    "fire pit": lambda: kenney("survival", "campfire-pit", "fire pit", 1.0),
-    "crate": lambda: kenney("survival", "box", "crate", 0.5),
-    "supply crate": lambda: kenney("survival", "box-large", "supply crate", 1.6),
-    "parachute": parachute,
-    "gantry": gantry,
-    "grave": lambda: kenney("graveyard", "grave", "grave", 1.8),
     # The operator's Mustang, as in their photos.
     "mustang": mustang,
-    "stone": lambda: kenney("graveyard", "gravestone-broken", "stone", 0.5),
 }
 
 
 def main():
-    if "--places" in sys.argv:
-        # Every place's furniture and things, by name, for comparing.
-        print("PLACES", json.dumps([n for d in (HOUSE, GROCERY, FARM, BARN, ELEVATOR, EATERIES, SHOPS, UTILITIES, PLACES) for n in d]))
-        return
     found = described()
     twice = [n for n in found if n in MODELS or n in SETS]
     if twice:
@@ -2554,10 +2111,7 @@ def main():
             if builder.lineage(name)[0].get("icon"):
                 icon(obj, obj, name)
             continue
-        obj = MODELS[name]()
-        export(obj, name)
-        if name in ITEMS:
-            icon(obj, obj, name)
+        export(MODELS[name](), name)
 
 
 main()

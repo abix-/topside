@@ -1,0 +1,141 @@
+# The world's props, built by scripts/models.py: what people drink from,
+# an anomaly's tell, what flies, the supply drop's parachute, the launch
+# site's gantry and the ridge before it. Each at its largest side as
+# content/src/lib.rs sizes it; change both together.
+
+colours:
+  singed: [0.3, 0.2, 0.1]
+  burn: [0.06, 0.05, 0.04]
+  ash: [0.5, 0.5, 0.48]
+  well stone: [0.45, 0.47, 0.5]
+  well water: [0.12, 0.18, 0.28]
+  well wood: [0.4, 0.28, 0.16]
+  rust: [0.42, 0.24, 0.14]
+  iron: [0.3, 0.3, 0.32]
+  running water: [0.3, 0.45, 0.7]
+  pellet brass: [1.0, 0.85, 0.3]
+  canvas: [0.6, 0.6, 0.62]
+  canvas seam: [0.45, 0.45, 0.47]
+  gantry steel: [0.55, 0.55, 0.58]
+  band: [0.7, 0.2, 0.15]
+
+models:
+  scorched ground:
+    about: the burner anomaly's tell (design.md "Maze, mined"), a black burn 4 m across (content's ANOMALY_RADIUS), ringed in brown, grey ash in the middle, flat on the ground.
+    parts:
+      - cylinder: [2.0, 0.02]
+        sides: 16
+        at: [0, 0, 0.01]
+        colour: singed
+      - cylinder: [1.7, 0.03]
+        sides: 14
+        at: [0, 0, 0.015]
+        colour: burn
+      - for: {i: range(5)}
+        let: {a: i * 2 * pi / 5 + 0.4}
+        parts:
+          - cylinder: [0.25, 0.04]
+            sides: 6
+            at: [0.6 * cos(a), 0.6 * sin(a), 0.02]
+            colour: ash
+
+  well:
+    about: a well, a ring of stones round dark water, two posts and a crossbar, Kenney's bucket hanging from it, 1.4 m across.
+    parts:
+      - cylinder: [0.5, 0.05]
+        sides: 12
+        at: [0, 0, 0.5]
+        colour: well water
+      - for: {i: range(12)}
+        let: {a: i * 2 * pi / 12}
+        parts:
+          - box: [0.3, 0.16, 0.55]
+            at: [0.58 * cos(a), 0.58 * sin(a), 0.275]
+            rotation: [0, 0, a * 180 / pi + 90]
+            colour: well stone
+      - for: {x: [-0.6, 0.6]}
+        parts:
+          - box: [0.08, 0.08, 1.3]
+            at: [x, 0, 0.65]
+            colour: well wood
+      - box: [1.3, 0.07, 0.07]
+        at: [0, 0, 1.25]
+        colour: well wood
+      - file: scripts/kenney-survival/bucket.glb
+        colours: {colormap: own}
+        at: [0, 0, 0.8]
+    size: 1.4
+
+  tap:
+    about: The Tap's tap (content/episodes/the-tap.yaml), a rusty pipe up out of the floor, a valve wheel on it, a spout bent over a drain with water running; its look is Claude's (2026-11-19), for the operator to change; 1.1 m tall.
+    parts:
+      - cylinder: [0.28, 0.06]
+        sides: 12
+        at: [0.25, 0, 0.03]
+        colour: iron
+      - cylinder: [0.05, 1.0]
+        at: [0, 0, 0.5]
+        colour: rust
+      - cylinder: [0.045, 0.3]
+        along: X
+        at: [0.13, 0, 0.95]
+        colour: rust
+      - cylinder: [0.045, 0.12]
+        at: [0.27, 0, 0.9]
+        colour: rust
+      - cylinder: [0.12, 0.03]
+        along: Y
+        at: [0, -0.09, 0.7]
+        colour: iron
+      - cylinder: [0.02, 0.1]
+        along: Y
+        at: [0, -0.05, 0.7]
+        colour: iron
+      - cylinder: [0.02, 0.8]
+        at: [0.27, 0, 0.44]
+        colour: running water
+    size: 1.1
+
+  pellet:
+    about: a shotgun pellet in flight (src/combat.rs), drawn 0.18 m across so it can be seen.
+    parts:
+      - ico: 0.09
+        subdivisions: 2
+        colour: pellet brass
+
+  parachute:
+    about: a supply drop's parachute lying flat, a canvas disc with its seams.
+    parts:
+      - cylinder: [1.5, 0.05]
+        sides: 16
+        colour: canvas
+      - for: {i: range(8)}
+        parts:
+          - box: [3.0, 0.03, 0.01]
+            at: [0, 0, 0.03]
+            rotation: [0, 0, i * 180 / 8]
+            colour: canvas seam
+    size: 3.0
+
+  gantry:
+    about: the launch site's gantry, the big thing on the horizon (design.md "The first hour"), a steel lattice tower 60 m tall, four legs braced every six metres, a red light-band at its top.
+    params: {w: 6.0, h: 60.0, step: 6.0}
+    parts:
+      - for: {x: "[-w / 2, w / 2]", y: "[-w / 2, w / 2]"}
+        parts:
+          - box: [0.5, 0.5, h]
+            at: [x, y, h / 2]
+            colour: gantry steel
+      - for: {i: "range(1, int(h / step) + 1)", side: range(4)}
+        let:
+          z: i * step
+          size: "[(w, 0.3), (w, 0.3), (0.3, w), (0.3, w)][side]"
+          x: "0 if side < 2 else (-w / 2 if side == 2 else w / 2)"
+          y: "(-w / 2 if side == 0 else w / 2) if side < 2 else 0"
+        parts:
+          - box: ["size[0]", "size[1]", 0.3]
+            at: [x, y, z]
+            colour: gantry steel
+      - box: [w + 0.6, w + 0.6, 2.0]
+        at: [0, 0, h - 1.0]
+        colour: band

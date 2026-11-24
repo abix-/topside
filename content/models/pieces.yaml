@@ -1,0 +1,159 @@
+# Buildings, a tile at a time (src/structure.rs), built by
+# scripts/models.py: every piece is one tile (a metre) across, near white,
+# and the game tints it the building's colour. Heights as src/structure.rs
+# stands them (WALL_HEIGHT 3 m, FURNITURE_HEIGHT 0.9 m); change both
+# together.
+
+colours:
+  light: [0.92, 0.92, 0.92]
+  pour seam: [0.6, 0.6, 0.6]
+  tie hole: [0.3, 0.3, 0.3]
+  plank gap: [0.45, 0.45, 0.45]
+  mortar: [0.55, 0.55, 0.52]
+  door wood: [0.35, 0.25, 0.15]  # modforge structure.rs DOOR_COLOR
+  plank: [0.25, 0.18, 0.1]
+  door handle: [0.6, 0.6, 0.6]
+  door steel: [0.42, 0.44, 0.46]
+  door band: [0.3, 0.32, 0.34]
+  lever: [0.7, 0.7, 0.68]
+  gate iron: [0.3, 0.22, 0.18]
+  gate post: [0.22, 0.2, 0.2]
+  chain: [0.6, 0.6, 0.58]
+  floor seam: [0.75, 0.75, 0.75]
+
+models:
+  wall:
+    about: one tile of wall, a block 3 m tall.
+    params: {height: 3.0}
+    parts:
+      - box: [1.0, 1.0, height]
+        colour: light
+
+  wall concrete:
+    about: one tile of poured concrete wall, the dark seams between its pours running round it and the form-tie holes in rows between them.
+    parent: wall
+    let: {pours: 4}
+    parts:
+      - for: {i: "range(1, pours)"}
+        parts:
+          - box: [1.008, 1.008, 0.025]
+            at: [0, 0, height * i / pours]
+            colour: pour seam
+      - for: {i: range(pours), x: [-0.25, 0.25]}
+        let: {z: height * (i + 0.5) / pours}
+        parts:
+          - box: [0.05, 1.008, 0.05]
+            at: [x, 0, z]
+            colour: tie hole
+          - box: [1.008, 0.05, 0.05]
+            at: [0, x, z]
+            colour: tie hole
+
+  wall wood:
+    about: one tile of wooden wall, the block faced in upright planks, dark gaps between them.
+    parent: wall
+    parts:
+      - for: {i: "range(1, 5)"}
+        let: {x: -0.5 + i * 0.2}
+        parts:
+          - box: [0.02, 1.008, height]
+            at: [x, 0, height / 2]
+            colour: plank gap
+          - box: [1.008, 0.02, height]
+            at: [0, x, height / 2]
+            colour: plank gap
+
+  wall stone:
+    about: one tile of stone wall, laid in courses, the mortar lines between courses and the joints staggered course to course.
+    parent: wall
+    let: {courses: 8}
+    parts:
+      - for: {i: "range(1, courses)"}
+        parts:
+          - box: [1.008, 1.008, 0.025]
+            at: [0, 0, height * i / courses]
+            colour: mortar
+      - for: {i: range(courses)}
+        let:
+          z: height * (i + 0.5) / courses
+          x: "0.0 if i % 2 else 0.5"
+          h: height / courses
+        parts:
+          - box: [0.025, 1.008, h]
+            at: [x - 0.25, 0, z]
+            colour: mortar
+          - box: [1.008, 0.025, h]
+            at: [0, x - 0.25, z]
+            colour: mortar
+
+  furniture:
+    about: one tile of furniture (shelves, a counter), a block a little smaller than its tile.
+    parts:
+      - box: [0.9, 0.9, 0.9]
+        colour: light
+
+  door:
+    about: one tile of a closed door, a wooden panel across the tile, as tall as a wall, with its planks and a handle.
+    params: {height: 3.0}
+    parts:
+      - box: [1.0, 0.12, height]
+        at: [0, 0, height / 2]
+        colour: door wood
+      - for: {i: "range(1, 4)"}
+        parts:
+          - box: [0.015, 0.125, height * 0.95]
+            at: [-0.5 + i * 0.25, 0, height / 2]
+            colour: plank
+      - box: [0.06, 0.16, 0.04]
+        at: [0.35, 0, height * 0.55]
+        colour: door handle
+
+  steel door:
+    about: one tile of a closed steel door, the bunker's, a grey steel panel with raised bands across it and a heavy lever handle; the wooden door's size.
+    params: {height: 3.0}
+    parts:
+      - box: [1.0, 0.12, height]
+        at: [0, 0, height / 2]
+        colour: door steel
+      - for: {z: [0.15, 0.5, 0.85]}
+        parts:
+          - box: [0.96, 0.15, 0.08]
+            at: [0, 0, height * z]
+            colour: door band
+      - box: [0.2, 0.18, 0.05]
+        at: [0.32, 0, height * 0.5]
+        colour: lever
+
+  gate:
+    about: the Labyrinth's locked gate (todo 11v), rusted iron bars across a whole corridor, 9 m between its walls and 6 m high (Claude's), on two heavy posts, a chained lock in the middle; its bars along x.
+    params: {width: 9.0, height: 6.0}
+    parts:
+      - for: {x: "[-width / 2, width / 2]"}
+        parts:
+          - box: [0.4, 0.4, height]
+            at: [x, 0, height / 2]
+            colour: gate post
+      - for: {i: range(19)}
+        parts:
+          - box: [0.08, 0.08, height * 0.95]
+            at: [-width / 2 + 0.45 + i * (width - 0.9) / 18, 0, height * 0.95 / 2]
+            colour: gate iron
+      - for: {z: "[0.3, height / 2, height - 0.3]"}
+        parts:
+          - box: [width, 0.12, 0.15]
+            at: [0, 0, z]
+            colour: gate iron
+      - box: [0.4, 0.3, 0.5]
+        at: [0, 0, height * 0.45]
+        colour: chain
+
+  floor:
+    about: one tile of floor, with darker seams along its edges so the tiles show.
+    parts:
+      - box: [1.0, 1.0, 0.02]
+        colour: light
+      - for: {s: "[(1.0, 0.03, 0, 0.485), (1.0, 0.03, 0, -0.485), (0.03, 1.0, 0.485, 0), (0.03, 1.0, -0.485, 0)]"}
+        parts:
+          - box: ["s[0]", "s[1]", 0.004]
+            at: ["s[2]", "s[3]", 0.011]
+            colour: floor seam
