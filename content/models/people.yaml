@@ -1,0 +1,109 @@
+# People, built by scripts/models.py from parts (design.md "What 2D
+# changes"): one model per body, exported as `person <body>`, holding its
+# rig, its animations, and every part that fits it (the body, each
+# hairstyle, the beard, what can be worn), each a mesh named after its
+# layer (`body`, `buzzed`, `road sign vest`; a part of several meshes
+# `buzzed.1` and on). The game shows a person's own parts and hides the
+# rest, and plays the animations live.
+#
+# A person's `body` is a bought model with its rig in it: Quaternius's
+# Universal Base Characters (CC0, scripts/quaternius-characters/
+# License_Standard.txt, https://quaternius.itch.io/universal-base-characters),
+# in its light skin (the game tints it darker). Its `animations from` are
+# Quaternius's Universal Animation Library (CC0, scripts/quaternius-
+# animations/License.txt, https://quaternius.itch.io/universal-animation-
+# library), made for this rig; only the ones src/people.rs plays are kept:
+# standing, walking, and the melee swing. Its `pieces` are the parts that
+# fit its head, its `worn` what everyone can wear (content/src/lib.rs
+# `worn`), by the item's picture name. A layer is a list of parts, or the
+# name of a model whose parts it is. A part with a `bone` moves with that
+# bone of the rig; a `cut` part is clothes cut from the body's skin, only
+# what moves with those bones (a vertex's strongest bone starts with one
+# of them), pushed `out` metres off the skin. A model's `measure` is the
+# body's skin between two heights, within `within` metres of the middle:
+# its least and most x, y and z, as `<name>['x']` and on.
+
+colours:
+  sign: [0.2, 0.5, 0.2]
+  border: [0.9, 0.9, 0.88]
+  strap: [0.18, 0.16, 0.14]
+  shirt: [0.42, 0.4, 0.33]
+  trousers: [0.25, 0.27, 0.3]
+  boots: [0.22, 0.16, 0.11]
+
+models:
+  everyone:
+    about: what every body has, its animations and what it can wear.
+    template: true
+    animations from:
+      file: scripts/quaternius-animations/UAL1_Standard.glb
+      keep: [Idle_Loop, Walk_Loop, Sword_Attack]
+    worn:
+      road sign vest: road sign vest worn
+      shirt:
+        - cut: [spine, clavicle, upperarm, lowerarm]
+          out: 0.02
+          colour: shirt
+      trousers:
+        - cut: [pelvis, thigh, calf]
+          out: 0.012
+          colour: trousers
+      boots:
+        - cut: [foot, ball]
+          out: 0.015
+          colour: boots
+
+  male:
+    about: the man's body, with his hairstyles and the beard.
+    parent: everyone
+    body:
+      file: scripts/quaternius-characters/Superhero_Male_FullBody.gltf
+      colours: {MI_Superhero: {picture: scripts/quaternius-characters/T_Superhero_Male_Ligh.png}, MI_: own}
+    pieces:
+      simpleparted: [{file: scripts/quaternius-characters/Hair_SimpleParted.gltf, colours: {MI_: own}, bone: Head}]
+      buzzed: [{file: scripts/quaternius-characters/Hair_Buzzed.gltf, colours: {MI_: own}, bone: Head}]
+      long: [{file: scripts/quaternius-characters/Hair_Long.gltf, colours: {MI_: own}, bone: Head}]
+      beard: [{file: scripts/quaternius-characters/Hair_Beard.gltf, colours: {MI_: own}, bone: Head}]
+
+  female:
+    about: the woman's body, with her hairstyles.
+    parent: everyone
+    body:
+      file: scripts/quaternius-characters/Superhero_Female_FullBody.gltf
+      colours: {MI_Superhero: {picture: scripts/quaternius-characters/T_Superhero_Female_Light_BaseColor.png}, MI_: own}
+    pieces:
+      buns: [{file: scripts/quaternius-characters/Hair_Buns.gltf, colours: {MI_: own}, bone: Head}]
+      buzzedfemale: [{file: scripts/quaternius-characters/Hair_BuzzedFemale.gltf, colours: {MI_: own}, bone: Head}]
+      long: [{file: scripts/quaternius-characters/Hair_Long.gltf, colours: {MI_: own}, bone: Head}]
+
+  road sign vest worn:
+    about: the road sign vest worn, a green road sign with a white border on the chest, another on the back, joined by straps over the shoulders; sized from the body's chest and moving with its chest bone. The torso below the armpits is the chest, since at rest the arms stand straight out at shoulder height.
+    template: true
+    measure:
+      chest: {z: [1.05, 1.3], within: 0.3}
+    let:
+      front: chest['y'][0]
+      back: chest['y'][1]
+      half: (chest['x'][1] - chest['x'][0]) / 2 * 0.8
+      w: half * 2
+      h: 0.4
+      z: 1.25
+    parts:
+      - for: {side: "[(front - 0.02, -0.011), (back + 0.02, 0.011)]"}
+        parts:
+          - box: [w, 0.02, h]
+            at: [0, "side[0]", z]
+            bone: spine_03
+            colour: sign
+          - for: {b: "[(w, 0.02, 0, z + h / 2 - 0.02), (w, 0.02, 0, z - h / 2 + 0.02), (0.02, h, -w / 2 + 0.02, z), (0.02, h, w / 2 - 0.02, z)]"}
+            parts:
+              - box: ["b[0]", 0.002, "b[1]"]
+                at: ["b[2]", "side[0] + side[1]", "b[3]"]
+                bone: spine_03
+                colour: border
+      - for: {x: "[-half * 0.55, half * 0.55]"}
+        parts:
+          - box: [0.06, back - front + 0.06, 0.03]
+            at: [x, (front + back) / 2, z + h / 2 + 0.05]
+            bone: spine_03
+            colour: strap

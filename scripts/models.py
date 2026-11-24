@@ -297,6 +297,12 @@ class Builder:
     def env(self, model, given=None):
         """the params (plain values, never worked out), then the lets."""
         env = {**(model.get("params") or {}), **(given or {})}
+        for k, m in (model.get("measure") or {}).items():
+            # The body's skin between two heights, near the middle.
+            low, high = m["z"]
+            world = (o.matrix_world @ v.co for o in self.skin for v in o.data.vertices)
+            inside = [q for q in world if low < q.z < high and abs(q.x) < m["within"]]
+            env[k] = {a: [min(getattr(q, a) for q in inside), max(getattr(q, a) for q in inside)] for a in "xyz"}
         for k, v in (model.get("let") or {}).items():
             env[k] = worked(v, env)
         return env
@@ -370,6 +376,10 @@ class Builder:
             looks = {}
             for start, look in (p.get("colours") or {}).items():
                 look = look if isinstance(look, dict) else {"colour": look}
+                if "picture" in look:
+                    # Its colours from that picture file (a body's skin).
+                    looks[start] = (ROOT / look["picture"], bool(look.get("cut")))
+                    continue
                 c = look.get("colour", "own")
                 if isinstance(c, str) and c != "own":
                     c = colours.get(c) if c in colours else sys.exit(f"ERROR: {label}: no colour named {c!r}")
@@ -380,6 +390,8 @@ class Builder:
                 for m in meshes:
                     m.location = at
             return meshes
+        if "cut" in p:
+            return clothing(self.skin, tuple(p["cut"]), mat, worked(p.get("out", 0.0), env))
         if "sphere" in p:
             bpy.ops.mesh.primitive_uv_sphere_add(radius=worked(p["sphere"], env), segments=worked(p.get("sides", 8), env), ring_count=6,
                                                  location=at, rotation=rotation)
@@ -423,6 +435,36 @@ class Builder:
         for act, frames in (model.get("animations") or {}).items():
             keyed(self.rig, act, {f: {**still, **{b: tuple(worked(v, env)) for b, v in (moved or {}).items()}} for f, moved in frames.items()})
         return self.rig, meshes
+
+    def person(self, name):
+        """a body with its rig, built (`rig`) or bought (`body`), its
+        animations, and its layers, each a list of meshes, by name: `body`
+        first, then its `pieces` and what it can wear (`worn`)."""
+        model, colours = self.lineage(name)
+        if "rig" in model:
+            rig, meshes = self.rigged(name)
+            layers = {"body": meshes}
+        else:
+            meshes = self.part(dict(model["body"]), {}, colours, name)
+            # The file carries a loose helper ball; the body is what the
+            # rig holds.
+            for m in [m for m in meshes if m.parent is None]:
+                bpy.data.objects.remove(m, do_unlink=True)
+            self.skin = [m for m in meshes if m.parent is not None]
+            self.rig = rig = self.skin[0].parent
+            layers = {"body": self.skin}
+        if "animations from" in model:
+            borrowed = model["animations from"]
+            animations(rig, ROOT / borrowed["file"], borrowed["keep"])
+        for kind in ("pieces", "worn"):
+            for layer, made in (model.get(kind) or {}).items():
+                if isinstance(made, str):
+                    layers[layer] = self.parts(made)
+                else:
+                    out = []
+                    self.place(made, {}, colours, f"{name} {layer}", out)
+                    layers[layer] = out
+        return rig, layers
 
     def build(self, name):
         """the model, joined and resting on the ground."""
@@ -1639,47 +1681,25 @@ def mustang():
 
 # -- people ------------------------------------------------------------------
 #
-# People are built from pieces (design.md "What 2D changes"): one model per
-# body, `person <body>`, holding its rig, its animations, and every piece
-# that fits it (the body, each hairstyle, the beard, what can be worn), each
-# a mesh named after its layer (`body`, `buzzed`, `road sign vest`; a piece
-# of several meshes `buzzed.1` and on). The game shows a person's own pieces
-# and hides the rest, and plays the animations live.
-# The rig is Quaternius's Universal Base Characters (CC0,
-# scripts/quaternius-characters/License_Standard.txt), from
-# https://quaternius.itch.io/universal-base-characters.
-CHARACTERS = Path(__file__).resolve().parent / "quaternius-characters"
-# The bodies, each with its light skin (the game tints it darker) and the
-# pieces that fit its head: hairstyles, and the beard.
-BODIES = {
-    "male": ("Superhero_Male_FullBody.gltf", "T_Superhero_Male_Ligh.png", ["SimpleParted", "Buzzed", "Long", "Beard"]),
-    "female": ("Superhero_Female_FullBody.gltf", "T_Superhero_Female_Light_BaseColor.png", ["Buns", "BuzzedFemale", "Long"]),
-}
+# People and animals are described in content/models/people.yaml and
+# animals.yaml; these are what their builder uses.
 
 
-# The rig's animations: Quaternius's Universal Animation Library (CC0,
-# scripts/quaternius-animations/License.txt), from
-# https://quaternius.itch.io/universal-animation-library, made for this rig.
-ANIMATIONS = Path(__file__).resolve().parent / "quaternius-animations" / "UAL1_Standard.glb"
-# The animations a person plays (src/people.rs names them the same):
-# standing, walking, and the melee swing.
-KEPT_ANIMATIONS = ["Idle_Loop", "Walk_Loop", "Sword_Attack"]
-
-
-def animations(rig):
-    """bring in the library's animations the game plays, on `rig`, and
-    nothing else of the library (not its mannequin, not the rest)."""
+def animations(rig, file, kept):
+    """bring in the animations named `kept` from the library `file`, on
+    `rig`, and nothing else of the library (not its mannequin, not the
+    rest)."""
     before = set(bpy.data.objects)
-    bpy.ops.import_scene.gltf(filepath=str(ANIMATIONS))
+    bpy.ops.import_scene.gltf(filepath=str(file))
     for o in set(bpy.data.objects) - before:
         bpy.data.objects.remove(o, do_unlink=True)
     for act in list(bpy.data.actions):
-        if act.name not in KEPT_ANIMATIONS:
+        if act.name not in kept:
             bpy.data.actions.remove(act)
     # Each kept animation on its own track of the rig, so the exporter
     # writes every one of them.
     rig.animation_data_create()
-    for name in KEPT_ANIMATIONS:
+    for name in kept:
         act = bpy.data.actions[name]
         track = rig.animation_data.nla_tracks.new()
         track.name = name
@@ -1688,60 +1708,11 @@ def animations(rig):
             strip.action_slot = act.slots[0]
 
 
-def person(file, skin):
-    """a body: its rig and meshes (with eyes and brows), in its light skin."""
-    meshes = load(CHARACTERS / file, {"MI_Superhero": (CHARACTERS / skin, False), "MI_": (None, False)})
-    # The file carries a loose helper ball; the body is what the rig holds.
-    for m in [m for m in meshes if m.parent is None]:
-        bpy.data.objects.remove(m, do_unlink=True)
-    body = [m for m in meshes if m.parent is not None]
-    return body[0].parent, body
-
-
-def piece(name, rig):
-    """one hairstyle or the beard, pinned to the rig's head."""
-    meshes = load(CHARACTERS / f"Hair_{name}.gltf", {"MI_": (None, False)})
-    for h in meshes:
-        world = h.matrix_world.copy()
-        h.parent, h.parent_type, h.parent_bone = rig, "BONE", "Head"
-        h.matrix_world = world
-    return meshes
-
-
-def vest(rig, body):
-    """the road sign vest worn: a green road sign with a white border on the
-    chest, another on the back, joined by straps over the shoulders; sized
-    from this body's chest and pinned to its chest bone, standing at rest."""
-    sign = material("sign", (0.2, 0.5, 0.2))
-    white = material("border", (0.9, 0.9, 0.88))
-    strap = material("strap", (0.18, 0.16, 0.14))
-    # The torso below the armpits: at rest the arms stand straight out at
-    # shoulder height, so only what is near the middle is chest.
-    world = (o.matrix_world @ v.co for o in body for v in o.data.vertices)
-    chest = [p for p in world if 1.05 < p.z < 1.3 and abs(p.x) < 0.3]
-    front, back = min(p.y for p in chest), max(p.y for p in chest)
-    half = (max(p.x for p in chest) - min(p.x for p in chest)) / 2 * 0.8
-    w, h, z = half * 2, 0.4, 1.25
-    parts = []
-    for side, y in (("front", front - 0.02), ("back", back + 0.02)):
-        parts.append(box(f"{side}_plate", (w, 0.02, h), at=(0, y, z), mat=sign))
-        out = -0.011 if side == "front" else 0.011
-        for i, (bw, bh, bx, bz) in enumerate([(w, 0.02, 0, z + h / 2 - 0.02), (w, 0.02, 0, z - h / 2 + 0.02), (0.02, h, -w / 2 + 0.02, z), (0.02, h, w / 2 - 0.02, z)]):
-            parts.append(box(f"{side}_border_{i}", (bw, 0.002, bh), at=(bx, y + out, bz), mat=white))
-    for x in (-half * 0.55, half * 0.55):
-        parts.append(box("strap", (0.06, back - front + 0.06, 0.03), at=(x, (front + back) / 2, z + h / 2 + 0.05), mat=strap))
-    for p in parts:
-        world = p.matrix_world.copy()
-        p.parent, p.parent_type, p.parent_bone = rig, "BONE", "spine_03"
-        p.matrix_world = world
-    return parts
-
-
-def clothing(body, bones, name, rgb, out):
+def clothing(body, bones, mat, out):
     """clothes cut from the body itself: a copy of its skin holding only
     what moves with `bones` (a vertex's strongest bone starts with one of
-    them), pushed `out` metres off the skin and coloured `rgb`. It keeps
-    the body's rig, so it moves as the body does."""
+    them), pushed `out` metres off the skin, in `mat`. It keeps the body's
+    rig, so it moves as the body does."""
     skin = max(body, key=lambda o: len(o.data.vertices))
     cloth = skin.copy()
     cloth.data = skin.data.copy()
@@ -1763,48 +1734,26 @@ def clothing(body, bones, name, rgb, out):
         v.co += v.normal * out
     bm.to_mesh(mesh)
     bm.free()
-    mat = material(name, rgb)
     mesh.materials.clear()
     mesh.materials.append(mat)
     return [cloth]
 
 
-# What everyone wears (content/src/lib.rs `worn`): each cut from the body by
-# the bones it covers. The shirt runs from the waist to the wrists and the
-# neck; the trousers from the waist to the ankles; the boots are the feet.
-SHIRT = ("spine", "clavicle", "upperarm", "lowerarm")
-TROUSERS = ("pelvis", "thigh", "calf")
-BOOTS = ("foot", "ball")
-
-# What people wear, drawn as a layer over the body like a piece: by the
-# item's picture name (content/src/lib.rs), built on each body.
-WORN = {
-    "road sign vest": vest,
-    "shirt": lambda rig, body: clothing(body, SHIRT, "shirt", (0.42, 0.4, 0.33), 0.02),
-    "trousers": lambda rig, body: clothing(body, TROUSERS, "trousers", (0.25, 0.27, 0.3), 0.012),
-    "boots": lambda rig, body: clothing(body, BOOTS, "boots", (0.22, 0.16, 0.11), 0.015),
-}
+def bodies(found):
+    """the described models that are a body with a rig."""
+    return [n for n, (m, _, _) in found.items() if (m.get("rig") or m.get("body")) and not m.get("template")]
 
 
 def people():
     """export every body as `person <body>`: its rig with the animations,
-    and every piece that fits it, each mesh named after its layer."""
-    for body_name, (file, skin, names) in BODIES.items():
+    and every part that fits it, each mesh named after its layer."""
+    found = described()
+    for name in bodies(found):
         clear()
-        rig, body = person(file, skin)
-        animations(rig)
-        pieces = {n.lower(): piece(n, rig) for n in names}
-        worn = {item: build(rig, body) for item, build in WORN.items()}
-        for layer, meshes in {"body": body, **pieces, **worn}.items():
+        rig, layers = Builder(found).person(name)
+        for layer, meshes in layers.items():
             for i, mesh in enumerate(meshes):
                 mesh.name = layer if i == 0 else f"{layer}.{i}"
-        export(rig, f"person {body_name}")
-    found = described()
-    for name in [n for n, (m, _, _) in found.items() if m.get("rig")]:
-        clear()
-        rig, meshes = Builder(found).rigged(name)
-        for i, mesh in enumerate(meshes):
-            mesh.name = "body" if i == 0 else f"body.{i}"
         export(rig, f"person {name}")
 
 
@@ -1857,7 +1806,7 @@ def main():
     if twice:
         sys.exit(f"ERROR: described in content/models and also in models.py: {', '.join(twice)}")
     args = sys.argv[sys.argv.index("--") + 1 :] if "--" in sys.argv else []
-    names = args or list(MODELS) + list(SETS) + [n for n, (m, _, _) in found.items() if not m.get("template") and not m.get("rig")]
+    names = args or list(MODELS) + list(SETS) + [n for n, (m, _, _) in found.items() if not m.get("template") and n not in bodies(found)]
     unknown = [n for n in names if n not in MODELS and n not in SETS and n not in found]
     if unknown:
         sys.exit(f"ERROR: no model named {', '.join(unknown)}; models: {', '.join(list(MODELS) + list(SETS) + list(found))}")
