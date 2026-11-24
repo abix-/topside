@@ -1,29 +1,112 @@
-# The events (modforge `event::EventDef`; topside-town "Storms and events
-# are different", operator, 2026-11-24: "events can occur in the middle
-# of an episode to do something strangers coming in, some sort of loot
-# drop, something like that. So events and storms are different and need
-# to be different in the YAML and in this game."). Read by content's
-# `EVENTS`. A storm ends an episode (content/storm_types.yaml); an event
-# happens inside one, never while the sky warns or the storm rages.
+# The events and the alien director (modforge `event`; topside-town
+# "Storms and events are different", topside-show "The alien director";
+# operator, 2026-11-24: "events and storms are different and need to be
+# different in the YAML and in this game", and "we should just call it
+# the alien director... to make the episode as entertaining as possible
+# for the viewers"). Read by content's `EVENTS`. A storm ends an episode
+# (content/storm_types.yaml); an event happens inside one, never while
+# the sky warns or the storm rages.
 #
-# Under `events`, `pace` is how often they come (the gap between two, in
-# game days) and `kinds` the events. Each has its `name`, what it `does` (Bounty, Arrival, Hunting,
-# Static, Shuffle, Rot, Changing, Forgetting; modforge `storm::Effect`),
-# and any of `from_episode` (the least episode it can come in, 0 the
-# first; 0 when left out) and `weight` (how likely against the others,
-# 100 when left out). The events, the pace and the odds are Claude's,
-# moved here from the storm types, for the operator to change; the full
-# list is still to be found from RimWorld's and the other games' events
-# (operator, 2026-11-24).
+# Every event is rolled in layers (Diablo 2's base, affixes and level):
+# the base below, who comes or what drops (one of `who`), how many (the
+# director's budget left after its `cost`), where (one of `places`: Edge,
+# Town, Door, Inside, Under; Town when left out), 0 to 2 of its `twists`
+# and how it is foretold (one of `warnings`: None, Sound, Sky, Broadcast;
+# any when left out). The director picks the base by its `mood`
+# (Trouble when the show is dull, Gift when the star is hurt, Strange any
+# time), its `weight` (100 when left out), and less of the same `group`
+# or name just seen; `from_episode` is the least episode it comes in (0
+# the first).
+#
+# What an event `does`, each one of: `{Arrive: {who, count: [low, high],
+# leaves: Stays or Morning}}` (who are content/actors.yaml kinds),
+# `{Drop: {item, count, danger}}` (a loot box filled at `danger` when no
+# item), `{Last: {what: Fallout, Cold, Heat, Fog or Dark, hours: [low,
+# high]}}`, `Spoil` (the food in the player's store goes bad) and
+# `{Storm: <a storm effect>}`.
+#
+# The events are Claude's list the operator took (2026-11-24: "Let's
+# go."), from RimWorld's, Rust's, Project Zomboid's, 7 Days to Die's and
+# Don't Starve's; each event's source is beside it. The names, costs,
+# counts and odds are Claude's, for the operator to change. Those that
+# need a system the game does not have yet are on the todo, not here.
 events:
   pace:
     gap_days: [0.3, 0.8]
+    lead_hours: 1.0
+  director:
+    budget: 30.0
+    per_episode: 10.0
+    remembers: 4
+  twists:
+    - {name: at night, cost: 5, size: 1.2, night: true}
+    - {name: unforetold, cost: 5, unforetold: true}
+    - {name: big, cost: 15, size: 1.8}
+    - {name: small, size: 0.6}
+    - {name: at two places, cost: 15, twice: true}
+    - {name: in the fog, cost: 5, adds: [{Last: {what: Fog, hours: [1.0, 3.0]}}]}
+    - {name: in the dark, cost: 5, adds: [{Last: {what: Dark, hours: [1.0, 2.0]}}]}
+    - {name: with wolves, cost: 10, adds: [{Arrive: {who: [wolf], count: [2, 4]}}]}
+    - {name: guarded, cost: 10, adds: [{Arrive: {who: [lookout], count: [1, 2]}}]}
+    - {name: with a gift, cost: 5, adds: [{Drop: {count: [1, 1], danger: 2}}]}
+    - {name: in fallout, cost: 10, adds: [{Last: {what: Fallout, hours: [1.0, 2.0]}}]}
   kinds:
-    # Loot drops from the sky (Rust's airdrops).
-    - {name: loot drop, does: [Bounty]}
-    # Strangers come in (RimWorld's drop pods).
-    - {name: strangers, does: [Arrival], from_episode: 1}
-    # Electronics die until fixed (Fallout's EMP; RimWorld's solar flare).
-    - {name: static, does: [Static], from_episode: 1}
-    # A hunter on the surface till morning (7 Days to Die's blood moon).
-    - {name: hunter's night, does: [Hunting], from_episode: 2, weight: 50}
+    # People arriving.
+    # A wanderer at the door (RimWorld's wanderer joins).
+    - {name: wanderer, group: arrivals, mood: Gift, cost: 5, places: [Door], twists: [at night, with a gift], does: [{Arrive: {who: [wanderer], count: [1, 1]}}]}
+    # A refugee and who chases them (RimWorld's refugee chased).
+    - {name: refugee chased, group: arrivals, mood: Strange, cost: 15, places: [Town, Edge], twists: [at night, big, in the fog], from_episode: 1, does: [{Arrive: {who: [wanderer], count: [1, 1]}}, {Arrive: {who: [raider, scavenger], count: [2, 4]}}]}
+    # A crash with someone in it (RimWorld's transport pod crash).
+    - {name: crashed pod, group: arrivals, mood: Gift, cost: 10, twists: [with wolves, in the fog], does: [{Arrive: {who: [wanderer], count: [1, 1]}}, {Drop: {item: scrap, count: [5, 10]}}]}
+    # Traders passing through (RimWorld's trade caravan).
+    - {name: traders, group: arrivals, mood: Gift, cost: 10, twists: [guarded, at two places], from_episode: 1, does: [{Arrive: {who: [wanderer], count: [2, 3]}}]}
+    # Someone from another bunker (the show's other channels).
+    - {name: neighbour, group: arrivals, mood: Strange, cost: 10, places: [Door], from_episode: 1, does: [{Arrive: {who: [bunker person], count: [1, 1]}}]}
+    # A knock at the door (the knock we have).
+    - {name: knock, group: arrivals, mood: Strange, cost: 5, places: [Door], twists: [at night, unforetold], warnings: [Sound], does: [{Arrive: {who: [wanderer, scavenger], count: [1, 1]}}]}
+
+    # Attacks.
+    # A raid by a faction (RimWorld's raids).
+    - {name: raid, group: raids, mood: Trouble, cost: 20, places: [Edge, Town, Door], twists: [at night, unforetold, big, at two places, in the fog, with wolves, in fallout], from_episode: 1, does: [{Arrive: {who: [raider, scavenger], count: [3, 5]}}]}
+    # Raiders dropped inside (RimWorld's drop pod raid).
+    - {name: drop raid, group: raids, mood: Trouble, cost: 30, places: [Inside], twists: [at night, small], from_episode: 3, weight: 40, does: [{Arrive: {who: [raider], count: [2, 3]}}]}
+    # A pack gone mad (RimWorld's manhunter pack).
+    - {name: manhunters, group: animals, mood: Trouble, cost: 20, places: [Edge, Town], twists: [at night, big, in the fog, in the dark], does: [{Arrive: {who: [wolf], count: [4, 7]}}]}
+    # A hunter till morning (7 Days to Die's blood moon).
+    - {name: hunter's night, group: animals, mood: Trouble, cost: 30, places: [Edge], twists: [in the dark, with wolves], warnings: [Sound, Sky], from_episode: 2, weight: 50, does: [{Arrive: {who: [storm hunter], count: [1, 1], leaves: Morning}}]}
+    # Two factions fight in town (RimWorld's factions at war).
+    - {name: battle in town, group: raids, mood: Strange, cost: 20, twists: [big, with a gift], from_episode: 1, does: [{Arrive: {who: [raider], count: [3, 5]}}, {Arrive: {who: [scavenger], count: [3, 5]}}]}
+    # Someone sent for us (Hitman's contracts, a bounty on the star).
+    - {name: hunted, group: raids, mood: Trouble, cost: 15, places: [Door, Town], twists: [at night, unforetold, guarded], from_episode: 2, weight: 60, does: [{Arrive: {who: [raider], count: [1, 1]}}]}
+
+    # From the sky.
+    # A loot box from the sky (Rust's airdrop).
+    - {name: loot drop, group: drops, mood: Gift, cost: 10, places: [Town, Edge], twists: [guarded, with wolves, at two places], warnings: [Sky, Sound], does: [{Drop: {count: [1, 2], danger: 3}}]}
+    # Supplies (RimWorld's cargo pods).
+    - {name: cargo pods, group: drops, mood: Gift, cost: 5, twists: [at two places, small], does: [{Drop: {count: [2, 4], danger: 1}}]}
+    # A guarded wreck (Rust's patrol helicopter, DayZ's crash sites).
+    - {name: guarded crash, group: drops, mood: Strange, cost: 20, places: [Town, Edge], twists: [at night, big], from_episode: 1, does: [{Drop: {count: [1, 2], danger: 4}}, {Arrive: {who: [lookout], count: [2, 3]}}]}
+    # Scrap from the sky (RimWorld's ship chunk).
+    - {name: wreckage, group: drops, mood: Gift, cost: 5, does: [{Drop: {item: scrap, count: [10, 20]}}]}
+    # A meteorite (RimWorld's meteorite).
+    - {name: meteorite, group: drops, mood: Gift, cost: 5, warnings: [Sky], does: [{Drop: {item: stone, count: [20, 40]}}, {Drop: {item: metal fragments, count: [5, 10]}}]}
+    # A gift from a sponsor (the show's sponsors).
+    - {name: sponsor drop, group: drops, mood: Gift, cost: 15, places: [Door], warnings: [Broadcast], from_episode: 1, weight: 50, does: [{Drop: {count: [1, 1], danger: 5}}]}
+
+    # The world.
+    # Electronics die (RimWorld's solar flare, Fallout's EMP).
+    - {name: static, group: the air, mood: Trouble, cost: 10, warnings: [Sky, Broadcast], from_episode: 1, does: [{Storm: Static}]}
+    # Poison in the air (RimWorld's toxic fallout).
+    - {name: fallout, group: the air, mood: Trouble, cost: 15, warnings: [Sky, Broadcast], from_episode: 1, does: [{Last: {what: Fallout, hours: [2.0, 6.0]}}]}
+    # Cold (RimWorld's cold snap).
+    - {name: cold snap, group: the air, mood: Trouble, cost: 10, does: [{Last: {what: Cold, hours: [4.0, 12.0]}}]}
+    # Heat (RimWorld's heat wave).
+    - {name: heat wave, group: the air, mood: Trouble, cost: 10, does: [{Last: {what: Heat, hours: [4.0, 12.0]}}]}
+    # Fog (Silent Hill's fog; Don't Starve's seasons).
+    - {name: fog, group: the air, mood: Strange, cost: 5, twists: [with wolves], does: [{Last: {what: Fog, hours: [2.0, 6.0]}}]}
+    # Day goes dark (RimWorld's eclipse).
+    - {name: eclipse, group: the air, mood: Strange, cost: 5, twists: [with wolves], warnings: [Sky], does: [{Last: {what: Dark, hours: [1.0, 3.0]}}]}
+
+    # Trouble at home.
+    # The store's food goes bad (RimWorld's food rot).
+    - {name: spoiled store, group: home, mood: Trouble, cost: 10, warnings: [None], from_episode: 1, weight: 50, does: [Spoil]}

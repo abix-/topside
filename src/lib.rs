@@ -367,7 +367,7 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind, port: u16
                 survival::waste,
                 // Temperature and radiation, then the generators (todo 29).
                 (exposure::expose, power::run, (power::lights, power::flashlights), silo::dig, silo::rebuild, silo::set_down, skills::learn, vehicle::park).chain(),
-                (survival::rot, storm_effect::hunters_leave, storm_effect::fix_struck),
+                (survival::rot, event::leave_in_the_morning, storm_effect::fix_struck, event::lasting),
                 lap("survival"),
                 (
                     // The episode and its storm start when the player

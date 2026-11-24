@@ -103,7 +103,7 @@ saved! {
         crate::survival::Clean,
         crate::power::Generator,
         crate::storm_effect::Struck,
-        crate::storm_effect::TillMorning,
+        crate::event::TillMorning,
         crate::vehicle::Vehicle,
         crate::vehicle::Riding,
         crate::combat::Health,
