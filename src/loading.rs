@@ -90,42 +90,152 @@ pub fn awake(history: Option<Res<History>>) -> bool {
     history.is_none()
 }
 
-/// The world's history (design.md "History, not decoration": "before the
-/// player wakes, the world is run: the people live for some days in the
-/// rolled world"; Dwarf Fortress's world history, run before play): the
-/// game's own ticks, `HISTORY_SECS` of them, run as Bevy's fixed loop runs
-/// them, behind the loading screen. The episode and its storm start when
-/// the player wakes.
+/// The world's history (todo History 1; operator, 2026-11-23: "a history of
+/// like 1 week beforehand... a calculated history. We don't actually run
+/// the game. You just roll the events exactly, and then the events become
+/// history"; Dwarf Fortress's world history): the week is rolled as events
+/// by modforge `history::roll`, never played, and laid down by
+/// `lay_down_history`; the clock then stands a week in. The episode and its
+/// storm start when the player wakes.
 fn run_history(world: &mut World) {
     let start = std::time::Instant::now();
+    let events = world.run_system_cached(lay_down_history).unwrap_or(0);
     let step = world.resource::<Time<Fixed>>().timestep();
     let ticks = (crate::content::HISTORY_SECS / step.as_secs_f32()).round() as u64;
-    // The player has not woken: they wake with the needs they lay down
-    // with (Claude's, for the operator to change).
-    let mut player = world.query_filtered::<&crate::actor::Persona, With<crate::player::Player>>();
-    let slept = player.iter(world).next().map(|p| p.0.needs);
-    world.insert_resource(History);
-    // Every tick, or days of thirst kill them before they wake.
-    let mut player = world.query_filtered::<&mut crate::actor::Persona, With<crate::player::Player>>();
-    let _ = world.try_schedule_scope(bevy::app::FixedMain, |world, schedule| {
-        for _ in 0..ticks {
-            world.resource_mut::<Time<Fixed>>().advance_by(step);
-            *world.resource_mut::<Time>() = world.resource::<Time<Fixed>>().as_generic();
-            schedule.run(world);
-            if let Some(slept) = &slept {
-                for mut person in player.iter_mut(world) {
-                    person.0.needs = *slept;
-                }
-            }
-        }
-    });
-    *world.resource_mut::<Time>() = world.resource::<Time<Virtual>>().as_generic();
-    world.remove_resource::<History>();
+    world.resource_mut::<crate::SimTick>().0 += ticks;
     let now = world.resource::<crate::SimTick>().0;
     let mut episode = world.resource_mut::<crate::episode::Episode>();
     let name = episode.name.clone();
     episode.start(name, now);
-    info!("the world's history ran {ticks} ticks in {:.0} ms", start.elapsed().as_secs_f64() * 1000.0);
+    info!("the world's history: {events} events over {} days laid down in {:.0} ms", crate::content::HISTORY_DAYS, start.elapsed().as_secs_f64() * 1000.0);
+}
+
+/// Everyone living outside a bunker, and the town's houses and their camps
+/// as the places of the history: the week rolled (modforge
+/// `history::roll`) and laid down. Each ends standing where they ended the
+/// week; each death through
+/// the one hit path (`combat::hit_actor`), so `die` leaves the body there;
+/// a take moves a stack from a box in that house into the taker's bag; and
+/// every event goes into the memory of those it happened to, at its day.
+/// Answers how many events there were.
+#[allow(clippy::type_complexity)]
+fn lay_down_history(
+    world: Res<crate::terrain::WorldRes>,
+    tick: Res<crate::SimTick>,
+    factions: Res<crate::content::FactionRegistryRes>,
+    items: Res<crate::content::ItemRegistryRes>,
+    layers: Res<crate::content::LayerRegistryRes>,
+    damage: Res<crate::content::DamageRegistryRes>,
+    step: Res<Time<Fixed>>,
+    mut people: Query<
+        (
+            &crate::actor::Actor,
+            &crate::actor::Npc,
+            &mut Transform,
+            &crate::combat::Protection,
+            &crate::combat::Equipment,
+            &mut crate::combat::Health,
+            &mut crate::actor::Persona,
+            &mut crate::actor::Inventory,
+        ),
+        (
+            Without<crate::player::Player>,
+            Without<crate::actor::Dead>,
+            Without<crate::interact::Container>,
+            // A bunker's people keep to their bunker; a car is no one.
+            Without<crate::actor::Store>,
+            Without<crate::vehicle::Vehicle>,
+        ),
+    >,
+    mut boxes: Query<(&Transform, &mut crate::interact::Container), Without<crate::actor::Npc>>,
+) -> usize {
+    let Some(town) = world.world.town.as_ref() else {
+        return 0;
+    };
+    let houses: Vec<&modforge::town::Lot> = town.lots.iter().filter(|l| l.house).collect();
+    let ground = |t: &Transform| Vec2::new(t.translation.x, t.translation.z);
+    let residents = town.residents();
+    // The places: the town's houses, then where each one living out of the
+    // town (a site's scavengers, raiders, wolves) stands, their camp.
+    let mut camps: Vec<Vec2> = Vec::new();
+    let mut figures: Vec<modforge::history::Figure> = Vec::new();
+    // In ActorId order, never the query's (authority.md rule 5).
+    let mut order: Vec<_> = people.iter().map(|(actor, npc, at, ..)| (actor.0.0, npc.faction.clone(), ground(at))).collect();
+    order.sort_by_key(|o| o.0);
+    for (id, faction, p) in order {
+        let home = if residents.iter().any(|(_, r)| r.distance(p) < 0.5) {
+            houses.iter().enumerate().min_by(|a, b| a.1.at.distance(p).total_cmp(&b.1.at.distance(p))).map(|(i, _)| i)
+        } else {
+            camps.push(p);
+            Some(houses.len() + camps.len() - 1)
+        };
+        if let Some(home) = home {
+            figures.push(modforge::history::Figure { id, group: faction, home });
+        }
+    }
+    // Where a place is: a room of the house (`house::home_spots`), or the camp.
+    let place = |i: usize, id: u64| match houses.get(i) {
+        Some(lot) => {
+            let spots = modforge::house::home_spots(lot.front);
+            lot.at + spots.get((id as usize) % spots.len().max(1)).copied().unwrap_or(Vec2::ZERO)
+        }
+        None => camps[i - houses.len()],
+    };
+    let hostile = |a: Option<&str>, b: Option<&str>| factions.0.relation(a, b) == modforge::faction::Relation::Hostile;
+    let events = modforge::history::roll(&figures, houses.len() + camps.len(), crate::content::HISTORY_DAYS, &hostile, world.seed ^ 0x4157_0123);
+    let ends = modforge::history::ends_at(&figures, &events);
+    let day_ticks = (crate::content::GAME_DAY_SECS / step.timestep().as_secs_f32()).round() as u64;
+    let when = |day: u32| tick.0 + u64::from(day) * day_ticks + day_ticks / 2;
+    // Where each ends.
+    for (f, &end) in figures.iter().zip(&ends) {
+        if end == f.home {
+            continue;
+        }
+        if let Some((.., mut at, _, _, _, _, _)) = people.iter_mut().find(|p| p.0.0.0 == f.id) {
+            at.translation = crate::on_ground(place(end, f.id), 0.0);
+        }
+    }
+    let kill = damage.0.def("kill");
+    for event in &events {
+        match *event {
+            modforge::history::Event::Moved { .. } => {}
+            modforge::history::Event::Fought { day, who, with, .. } => {
+                for (me, them) in [(who, with), (with, who)] {
+                    if let Some((.., mut persona, _)) = people.iter_mut().find(|p| p.0.0.0 == me) {
+                        persona.0.memory.did(modforge::memory::Did::Hit(modforge::actor::ActorId(them), 0.0), when(day));
+                        persona.0.memory.did(modforge::memory::Did::WasHit(Some(modforge::actor::ActorId(them)), 0.0), when(day));
+                    }
+                }
+            }
+            modforge::history::Event::Died { day, who, by, .. } => {
+                if let Some((.., mut persona, _)) = people.iter_mut().find(|p| p.0.0.0 == by) {
+                    persona.0.memory.did(modforge::memory::Did::Killed(modforge::actor::ActorId(who)), when(day));
+                }
+                if let (Some(def), Some((_, _, _, own, worn, mut health, mut persona, _))) = (kill, people.iter_mut().find(|p| p.0.0.0 == who)) {
+                    let hit = modforge::combat::Hit { def, self_inflicted: false, distance: 0.0, location_scale: 1.0 };
+                    crate::combat::hit_actor(&hit, own, worn, &items.0, &layers.0, Default::default(), &mut health, Some(&mut *persona), Some(modforge::actor::ActorId(by)), when(day));
+                }
+            }
+            modforge::history::Event::Took { day, who, at } => {
+                // A box in the house, or within 10 m of the camp.
+                let near = |p: Vec2| houses.get(at).map_or_else(|| camps[at - houses.len()].distance(p) < 10.0, |lot| lot.covers(p));
+                let Some((_, mut held)) = boxes.iter_mut().find(|(t, c)| near(ground(t)) && c.0.slots.iter().any(Option::is_some)) else {
+                    continue;
+                };
+                let Some(slot) = held.0.slots.iter().position(Option::is_some) else {
+                    continue;
+                };
+                let Some((.., mut persona, mut bag)) = people.iter_mut().find(|p| p.0.0.0 == who) else {
+                    continue;
+                };
+                let name = held.0.slots[slot].as_ref().map(|s| (s.item.clone(), s.count)).unwrap_or_default();
+                let max = items.0.def(&name.0).map_or(1, |d| d.max_stack);
+                modforge::item::transfer(&mut held.0, &mut bag.0, slot, max);
+                persona.0.memory.did(modforge::memory::Did::Took(name.0, name.1), when(day));
+            }
+        }
+    }
+    events.len()
 }
 
 /// The loading screen itself: the whole window, "Loading" in its middle.

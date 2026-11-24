@@ -205,12 +205,12 @@ pub fn loot_table() -> LootTable {
 /// rest one awake.
 pub const GAME_DAY_SECS: f32 = 1200.0;
 
-/// How long the world runs before the player wakes, in game seconds
-/// (design.md "History, not decoration": "before the player wakes, the
-/// world is run: the people ... live for some days in the rolled world";
-/// todo 4a, 4b). Two days is Claude's reading of "some", for the operator
-/// to change: every second of it is loading time.
-pub const HISTORY_SECS: f32 = 2.0 * GAME_DAY_SECS;
+/// The days of history rolled before the player wakes (todo History 1;
+/// operator, 2026-11-23: "a history of like 1 week beforehand"). Rolled as
+/// events, never played: the clock stands this far in when they wake.
+pub const HISTORY_DAYS: u32 = 7;
+/// The history's span in game seconds: the clock at waking.
+pub const HISTORY_SECS: f32 = HISTORY_DAYS as f32 * GAME_DAY_SECS;
 
 /// How a storm goes (design.md "The storm", MISERY's emission): a minute
 /// of warning, twenty seconds of storm. When it comes is the episode's
