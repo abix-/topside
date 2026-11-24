@@ -2202,11 +2202,11 @@ pub fn start(port: u16) {
     ));
     OP_REGISTRY.register(OpDef::new(
         "key",
-        "press a key as the player does, taken by the next tick the game runs with the real keys (input::input_to_actions): tapped (pressed for that tick) or, with `hold`, held down until a `key` op with `hold: false` (W, A, S, D, E, I, M, T, Tab, Escape, Enter, Space, 1 to 6)",
+        "press a key as the player does, taken by the next tick the game runs with the real keys (input::input_to_actions): tapped (pressed for that tick) or, with `hold`, held down until a `key` op with `hold: false` (W, A, S, D, E, I, M, T, Tab, Escape, Enter, Space, 1 to 6, and MouseLeft, the strike)",
         "{\"key\": \"E\"}",
         |args| {
             let name = args.get("key").and_then(Json::as_str).ok_or_else(|| "key: a key's name".to_string())?;
-            let code = key_code(name).ok_or_else(|| format!("no key named '{name}'"))?;
+            let code = if name == "MouseLeft" { None } else { Some(key_code(name).ok_or_else(|| format!("no key named '{name}'"))?) };
             if !crate::input::press_from_op(code, args.get("hold").and_then(Json::as_bool)) {
                 return Err(format!("{name} is not a key the bindings know"));
             }

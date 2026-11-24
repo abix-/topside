@@ -92,9 +92,10 @@ pub struct PendingInput {
 static OP_KEYS: std::sync::Mutex<(Vec<Key>, Vec<Key>)> = std::sync::Mutex::new((Vec::new(), Vec::new()));
 
 /// The `key` op: `code` tapped (None), held down (Some(true)) or let go
-/// (Some(false)); answers whether it is a key the bindings know.
-pub fn press_from_op(code: KeyCode, hold: Option<bool>) -> bool {
-    let Some(key) = key_of(code) else {
+/// (Some(false)), the left mouse button when `code` is None; answers
+/// whether it is a key the bindings know.
+pub fn press_from_op(code: Option<KeyCode>, hold: Option<bool>) -> bool {
+    let Some(key) = code.map_or(Some(Key::MouseLeft), key_of) else {
         return false;
     };
     if let Ok(mut keys) = OP_KEYS.lock() {
