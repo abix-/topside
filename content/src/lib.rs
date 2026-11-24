@@ -14,7 +14,7 @@ use modforge::town::{Town, TownDef};
 use modforge::house::HouseDef;
 use modforge::actor::{ActorDef, ActorRegistry, Behaviour, BodyLook, LookDef};
 use modforge::biome::{BiomeDef, BiomeRegistry, ScatterDef};
-use modforge::combat::{DamageDef, DamageRegistry, DamageType, Falloff};
+use modforge::combat::{DamageDef, DamageRegistry};
 use modforge::faction::{FactionDef, FactionKind, FactionRegistry};
 use modforge::memory::GoodFor;
 use modforge::survival::Need;
@@ -1959,110 +1959,21 @@ pub fn register_actors(reg: &mut ActorRegistry) {
 }
 
 /// What each weapon's hit does. Melee has no falloff.
+/// Where the kinds of hurt are: content/damage.yaml, its `damage` a list
+/// of modforge `combat::DamageDef`, each naming only what it has.
+pub const DAMAGE_FILE: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/damage.yaml");
+
+/// Every kind of hurt in `DAMAGE_FILE`. A file that does not read stops
+/// the game at once, naming it.
 pub fn register_damage(reg: &mut DamageRegistry) {
-    let melee = |name: &str, amount, kind| DamageDef {
-        name: name.to_string(),
-        amount,
-        kind,
-        knockback: 1.0,
-        ignores_armor: false,
-        self_scale: 0.5,
-        falloff: Falloff::NONE,
-    };
-    // Rust's pipe shotgun: a handful of pellets, full damage only up
-    // close (Facepunch devblog 123: shotguns fall off hardest).
-    let pellet = DamageDef {
-        name: "shotgun pellet".to_string(),
-        amount: 12.0,
-        kind: DamageType::Bullet,
-        knockback: 1.0,
-        ignores_armor: false,
-        self_scale: 0.5,
-        falloff: Falloff {
-            full_range: 8.0,
-            far_range: 30.0,
-            far_fraction: 0.2,
-        },
-    };
-    // Landing hard (Quake 3's PM_CrashLand, Rust's fall damage):
-    // `amount` per metre per second over the safe landing speed, no
-    // armor helps, through the one damage function like every hit.
-    let fall = DamageDef {
-        name: "fall".to_string(),
-        amount: 10.0,
-        kind: DamageType::Blunt,
-        knockback: 0.0,
-        ignores_armor: true,
-        self_scale: 1.0,
-        falloff: Falloff::NONE,
-    };
-    // An empty stomach or canteen (todo 10c): `amount` a second, no
-    // armor helps, through the one damage function. Tuning.
-    let wasting = |name: &str| DamageDef {
-        name: name.to_string(),
-        amount: 2.0,
-        kind: DamageType::Blunt,
-        knockback: 0.0,
-        ignores_armor: true,
-        self_scale: 1.0,
-        falloff: Falloff::NONE,
-    };
-    for def in [
-        // A handle with no head hits with the handle.
-        melee("pipe swing", 20.0, DamageType::Blunt),
-        melee("handle swing", 15.0, DamageType::Blunt),
-        melee("pole swing", 12.0, DamageType::Blunt),
-        // A head decides the damage and its kind. Tuning.
-        melee("nail hit", 26.0, DamageType::Pierce),
-        melee("blade cut", 26.0, DamageType::Slash),
-        melee("axe chop", 30.0, DamageType::Slash),
-        melee("spear thrust", 28.0, DamageType::Pierce),
-        melee("sign cut", 24.0, DamageType::Slash),
-        // A wild animal's teeth (todo 13w). Claude's, for the operator to
-        // change.
-        melee("bite", 15.0, DamageType::Pierce),
-        pellet,
-        fall,
-        wasting("starvation"),
-        wasting("dehydration"),
-        // Temperature and radiation (todo 20): hurting like hunger.
-        wasting("cold"),
-        wasting("heat"),
-        wasting("radiation"),
-        // Caught in the open when the storm hits: `amount` a second, no
-        // armor helps. Tuning.
-        DamageDef {
-            name: "storm".to_string(),
-            amount: 25.0,
-            kind: DamageType::Blunt,
-            knockback: 0.0,
-            ignores_armor: true,
-            self_scale: 1.0,
-            falloff: Falloff::NONE,
-        },
-        // The burner anomaly (`ANOMALY`): one hit kills whoever walks in,
-        // no armor helps.
-        DamageDef {
-            name: ANOMALY.to_string(),
-            amount: 1_000_000.0,
-            kind: DamageType::Blunt,
-            knockback: 0.0,
-            ignores_armor: true,
-            self_scale: 1.0,
-            falloff: Falloff::NONE,
-        },
-        // The control plane's `kill` op: one hit that kills anyone, no
-        // armor helps, so a test can bring a death now.
-        DamageDef {
-            name: "kill".to_string(),
-            amount: 1_000_000.0,
-            kind: DamageType::Blunt,
-            knockback: 0.0,
-            ignores_armor: true,
-            self_scale: 1.0,
-            falloff: Falloff::NONE,
-        },
-    ] {
+    let text = std::fs::read_to_string(DAMAGE_FILE).unwrap_or_else(|e| panic!("{DAMAGE_FILE}: {e}"));
+    let mut file: std::collections::BTreeMap<String, serde_yaml::Value> = serde_yaml::from_str(&text).unwrap_or_else(|e| panic!("{DAMAGE_FILE}: {e}"));
+    let damage = file.remove("damage").unwrap_or_else(|| panic!("{DAMAGE_FILE}: no damage"));
+    if let Some(key) = file.keys().next() {
+        panic!("{DAMAGE_FILE}: {key} is not damage");
+    }
+    let defs: Vec<DamageDef> = serde_yaml::from_value(damage).unwrap_or_else(|e| panic!("{DAMAGE_FILE}: damage: {e}"));
+    for def in defs {
         reg.register(def).expect("damage defs must not collide");
     }
 }

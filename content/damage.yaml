@@ -1,0 +1,50 @@
+# Every kind of hurt (modforge `combat::DamageDef`, Doom 3's damage defs):
+# what a weapon, a hazard or a need names when it lands. Read by content's
+# `register_damage`. A def has its `name`, `amount` and `kind` (Blunt,
+# Slash, Pierce, Bullet, Fire, Blast), and any of `knockback` (0 when left
+# out), `ignores_armor` (false), `self_scale` (the share of it that hurts
+# whoever dealt it, 1) and `falloff` (full damage out to `full_range`
+# metres, then down to `far_fraction` at `far_range`; none when left out).
+
+damage:
+  # A handle with no head hits with the handle.
+  - {name: pipe swing, amount: 20.0, kind: Blunt, knockback: 1.0, self_scale: 0.5}
+  - {name: handle swing, amount: 15.0, kind: Blunt, knockback: 1.0, self_scale: 0.5}
+  - {name: pole swing, amount: 12.0, kind: Blunt, knockback: 1.0, self_scale: 0.5}
+  # A head decides the damage and its kind. Tuning.
+  - {name: nail hit, amount: 26.0, kind: Pierce, knockback: 1.0, self_scale: 0.5}
+  - {name: blade cut, amount: 26.0, kind: Slash, knockback: 1.0, self_scale: 0.5}
+  - {name: axe chop, amount: 30.0, kind: Slash, knockback: 1.0, self_scale: 0.5}
+  - {name: spear thrust, amount: 28.0, kind: Pierce, knockback: 1.0, self_scale: 0.5}
+  - {name: sign cut, amount: 24.0, kind: Slash, knockback: 1.0, self_scale: 0.5}
+  # A wild animal's teeth (todo 13w). Claude's, for the operator to change.
+  - {name: bite, amount: 15.0, kind: Pierce, knockback: 1.0, self_scale: 0.5}
+  # Rust's pipe shotgun: a handful of pellets, full damage only up close
+  # (Facepunch devblog 123: shotguns fall off hardest).
+  - name: shotgun pellet
+    amount: 12.0
+    kind: Bullet
+    knockback: 1.0
+    self_scale: 0.5
+    falloff: {full_range: 8.0, far_range: 30.0, far_fraction: 0.2}
+  # Landing hard (Quake 3's PM_CrashLand, Rust's fall damage): `amount`
+  # per metre per second over the safe landing speed, no armor helps,
+  # through the one damage function like every hit.
+  - {name: fall, amount: 10.0, kind: Blunt, ignores_armor: true}
+  # An empty stomach or canteen (todo 10c): `amount` a second, no armor
+  # helps, through the one damage function. Tuning.
+  - {name: starvation, amount: 2.0, kind: Blunt, ignores_armor: true}
+  - {name: dehydration, amount: 2.0, kind: Blunt, ignores_armor: true}
+  # Temperature and radiation (todo 20): hurting like hunger.
+  - {name: cold, amount: 2.0, kind: Blunt, ignores_armor: true}
+  - {name: heat, amount: 2.0, kind: Blunt, ignores_armor: true}
+  - {name: radiation, amount: 2.0, kind: Blunt, ignores_armor: true}
+  # Caught in the open when the storm hits: `amount` a second, no armor
+  # helps. Tuning.
+  - {name: storm, amount: 25.0, kind: Blunt, ignores_armor: true}
+  # The burner anomaly (content's ANOMALY): one hit kills whoever walks
+  # in, no armor helps.
+  - {name: burner, amount: 1000000.0, kind: Blunt, ignores_armor: true}
+  # The control plane's `kill` op: one hit that kills anyone, no armor
+  # helps, so a test can bring a death now.
+  - {name: kill, amount: 1000000.0, kind: Blunt, ignores_armor: true}
