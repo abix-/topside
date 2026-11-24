@@ -199,7 +199,7 @@ pub fn movement(
             Option<&Rolling>,
             &mut Transform,
             &mut Fall,
-            Has<crate::vehicle::Vehicle>,
+            Option<&crate::vehicle::Vehicle>,
         ),
         Without<Dead>,
     >,
@@ -209,7 +209,7 @@ pub fn movement(
     for (entity, this_tick, shape, personality, firing, rolling, mut transform, mut fall, vehicle) in &mut actors {
         // Swift people walk faster, slow ones slower; a vehicle goes at
         // its own speed (todo 57).
-        let kind = if vehicle { crate::content::CAR_DEF.speed } else { 1.0 };
+        let kind = vehicle.map_or(1.0, |v| v.def().speed);
         let speed = WALK_SPEED * personality.map_or(1.0, |p| p.0.personality.speed_mult()) * kind;
         // Mid roll: faster, along the direction it started with. Committed
         // to a swing: no walking until it ends.

@@ -16,7 +16,7 @@ use bevy::prelude::*;
 use modforge::actions::Action;
 
 use crate::actor::{Actor, Dead, Hotbar, Inventory};
-use crate::content::{CAR, CAR_DEF, CAR_FUEL, CAR_PARKED, CAR_REPAIR, FUEL};
+use crate::content::{CAR_FUEL, CAR_PARKED, CAR_REPAIR, FUEL};
 use crate::input::ThisTick;
 use crate::{Ground, on_ground};
 
@@ -31,6 +31,16 @@ pub struct Vehicle {
     pub fuel: f32,
     pub broken: bool,
     pub driven: f32,
+    /// Which vehicle it is (content `VEHICLES`), 0 the car.
+    #[serde(default)]
+    pub kind: u8,
+}
+
+impl Vehicle {
+    /// Its rules (content `vehicle_def`).
+    pub fn def(&self) -> &'static modforge::vehicle::VehicleDef {
+        crate::content::vehicle_def(self.kind)
+    }
 }
 
 /// Who is in a vehicle, and which, by its ActorId (saved).
@@ -43,20 +53,35 @@ pub struct Riding(pub modforge::actor::ActorId);
 #[reflect(opaque, Resource, Serialize, Deserialize)]
 pub struct Parked(pub bool);
 
-/// Once a world: the car parked by the player's bunker.
+/// Once a world: the car parked by the player's bunker, and a vehicle in
+/// every house's driveway (Works 13), with a little fuel.
 pub fn park(
     mut spawn: crate::actor::SpawnActor,
     mut parked: ResMut<Parked>,
     registry: Res<crate::content::ActorRegistryRes>,
     world: Option<Res<crate::terrain::WorldRes>>,
 ) {
-    let (false, Some(world), Some(def)) = (parked.0, world, registry.0.def(CAR)) else {
+    let (false, Some(world)) = (parked.0, world) else {
         return;
     };
     parked.0 = true;
-    let at = on_ground(world.bunker + Vec2::from(CAR_PARKED), 0.0);
-    if let Some(car) = crate::actor::spawn_actor(&mut spawn, def, at, None) {
-        spawn.commands.entity(car).insert(Vehicle { fuel: CAR_FUEL, broken: false, driven: 0.0 });
+    let mut spots = vec![(0usize, world.bunker + Vec2::from(CAR_PARKED))];
+    if let Some(town) = world.world.town.as_ref() {
+        // Before the garage door, a few metres out.
+        let driveways = town.lots.iter().filter(|l| l.house).map(|l| l.at + modforge::house::driveway(l.front));
+        spots.extend(driveways.enumerate().map(|(i, at)| (crate::content::driveway(i), at)));
+    }
+    for (kind, at) in spots {
+        let Some(&(name, rules)) = crate::content::VEHICLES.get(kind) else {
+            continue;
+        };
+        let Some(def) = registry.0.def(name) else {
+            continue;
+        };
+        if let Some(made) = crate::actor::spawn_actor(&mut spawn, def, on_ground(at, 0.0), None) {
+            let fuel = if rules.per_can > 0.0 { CAR_FUEL } else { rules.tank };
+            spawn.commands.entity(made).insert(Vehicle { fuel, broken: false, driven: 0.0, kind: kind as u8 });
+        }
     }
 }
 
@@ -109,8 +134,9 @@ pub fn drive(
         let held = hotbar.0.held_stack().map(|s| s.item.clone());
         match held.as_deref() {
             Some(FUEL) => {
-                if vehicle.fuel < CAR_DEF.tank && (hotbar.0.slots.take_one(FUEL) || inventory.0.take_one(FUEL)) {
-                    vehicle.fuel = modforge::vehicle::fill(&CAR_DEF, vehicle.fuel);
+                let rules = vehicle.def();
+                if rules.per_can > 0.0 && vehicle.fuel < rules.tank && (hotbar.0.slots.take_one(FUEL) || inventory.0.take_one(FUEL)) {
+                    vehicle.fuel = modforge::vehicle::fill(rules, vehicle.fuel);
                 }
             }
             // Fixed with scrap in hand and a wrench carried (Works 11).
@@ -121,7 +147,7 @@ pub fn drive(
             }
             _ => {
                 let seats = seated.entry(car).or_default();
-                if (seats.len() as u32) < CAR_DEF.seats {
+                if (seats.len() as u32) < vehicle.def().seats {
                     seats.push(entity);
                     commands.entity(entity).insert((Riding(car_id.0), ColliderDisabled));
                 }
@@ -168,7 +194,7 @@ pub fn ride(
             let before = (vehicle.driven / 60.0) as u64;
             vehicle.driven += dt;
             let minute = (vehicle.driven / 60.0) as u64;
-            if minute > before && modforge::vehicle::breaks(&CAR_DEF, seed, actor.0.0, minute) {
+            if minute > before && modforge::vehicle::breaks(vehicle.def(), seed, actor.0.0, minute) {
                 vehicle.broken = true;
                 info!("a car broke down");
             }

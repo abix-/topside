@@ -329,6 +329,28 @@ pub const CAR_DEF: modforge::vehicle::VehicleDef =
 pub const CAR_PARKED: [f32; 2] = [0.0, -12.0];
 pub const CAR_FUEL: f32 = 120.0;
 pub const CAR_REPAIR: (&str, u32) = ("scrap", 3);
+/// The town's vehicles (topside-town "Everything works": "cars in
+/// driveways, bikes, trucks and garage doors"; Project Zomboid's parked
+/// cars): each kind's actor name and its rules, by its number on its
+/// `Vehicle` (0 the car). A truck is slower with more seats and a bigger
+/// tank; a bike is quicker than walking, one seat, needs no fuel and
+/// never breaks. All Claude's.
+pub const TRUCK: &str = "truck";
+pub const BIKE: &str = "bike";
+pub const VEHICLES: [(&str, modforge::vehicle::VehicleDef); 3] = [
+    (CAR, CAR_DEF),
+    (TRUCK, modforge::vehicle::VehicleDef { speed: 2.5, tank: 900.0, per_can: 180.0, seats: 3, breakdown: 0.005 }),
+    (BIKE, modforge::vehicle::VehicleDef { speed: 1.8, tank: 1.0e9, per_can: 0.0, seats: 1, breakdown: 0.0 }),
+];
+/// What stands in a house's driveway, by the house's number in the town:
+/// one in three a car, one in three a truck, the rest a bike. Claude's.
+pub fn driveway(house: usize) -> usize {
+    house % 3
+}
+/// The rules of a vehicle by its number.
+pub fn vehicle_def(kind: u8) -> &'static modforge::vehicle::VehicleDef {
+    &VEHICLES.get(kind as usize).unwrap_or(&VEHICLES[0]).1
+}
 pub const GENERATOR: &str = "generator";
 pub const FUEL: &str = "fuel";
 /// Fuel (topside-town "Everything works": "gas pumps, gas cans, propane
@@ -1575,6 +1597,9 @@ pub fn register_actors(reg: &mut ActorRegistry) {
         // The car (todo 57): an actor that never thinks for itself; its
         // driver fills its queue. Its health Claude's.
         ActorDef { weapon: None, sight: 0.0, reach: 0.0, ..person(CAR, None, Behaviour::Guard, 400.0, "", &[]) },
+        // A truck and a bike, as the car (Works 13). Health Claude's.
+        ActorDef { weapon: None, sight: 0.0, reach: 0.0, ..person(TRUCK, None, Behaviour::Guard, 600.0, "", &[]) },
+        ActorDef { weapon: None, sight: 0.0, reach: 0.0, ..person(BIKE, None, Behaviour::Guard, 80.0, "", &[]) },
     ] {
         reg.register(def).expect("actor registered once");
     }
