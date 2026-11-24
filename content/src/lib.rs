@@ -508,7 +508,8 @@ pub const GROCERY_STORE: modforge::plan::PlanDef = modforge::plan::PlanDef {
 pub const CROP_FARM: modforge::plan::PlanDef = modforge::plan::PlanDef {
     name: "crop farm",
     edge: true,
-    furniture_models: &[],
+    // Each drawn as its own model (todo Model 3; scripts/models.py).
+    furniture_models: &["kitchen counter", "work desk", "tool rack", "seed shelf"],
     columns: &[6.0, 5.0],
     rows: &[6.0, 5.0],
     rooms: &[((0, 0), "farm kitchen"), ((1, 0), "farm office"), ((0, 1), "tool shed"), ((1, 1), "seed store")],

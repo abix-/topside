@@ -2882,6 +2882,73 @@ def office_desk():
     return join(parts, "office desk")
 
 
+# -- the crop farm and every thing in it (todo Model 3) -------------------------
+#
+# The farmhouse's kitchen counter, the office's desk, the pantry, the toolbox
+# and the garden beds are the house's and the grocery's own; these are the
+# farm's. Sizes are content's CROP_FARM plan's (the tool shed's rack 4 m by
+# 0.6 m and 1.8 m tall, the seed store's shelf 3 m by 0.6 m and 1.6 m tall);
+# the rest are Claude's.
+
+
+def tool_rack():
+    """the tool shed's wall: a plank board on posts with the farm's tools
+    hung on it (a spade, a hoe, a rake, a pitchfork), a bench under it."""
+    c = store_colours()
+    plank = material("shed plank", (0.5, 0.38, 0.25))
+    parts = [box("board", (4.0, 0.05, 1.2), at=(0, 0.27, 1.2), mat=plank)]
+    for s in (1, -1):
+        parts.append(box(f"post {s}", (0.08, 0.08, 1.8), at=(s * 1.96, 0.24, 0.9), mat=c["wood"]))
+    parts.append(box("bench", (4.0, 0.5, 0.05), at=(0, 0, 0.8), mat=plank))
+    for i, x in enumerate((-1.5, -0.5, 0.5, 1.5)):
+        parts.append(cylinder(f"handle {i}", 0.018, 1.2, at=(x, 0.2, 1.15), mat=c["wood"]))
+        head = [(0.2, 0.03, 0.28), (0.18, 0.03, 0.08), (0.35, 0.03, 0.05), (0.25, 0.03, 0.25)][i]
+        parts.append(box(f"head {i}", head, at=(x, 0.2, 0.55 - head[2] / 2 + 0.05), mat=c["dark steel"]))
+    parts.append(box("sacks", (0.8, 0.4, 0.4), at=(1.4, 0, 0.2), mat=material("burlap", (0.6, 0.5, 0.35))))
+    return join(parts, "tool rack")
+
+
+def seed_shelf():
+    """the seed store's shelf: wooden shelves of seed packets, jars and sacks."""
+    c = store_colours()
+    plank = material("shed plank", (0.5, 0.38, 0.25))
+    burlap = material("burlap", (0.6, 0.5, 0.35))
+    parts = [box("back", (3.0, 0.04, 1.6), at=(0, 0.28, 0.8), mat=plank)]
+    for s in (1, -1):
+        parts.append(box(f"side {s}", (0.04, 0.6, 1.6), at=(s * 1.48, 0, 0.8), mat=plank))
+    for lv, z in enumerate((0.05, 0.55, 1.05, 1.55)):
+        parts.append(box(f"shelf {lv}", (3.0, 0.6, 0.03), at=(0, 0, z), mat=plank))
+        if lv == 3:
+            continue
+        for i in range(6):
+            x = -1.25 + 0.5 * i
+            if lv == 0:
+                parts.append(box(f"sack {i}", (0.4, 0.4, 0.4), at=(x, 0, 0.27), mat=burlap))
+            elif lv == 1:
+                parts.append(cylinder(f"jar {i}", 0.08, 0.22, sides=10, at=(x, 0, z + 0.125), mat=c["glass"]))
+            else:
+                parts.append(box(f"packets {i}", (0.35, 0.3, 0.15), at=(x, 0, z + 0.09), mat=[c["green"], c["yellow"], c["orange"]][i % 3]))
+    return join(parts, "seed shelf")
+
+
+def seed_bin():
+    """a wooden seed bin with its lid propped open on seed."""
+    c = store_colours()
+    plank = material("shed plank", (0.5, 0.38, 0.25))
+    parts = [box("bin", (1.0, 0.6, 0.7), at=(0, 0, 0.35), mat=plank)]
+    parts.append(box("seed", (0.92, 0.52, 0.02), at=(0, 0, 0.66), mat=material("seed", (0.7, 0.6, 0.35))))
+    parts.append(box("lid", (1.0, 0.04, 0.6), at=(0, 0.32, 1.0), mat=plank))
+    parts.append(box("scoop", (0.12, 0.2, 0.06), at=(0.25, 0, 0.7), mat=c["steel"]))
+    return join(parts, "seed bin")
+
+
+FARM = {
+    "tool rack": tool_rack,
+    "seed shelf": seed_shelf,
+    "seed bin": seed_bin,
+}
+
+
 GROCERY = {
     "grocery aisle": grocery_aisle,
     "checkout counter": checkout_counter,
@@ -2923,6 +2990,7 @@ MODELS = {
     **ITEMS,
     **HOUSE,
     **GROCERY,
+    **FARM,
     "tree": tree,
     "rock": rock,
     # The wasteland's and the ruins' scatter, at their largest side as
