@@ -729,6 +729,8 @@ pub fn die(
     reality: Res<crate::Reality>,
     mut map: ResMut<ActorMapRes>,
     mut ids: ResMut<crate::interact::ThingIssuer>,
+    thing_ids: Res<crate::interact::ThingIds>,
+    beds_at: Query<&Transform, (With<crate::interact::WorldItem>, Without<Dead>)>,
     mut dying: Query<
         (
             Entity,
@@ -778,7 +780,8 @@ pub fn die(
         }
         // A bed to wake in, the player's rule as everyone's (topside-town
         // "Death and the bed"; modforge `bed::wake_in`).
-        let has_bed = modforge::bed::wake_in(wakes.map_or(&[][..], |b| &b.0)).is_some();
+        // A broken bed is gone from the world: it is no bed.
+        let has_bed = wakes.is_some_and(|b| modforge::bed::wake_in(&b.standing(&thing_ids, &beds_at)).is_some());
         if has_bed || !reality.0.death_sticks {
             // The death message and the choice to respawn (design.md
             // "Death and difficulty"); the world keeps running meanwhile.

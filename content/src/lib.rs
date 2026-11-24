@@ -230,6 +230,9 @@ pub const SECRET_DANGER: u32 = 3;
 pub const BUILDING_PLAN: &str = "building plan";
 pub const HAMMER: &str = "hammer";
 pub const TOOL_CUPBOARD: &str = "tool cupboard";
+/// A bed, where its owner wakes after dying; struck with a weapon in hand
+/// it breaks (topside-town "Death and the bed").
+pub const BED: &str = "bed";
 pub const WOOD: &str = "wood";
 pub const STONE: &str = "stone";
 /// A biome's weather list (todo 21, 32): each weather named as often as
@@ -1912,6 +1915,13 @@ pub fn register_items(reg: &mut ItemRegistry) {
         // The silo (todo 30; descriptions Claude's).
         building(SHOVEL, "A shovel. Strike the deepest floor of your bunker to dig a level down.", ItemKind::Tool, 1, None),
         building("crafting bench", "A bench folded for carrying. Set it down and craft at it.", ItemKind::Deployable, 1, None),
+        // Used where it stands, and broken by a weapon in hand, the one
+        // way a thing is broken (topside-town "Death and the bed": "destroying
+        // their bed"; the description Claude's).
+        ItemDef {
+            breaks_when_struck: true,
+            ..building(BED, "Someone's bed. Who sleeps here wakes here after dying.", ItemKind::Source, 1, None)
+        },
         building("research station", "A research desk folded for carrying. Set it down and research at it, with power.", ItemKind::Deployable, 1, None),
         ItemDef {
             name: "storage box".to_string(),

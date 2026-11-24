@@ -95,17 +95,14 @@ pub fn spawn_player(mut spawn: SpawnActor, registry: Res<ActorRegistryRes>, worl
     let at = wake_point(&world);
     let person = spawn_person(&mut spawn, def, at - Vec3::Y * BODY_CENTRE, def.faction.as_deref())
         .expect("the actor map has room for the player");
-    spawn
-        .commands
-        .entity(person)
-        .insert((
-            Player,
-            crate::talk::LookingAt::default(),
-            crate::hud::HintsDone::default(),
-            // The player's bed, where they wake (topside-town "Death and
-            // the bed").
-            crate::actor::Beds(vec![at - Vec3::Y * BODY_CENTRE]),
-        ));
+    // The player's bed, where they wake (topside-town "Death and the bed").
+    let bed = crate::actor::make_bed(&mut spawn, at - Vec3::Y * BODY_CENTRE);
+    spawn.commands.entity(person).insert((
+        Player,
+        crate::talk::LookingAt::default(),
+        crate::hud::HintsDone::default(),
+        crate::actor::Beds(bed.into_iter().collect()),
+    ));
 }
 
 /// Every actor's roll this tick (combat.md "The roll"): Roll starts one
@@ -284,6 +281,8 @@ pub fn respawn(
     mut commands: Commands,
     world: Res<WorldRes>,
     tick: Res<crate::SimTick>,
+    ids: Res<crate::interact::ThingIds>,
+    beds_at: Query<&Transform, (With<crate::interact::WorldItem>, Without<Dead>)>,
     mut dead: Query<
         (
             (Entity, &ThisTick, &mut Transform, Option<&crate::actor::Beds>, Option<&crate::actor::SpawnedAt>),
@@ -303,7 +302,7 @@ pub fn respawn(
         // In their bed (topside-town "Death and the bed", modforge
         // `bed::wake_in`); with none, where they were spawned (they come
         // back only where death does not stick).
-        let bed = beds.and_then(|b| modforge::bed::wake_in(&b.0));
+        let bed = beds.and_then(|b| modforge::bed::wake_in(&b.standing(&ids, &beds_at)));
         transform.translation = match (bed, spawned) {
             (Some(bed), _) => bed + Vec3::Y * BODY_CENTRE,
             (None, Some(spawned)) => spawned.0 + Vec3::Y * BODY_CENTRE,

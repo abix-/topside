@@ -189,12 +189,35 @@ pub struct Map {
 #[reflect(opaque, Component, Serialize, Deserialize)]
 pub struct Home(pub Vec3);
 
-/// The beds this person has (topside-town "Death and the bed"): where
-/// their feet stand when they wake in each. With one they come back after
-/// dying, in it (modforge `bed::wake_in`); with none, dead for good.
+/// The beds this person has (topside-town "Death and the bed"), each a
+/// thing in the world by its ThingId. With one still standing they come
+/// back after dying, in it (modforge `bed::wake_in`); with none, broken or
+/// never had, dead for good.
 #[derive(Component, Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize, Reflect)]
 #[reflect(opaque, Component, Serialize, Deserialize)]
-pub struct Beds(pub Vec<Vec3>);
+pub struct Beds(pub Vec<u64>);
+
+impl Beds {
+    /// Where their feet stand in each bed still standing.
+    pub fn standing(&self, ids: &crate::interact::ThingIds, things: &Query<&Transform, (With<crate::interact::WorldItem>, Without<Dead>)>) -> Vec<Vec3> {
+        self.0
+            .iter()
+            .filter_map(|id| ids.get(*id))
+            .filter_map(|e| things.get(e).ok())
+            .map(|t| t.translation)
+            .collect()
+    }
+}
+
+/// A bed made where `at` is, the feet's spot, through the one way a thing
+/// comes into the world (`interact::spawn_item`): its ThingId, for the
+/// owner's `Beds`.
+pub fn make_bed(spawn: &mut SpawnActor, at: Vec3) -> Option<u64> {
+    let def = spawn.items.0.def(crate::content::BED)?.clone();
+    let stack = modforge::item::create(&def, 1, &[], 0.0, spawn.things.next());
+    let (_, id) = crate::interact::spawn_item(&mut spawn.commands, &mut spawn.things, &def, stack, at);
+    Some(id.0)
+}
 
 /// A place this person was asked to go to and wait at (an episode's
 /// errand, episodes.md), its height included; the brain weighs it like
@@ -274,6 +297,8 @@ pub struct SpawnActor<'w, 's> {
     pub factions: Res<'w, FactionRegistryRes>,
     pub actors: ResMut<'w, ActorMapRes>,
     pub seed: Res<'w, WorldSeed>,
+    /// For the things a person comes with (their bed).
+    pub things: ResMut<'w, crate::interact::ThingIssuer>,
 }
 
 /// The ONE path through which an NPC enters the world (authority.md:
@@ -520,7 +545,8 @@ pub fn populate_topside_people(
         // Someone living in the town has a bed in their house, where they
         // stand; everyone else topside has none.
         if in_town {
-            spawn.commands.entity(npc).insert(Beds(vec![on_ground(at, 0.0)]));
+            let bed = make_bed(&mut spawn, on_ground(at, 0.0));
+            spawn.commands.entity(npc).insert(Beds(bed.into_iter().collect()));
         }
         // A pack leader brings friends of its kind, standing beside it.
         let leads = def.faction.as_deref() == Some(crate::content::TOPSIDE_HOSTILES)
@@ -621,7 +647,8 @@ pub fn populate_bunkers(
                 // "Learning to stay alive"). The store is theirs, but
                 // found, not known.
                 // Their bed is where they live.
-                spawn.commands.entity(npc).insert((Home(stand), Beds(vec![stand])));
+                let bed = make_bed(&mut spawn, stand);
+                spawn.commands.entity(npc).insert((Home(stand), Beds(bed.into_iter().collect())));
                 if let Some(store) = store {
                     spawn.commands.entity(npc).insert(Store(store));
                 }
