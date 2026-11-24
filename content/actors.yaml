@@ -33,6 +33,10 @@ actors:
   # A wild animal (design.md "Bunker people and topside people":
   # "Hostiles attack: wild animals"), hunting with its teeth. Its health
   # and reach are Claude's, for the operator to change.
+  # What the hunting storm brings to the surface till morning (todo
+  # "Storm effect 8", 7 Days to Die's blood moon). Its numbers are
+  # Claude's, for the operator to change.
+  - {name: storm hunter, faction: wildlife, behaviour: Hunter, max_health: 400.0, weapon: teeth, sight: 40.0, reach: 2.0}
   - {name: wolf, faction: wildlife, behaviour: Hunter, max_health: 50.0, weapon: teeth, sight: 25.0, reach: 1.4}
   # A turret (todo 11k): an actor that never moves, guarding where it is
   # set with a pipe shotgun; its faction the placer's. Health and sight

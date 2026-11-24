@@ -44,6 +44,7 @@ pub mod save;
 pub mod secrets;
 pub mod sight;
 pub mod storm;
+pub mod storm_effect;
 pub mod storm_type;
 pub mod structure;
 pub mod survival;
@@ -364,7 +365,7 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind, port: u16
                 survival::waste,
                 // Temperature and radiation, then the generators (todo 29).
                 (exposure::expose, power::run, (power::lights, power::flashlights), silo::dig, silo::rebuild, silo::set_down, skills::learn, vehicle::park).chain(),
-                survival::rot,
+                (survival::rot, storm_effect::hunters_leave, storm_effect::fix_struck),
                 lap("survival"),
                 (
                     // The episode and its storm start when the player

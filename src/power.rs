@@ -39,7 +39,7 @@ pub fn run(
     time: Res<Time<Fixed>>,
     mut generators: Query<(Entity, &WorldItem, &Transform, &mut Container, Option<&mut Generator>, &ThingId)>,
     consumers: Query<(Entity, &Interactable, &Transform, &ThingId, Option<&Powered>)>,
-    (items, fires): (Res<crate::content::ItemRegistryRes>, Query<&Powered, With<Container>>),
+    (items, fires, struck): (Res<crate::content::ItemRegistryRes>, Query<&Powered, With<Container>>, Query<(), With<crate::storm_effect::Struck>>),
 ) {
     // The generators, in ThingId order: where each runs and its supply.
     let mut running: Vec<(u64, Vec3, f32)> = Vec::new();
@@ -65,7 +65,9 @@ pub fn run(
             }
             continue;
         }
-        if item.stack.item != GENERATOR {
+        // A generator a static storm struck runs no more until fixed
+        // (todo "Storm effect 5").
+        if item.stack.item != GENERATOR || struck.contains(entity) {
             continue;
         }
         let Some(mut generator) = generator else {

@@ -39,6 +39,10 @@ pub struct StormRes {
     /// the pick to the registry. Saved, so a loaded save shifts the same.
     #[serde(default)]
     pub reality: Option<String>,
+    /// How many shuffle storms have moved the town's places about (todo
+    /// "Storm effect 2"); the town is laid with them.
+    #[serde(default)]
+    pub shuffles: u32,
 }
 
 /// With no episode running (none fits the reality), the storm comes a game
@@ -92,12 +96,18 @@ pub fn storm(
     if STORM_NOW.swap(false, Ordering::Relaxed) && phase(&tick, *day, &state) == StormPhase::Calm {
         state.at = Some(day.storm().now(secs));
     }
-    if phase(&tick, *day, &state) == StormPhase::Storm
+    // Only a storm whose type kills hurts those outside (todo "Storm 3").
+    let kind = crate::storm_type::coming(&state, &seed);
+    let kills = kind.as_ref().is_none_or(|k| k.kills);
+    // The deep storm reaches the bunkers' top level (todo "Storm effect 9").
+    let deep = kind.as_ref().is_some_and(|k| k.does.contains(&modforge::storm::Effect::Deep));
+    if kills
+        && phase(&tick, *day, &state) == StormPhase::Storm
         && tick.0 % 60 == 0
         && let Some(def) = damage.0.def("storm")
     {
         for (at, own, worn, mut health, mut memory) in &mut actors {
-            if sheltered(&shelters, at.translation.ground()) {
+            if sheltered(&shelters, at.translation.ground()) && !(deep && crate::storm_effect::reaches(at.translation)) {
                 continue;
             }
             let hit = Hit {
@@ -136,21 +146,37 @@ pub fn shift_world(
     episodes: Res<EpisodeRegistryRes>,
     mut episode: ResMut<Episode>,
 ) {
-    // The storm hands over another reality (realities.md), picked from
-    // the seed and the storm's number, never the one being left.
-    // The reality the `storm` op named, if any; else the registry's pick.
+    // What the storm that passed rolls anew is its type's (todo "Storm
+    // 3"); with no types, everything, as before.
+    let kind = crate::storm_type::passed(&state, &seed);
+    let rolls = |what| kind.as_ref().is_none_or(|k| k.rolls(what));
     let named = state.reality.take();
-    let next = match named.as_deref().and_then(|name| realities.0.def(name)) {
-        Some(def) => Some(def),
-        None => realities.0.pick(seed.0, state.shifts, &reality.0.name),
-    };
-    if let Some(next) = next {
-        info!("the storm hands over {} after storm {}", next.name, state.shifts);
-        reality.0 = next.clone();
+    if rolls(modforge::storm::Reroll::Reality) || named.is_some() {
+        // The storm hands over another reality (realities.md), picked from
+        // the seed and the storm's number, never the one being left.
+        // The reality the `storm` op named, if any; else the registry's pick.
+        let next = match named.as_deref().and_then(|name| realities.0.def(name)) {
+            Some(def) => Some(def),
+            None => realities.0.pick(seed.0, state.shifts, &reality.0.name),
+        };
+        if let Some(next) = next {
+            info!("the storm hands over {} after storm {}", next.name, state.shifts);
+            reality.0 = next.clone();
+        }
     }
-    // Then the storyteller starts an episode that fits it (episodes.md).
+    // Then the storyteller starts an episode that fits it (episodes.md);
+    // every storm starts one, so the next storm is rolled from now.
     episode.start(episodes.0.pick(&reality.0.name, seed.0, state.shifts).map(|e| e.name.clone()), tick.0);
-    info!("episode: {:?}", episode.name);
+    info!("episode: {:?}, after the {:?}", episode.name, kind.as_ref().map(|k| &k.name));
+    // What else it does, each by its own system (todo "Storm effect").
+    if let Some(kind) = &kind {
+        for effect in &kind.does {
+            crate::storm_effect::run(&mut commands, *effect);
+        }
+    }
+    if !rolls(modforge::storm::Reroll::World) {
+        return;
+    }
     for entity in &pieces {
         commands.entity(entity).despawn();
     }
