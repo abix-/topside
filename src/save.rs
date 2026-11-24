@@ -122,6 +122,7 @@ saved! {
         crate::interact::DrawsFrom,
         crate::power::WiredTo,
         crate::fire::Burning,
+        crate::garden::Growing,
         crate::interact::Drawn,
         crate::interact::OpenContainer,
         crate::interact::OpenStation,

@@ -283,7 +283,9 @@ pub const GARAGE_SHELF: &str = "garage shelf";
 pub const GARAGE_WORKBENCH: &str = "garage workbench";
 pub const TOOLBOX: &str = "toolbox";
 pub const WRENCH: &str = "wrench";
-pub const STORAGE_HOLDS: [(&str, &str, u32); 9] = [
+pub const STORAGE_HOLDS: [(&str, &str, u32); 11] = [
+    (GARAGE_SHELF, CARROT_SEED, 3),
+    (GARAGE_SHELF, POTATO_SEED, 3),
     (KITCHEN_CABINET, EXTINGUISHER, 1),
     (KITCHEN_CABINET, "water bottle", 1),
     (GARAGE_SHELF, "scrap", 3),
@@ -418,6 +420,20 @@ pub const LETTERS: [&str; 3] = [
 /// street; once a day at 6 the truck empties every can into the dump's
 /// piles, which stand on the last lot that is not a house until Place 13
 /// builds the dump, and start holding junk to scavenge. All Claude's.
+/// Growing food (topside-town "Everything works": "gardens, farm fields,
+/// barns, animals and seed make food"; Project Zomboid's farming): each
+/// house has two garden beds in its back yard; E at an empty bed with a
+/// seed carried sows it; ripe after its days, E harvests its food and
+/// seed back; seed is found on garage shelves. All Claude's.
+pub const GARDEN_BED: &str = "garden bed";
+pub const CARROT_SEED: &str = "carrot seed";
+pub const POTATO_SEED: &str = "potato seed";
+pub const CARROT: &str = "carrot";
+pub const POTATO: &str = "potato";
+pub const CROPS: [modforge::grow::CropDef; 2] = [
+    modforge::grow::CropDef { seed: CARROT_SEED, food: CARROT, days: 2.0, gives: 4, seeds_back: 2 },
+    modforge::grow::CropDef { seed: POTATO_SEED, food: POTATO, days: 3.0, gives: 5, seeds_back: 2 },
+];
 pub const TRASH_CAN: &str = "trash can";
 pub const DUMP_PILE: &str = "dump pile";
 pub const DUMP_PILES: usize = 4;
@@ -2203,7 +2219,18 @@ pub fn register_items(reg: &mut ItemRegistry) {
         building(TV, "A TV.", ItemKind::Deployable, 1, None),
         building(PHONE, "A phone.", ItemKind::Deployable, 1, None),
         building(MAILBOX, "A mailbox.", ItemKind::Deployable, 1, Some(4)),
-        building(TRASH_CAN, "A trash can. The truck takes what is in it to the dump.", ItemKind::Deployable, 1, Some(6)),
+        building(GARDEN_BED, "A garden bed. Seed sown here grows.", ItemKind::Deployable, 1, None),
+        building(CARROT_SEED, "Carrot seed. Sow it in a garden bed.", ItemKind::Material, 20, None),
+        building(POTATO_SEED, "Potato seed. Sow it in a garden bed.", ItemKind::Material, 20, None),
+        ItemDef {
+            food: Some(FoodStats { hunger: 12.0, thirst: 2.0, health: 2.0 }),
+            ..building(CARROT, "A carrot, from a garden.", ItemKind::Food, 20, None)
+        },
+        ItemDef {
+            food: Some(FoodStats { hunger: 20.0, thirst: 0.0, health: 2.0 }),
+            ..building(POTATO, "A potato, from a garden.", ItemKind::Food, 20, None)
+        },
+        building(TRASH_CAN,"A trash can. The truck takes what is in it to the dump.", ItemKind::Deployable, 1, Some(6)),
         building(DUMP_PILE, "A pile of the town's junk.", ItemKind::Deployable, 1, Some(24)),
         building(EXTINGUISHER, "A fire extinguisher. Puts out the fires near.", ItemKind::Tool, 1, None),
         building(SMOKE_DETECTOR, "A smoke detector. It sounds at a fire.", ItemKind::Deployable, 1, None),

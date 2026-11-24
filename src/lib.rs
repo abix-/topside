@@ -9,6 +9,7 @@ pub mod building;
 pub mod exposure;
 pub mod combat;
 pub mod fire;
+pub mod garden;
 pub mod command;
 pub mod control_plane;
 pub mod edge;
@@ -412,7 +413,7 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind, port: u16
                     // Fire (Works 15): matches, an extinguisher or a
                     // hydrant take the Use before anything else; then
                     // the fires burn.
-                    (fire::light_and_fight, fire::burn).chain(),
+                    (fire::light_and_fight, fire::burn, garden::tend).chain(),
                     interact::interact_on_use,
                     hud::close_read_notes,
                     hud::show_act_result,

@@ -245,6 +245,10 @@ pub fn populate_town_power(
     // street (Works 15).
     for lot in town.lots.iter().filter(|l| l.house) {
         make(&mut commands, crate::content::SMOKE_DETECTOR, lot.at + modforge::house::smoke_detector(lot.front), None);
+        // Its garden beds, in the back yard (Works 18).
+        for at in modforge::house::garden(lot.front) {
+            make(&mut commands, crate::content::GARDEN_BED, lot.at + at, None);
+        }
     }
     // Each house's TV, radio and phone, off; its mailbox at the street,
     // holding a letter (Works 16).
