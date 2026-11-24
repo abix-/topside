@@ -309,7 +309,7 @@ pub fn think(
     monuments: Res<MonumentRegistryRes>,
     tree: Res<crate::content::brain::BrainTreeRes>,
     day: Res<crate::survival::Day>,
-    (storms, reality): (Res<crate::storm::StormRes>, Res<crate::Reality>),
+    (storms, reality, world): (Res<crate::storm::StormRes>, Res<crate::Reality>, Option<Res<crate::terrain::WorldRes>>),
     nav: Res<crate::navmesh::Nav>,
     archipelagos: Query<&bevy_landmass::prelude::Archipelago3d>,
     sight: Sight,
@@ -436,6 +436,20 @@ pub fn think(
     // made in this order, so who gets a seller's last water is the same
     // after a load.
     let order = crate::actor::in_actor_order(thinkers.npcs.iter().map(|(entity, actor, ..)| (Some(actor.0), entity)));
+    // Each place's tier above the first, where it stands, so the higher
+    // tiers draw people (todo Tier 5, modforge `brain::TIER_PULL`).
+    let tiers: std::sync::Arc<Vec<(Vec2, f32, u32)>> = std::sync::Arc::new(
+        world
+            .as_deref()
+            .and_then(|w| w.world.town.as_ref())
+            .map(|town| {
+                (0..town.lots.len())
+                    .map(|i| (town.lots[i].at, town.lots[i].size.max_element() / 2.0, town.tier_of(i)))
+                    .filter(|(.., tier)| *tier > 1)
+                    .collect()
+            })
+            .unwrap_or_default(),
+    );
     for entity in order {
         let Ok((
             entity,
@@ -696,6 +710,7 @@ pub fn think(
             carries_for_bunker,
             carried_litres,
             water_room,
+            tiers: tiers.clone(),
         };
         // What they sense, but for what the persona brings (their needs,
         // memory, personality): the binder puts those in each think.

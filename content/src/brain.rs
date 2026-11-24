@@ -116,6 +116,9 @@ pub struct TopsideFacts {
     /// in litres.
     pub carried_litres: f32,
     pub water_room: f32,
+    /// Each place's middle, half its size across, and its tier, for
+    /// `tier_at` (todo Tier 5); shared by everyone thinking this step.
+    pub tiers: std::sync::Arc<Vec<(bevy::math::Vec2, f32, u32)>>,
 }
 
 impl brain::GameFacts for TopsideFacts {
@@ -136,6 +139,10 @@ impl brain::GameFacts for TopsideFacts {
     }
     fn water_room(&self) -> f32 {
         self.water_room
+    }
+    fn tier_at(&self, at: bevy::math::Vec3) -> u32 {
+        let ground = bevy::math::Vec2::new(at.x, at.z);
+        self.tiers.iter().find(|(middle, half, _)| (ground - *middle).abs().max_element() <= *half).map_or(1, |(_, _, tier)| *tier)
     }
 }
 
