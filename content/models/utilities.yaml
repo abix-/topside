@@ -1,0 +1,289 @@
+# The water tower and the pump house (todo Model 10) and the substation
+# (todo Model 11), built by scripts/models.py.
+#
+# The pump room's pump set 1.5 m square and 1.2 m tall, the chlorine room's
+# shelf 3.5 m by 0.6 m and 1.2 m tall, the pipe store's rack 2.5 m by 0.6 m
+# and 1 m tall; the meter office's desk is the grocery's. The tower's, the
+# pump's and the tap's sizes are Claude's. The substation's control panel
+# 4.5 m by 0.6 m and 1.8 m tall, the battery rack 3 m by 0.8 m and 1 m tall,
+# the relay cabinets 3 m by 0.6 m and 2 m tall, the store's shelf 2.5 m by
+# 0.5 m and 1.6 m tall; the desk and toolbox are the grocery's and the
+# house's. The switch's and the transformer's sizes are Claude's.
+
+colours:
+  tower paint: [0.75, 0.78, 0.8]
+  pump blue: [0.2, 0.35, 0.6]
+  panel grey: [0.55, 0.6, 0.58]
+  porcelain: [0.55, 0.35, 0.25]
+
+models:
+  water tower:
+    about: the town's water tower, a round steel tank with its cone roof on four braced legs, the ladder up one leg and the pipe down the middle.
+    parts:
+      - cylinder: [2.5, 3.0]
+        sides: 20
+        at: [0, 0, 9.5]
+        colour: tower paint
+      - cone: [2.6, 0, 0.9]
+        sides: 20
+        at: [0, 0, 11.45]
+        colour: tower paint
+      - cylinder: [2.55, 0.15]
+        sides: 20
+        at: [0, 0, 7.95]
+        colour: dark steel
+      - cylinder: [2.9, 0.06]
+        sides: 20
+        at: [0, 0, 8.0]
+        colour: dark steel
+      - for: {sx: [1, -1], sy: [1, -1]}
+        parts:
+          - box: [0.2, 0.2, 8.0]
+            at: [sx * 1.6, sy * 1.6, 4.0]
+            colour: dark steel
+      - for: {z: [2.5, 5.5], s: [1, -1]}
+        parts:
+          - box: [3.2, 0.08, 0.08]
+            at: [0, s * 1.6, z]
+            colour: dark steel
+          - box: [0.08, 3.2, 0.08]
+            at: [s * 1.6, 0, z]
+            colour: dark steel
+      - cylinder: [0.2, 8.0]
+        sides: 10
+        at: [0, 0, 4.0]
+        colour: steel
+      - for: {k: range(26)}
+        parts:
+          - box: [0.4, 0.03, 0.03]
+            at: [1.6, -1.85, 0.3 + 0.3 * k]
+            colour: dark steel
+
+  water tower tap:
+    about: the tower's tap at the foot of its legs, a standpipe, its wheel valve and spout over a drain grate.
+    parts:
+      - cylinder: [0.08, 1.0]
+        sides: 10
+        at: [0, 0, 0.5]
+        colour: steel
+      - cylinder: [0.15, 0.03]
+        sides: 12
+        along: Y
+        at: [0, -0.1, 0.85]
+        colour: red
+      - cylinder: [0.05, 0.3]
+        along: Y
+        at: [0, -0.15, 0.7]
+        colour: steel
+      - box: [0.5, 0.5, 0.03]
+        at: [0, -0.2, 0.015]
+        colour: dark steel
+
+  water pump:
+    about: the pump house's pump, a motor on a skid, its pump casing and the pipe in and out.
+    parts:
+      - box: [1.0, 0.5, 0.1]
+        at: [0, 0, 0.05]
+        colour: dark steel
+      - cylinder: [0.2, 0.55]
+        sides: 14
+        along: X
+        at: [-0.2, 0, 0.32]
+        colour: pump blue
+      - cylinder: [0.22, 0.25]
+        sides: 14
+        along: X
+        at: [0.25, 0, 0.32]
+        colour: pump blue
+      - cylinder: [0.07, 0.3]
+        along: X
+        at: [0.5, 0, 0.32]
+        colour: steel
+      - cylinder: [0.07, 0.4]
+        at: [0.25, 0, 0.7]
+        colour: steel
+
+  pump set:
+    about: the pump room's pipework, the header pipes, valves and gauges on their stands, 1.5 m square.
+    parts:
+      - for: {s: [1, -1]}
+        parts:
+          - cylinder: [0.12, 1.5]
+            sides: 10
+            along: X
+            at: [0, s * 0.45, 0.9]
+            colour: pump blue
+          - for: {sx: [1, -1]}
+            parts:
+              - box: [0.06, 0.06, 0.8]
+                at: [sx * 0.6, s * 0.45, 0.4]
+                colour: dark steel
+          - cylinder: [0.18, 0.04]
+            sides: 12
+            at: [0, s * 0.45, 1.1]
+            colour: red
+      - cylinder: [0.1, 0.9]
+        sides: 10
+        along: Y
+        at: [0.3, 0, 0.9]
+        colour: pump blue
+      - cylinder: [0.08, 0.03]
+        sides: 12
+        along: Y
+        at: [-0.4, -0.58, 1.05]
+        colour: white
+
+  chemical shelf:
+    about: the chlorine room's shelf, 3.5 m, drums and jugs of chlorine.
+    parts:
+      - box: [3.5, 0.6, 0.03]
+        at: [0, 0, 0.6]
+        colour: dark steel
+      - box: [3.5, 0.6, 0.03]
+        at: [0, 0, 1.185]
+        colour: dark steel
+      - for: {sx: [1, -1], sy: [1, -1]}
+        parts:
+          - box: [0.04, 0.04, 1.2]
+            at: [sx * 1.73, sy * 0.28, 0.6]
+            colour: dark steel
+      - for: {i: range(5)}
+        parts:
+          - cylinder: [0.25, 0.55]
+            sides: 12
+            at: [-1.4 + 0.7 * i, 0, 0.28]
+            colour: "'white' if i % 2 else 'yellow'"
+          - box: [0.2, 0.15, 0.3]
+            at: [-1.4 + 0.7 * i, 0, 0.77]
+            colour: white
+
+  pipe rack:
+    about: the pipe store's rack, 2.5 m, lengths of pipe on its arms.
+    parts:
+      - for: {x: [-1.1, 0, 1.1]}
+        parts:
+          - box: [0.06, 0.06, 1.0]
+            at: [x, 0.25, 0.5]
+            colour: dark steel
+          - for: {z: [0.3, 0.6, 0.9]}
+            parts:
+              - box: [0.05, 0.6, 0.05]
+                at: [x, 0, z]
+                colour: dark steel
+      - for: {z: [0.3, 0.6, 0.9], j: range(4)}
+        parts:
+          - cylinder: [0.05, 2.5]
+            along: X
+            at: [0, -0.2 + 0.12 * j, z + 0.075]
+            colour: steel
+
+  control panel:
+    about: the substation's control board, 4.5 m, grey panels of dials, lamps and the one-line diagram.
+    parts:
+      - box: [4.5, 0.6, 1.8]
+        at: [0, 0, 0.9]
+        colour: panel grey
+      - for: {i: range(5)}
+        let: {x: -1.8 + 0.9 * i}
+        parts:
+          - box: [0.02, 0.01, 1.7]
+            at: [x - 0.45, -0.305, 0.9]
+            colour: dark steel
+          - for: {k: range(3)}
+            parts:
+              - cylinder: [0.07, 0.02]
+                sides: 12
+                along: Y
+                at: [x - 0.2 + 0.2 * k, -0.31, 1.45]
+                colour: white
+          - box: [0.5, 0.01, 0.06]
+            at: [x, -0.31, 1.2]
+            colour: "['red', 'green'][i % 2]"
+          - box: [0.6, 0.01, 0.02]
+            at: [x, -0.31, 1.0]
+            colour: black
+
+  battery rack:
+    about: the battery room's rack, 3 m, two tiers of cells with their links.
+    parts:
+      - for: {z: [0.1, 0.55]}
+        parts:
+          - box: [3.0, 0.8, 0.05]
+            at: [0, 0, z]
+            colour: dark steel
+          - for: {i: range(10)}
+            parts:
+              - box: [0.25, 0.6, 0.35]
+                at: [-1.35 + 0.3 * i, 0, z + 0.2]
+                colour: black
+              - box: [0.04, 0.04, 0.04]
+                at: [-1.35 + 0.3 * i, -0.2, z + 0.39]
+                colour: red
+      - for: {sx: [1, -1]}
+        parts:
+          - box: [0.05, 0.8, 1.0]
+            at: [sx * 1.48, 0, 0.5]
+            colour: dark steel
+
+  relay cabinet:
+    about: the relay room's cabinets, 3 m, a row of tall grey doors with vents.
+    parts:
+      - box: [3.0, 0.6, 2.0]
+        at: [0, 0, 1.0]
+        colour: panel grey
+      - for: {i: range(4)}
+        let: {x: -1.125 + 0.75 * i}
+        parts:
+          - box: [0.7, 0.01, 1.9]
+            at: [x, -0.305, 1.0]
+            colour: panel grey
+          - box: [0.03, 0.03, 0.2]
+            at: [x + 0.28, -0.32, 1.0]
+            colour: black
+          - box: [0.4, 0.01, 0.15]
+            at: [x, -0.31, 1.75]
+            colour: dark steel
+
+  parts shelf:
+    about: the substation store's shelf, 2.5 m, boxed spares, fuses and cable.
+    parent: shelving
+    params: {length: 2.5, depth: 0.5, height: 1.6, goods: [cardboard, dark steel, yellow]}
+
+  substation switch:
+    about: a substation switch, a steel box on a post, its throw lever and lamp.
+    parts:
+      - box: [0.08, 0.08, 1.0]
+        at: [0, 0.05, 0.5]
+        colour: dark steel
+      - box: [0.4, 0.2, 0.5]
+        at: [0, 0, 1.25]
+        colour: panel grey
+      - box: [0.04, 0.25, 0.04]
+        at: [0.15, -0.2, 1.3]
+        colour: red
+      - cylinder: [0.04, 0.03]
+        sides: 10
+        along: Y
+        at: [-0.1, -0.11, 1.4]
+        colour: green
+
+  transformer:
+    about: a yard transformer, the tank and its cooling fins on a pad, three bushings on top.
+    parts:
+      - box: [2.6, 2.0, 0.2]
+        at: [0, 0, 0.1]
+        colour: concrete
+      - box: [1.8, 1.2, 1.8]
+        at: [0, 0, 1.1]
+        colour: panel grey
+      - for: {i: range(8), s: [1, -1]}
+        parts:
+          - box: [0.03, 0.3, 1.4]
+            at: [-0.7 + 0.2 * i, s * 0.75, 1.0]
+            colour: panel grey
+      - for: {i: range(3)}
+        parts:
+          - cylinder: [0.08, 0.6]
+            sides: 10
+            at: [-0.5 + 0.5 * i, 0, 2.3]
+            colour: porcelain

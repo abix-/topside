@@ -1,0 +1,80 @@
+# The grain elevator and every thing in it (todo Model 5), built by
+# scripts/models.py.
+#
+# Sizes are content's GRAIN_ELEVATOR plan's (the feed store's aisle 4.5 m by
+# 0.8 m and 1.6 m tall, a grain bin 3.5 m across and tall); the counter,
+# desk, shelf, register and pallet are the grocery's. The hopper's are
+# Claude's.
+
+colours:
+  feed sack: [0.75, 0.7, 0.55]
+
+models:
+  feed aisle:
+    about: the feed store's aisle, shelves of feed sacks on both faces, 4.5 m long.
+    parts:
+      - box: [4.5, 0.04, 1.6]
+        at: [0, 0, 0.8]
+        colour: dark steel
+      - for: {lv: range(3), s: [1, -1]}
+        let: {z: "[0.1, 0.6, 1.1][lv]"}
+        parts:
+          - box: [4.5, 0.37, 0.03]
+            at: [0, s * 0.2, z]
+            colour: steel
+          - for: {i: range(6)}
+            parts:
+              - box: [0.6, 0.3, 0.35]
+                at: [-1.875 + 0.75 * i, s * 0.2, z + 0.19]
+                colour: "'burlap' if (i + lv) % 2 else 'feed sack'"
+
+  grain bin:
+    about: a corrugated steel grain bin, 3.5 m across and tall, its cone roof and the ladder up its side.
+    parts:
+      - cylinder: [1.75, 3.0]
+        sides: 20
+        at: [0, 0, 1.5]
+        colour: steel
+      - for: {k: range(6)}
+        parts:
+          - cylinder: [1.77, 0.04]
+            sides: 20
+            at: [0, 0, 0.25 + 0.5 * k]
+            colour: dark steel
+      - cone: [1.8, 0, 0.5]
+        sides: 20
+        at: [0, 0, 3.25]
+        colour: steel
+      - for: {s: [1, -1]}
+        parts:
+          - box: [0.04, 0.04, 3.0]
+            at: [s * 0.2, -1.8, 1.5]
+            colour: dark steel
+      - for: {k: range(10)}
+        parts:
+          - box: [0.4, 0.03, 0.03]
+            at: [0, -1.8, 0.2 + 0.3 * k]
+            colour: dark steel
+
+  grain hopper:
+    about: a grain hopper, a steel funnel on legs, its chute and slide gate.
+    parts:
+      - cone: [0.7, 0.12, 0.8]
+        sides: 4
+        at: [0, 0, 1.0]
+        rotation: [180, 0, 45]
+        colour: steel
+      - box: [1.0, 1.0, 0.1]
+        at: [0, 0, 1.45]
+        colour: dark steel
+      - cylinder: [0.1, 0.4]
+        at: [0, 0, 0.45]
+        colour: dark steel
+      - box: [0.25, 0.04, 0.12]
+        at: [0, -0.12, 0.55]
+        colour: red
+      - for: {sx: [1, -1], sy: [1, -1]}
+        parts:
+          - box: [0.06, 0.06, 1.45]
+            at: [sx * 0.45, sy * 0.45, 0.725]
+            colour: dark steel

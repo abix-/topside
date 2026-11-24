@@ -1,0 +1,208 @@
+# The cafe and bakery (todo Model 8) and the bar (todo Model 9), built by
+# scripts/models.py.
+#
+# The cafe: its counter 3 m by 0.7 m and 1.1 m tall, the baking bench 4.5 m
+# by 0.8 m, the store room's shelving 3 m by 0.5 m and 1.8 m tall; its
+# tables are the pizza place's. The bar: the bar 7 m by 0.6 m and 1.1 m
+# tall, the back bar 7 m by 0.5 m and 1.8 m tall, the pool table 2.5 m by
+# 1.4 m, the back room's card table 1.4 m by 1 m; its tables are the pizza
+# place's.
+
+colours:
+  flour: [0.95, 0.94, 0.9]
+  crust: [0.72, 0.5, 0.25]
+  bar wood: [0.3, 0.18, 0.1]
+  bar brass: [0.75, 0.62, 0.3]
+  bottle green: [0.2, 0.45, 0.25]
+  bottle amber: [0.6, 0.35, 0.1]
+  felt: [0.1, 0.45, 0.2]
+  baize: [0.15, 0.4, 0.2]
+
+models:
+  cafe counter:
+    about: the cafe's counter, wood front, the espresso machine and cups on it.
+    parent: counter run
+    params: {length: 3.0, depth: 0.7, height: 1.1, front: wood, top: white}
+    parts:
+      - box: [0.6, 0.45, 0.45]
+        at: [0.9, 0.05, 1.325]
+        colour: steel
+      - box: [0.4, 0.1, 0.08]
+        at: [0.9, -0.2, 1.22]
+        colour: black
+      - for: {i: range(4)}
+        parts:
+          - cylinder: [0.04, 0.09]
+            sides: 10
+            at: [0.2 + 0.1 * i, 0.15, 1.145]
+            colour: white
+
+  baking bench:
+    about: the bakery's bench, 4.5 m, a floured wood top on steel, the mixer, dough under cloth and loaf tins.
+    parent: counter run
+    params: {length: 4.5, depth: 0.8, height: 0.9, front: steel, top: wood}
+    parts:
+      - box: [1.2, 0.6, 0.005]
+        at: [-1.2, 0, 0.903]
+        colour: flour
+      - box: [0.4, 0.4, 0.5]
+        at: [1.6, 0.1, 1.15]
+        colour: white
+      - cylinder: [0.18, 0.25]
+        sides: 14
+        at: [1.6, -0.05, 1.03]
+        colour: steel
+      - for: {i: range(4)}
+        parts:
+          - box: [0.28, 0.14, 0.08]
+            at: [0.33 * i, 0.1, 0.94]
+            colour: dark steel
+          - box: [0.26, 0.12, 0.06]
+            at: [0.33 * i, 0.1, 1.0]
+            colour: crust
+
+  store shelving:
+    about: the cafe's store room shelving, 3 m, flour sacks, tins and boxes.
+    parent: shelving
+    params: {length: 3.0, depth: 0.5, height: 1.8, goods: [white, cardboard, yellow]}
+
+  bakery case:
+    about: a glass bakery case on a wood base, loaves and pastries on its shelves.
+    parts:
+      - box: [1.4, 0.6, 0.7]
+        at: [0, 0, 0.35]
+        colour: wood
+      - box: [1.4, 0.6, 0.6]
+        at: [0, 0, 1.0]
+        colour: glass
+      - box: [1.44, 0.64, 0.03]
+        at: [0, 0, 1.315]
+        colour: wood
+      - for: {z: [0.75, 1.05]}
+        parts:
+          - box: [1.35, 0.55, 0.02]
+            at: [0, 0, z]
+            colour: white
+          - for: {i: range(5)}
+            parts:
+              - box: [0.2, 0.12, 0.08]
+                at: [-0.5 + 0.25 * i, -0.1, z + 0.05]
+                colour: crust
+
+  bar counter:
+    about: the bar, a dark wood front with its brass foot rail, stools along it, the taps on top, 7 m long.
+    parent: counter run
+    params: {length: 7.0, depth: 0.6, height: 1.1, front: bar wood, top: bar wood}
+    parts:
+      - cylinder: [0.025, 7.0]
+        along: X
+        at: [0, -0.4, 0.2]
+        colour: bar brass
+      - for: {i: range(7)}
+        let: {x: -3.0 + 1.0 * i}
+        parts:
+          - cylinder: [0.03, 0.72]
+            at: [x, -0.6, 0.36]
+            colour: black
+          - cylinder: [0.18, 0.06]
+            sides: 12
+            at: [x, -0.6, 0.75]
+            colour: bar wood
+      - for: {i: range(4)}
+        parts:
+          - cylinder: [0.02, 0.3]
+            at: [1.5 + 0.15 * i, 0.15, 1.25]
+            colour: bar brass
+
+  back bar:
+    about: the back bar, 7 m, mirrored shelves of bottles over closed cabinets.
+    parts:
+      - box: [7.0, 0.5, 0.9]
+        at: [0, 0, 0.45]
+        colour: bar wood
+      - box: [6.8, 0.02, 0.8]
+        at: [0, 0.23, 1.35]
+        colour: glass
+      - for: {lv: range(2)}
+        let: {z: "[0.95, 1.35][lv]"}
+        parts:
+          - box: [7.0, 0.25, 0.03]
+            at: [0, 0.1, z]
+            colour: bar wood
+          - for: {i: range(28)}
+            parts:
+              - cylinder: [0.035, 0.28]
+                at: [-3.38 + 0.25 * i, 0.1, z + 0.155]
+                colour: "['bottle green', 'bottle amber', 'white'][(i + lv) % 3]"
+      - box: [7.0, 0.5, 0.1]
+        at: [0, 0, 1.75]
+        colour: bar wood
+
+  pool table:
+    about: a pool table, 2.5 m by 1.4 m, green felt in a wood rail on heavy legs, a cue and the racked balls.
+    parts:
+      - box: [2.5, 1.4, 0.2]
+        at: [0, 0, 0.7]
+        colour: bar wood
+      - box: [2.3, 1.2, 0.02]
+        at: [0, 0, 0.81]
+        colour: felt
+      - for: {sx: [1, -1], sy: [1, -1]}
+        parts:
+          - box: [0.15, 0.15, 0.6]
+            at: [sx * 1.05, sy * 0.5, 0.3]
+            colour: bar wood
+      - for: {i: range(6)}
+        parts:
+          - cylinder: [0.03, 0.06]
+            at: [0.6 + 0.06 * (i % 3), -0.1 + 0.06 * (i // 3), 0.85]
+            colour: "['red', 'yellow', 'green'][i % 3]"
+      - cylinder: [0.012, 1.4]
+        sides: 6
+        along: X
+        at: [-0.3, 0.3, 0.83]
+        colour: wood
+
+  card table:
+    about: the back room's card table, 1.4 m by 1 m, green baize, cards and chips.
+    parts:
+      - box: [1.4, 1.0, 0.04]
+        at: [0, 0, 0.74]
+        colour: baize
+      - for: {sx: [1, -1], sy: [1, -1]}
+        parts:
+          - box: [0.05, 0.05, 0.72]
+            at: [sx * 0.62, sy * 0.42, 0.36]
+            colour: wood
+      - for: {i: range(5)}
+        parts:
+          - box: [0.07, 0.1, 0.005]
+            at: [-0.3 + 0.15 * i, 0.1 * (i % 2), 0.763]
+            colour: white
+          - cylinder: [0.02, 0.04 + 0.01 * i]
+            at: [-0.3 + 0.15 * i, -0.3, 0.78]
+            colour: "['red', 'black', 'white'][i % 3]"
+
+  liquor shelf:
+    about: a wooden shelf of liquor bottles, 1.2 m wide.
+    parts:
+      - box: [1.2, 0.04, 1.6]
+        at: [0, 0.18, 0.8]
+        colour: bar wood
+      - for: {s: [1, -1]}
+        parts:
+          - box: [0.04, 0.4, 1.6]
+            at: [s * 0.58, 0, 0.8]
+            colour: bar wood
+      - for: {lv: range(4)}
+        let: {z: "[0.05, 0.55, 1.05, 1.55][lv]"}
+        parts:
+          - box: [1.2, 0.4, 0.03]
+            at: [0, 0, z]
+            colour: bar wood
+          - for: {i: range(8)}
+            if: lv < 3
+            parts:
+              - cylinder: [0.035, 0.3]
+                at: [-0.49 + 0.14 * i, 0, z + 0.165]
+                colour: "['bottle green', 'bottle amber', 'glass'][(i + lv) % 3]"

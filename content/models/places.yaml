@@ -1,0 +1,175 @@
+# The gas station (todo Model 12), the sewage pond (todo Model 13) and the
+# town dump (todo Model 14), built by scripts/models.py.
+#
+# The gas station: the shop's aisle 3.5 m by 0.8 m and 1.5 m tall, its
+# counter 1.8 m by 0.7 m and 1 m tall, the garage bay's bench 4 m by 0.8 m,
+# the parts store's shelving 5 m by 0.5 m and 1.8 m tall; the desk,
+# register, shelf, toolbox, pallet and toilet are the grocery's and the
+# house's. The pump's size is Claude's. The sewage pond: the pump shed's
+# pump set is the pump house's, the tool room's shelf 3 m by 0.5 m and
+# 1.6 m tall; the pump's and the valve's sizes are Claude's. The dump: the
+# scale shed's scale 2.5 m square and 0.3 m tall; the pile's size is
+# Claude's.
+
+colours:
+  pump green: [0.3, 0.42, 0.3]
+  dump dirt: [0.4, 0.35, 0.28]
+
+models:
+  shop aisle:
+    about: the gas station shop's aisle, 3.5 m, snacks, oil and wipers.
+    parent: stocked
+    params: {length: 3.5, depth: 0.8, levels: 4, top: 1.5}
+
+  shop counter:
+    about: the gas station's counter, 1.8 m, the lottery case and the cigarette rack at its end.
+    parent: counter run
+    params: {length: 1.8, depth: 0.7, height: 1.0, front: wood, top: white}
+    parts:
+      - box: [0.6, 0.3, 0.2]
+        at: [-0.5, -0.1, 1.1]
+        colour: glass
+      - box: [0.5, 0.2, 0.6]
+        at: [0.6, 0.25, 1.3]
+        colour: dark steel
+      - for: {i: range(4)}
+        parts:
+          - box: [0.45, 0.05, 0.1]
+            at: [0.6, 0.15, 1.08 + 0.14 * i]
+            colour: "['red', 'white', 'green', 'yellow'][i]"
+
+  bay bench:
+    about: the garage bay's bench, 4 m, a steel top, a vise, a pegboard of tools and the parts washer.
+    parent: counter run
+    params: {length: 4.0, depth: 0.8, height: 0.9, front: dark steel, top: steel}
+    parts:
+      - box: [3.0, 0.03, 1.0]
+        at: [-0.4, 0.38, 1.5]
+        colour: cardboard
+      - for: {i: range(8)}
+        parts:
+          - box: [0.04, 0.02, 0.3]
+            at: [-1.7 + 0.37 * i, 0.36, 1.5]
+            colour: "'red' if i % 2 else 'black'"
+      - box: [0.2, 0.25, 0.15]
+        at: [-1.6, -0.2, 0.98]
+        colour: black
+      - box: [0.7, 0.5, 0.35]
+        at: [1.5, 0.05, 1.08]
+        colour: red
+
+  parts shelving:
+    about: the gas station's parts store shelving, 5 m, oil, filters and boxed parts.
+    parent: shelving
+    params: {length: 5.0, depth: 0.5, height: 1.8, goods: [yellow, cardboard, black, red]}
+
+  gas pump:
+    about: a gas pump on its island, the cabinet, the hose and nozzle, the price window.
+    parts:
+      - box: [1.4, 0.8, 0.15]
+        at: [0, 0, 0.075]
+        colour: concrete
+      - box: [0.8, 0.45, 1.6]
+        at: [0, 0, 0.95]
+        colour: white
+      - box: [0.82, 0.47, 0.2]
+        at: [0, 0, 1.6]
+        colour: red
+      - box: [0.5, 0.01, 0.25]
+        at: [0, -0.235, 1.25]
+        colour: black
+      - box: [0.08, 0.15, 0.25]
+        at: [0.45, -0.1, 1.0]
+        colour: black
+      - cylinder: [0.02, 0.8]
+        sides: 6
+        at: [0.45, -0.15, 0.55]
+        colour: black
+
+  tool shelf:
+    about: a tool room's shelf, 3 m, hoses, buckets and boxed tools.
+    parent: shelving
+    params: {length: 3.0, depth: 0.5, height: 1.6, goods: [green, dark steel, cardboard]}
+
+  sewage pump:
+    about: the pond's lift pump, a squat motor over its wet well lid, a switch box on its post.
+    parts:
+      - box: [1.0, 1.0, 0.1]
+        at: [0, 0, 0.05]
+        colour: dark steel
+      - cylinder: [0.3, 0.6]
+        sides: 14
+        at: [0, 0, 0.4]
+        colour: pump green
+      - cylinder: [0.32, 0.06]
+        sides: 14
+        at: [0, 0, 0.73]
+        colour: pump green
+      - cylinder: [0.08, 0.6]
+        along: X
+        at: [0.5, 0, 0.3]
+        colour: steel
+      - box: [0.06, 0.06, 1.1]
+        at: [-0.6, 0.3, 0.55]
+        colour: dark steel
+      - box: [0.25, 0.15, 0.3]
+        at: [-0.6, 0.2, 1.1]
+        colour: white
+
+  pond valve:
+    about: the pond's valve at its edge, a riser and its wheel on a concrete pad.
+    parts:
+      - box: [0.6, 0.6, 0.1]
+        at: [0, 0, 0.05]
+        colour: concrete
+      - cylinder: [0.1, 0.7]
+        sides: 10
+        at: [0, 0, 0.45]
+        colour: dark steel
+      - cylinder: [0.22, 0.04]
+        sides: 14
+        at: [0, 0, 0.82]
+        colour: red
+      - box: [0.42, 0.03, 0.03]
+        at: [0, 0, 0.82]
+        colour: red
+
+  truck scale:
+    about: the dump's scale, 2.5 m square, a steel deck on its frame, the read out on a post.
+    parts:
+      - box: [2.5, 2.5, 0.25]
+        at: [0, 0, 0.125]
+        colour: dark steel
+      - for: {i: range(6)}
+        parts:
+          - box: [2.4, 0.05, 0.02]
+            at: [0, -1.0 + 0.4 * i, 0.26]
+            colour: steel
+      - box: [0.08, 0.08, 1.2]
+        at: [1.35, -1.35, 0.6]
+        colour: dark steel
+      - box: [0.35, 0.12, 0.25]
+        at: [1.35, -1.35, 1.25]
+        colour: black
+
+  dump pile:
+    about: a heap at the dump, broken boards, bags, a tyre and scrap.
+    parts:
+      - cone: [2.2, 0.4, 1.4]
+        sides: 10
+        at: [0, 0, 0.7]
+        colour: dump dirt
+      - for: {i: range(12)}
+        let:
+          a: i * 0.52
+          r: 0.6 + 0.12 * (i % 5)
+          z: 1.2 - r * 0.5
+        parts:
+          - box: [0.5 + 0.1 * (i % 3), 0.25, 0.15]
+            at: [r * cos(a), r * sin(a), z]
+            colour: "['wood', 'black', 'dark steel', 'white', 'cardboard'][i % 5]"
+      - cylinder: [0.35, 0.2]
+        sides: 14
+        along: X
+        at: [1.4, 0.4, 0.4]
+        colour: black
