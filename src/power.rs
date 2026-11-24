@@ -162,6 +162,11 @@ pub fn populate_town_power(
         };
         // Its storage: boxes found holding things.
         for (kind, at) in storage {
+            // The workbench is a crafting bench.
+            if kind == crate::content::GARAGE_WORKBENCH {
+                make(&mut commands, kind, at, Some(InteractKind::Station(StationKind::CraftingBench)));
+                continue;
+            }
             let Some(made) = make(&mut commands, kind, at, Some(InteractKind::Container)) else {
                 continue;
             };

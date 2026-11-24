@@ -277,8 +277,21 @@ pub const WARDROBE_HOLDS: [(&str, &str, u32); 3] = [(CLOSET, "shirt", 2), (DRESS
 /// is found holding (Claude's).
 pub const KITCHEN_CABINET: &str = "kitchen cabinet";
 pub const GARAGE_SHELF: &str = "garage shelf";
-pub const STORAGE_HOLDS: [(&str, &str, u32); 4] =
-    [(KITCHEN_CABINET, "water bottle", 1), (GARAGE_SHELF, "scrap", 3), (GARAGE_SHELF, "pipe", 1), (GARAGE_SHELF, "wooden handle", 1)];
+/// The garage's workbench (a crafting bench) and toolbox (topside-town
+/// "Everything works": "garage workbenches, toolboxes ... fix and build
+/// things"); a wrench carried is what fixes a car (`CAR_REPAIR`).
+pub const GARAGE_WORKBENCH: &str = "garage workbench";
+pub const TOOLBOX: &str = "toolbox";
+pub const WRENCH: &str = "wrench";
+pub const STORAGE_HOLDS: [(&str, &str, u32); 7] = [
+    (KITCHEN_CABINET, "water bottle", 1),
+    (GARAGE_SHELF, "scrap", 3),
+    (GARAGE_SHELF, "pipe", 1),
+    (GARAGE_SHELF, "wooden handle", 1),
+    (TOOLBOX, WRENCH, 1),
+    (TOOLBOX, HAMMER, 1),
+    (TOOLBOX, "scrap", 2),
+];
 /// Soap carried doubles what a wash takes off (modforge hygiene).
 pub const SOAP: &str = "soap";
 /// How much the tower holds, in water barrels of 200 litres: 50, 10,000
@@ -1989,7 +2002,10 @@ pub fn register_items(reg: &mut ItemRegistry) {
         building(THERMOSTAT, "The house's thermostat. On, the furnace and the air conditioner run.", ItemKind::Deployable, 1, None),
         building(COUCH, "A couch. Use it to sleep on; a bed rests better.", ItemKind::Source, 1, None),
         building(SLEEPING_BAG, "A sleeping bag. Carried, sleeping off a bed rests better.", ItemKind::Material, 1, None),
-        building(KITCHEN_CABINET, "Kitchen cabinets.", ItemKind::Deployable, 1, Some(8)),
+        building(GARAGE_WORKBENCH, "A garage workbench. Things are built and fixed here.", ItemKind::Deployable, 1, None),
+        building(TOOLBOX, "A toolbox.", ItemKind::Deployable, 1, Some(6)),
+        building(WRENCH, "A wrench. Carried, a broken car can be fixed with scrap.", ItemKind::Tool, 1, None),
+        building(KITCHEN_CABINET,"Kitchen cabinets.", ItemKind::Deployable, 1, Some(8)),
         building(GARAGE_SHELF, "Garage shelves.", ItemKind::Deployable, 1, Some(12)),
         building(CLOSET,"A bedroom closet.", ItemKind::Deployable, 1, Some(8)),
         building(DRESSER, "A dresser.", ItemKind::Deployable, 1, Some(6)),
