@@ -4551,6 +4551,7 @@ dependencies = [
  "fastrand",
  "glam 0.32.1",
  "hex",
+ "memchr",
  "noise",
  "object",
  "parking_lot",

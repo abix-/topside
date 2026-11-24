@@ -2,6 +2,10 @@
 //! boot test headless and exits 0/1; `topside --world <name>` rolls
 //! that reality (`content::WORLDS`) instead of the first.
 
+// One window, the default for every program: no console window beside it.
+// Debug builds keep the console for their output.
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+
 use std::time::{Duration, Instant};
 
 use bevy::prelude::{Entity, Transform};
@@ -11,7 +15,22 @@ use topside::{
     survival::Survival,
 };
 
+/// A windowed program has no console of its own, so when it is started from
+/// a terminal (`--test`) it writes to that terminal, as Alacritty does.
+#[cfg(windows)]
+fn attach_console() {
+    const ATTACH_PARENT_PROCESS: u32 = u32::MAX;
+    unsafe extern "system" {
+        fn AttachConsole(process_id: u32) -> i32;
+    }
+    unsafe { AttachConsole(ATTACH_PARENT_PROCESS) };
+}
+
+#[cfg(not(windows))]
+fn attach_console() {}
+
 fn main() {
+    attach_console();
     let args: Vec<String> = std::env::args().collect();
     if args.iter().any(|a| a == "--test") {
         std::process::exit(run_boot_test());
