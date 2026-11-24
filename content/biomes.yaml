@@ -1,0 +1,70 @@
+# Every biome (modforge `biome::BiomeDef`; design.md: a biome controls
+# its weather, its monuments, its people and its wildlife). Read by
+# content's `register_biomes`. A biome has its `name` and `ground`
+# colour, and any of `scatter` (what nature strews across it: each a
+# `size` in metres, a `colour`, a `density` a square metre, the
+# `picture` scripts/models.py renders for it, and the `source` it is
+# when it is eaten or drunk from where it stands), `weather` (each kind
+# with its weight, rolled a game hour at a time; todo 21, 32, weights
+# Claude's), `monuments`, `npcs`, `wildlife` and `harvest` (what can be
+# gathered there).
+
+# The sources every biome has (design.md: a livable world, wells
+# scattered across it, food sources): a well about every 100 m, a berry
+# bush about every 30 m. First in a biome's scatter, so they are rolled
+# before its trees. Tuning.
+sources:
+  - &well {size: [1.4, 1.0, 1.4], colour: [0.45, 0.47, 0.5], density: 0.0016, picture: well, source: well}
+  - &berry_bush {size: [1.0, 0.8, 1.0], colour: [0.55, 0.15, 0.3], density: 0.018, picture: berry bush, source: berry bush}
+
+biomes:
+  - name: forest
+    ground: [0.22, 0.38, 0.18]
+    scatter:
+      - *well
+      - *berry_bush
+      # A forest (operator, 2026-09-26): a tree about every 5 m, so the
+      # crowns (4.6 m across) close up.
+      - {size: [0.6, 5.0, 0.6], colour: [0.3, 0.22, 0.12], density: 0.6, picture: tree}
+      - {size: [0.8, 0.5, 0.8], colour: [0.4, 0.4, 0.35], density: 0.01, picture: rock}
+    weather: [[clear, 10], [rain, 6], [fog, 4], [cold snap, 1]]
+    # The gate is placed only where a world lists it (the Labyrinth).
+    monuments: [roadside stop, research station, military outpost, campsite, body, gate, supply drop]
+    npcs: [scavenger, hunter]
+    wildlife: [deer, wolf]
+    # Two kinds of fiber gathered in two places (topside Decisions
+    # 2026-11-23, Atlas's resources; where each grows is Claude's).
+    harvest: [scrap, cloth, plant fiber]
+  - name: wasteland
+    ground: [0.55, 0.48, 0.35]
+    scatter:
+      - *well
+      - *berry_bush
+      - {size: [1.2, 0.6, 0.8], colour: [0.5, 0.42, 0.32], density: 0.005, picture: fallen log}
+    weather: [[dust storm, 1], [clear, 10], [heat wave, 4], [radiation storm, 2], [fog, 1]]
+    monuments: [roadside stop, airfield, train yard, launch site, wreck, body, gate, supply drop]
+    npcs: [raider, wanderer]
+    wildlife: [rat]
+    harvest: [scrap]
+  - name: ruins
+    ground: [0.4, 0.4, 0.42]
+    scatter:
+      - *well
+      - *berry_bush
+      - {size: [2.0, 1.5, 1.5], colour: [0.45, 0.43, 0.4], density: 0.008, picture: broken wall}
+    weather: [[rain, 2], [fog, 3], [clear, 10], [radiation storm, 3]]
+    monuments: [ruined city, power plant, sewer, harbor, wreck, campsite, body, gate]
+    npcs: [raider, scavenger, militia]
+    wildlife: [rat, crow]
+    harvest: [scrap, pipe, cloth]
+  # The small world's ground (design.md "The small world first"): grass
+  # with only wells and berry bushes on it (a livable world). Its sites
+  # are placed by hand.
+  - name: grassland
+    ground: [0.3, 0.45, 0.22]
+    scatter: [*well, *berry_bush]
+    weather: [[clear, 12], [rain, 4], [cold snap, 2], [heat wave, 2]]
+    # Claude's (todo 32), for the operator to change.
+    npcs: [wanderer]
+    wildlife: [wolf]
+    harvest: [cloth, hemp fiber]

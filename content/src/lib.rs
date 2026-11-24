@@ -13,7 +13,7 @@ use modforge::world2d::{Clearing, World2d};
 use modforge::town::{Town, TownDef};
 use modforge::house::HouseDef;
 use modforge::actor::{ActorDef, ActorRegistry, BodyLook, LookDef};
-use modforge::biome::{BiomeDef, BiomeRegistry, ScatterDef};
+use modforge::biome::{BiomeDef, BiomeRegistry};
 use modforge::combat::{DamageDef, DamageRegistry};
 use modforge::faction::{FactionDef, FactionKind, FactionRegistry};
 use modforge::memory::GoodFor;
@@ -251,12 +251,6 @@ pub const SOAP: &str = "soap";
 pub const WATER_TOWER_BARRELS: usize = 50;
 pub const WOOD: &str = "wood";
 pub const STONE: &str = "stone";
-/// A biome's weather list (todo 21, 32): each weather named as often as
-/// its weight, rolled a game hour at a time (modforge weather). The
-/// weights are Claude's.
-fn weather_list(weights: &[(&str, u32)]) -> Vec<String> {
-    weights.iter().flat_map(|(name, n)| std::iter::repeat_n(name.to_string(), *n as usize)).collect()
-}
 
 /// The Labyrinth's gate site and its model (todo 11v).
 pub const GATE: &str = "gate";
@@ -2461,155 +2455,27 @@ pub fn register_monuments(reg: &mut MonumentRegistry, buildings: &BuildingRegist
     }
 }
 
-/// The sources every biome has (design.md: a livable world, wells
-/// scattered across it, food sources): a well about every 100 m, a berry
-/// bush about every 30 m. First in a biome's scatter, so they are rolled
-/// before its trees. Tuning.
-fn sources() -> [ScatterDef; 2] {
-    [
-        ScatterDef {
-            size: Vec3::new(1.4, 1.0, 1.4),
-            color: [0.45, 0.47, 0.5],
-            density: 0.0016,
-            picture: Some("well".to_string()),
-            source: Some("well".to_string()),
-        },
-        ScatterDef {
-            size: Vec3::new(1.0, 0.8, 1.0),
-            color: [0.55, 0.15, 0.3],
-            density: 0.018,
-            picture: Some("berry bush".to_string()),
-            source: Some("berry bush".to_string()),
-        },
-    ]
+/// Where the biomes are: content/biomes.yaml, its `biomes` a list of
+/// modforge `biome::BiomeDef`, and its `sources` the scatter every biome
+/// shares, named in each biome's scatter.
+pub const BIOMES_FILE: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/biomes.yaml");
+
+/// What `BIOMES_FILE` holds.
+#[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+struct BiomesFile {
+    /// Written once and named in each biome; read there.
+    #[allow(dead_code)]
+    sources: serde_yaml::Value,
+    biomes: Vec<BiomeDef>,
 }
 
+/// Every biome in `BIOMES_FILE`. A file that does not read stops the
+/// game at once, naming it.
 pub fn register_biomes(reg: &mut BiomeRegistry) {
-    let biomes = [
-        BiomeDef {
-            name: "forest".to_string(),
-            ground: [0.22, 0.38, 0.18],
-            scatter: vec![
-                sources()[0].clone(),
-                sources()[1].clone(),
-                ScatterDef {
-                    size: Vec3::new(0.6, 5.0, 0.6),
-                    color: [0.3, 0.22, 0.12],
-                    // A forest (operator, 2026-09-26): a tree about every
-                    // 5 m, so the crowns (4.6 m across) close up.
-                    density: 0.6,
-                    // scripts/models.py renders it.
-                    picture: Some("tree".to_string()),
-                    source: None,
-                },
-                ScatterDef {
-                    size: Vec3::new(0.8, 0.5, 0.8),
-                    color: [0.4, 0.4, 0.35],
-                    density: 0.01,
-                    // scripts/models.py renders it.
-                    picture: Some("rock".to_string()),
-                    source: None,
-                },
-            ],
-            weather: weather_list(&[("clear", 10), ("rain", 6), ("fog", 4), ("cold snap", 1)]),
-            monuments: vec![
-                "roadside stop".to_string(),
-                "research station".to_string(),
-                "military outpost".to_string(),
-                "campsite".to_string(),
-                "body".to_string(),
-                // Placed only where a world lists it (the Labyrinth).
-                GATE.to_string(),
-                "supply drop".to_string(),
-            ],
-            npcs: vec!["scavenger".to_string(), "hunter".to_string()],
-            wildlife: vec!["deer".to_string(), "wolf".to_string()],
-            // Two kinds of fiber gathered in two places (topside Decisions
-            // 2026-11-23, Atlas's resources; where each grows is Claude's).
-            harvest: vec!["scrap".to_string(), "cloth".to_string(), "plant fiber".to_string()],
-        },
-        BiomeDef {
-            name: "wasteland".to_string(),
-            ground: [0.55, 0.48, 0.35],
-            scatter: vec![
-                sources()[0].clone(),
-                sources()[1].clone(),
-                ScatterDef {
-                    size: Vec3::new(1.2, 0.6, 0.8),
-                    color: [0.5, 0.42, 0.32],
-                    density: 0.005,
-                    // scripts/models.py renders it.
-                    picture: Some("fallen log".to_string()),
-                    source: None,
-                },
-            ],
-            weather: weather_list(&[("dust storm", 1), ("clear", 10), ("heat wave", 4), ("radiation storm", 2), ("fog", 1)]),
-            monuments: vec![
-                "roadside stop".to_string(),
-                "airfield".to_string(),
-                "train yard".to_string(),
-                "launch site".to_string(),
-                "wreck".to_string(),
-                "body".to_string(),
-                // Placed only where a world lists it (the Labyrinth).
-                GATE.to_string(),
-                "supply drop".to_string(),
-            ],
-            npcs: vec!["raider".to_string(), "wanderer".to_string()],
-            wildlife: vec!["rat".to_string()],
-            harvest: vec!["scrap".to_string()],
-        },
-        BiomeDef {
-            name: "ruins".to_string(),
-            ground: [0.4, 0.4, 0.42],
-            scatter: vec![
-                sources()[0].clone(),
-                sources()[1].clone(),
-                ScatterDef {
-                    size: Vec3::new(2.0, 1.5, 1.5),
-                    color: [0.45, 0.43, 0.4],
-                    density: 0.008,
-                    // scripts/models.py renders it.
-                    picture: Some("broken wall".to_string()),
-                    source: None,
-                },
-            ],
-            weather: weather_list(&[("rain", 2), ("fog", 3), ("clear", 10), ("radiation storm", 3)]),
-            monuments: vec![
-                "ruined city".to_string(),
-                "power plant".to_string(),
-                "sewer".to_string(),
-                "harbor".to_string(),
-                "wreck".to_string(),
-                "campsite".to_string(),
-                "body".to_string(),
-                // Placed only where a world lists it (the Labyrinth).
-                GATE.to_string(),
-            ],
-            npcs: vec![
-                "raider".to_string(),
-                "scavenger".to_string(),
-                "militia".to_string(),
-            ],
-            wildlife: vec!["rat".to_string(), "crow".to_string()],
-            harvest: vec!["scrap".to_string(), "pipe".to_string(), "cloth".to_string()],
-        },
-        // The small world's ground (design.md "The small world first"):
-        // grass with only wells and berry bushes on it (a livable world).
-        // Its sites are placed by hand.
-        BiomeDef {
-            name: "grassland".to_string(),
-            ground: [0.3, 0.45, 0.22],
-            scatter: sources().to_vec(),
-            weather: weather_list(&[("clear", 12), ("rain", 4), ("cold snap", 2), ("heat wave", 2)]),
-            monuments: vec![],
-            // Claude's (todo 32), for the operator to change.
-            npcs: vec!["wanderer".to_string()],
-            wildlife: vec!["wolf".to_string()],
-            harvest: vec!["cloth".to_string(), "hemp fiber".to_string()],
-        },
-    ];
-    for biome in biomes {
+    let text = std::fs::read_to_string(BIOMES_FILE).unwrap_or_else(|e| panic!("{BIOMES_FILE}: {e}"));
+    let file: BiomesFile = serde_yaml::from_str(&text).unwrap_or_else(|e| panic!("{BIOMES_FILE}: {e}"));
+    for biome in file.biomes {
         reg.register(biome).expect("biome defs must not collide");
     }
 }
