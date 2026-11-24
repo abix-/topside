@@ -631,15 +631,15 @@ places:
       - {from: [1, 0], side: south, width: 2.4}
       - {from: [0, 2], side: west, width: 2.4}
     furniture:
-      - {room: classroom, at: [0.0, 0.0], size: [5.0, 0.75, 3.0]}
-      - {room: second classroom, at: [0.0, 0.0], size: [5.0, 0.75, 3.0]}
-      - {room: third classroom, at: [0.0, 0.0], size: [5.0, 0.75, 3.0]}
-      - {room: school office, at: [0.0, 0.2], size: [2.5, 1.1, 0.7]}
-      - {room: nurse's room, at: [-0.3, -0.2], size: [0.8, 0.6, 1.9]}
-      - {room: cafeteria, at: [0.0, 0.0], size: [5.0, 0.75, 1.0]}
-      - {room: school kitchen, at: [0.0, -0.4], size: [6.0, 0.9, 0.7]}
-      - {room: library, at: [0.0, -0.4], size: [6.0, 1.9, 0.5]}
-      - {room: janitor's room, at: [0.0, -0.4], size: [5.0, 1.6, 0.5]}
+      - {room: classroom, at: [0.0, 0.0], size: [5.0, 0.75, 3.0], model: classroom desks}
+      - {room: second classroom, at: [0.0, 0.0], size: [5.0, 0.75, 3.0], model: classroom desks}
+      - {room: third classroom, at: [0.0, 0.0], size: [5.0, 0.75, 3.0], model: classroom desks}
+      - {room: school office, at: [0.0, 0.2], size: [2.5, 1.1, 0.7], model: school counter}
+      - {room: nurse's room, at: [-0.3, -0.2], size: [0.8, 0.6, 1.9], model: nurse's cot}
+      - {room: cafeteria, at: [0.0, 0.0], size: [5.0, 0.75, 1.0], model: lunch table}
+      - {room: school kitchen, at: [0.0, -0.4], size: [6.0, 0.9, 0.7], model: serving line}
+      - {room: library, at: [0.0, -0.4], size: [6.0, 1.9, 0.5], model: library shelves}
+      - {room: janitor's room, at: [0.0, -0.4], size: [5.0, 1.6, 0.5], model: janitor's shelves}
     things:
       - {thing: office desk, room: classroom, at: [0.0, -0.4]}
       - {thing: office desk, room: second classroom, at: [0.0, -0.4]}
