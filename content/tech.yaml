@@ -1,0 +1,13 @@
+# The research topics (todo 28, modforge `tech::TopicDef`): the
+# improvised weapons and field medicine unlock the bench's recipes; better
+# tools branches from the weapons and never caps. Read by content's
+# `tech_tree`. Each has its `name`, its `cost` (each item and how many, at
+# its first level), and any of `needs` (topics done first), `unlocks`
+# (recipes, by name) and `endless` (researched again and again, each
+# level costing more). Topics, costs and branches are Claude's, for the
+# operator to change.
+topics:
+  - {name: field medicine, cost: [[cloth, 2]], unlocks: [bandage]}
+  - {name: pipework, cost: [[scrap, 2]], unlocks: [pipe]}
+  - {name: improvised weapons, cost: [[scrap, 4]], needs: [pipework], unlocks: [spiked bat, sharpened road sign]}
+  - {name: better tools, cost: [[scrap, 5]], needs: [improvised weapons], endless: true}

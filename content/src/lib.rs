@@ -93,26 +93,13 @@ impl Default for RecipeRegistryRes {
     }
 }
 
-/// The research topics (todo 28, modforge tech): the improvised weapons
-/// and field medicine unlock the bench's recipes; better tools branches
-/// from the weapons and never caps. Topics, costs and branches are
-/// Claude's, for the operator to change.
+/// Where the research topics are: content/tech.yaml, its `topics` a list
+/// of modforge `tech::TopicDef`.
+pub const TECH_FILE: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tech.yaml");
+
+/// The research topics (todo 28, modforge tech), from `TECH_FILE`.
 pub fn tech_tree() -> modforge::tech::TechTree {
-    let topic = |name: &str, cost: &[(&str, u32)], needs: &[&str], unlocks: &[&str], endless| modforge::tech::TopicDef {
-        name: name.to_string(),
-        cost: cost.iter().map(|(i, n)| (i.to_string(), *n)).collect(),
-        needs: needs.iter().map(|s| s.to_string()).collect(),
-        unlocks: unlocks.iter().map(|s| s.to_string()).collect(),
-        endless,
-    };
-    modforge::tech::TechTree {
-        topics: vec![
-            topic("field medicine", &[("cloth", 2)], &[], &["bandage"], false),
-            topic("pipework", &[("scrap", 2)], &[], &["pipe"], false),
-            topic("improvised weapons", &[("scrap", 4)], &["pipework"], &["spiked bat", "sharpened road sign"], false),
-            topic("better tools", &[("scrap", 5)], &["improvised weapons"], &[], true),
-        ],
-    }
+    modforge::tech::TechTree { topics: read_list(TECH_FILE, "topics") }
 }
 
 /// Where a monument's loot is: content/loot.yaml, its `loot` a modforge
