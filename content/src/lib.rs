@@ -545,7 +545,8 @@ pub const SEED_BIN: &str = "seed bin";
 pub const LIVESTOCK_BARN: modforge::plan::PlanDef = modforge::plan::PlanDef {
     name: "livestock barn",
     edge: true,
-    furniture_models: &[],
+    // Each drawn as its own model (todo Model 4; scripts/models.py).
+    furniture_models: &["stall rail", "stall rail", "tack wall", "milk tank", "roost", "hay stack", "steel table"],
     columns: &[5.0, 8.0, 5.0],
     rows: &[8.0, 5.0],
     rooms: &[((0, 0), "tack room"), ((1, 0), "stalls"), ((2, 0), "milk room"), ((0, 1), "chicken coop"), ((1, 1), "hay store"), ((2, 1), "butchery")],

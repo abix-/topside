@@ -2949,6 +2949,172 @@ FARM = {
 }
 
 
+# -- the livestock barn and every thing in it (todo Model 4) --------------------
+#
+# Sizes are content's LIVESTOCK_BARN plan's (a stall rail 6 m long and 1.4 m
+# tall, the tack wall 3 m, the milk tank 1.5 m, the roost 3.5 m, the hay
+# stack 5 m by 2 m, the butchery's table 2 m); the things' are Claude's.
+
+
+def barn_colours():
+    return {
+        "wood": material("barn wood", (0.48, 0.36, 0.24)),
+        "red": material("barn red", (0.55, 0.18, 0.14)),
+        "steel": material("barn steel", (0.7, 0.72, 0.75)),
+        "dark": material("barn dark", (0.2, 0.18, 0.16)),
+        "leather": material("barn leather", (0.4, 0.25, 0.14)),
+        "hay": material("hay", (0.82, 0.7, 0.35)),
+        "straw": material("straw", (0.75, 0.65, 0.4)),
+    }
+
+
+def stall_rail():
+    """a stall's side: posts and three rails, 6 m long and 1.4 m tall."""
+    c = barn_colours()
+    parts = [box(f"post {i}", (0.12, 0.12, 1.4), at=(-2.94 + 1.96 * i, 0, 0.7), mat=c["wood"]) for i in range(4)]
+    for k, z in enumerate((0.4, 0.85, 1.3)):
+        parts.append(box(f"rail {k}", (6.0, 0.06, 0.15), at=(0, 0, z), mat=c["wood"]))
+    return join(parts, "stall rail")
+
+
+def tack_wall():
+    """the tack room's wall: saddles on their racks, bridles and ropes on pegs."""
+    c = barn_colours()
+    parts = [box("board", (3.0, 0.05, 1.8), at=(0, 0.22, 0.9), mat=c["wood"])]
+    for i, x in enumerate((-0.9, 0.0, 0.9)):
+        parts.append(box(f"rack {i}", (0.1, 0.45, 0.05), at=(x, 0, 1.0), mat=c["wood"]))
+        parts.append(box(f"saddle {i}", (0.4, 0.55, 0.2), at=(x, 0, 1.12), mat=c["leather"]))
+        parts.append(box(f"flap {i}", (0.03, 0.4, 0.35), at=(x, -0.1, 0.9), mat=c["leather"]))
+    for i, x in enumerate((-1.3, -0.45, 0.45, 1.3)):
+        parts.append(cylinder(f"peg {i}", 0.02, 0.15, along="Y", at=(x, 0.12, 1.6), mat=c["dark"]))
+        parts.append(box(f"strap {i}", (0.05, 0.02, 0.5), at=(x, 0.06, 1.35), mat=c["leather"]))
+    return join(parts, "tack wall")
+
+
+def milk_tank():
+    """a steel bulk milk tank on legs, its lid and outlet."""
+    c = barn_colours()
+    parts = [cylinder("tank", 0.38, 1.5, sides=16, along="X", at=(0, 0, 0.6), mat=c["steel"])]
+    parts.append(cylinder("lid", 0.15, 0.04, sides=14, at=(0.3, 0, 1.0), mat=c["steel"]))
+    parts.append(cylinder("outlet", 0.04, 0.2, sides=8, along="Y", at=(-0.6, -0.4, 0.4), mat=c["dark"]))
+    for sx in (1, -1):
+        for sy in (1, -1):
+            parts.append(cylinder(f"leg {sx} {sy}", 0.03, 0.3, sides=6, at=(sx * 0.6, sy * 0.25, 0.15), mat=c["steel"]))
+    return join(parts, "milk tank")
+
+
+def roost():
+    """the chicken coop's roost: bars stepped up a frame over a droppings board."""
+    c = barn_colours()
+    parts = [box("board", (3.5, 1.0, 0.04), at=(0, 0, 0.02), mat=c["dark"])]
+    for s in (1, -1):
+        parts.append(box(f"frame {s}", (0.06, 1.0, 1.0), at=(s * 1.72, 0, 0.5), mat=c["wood"]))
+    for k in range(3):
+        parts.append(cylinder(f"bar {k}", 0.025, 3.5, sides=6, along="X", at=(0, -0.35 + 0.35 * k, 0.4 + 0.25 * k), mat=c["wood"]))
+    parts.append(box("straw", (3.3, 0.9, 0.04), at=(0, 0, 0.06), mat=c["straw"]))
+    return join(parts, "roost")
+
+
+def hay_stack():
+    """a stack of square bales, 5 m by 2 m, three high at the back."""
+    c = barn_colours()
+    parts = []
+    for row in range(2):
+        for lv in range(3 - row):
+            for i in range(5):
+                parts.append(box(f"bale {row} {lv} {i}", (0.95, 0.95, 0.48),
+                                 at=(-2.0 + 1.0 * i, 0.5 - row * 1.0, 0.25 + 0.5 * lv), mat=c["hay"] if (i + lv) % 2 else c["straw"]))
+    return join(parts, "hay stack")
+
+
+def steel_table():
+    """a steel butchery table on legs, a shelf under it, hooks on a rail above."""
+    c = barn_colours()
+    parts = [box("top", (2.0, 0.8, 0.04), at=(0, 0, 0.88), mat=c["steel"])]
+    for sx in (1, -1):
+        for sy in (1, -1):
+            parts.append(box(f"leg {sx} {sy}", (0.04, 0.04, 0.86), at=(sx * 0.95, sy * 0.35, 0.43), mat=c["steel"]))
+    parts.append(box("shelf", (1.9, 0.7, 0.03), at=(0, 0, 0.2), mat=c["steel"]))
+    return join(parts, "steel table")
+
+
+def feed_trough():
+    """a wooden feed trough on short legs, feed in it."""
+    c = barn_colours()
+    parts = [box("bottom", (2.0, 0.5, 0.05), at=(0, 0, 0.3), mat=c["wood"])]
+    for s in (1, -1):
+        parts.append(box(f"side {s}", (2.0, 0.05, 0.3), at=(0, s * 0.25, 0.45), mat=c["wood"]))
+        parts.append(box(f"end {s}", (0.05, 0.55, 0.3), at=(s * 1.0, 0, 0.45), mat=c["wood"]))
+        parts.append(box(f"leg {s}", (0.1, 0.5, 0.3), at=(s * 0.8, 0, 0.15), mat=c["wood"]))
+    parts.append(box("feed", (1.9, 0.45, 0.08), at=(0, 0, 0.4), mat=material("feed", (0.65, 0.55, 0.3))))
+    return join(parts, "feed trough")
+
+
+def milk_can():
+    """a steel milk churn with its lid and handles."""
+    c = barn_colours()
+    parts = [cylinder("body", 0.18, 0.5, sides=14, at=(0, 0, 0.25), mat=c["steel"])]
+    parts.append(cylinder("neck", 0.1, 0.15, sides=12, at=(0, 0, 0.57), mat=c["steel"]))
+    parts.append(cylinder("lid", 0.12, 0.05, sides=12, at=(0, 0, 0.67), mat=c["steel"]))
+    for s in (1, -1):
+        parts.append(box(f"handle {s}", (0.04, 0.03, 0.08), at=(s * 0.14, 0, 0.6), mat=c["dark"]))
+    return join(parts, "milk can")
+
+
+def nest_box():
+    """a row of three nest boxes on legs, straw and an egg in each."""
+    c = barn_colours()
+    egg = material("egg", (0.92, 0.88, 0.78))
+    parts = [box("base", (1.2, 0.4, 0.04), at=(0, 0, 0.5), mat=c["wood"])]
+    parts.append(box("back", (1.2, 0.04, 0.4), at=(0, 0.18, 0.7), mat=c["wood"]))
+    parts.append(box("roof", (1.25, 0.45, 0.04), at=(0, 0, 0.92), mat=c["red"]))
+    for i in range(4):
+        parts.append(box(f"divider {i}", (0.03, 0.4, 0.4), at=(-0.585 + 0.39 * i, 0, 0.7), mat=c["wood"]))
+    for i in range(3):
+        x = -0.39 + 0.39 * i
+        parts.append(box(f"straw {i}", (0.34, 0.34, 0.05), at=(x, 0, 0.545), mat=c["straw"]))
+        parts.append(cylinder(f"egg {i}", 0.03, 0.06, sides=8, at=(x, 0, 0.6), mat=egg))
+    for s in (1, -1):
+        parts.append(box(f"leg {s}", (0.05, 0.4, 0.5), at=(s * 0.55, 0, 0.25), mat=c["wood"]))
+    return join(parts, "nest box")
+
+
+def hay_bale():
+    """a square bale of hay, its two strings."""
+    c = barn_colours()
+    parts = [box("bale", (0.9, 0.45, 0.4), at=(0, 0, 0.2), mat=c["hay"])]
+    for s in (1, -1):
+        parts.append(box(f"string {s}", (0.02, 0.47, 0.42), at=(s * 0.22, 0, 0.2), mat=c["dark"]))
+    return join(parts, "hay bale")
+
+
+def butcher_block():
+    """a butcher block: a thick end-grain top on legs, a cleaver in it."""
+    c = barn_colours()
+    parts = [box("block", (0.7, 0.7, 0.3), at=(0, 0, 0.75), mat=material("block wood", (0.62, 0.48, 0.32)))]
+    for sx in (1, -1):
+        for sy in (1, -1):
+            parts.append(box(f"leg {sx} {sy}", (0.08, 0.08, 0.6), at=(sx * 0.28, sy * 0.28, 0.3), mat=c["wood"]))
+    parts.append(box("blade", (0.25, 0.01, 0.12), at=(0.05, 0, 0.94), mat=c["steel"]))
+    parts.append(box("handle", (0.12, 0.03, 0.03), at=(0.23, 0, 0.97), mat=c["dark"]))
+    return join(parts, "butcher block")
+
+
+BARN = {
+    "stall rail": stall_rail,
+    "tack wall": tack_wall,
+    "milk tank": milk_tank,
+    "roost": roost,
+    "hay stack": hay_stack,
+    "steel table": steel_table,
+    "feed trough": feed_trough,
+    "milk can": milk_can,
+    "nest box": nest_box,
+    "hay bale": hay_bale,
+    "butcher block": butcher_block,
+}
+
+
 GROCERY = {
     "grocery aisle": grocery_aisle,
     "checkout counter": checkout_counter,
@@ -2991,6 +3157,7 @@ MODELS = {
     **HOUSE,
     **GROCERY,
     **FARM,
+    **BARN,
     "tree": tree,
     "rock": rock,
     # The wasteland's and the ruins' scatter, at their largest side as
