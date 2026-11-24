@@ -135,6 +135,12 @@ pub fn ready_the_world(world: &mut World) {
     let start = std::time::Instant::now();
     crate::make_the_world(world);
     crate::navmesh::mesh_the_world(world);
+    // Everyone's stand-in made now, so the one landmass run below works out
+    // every walker's way behind the screen, not in the first step (2.5 ms of
+    // its 24.8 in the bench, Perf 2); the first step then follows them, as
+    // a step of the live game does. Nobody moves here, so the ways are the
+    // ones that step would have found.
+    let _ = world.run_system_cached(crate::navmesh::stand_ins);
     crate::navmesh::run_landmass(world);
     rebuild_collider_trees(world);
     // The start of the game, after the launch only: the world's history
