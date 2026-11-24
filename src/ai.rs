@@ -318,6 +318,11 @@ pub fn think(
     lying: Query<(&ThingId, &Transform, &WorldItem), Without<Container>>,
     chunks: Option<Res<crate::terrain::Chunks>>,
 ) {
+    // Nobody's moment this tick (most ticks, as each thinks at their own
+    // reaction time): nothing to sense or work out.
+    if !thinkers.npcs.iter().any(|(.., (_, _, _, _, next_think, ..))| tick.0 >= next_think.0) {
+        return;
+    }
     // What a remembered thing is worth for a need, the RimWorld way: for
     // hunger and thirst, the food seen inside it (modforge
     // `food_worth`); for rest and safety, what its place's type offers.
@@ -332,18 +337,20 @@ pub fn think(
     };
     // Every box once: its id (what memory knows it by), where it rests
     // (its height too), what kind, for looking round.
-    let boxes: Vec<(u64, Vec3, String)> = containers
+    let boxes: Vec<(u64, Vec3, &str)> = containers
         .iter()
-        .map(|(_, _, t, w, id)| (id.0, t.translation, w.stack.item.clone()))
+        .map(|(_, _, t, w, id)| (id.0, t.translation, w.stack.item.as_str()))
         .collect();
-    // The box a remembered key names, if it is still in the world.
-    let the_box = |key: u64| containers.iter().find(|c| c.4.0 == key).map(|c| c.0);
+    // The box a remembered key names, if it is still in the world: every
+    // box by its id, made the first time one is asked for this tick.
+    let box_ids: std::cell::OnceCell<std::collections::HashMap<u64, Entity>> = std::cell::OnceCell::new();
+    let the_box = |key: u64| box_ids.get_or_init(|| containers.iter().map(|c| (c.4.0, c.0)).collect()).get(&key).copied();
     // Every source once (a well, a berry bush: an item of kind `Source`):
     // its id, where, what kind.
-    let sources_at: Vec<(u64, Vec3, String)> = lying
+    let sources_at: Vec<(u64, Vec3, &str)> = lying
         .iter()
         .filter(|(_, _, w)| items.0.def(&w.stack.item).is_some_and(|d| d.kind == modforge::item::ItemKind::Source))
-        .map(|(id, t, w)| (id.0, t.translation, w.stack.item.clone()))
+        .map(|(id, t, w)| (id.0, t.translation, w.stack.item.as_str()))
         .collect();
     let source_at = |key: u64| {
         sources_at
@@ -362,16 +369,16 @@ pub fn think(
     let night = crate::survival::night(&tick, *day, &reality);
     // Everyone's position and faction first, so the pass below holds
     // no second borrow. The player carries no id yet: zero names it.
-    let everyone: Vec<(Entity, ActorId, Vec3, Option<String>)> = thinkers
+    let everyone: Vec<(Entity, ActorId, Vec3, Option<&str>)> = thinkers
         .others
         .iter()
         .map(|(e, t, npc, actor, changed)| {
             // The player a changing storm caught outside is one of the
             // changed, as any NPC it caught (todo Storm effect 7).
             let faction = match npc {
-                Some(n) => n.faction.clone(),
-                None if changed => Some(crate::storm_effect::CHANGED_FACTION.to_string()),
-                None => Some(PLAYER_FACTION.to_string()),
+                Some(n) => n.faction.as_deref(),
+                None if changed => Some(crate::storm_effect::CHANGED_FACTION),
+                None => Some(PLAYER_FACTION),
             };
             (e, actor.map_or(ActorId(0), |a| a.0), crate::interact::feet_of(t), faction)
         })
@@ -397,7 +404,8 @@ pub fn think(
     // How each faction stands toward each person someone thinking now has
     // in sight (life.md "How a person feels about others"): worked out
     // here from its members' feelings, never stored.
-    let mut wanted: Vec<(String, ActorId)> = Vec::new();
+    // Each faction, and whom it is asked about, kept in sets (not scanned).
+    let mut wanted: std::collections::HashMap<String, std::collections::HashSet<ActorId>> = std::collections::HashMap::new();
     for (entity, _, npc, transform, .., (_, _, _, _, next_think, dead, ..)) in thinkers.npcs.iter() {
         let (Some(faction), Some(def)) = (npc.faction.as_ref(), registry.0.def(&npc.def)) else {
             continue;
@@ -406,24 +414,38 @@ pub fn think(
             continue;
         }
         let here = crate::interact::feet_of(transform);
-        for (e, id, at, _) in &everyone {
-            if *e != entity && at.distance(here) <= def.sight && !wanted.iter().any(|w| w.0 == *faction && w.1 == *id) {
-                wanted.push((faction.clone(), *id));
+        let mut seen = everyone.iter().filter(|(e, _, at, _)| *e != entity && at.distance(here) <= def.sight).map(|(_, id, ..)| *id).peekable();
+        if seen.peek().is_none() {
+            continue;
+        }
+        if !wanted.contains_key(faction) {
+            wanted.insert(faction.clone(), Default::default());
+        }
+        wanted.get_mut(faction).expect("inserted above").extend(seen);
+    }
+    // Each faction's members once, not every member scanned for each
+    // person asked about.
+    let standings: std::collections::HashMap<String, std::collections::HashMap<ActorId, Option<f32>>> = {
+        let mut members: std::collections::HashMap<&str, Vec<&modforge::memory::Memory>> = std::collections::HashMap::new();
+        for member in thinkers.npcs.iter() {
+            if let Some(faction) = member.2.faction.as_deref()
+                && wanted.contains_key(faction)
+            {
+                members.entry(faction).or_default().push(&member.7.0.memory);
             }
         }
-    }
-    let standings: Vec<(String, ActorId, Option<f32>)> = wanted
-        .into_iter()
-        .map(|(faction, toward)| {
-            let feelings = thinkers
-                .npcs
-                .iter()
-                .filter(|member| member.2.faction.as_ref() == Some(&faction))
-                .map(|member| modforge::relationship::feeling(&member.7.0.memory, toward, heard));
-            let standing = modforge::relationship::standing(feelings);
-            (faction, toward, standing)
-        })
-        .collect();
+        wanted
+            .into_iter()
+            .map(|(faction, towards)| {
+                let of = members.get(faction.as_str()).map_or(&[][..], |m| m.as_slice());
+                let standing = towards
+                    .into_iter()
+                    .map(|toward| (toward, modforge::relationship::standing(of.iter().map(|memory| modforge::relationship::feeling(memory, toward, heard)))))
+                    .collect();
+                (faction, standing)
+            })
+            .collect()
+    };
     // What each person could spare of food and of water: all but one of
     // what they carry of it (design.md "Trading": one with extra of what
     // another needs), for the trader in sight below.
@@ -498,31 +520,31 @@ pub fn think(
             let standing = npc
                 .faction
                 .as_ref()
-                .and_then(|f| standings.iter().find(|s| s.0 == *f && s.1 == id))
-                .and_then(|s| s.2);
+                .and_then(|f| standings.get(f.as_str()))
+                .and_then(|s| s.get(&id).copied().flatten());
             let table = factions.0.relation(npc.faction.as_deref(), faction);
             modforge::relationship::stands(own, standing, table) == modforge::faction::Relation::Hostile
         };
-        let hostile = everyone
-            .iter()
-            .filter(|(e, id, at, faction)| {
-                *e != entity
-                    && at.distance(here) <= def.sight
-                    && in_cone(facing, here, *at)
-                    && stands_hostile(*id, faction.as_deref())
-                    && sight.clear(here, *at)
-            })
-            .min_by(|a, b| a.2.distance(here).total_cmp(&b.2.distance(here)))
-            .map(|(_, id, at, _)| (*id, *at));
-        // Who in sight they do not stand hostile to: whom they might trade
-        // with (below).
-        let not_hostile_in_sight: Vec<(Entity, ActorId, Vec3)> = everyone
-            .iter()
-            .filter(|(e, id, at, faction)| {
-                *e != entity && at.distance(here) <= def.sight && in_cone(facing, here, *at) && !stands_hostile(*id, faction.as_deref()) && sight.clear(here, *at)
-            })
-            .map(|(e, id, at, _)| (*e, *id, *at))
-            .collect();
+        // One pass over everyone: who is in sight (within it, in the cone,
+        // a clear line, the line cast once each), the nearest of them they
+        // stand hostile to, and the rest, whom they might trade with
+        // (below).
+        let mut hostile: Option<(ActorId, Vec3)> = None;
+        let mut not_hostile_in_sight: Vec<(Entity, ActorId, Vec3)> = Vec::new();
+        let mut in_sight: Vec<ActorId> = Vec::new();
+        for (e, id, at, faction) in &everyone {
+            if *e == entity || at.distance(here) > def.sight || !in_cone(facing, here, *at) || !sight.clear(here, *at) {
+                continue;
+            }
+            in_sight.push(*id);
+            if stands_hostile(*id, *faction) {
+                if hostile.is_none_or(|(_, h)| at.distance(here).total_cmp(&h.distance(here)).is_lt()) {
+                    hostile = Some((*id, *at));
+                }
+            } else {
+                not_hostile_in_sight.push((*e, *id, *at));
+            }
+        }
         // Holding a place (`Holding`): anyone they stand hostile to within
         // `HOLD_REACH` of it, in view, is warned once (said after,
         // `warn_off`); one still within it `WARNING_GRACE` after is the one
@@ -533,7 +555,7 @@ pub fn think(
                 let place = holding.at;
                 let mut coming: Vec<(ActorId, Vec3)> = everyone
                     .iter()
-                    .filter(|(e, id, at, faction)| *e != entity && at.distance(place) <= HOLD_REACH && stands_hostile(*id, faction.as_deref()) && sight.clear(here, *at))
+                    .filter(|(e, id, at, faction)| *e != entity && at.distance(place) <= HOLD_REACH && stands_hostile(*id, *faction) && sight.clear(here, *at))
                     .map(|(_, id, at, _)| (*id, *at))
                     .collect();
                 // In ActorId order (authority.md rule 5).
@@ -563,16 +585,14 @@ pub fn think(
         // Everyone in sight, as the hostile and the not hostile above are
         // seen, is remembered seen (modforge `Memory::saw`: once a
         // `SAW_AGAIN`, not once a think).
-        for (e, id, at, _) in &everyone {
-            if *e != entity && at.distance(here) <= def.sight && in_cone(facing, here, *at) && sight.clear(here, *at) {
-                person.0.memory.saw(*id, tick.0, SAW_AGAIN);
-            }
+        for id in in_sight {
+            person.0.memory.saw(id, tick.0, SAW_AGAIN);
         }
         // Looking round as they think: every box in the cone with a clear
         // line goes into memory (seen, not yet looked inside).
-        for (key, at, kind) in boxes.iter().chain(&sources_at) {
-            if at.distance(here) <= def.sight && in_cone(facing, here, *at) && sight.clear(here, *at) {
-                person.0.memory.see(*key, kind, *at, tick.0);
+        for &(key, at, kind) in boxes.iter().chain(&sources_at) {
+            if at.distance(here) <= def.sight && in_cone(facing, here, at) && sight.clear(here, at) {
+                person.0.memory.see(key, kind, at, tick.0);
             }
         }
         // A site seen (todo 4b): any of its buildings or props in the cone
@@ -632,7 +652,7 @@ pub fn think(
                 // The bunker's drinking is its living people's (the player
                 // in the player's bunker), not a set number (orchestrator,
                 // 2026-10-03).
-                let living = everyone.iter().filter(|(.., faction)| faction.is_some() && *faction == npc.faction).count().max(1) as u32;
+                let living = everyone.iter().filter(|(.., faction)| faction.is_some() && *faction == npc.faction.as_deref()).count().max(1) as u32;
                 short_of(supplies, litres, living, (BUNKER_SHORT_DAYS * fear, BUNKER_WATER_DAYS * fear), per_day, &items.0)
             })
             .unwrap_or_default();
