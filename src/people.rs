@@ -44,6 +44,11 @@ pub struct Stride {
 /// game's).
 const STILL: f32 = 0.1;
 
+/// How far round a person's middle their pose can reach, for whether a
+/// camera sees them: a body's height, so a raised arm and a swung weapon
+/// are inside it.
+const SEEN_RADIUS: f32 = crate::player::BODY_HEIGHT;
+
 /// What a person's model shows now, for the control plane: the layers
 /// shown, what is in their hand (its models), and whether the walk plays.
 #[derive(Component, Default, Debug)]
@@ -236,9 +241,10 @@ pub fn animate(
     mut animations: ResMut<Animations>,
     parents: Query<&ChildOf>,
     mut people: Query<(&Look, &Transform, Option<&crate::combat::Firing>, &mut Stride, &mut Drawn)>,
-    mut rigs: Query<(Entity, &mut AnimationPlayer, Option<&mut AnimationTransitions>)>,
+    mut rigs: Query<(Entity, &mut AnimationPlayer, Option<&mut AnimationTransitions>, Has<AnimationGraphHandle>)>,
+    cameras: Query<(&bevy::camera::primitives::Frustum, &Camera), With<Camera3d>>,
 ) {
-    for (rig, mut player, transitions) in &mut rigs {
+    for (rig, mut player, transitions, posed) in &mut rigs {
         let Some(person) = parents.iter_ancestors(rig).find(|a| people.contains(*a)) else {
             continue;
         };
@@ -288,6 +294,22 @@ pub fn animate(
             commands.entity(rig).insert((AnimationGraphHandle(graph.handle), transitions));
             continue;
         };
+        // Bones posed only for a person some camera can see (Unity's
+        // "cull completely" animation mode): Bevy poses every rig with a
+        // graph each frame, seen or not, 13 ms a frame for the town's
+        // people (2026-11-24). Out of every camera's view the graph is
+        // taken off; back in view it is put back and the pose goes on.
+        let around = bevy::camera::primitives::Sphere { center: (transform.translation + Vec3::Y * BODY_CENTRE).into(), radius: SEEN_RADIUS };
+        let seen = cameras.iter().any(|(frustum, camera)| camera.is_active && frustum.intersects_sphere(&around, true));
+        if !seen {
+            if posed {
+                commands.entity(rig).remove::<AnimationGraphHandle>();
+            }
+            continue;
+        }
+        if !posed {
+            commands.entity(rig).insert(AnimationGraphHandle(graph.handle.clone()));
+        }
         // A melee swing (not a block) under way: played over the swing's
         // delay from its start, again for each new swing.
         let swinging = firing
