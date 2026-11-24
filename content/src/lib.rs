@@ -101,6 +101,7 @@ impl Default for RecipeRegistryRes {
                     layers: Vec::new(),
                     station: modforge::crafting::StationKind::CraftingBench,
                     craft_time: 0.0,
+                    tier: 1,
                 })
                 .expect("recipe registered once");
             }

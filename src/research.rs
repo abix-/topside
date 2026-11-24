@@ -43,12 +43,19 @@ pub fn group_of(is_player: bool, npc: Option<&Npc>) -> String {
 }
 
 /// The rows a station shows a group, top to bottom: the open topics at a
-/// research station, else the recipes not locked.
+/// research station, else the recipes not locked and within the group's
+/// bench tier (modforge `TechTree::tier`).
 pub fn rows<'a>(kind: StationKind, recipes: &'a RecipeRegistry, tree: &'a TechTree, known: &Known) -> Vec<Row<'a>> {
     if kind == StationKind::ResearchStation {
         return tree.open(known).into_iter().map(Row::Topic).collect();
     }
-    recipes.for_station(kind).into_iter().filter(|r| !tree.locked(&r.name, known)).map(Row::Recipe).collect()
+    let tier = tree.tier(known);
+    recipes
+        .for_station(kind)
+        .into_iter()
+        .filter(|r| r.tier <= tier && !tree.locked(&r.name, known))
+        .map(Row::Recipe)
+        .collect()
 }
 
 /// Whether the inventory holds a cost.

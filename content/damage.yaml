@@ -48,3 +48,14 @@ damage:
   # The control plane's `kill` op: one hit that kills anyone, no armor
   # helps, so a test can bring a death now.
   - {name: kill, amount: 1000000.0, kind: Blunt, ignores_armor: true}
+  # The crafted weapons (content/recipes.yaml; todo "Recipes and
+  # research", Rust's and Atlas's). Amounts are Claude's.
+  - {name: knife cut, amount: 18.0, kind: Slash, knockback: 0.5, self_scale: 0.5}
+  - {name: machete cut, amount: 32.0, kind: Slash, knockback: 1.0, self_scale: 0.5}
+  - {name: sword cut, amount: 38.0, kind: Slash, knockback: 1.0, self_scale: 0.5}
+  - {name: mace hit, amount: 36.0, kind: Blunt, knockback: 2.0, self_scale: 0.5}
+  - {name: pick hit, amount: 22.0, kind: Pierce, knockback: 1.0, self_scale: 0.5}
+  - {name: arrow, amount: 40.0, kind: Pierce}
+  - {name: bolt shot, amount: 60.0, kind: Pierce}
+  - {name: pistol round, amount: 35.0, kind: Bullet}
+  - {name: rifle round, amount: 50.0, kind: Bullet}

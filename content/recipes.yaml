@@ -26,3 +26,72 @@ recipes:
   - {name: cooked meat, inputs: [[raw meat, 1]], output: [cooked meat, 1], station: Stove}
   # Bread baked from grain in the bakery's oven (Place 7). Claude's.
   - {name: bread, inputs: [[grain, 2]], output: [bread, 1], station: Stove}
+
+  # Rust's and Atlas's crafting joined (todo "Recipes and research",
+  # operator 2026-11-23: "look at REST and Atlas... jam those together...
+  # tier n"): each recipe's `tier` is the bench tier it needs (Rust's
+  # workbench levels, 1 when left out), and content/tech.yaml's topics
+  # unlock them. A category (wood, stone, fiber, metal, hide, oil) takes
+  # any kind in it. Every recipe and number here is Claude's, for the
+  # operator to change.
+  # Tier 1: by hand.
+  - {name: torch, inputs: [[wood, 2], [cloth, 1]], output: [torch, 1], station: CraftingBench, craft_time: 2.0}
+  - {name: stone hatchet, inputs: [[wood, 2], [stone, 3], [fiber, 2]], output: [stone hatchet, 1], station: CraftingBench, craft_time: 4.0}
+  - {name: stone pickaxe, inputs: [[wood, 2], [stone, 4], [fiber, 2]], output: [stone pickaxe, 1], station: CraftingBench, craft_time: 4.0}
+  - {name: wooden spear, inputs: [[wood, 3]], output: [wooden spear, 1], station: CraftingBench, craft_time: 3.0}
+  - {name: stone spear, inputs: [[wooden spear, 1], [stone, 2], [rope, 1]], output: [stone spear, 1], station: CraftingBench, craft_time: 4.0}
+  - {name: bone knife, inputs: [[teeth, 3], [fiber, 1]], output: [bone knife, 1], station: CraftingBench, craft_time: 3.0}
+  - {name: bow, inputs: [[wood, 4], [rope, 2]], output: [bow, 1], station: CraftingBench, craft_time: 6.0}
+  - {name: arrows, inputs: [[wood, 1], [stone, 1], [fiber, 1]], output: [arrows, 3], station: CraftingBench, craft_time: 2.0}
+  - {name: burlap shirt, inputs: [[cloth, 3]], output: [burlap shirt, 1], station: CraftingBench, craft_time: 3.0}
+  - {name: burlap trousers, inputs: [[cloth, 3]], output: [burlap trousers, 1], station: CraftingBench, craft_time: 3.0}
+  - {name: burlap headwrap, inputs: [[cloth, 2]], output: [burlap headwrap, 1], station: CraftingBench, craft_time: 2.0}
+  - {name: sleeping roll, inputs: [[cloth, 4], [fiber, 6]], output: [sleeping roll, 1], station: CraftingBench, craft_time: 5.0}
+  - {name: sewing kit, inputs: [[cloth, 2], [rope, 1]], output: [sewing kit, 1], station: CraftingBench, craft_time: 2.0}
+  - {name: tarp, inputs: [[cloth, 4], [oil, 1]], output: [tarp, 1], station: CraftingBench, craft_time: 3.0}
+  - {name: hide vest, inputs: [[hide, 4], [rope, 1]], output: [hide vest, 1], station: CraftingBench, craft_time: 5.0}
+  - {name: hide trousers, inputs: [[hide, 3], [rope, 1]], output: [hide trousers, 1], station: CraftingBench, craft_time: 5.0}
+  - {name: bone helmet, inputs: [[teeth, 4], [rope, 1]], output: [bone helmet, 1], station: CraftingBench, craft_time: 5.0}
+  - {name: leather, inputs: [[hide, 2], [oil, 1]], output: [leather, 1], station: CraftingBench, craft_time: 4.0}
+  - {name: glue, inputs: [[hide, 1], [oil, 1]], output: [glue, 2], station: Stove, craft_time: 4.0}
+  - {name: large box, inputs: [[wood, 12]], output: [large box, 1], station: CraftingBench, craft_time: 6.0}
+  - {name: charcoal, inputs: [[wood, 2]], output: [charcoal, 1], station: Stove, craft_time: 3.0}
+  - {name: metal fragments, inputs: [[metal, 2], [charcoal, 1]], output: [metal fragments, 1], station: Stove, craft_time: 4.0}
+  - {name: nails, inputs: [[metal fragments, 1]], output: [nails, 5], station: CraftingBench, craft_time: 2.0}
+  # Tier 2: metal.
+  - {name: hatchet, inputs: [[wood, 3], [metal fragments, 5]], output: [hatchet, 1], station: CraftingBench, craft_time: 6.0, tier: 2}
+  - {name: pickaxe, inputs: [[wood, 3], [metal fragments, 6]], output: [pickaxe, 1], station: CraftingBench, craft_time: 6.0, tier: 2}
+  - {name: sickle, inputs: [[wood, 1], [metal fragments, 4]], output: [sickle, 1], station: CraftingBench, craft_time: 5.0, tier: 2}
+  - {name: metal blade, inputs: [[metal fragments, 4]], output: [metal blade, 1], station: CraftingBench, craft_time: 4.0, tier: 2}
+  - {name: machete, inputs: [[metal blade, 1], [cloth, 1]], output: [machete, 1], station: CraftingBench, craft_time: 5.0, tier: 2}
+  - {name: mace, inputs: [[wood, 2], [metal fragments, 8]], output: [mace, 1], station: CraftingBench, craft_time: 6.0, tier: 2}
+  - {name: crossbow, inputs: [[wood, 6], [rope, 2], [metal fragments, 4]], output: [crossbow, 1], station: CraftingBench, craft_time: 8.0, tier: 2}
+  - {name: crossbow bolts, inputs: [[wood, 1], [metal fragments, 1]], output: [crossbow bolts, 3], station: CraftingBench, craft_time: 2.0, tier: 2}
+  - {name: leather jacket, inputs: [[leather, 6], [sewing kit, 1]], output: [leather jacket, 1], station: CraftingBench, craft_time: 6.0, tier: 2}
+  - {name: leather trousers, inputs: [[leather, 5], [sewing kit, 1]], output: [leather trousers, 1], station: CraftingBench, craft_time: 6.0, tier: 2}
+  - {name: wood chestplate, inputs: [[wood, 20], [rope, 2]], output: [wood chestplate, 1], station: CraftingBench, craft_time: 6.0, tier: 2}
+  - {name: road sign kilt, inputs: [[scrap, 8], [leather, 2]], output: [road sign kilt, 1], station: CraftingBench, craft_time: 6.0, tier: 2}
+  - {name: coffee can helmet, inputs: [[metal fragments, 10], [leather, 1]], output: [coffee can helmet, 1], station: CraftingBench, craft_time: 6.0, tier: 2}
+  - {name: furnace kit, inputs: [[stone, 30], [wood, 10], [glue, 2]], output: [furnace kit, 1], station: CraftingBench, craft_time: 10.0, tier: 2}
+  - {name: sulfur, inputs: [[stone, 3], [oil, 1]], output: [sulfur, 1], station: Stove, craft_time: 4.0, tier: 2}
+  - {name: gunpowder, inputs: [[charcoal, 3], [sulfur, 2]], output: [gunpowder, 1], station: CraftingBench, craft_time: 3.0, tier: 2}
+  - {name: shotgun shells, inputs: [[metal fragments, 1], [gunpowder, 1]], output: [shotgun shell, 2], station: CraftingBench, craft_time: 2.0, tier: 2}
+  - {name: revolver, inputs: [[pipe, 1], [metal fragments, 10], [cloth, 2]], output: [revolver, 1], station: CraftingBench, craft_time: 10.0, tier: 2}
+  - {name: pistol ammo, inputs: [[metal fragments, 1], [gunpowder, 1]], output: [pistol ammo, 4], station: CraftingBench, craft_time: 2.0, tier: 2}
+  - {name: gears, inputs: [[metal fragments, 8]], output: [gears, 1], station: CraftingBench, craft_time: 5.0, tier: 2}
+  # Tier 3: refined metal.
+  - {name: high quality metal, inputs: [[metal fragments, 5], [charcoal, 2]], output: [high quality metal, 1], station: Stove, craft_time: 6.0, tier: 3}
+  - {name: metal spring, inputs: [[high quality metal, 1]], output: [metal spring, 1], station: CraftingBench, craft_time: 4.0, tier: 3}
+  - {name: metal chestplate, inputs: [[high quality metal, 8], [leather, 4]], output: [metal chestplate, 1], station: CraftingBench, craft_time: 12.0, tier: 3}
+  - {name: metal facemask, inputs: [[high quality metal, 6], [leather, 2]], output: [metal facemask, 1], station: CraftingBench, craft_time: 10.0, tier: 3}
+  - {name: metal leg guards, inputs: [[high quality metal, 5], [leather, 3]], output: [metal leg guards, 1], station: CraftingBench, craft_time: 10.0, tier: 3}
+  - {name: salvaged sword, inputs: [[metal blade, 2], [high quality metal, 1], [cloth, 2]], output: [salvaged sword, 1], station: CraftingBench, craft_time: 10.0, tier: 3}
+  - {name: sledgehammer, inputs: [[high quality metal, 3], [wood, 3]], output: [sledgehammer, 1], station: CraftingBench, craft_time: 8.0, tier: 3}
+  - {name: semi automatic body, inputs: [[high quality metal, 1], [metal fragments, 4]], output: [semi automatic body, 1], station: CraftingBench, craft_time: 8.0, tier: 3}
+  - {name: semi automatic pistol, inputs: [[semi automatic body, 1], [metal spring, 1], [pipe, 1]], output: [semi automatic pistol, 1], station: CraftingBench, craft_time: 12.0, tier: 3}
+  - {name: rifle body, inputs: [[high quality metal, 2], [metal fragments, 2]], output: [rifle body, 1], station: CraftingBench, craft_time: 8.0, tier: 3}
+  - {name: hunting rifle, inputs: [[rifle body, 1], [wood, 4], [pipe, 1], [metal spring, 1]], output: [hunting rifle, 1], station: CraftingBench, craft_time: 14.0, tier: 3}
+  - {name: rifle ammo, inputs: [[metal fragments, 2], [gunpowder, 2]], output: [rifle ammo, 3], station: CraftingBench, craft_time: 3.0, tier: 3}
+  # Tier 4.
+  - {name: semi automatic rifle, inputs: [[semi automatic body, 1], [metal spring, 1], [high quality metal, 2], [pipe, 1]], output: [semi automatic rifle, 1], station: CraftingBench, craft_time: 16.0, tier: 4}
+  - {name: explosives, inputs: [[gunpowder, 10], [oil, 3], [metal fragments, 2]], output: [explosives, 1], station: CraftingBench, craft_time: 10.0, tier: 4}

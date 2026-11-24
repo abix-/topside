@@ -242,3 +242,69 @@ items:
     kind: Tool
     quality_siblings: 3
     armor: {amount: 40.0, area: Head}
+
+  # What the recipes make (content/recipes.yaml; todo "Recipes and
+  # research", operator 2026-11-23: "look at REST and Atlas... jam those
+  # together"). Rust's materials, tools, weapons and armor with Atlas's
+  # refining. Every item, description and number here is Claude's.
+  # Refined materials.
+  - {name: charcoal, description: "Burnt wood, for gunpowder.", kind: Material, max_stack: 100}
+  - {name: sulfur, description: "Yellow stone, for gunpowder.", kind: Material, max_stack: 100}
+  - {name: gunpowder, description: "Black powder, for ammunition and explosives.", kind: Material, max_stack: 100}
+  - {name: metal fragments, description: "Smelted metal, for tools and weapons.", kind: Material, max_stack: 100}
+  - {name: high quality metal, description: "Refined metal, for the best gear.", kind: Material, max_stack: 100}
+  - {name: leather, description: "Tanned hide, for armor and bags.", kind: Material, max_stack: 50}
+  - {name: tarp, description: "Stitched cloth, waterproofed.", kind: Material, max_stack: 20}
+  - {name: sewing kit, description: "Needle and thread, for cloth armor.", kind: Material, max_stack: 20}
+  - {name: nails, description: "A fistful of nails.", kind: Material, max_stack: 100}
+  - {name: metal spring, description: "A coiled spring, for guns.", kind: Material, max_stack: 20}
+  - {name: gears, description: "Toothed wheels, for machines.", kind: Material, max_stack: 20}
+  - {name: metal blade, description: "A sharpened strip of metal.", kind: Material, max_stack: 20}
+  - {name: semi automatic body, description: "The frame of a self-loading gun.", kind: Material, max_stack: 10}
+  - {name: rifle body, description: "The frame of a rifle.", kind: Material, max_stack: 10}
+  - {name: glue, description: "Boiled hide and fat. It holds things together.", kind: Material, max_stack: 50}
+  - {name: explosives, description: "Gunpowder and fuel packed tight.", kind: Material, max_stack: 20}
+  - {name: arrows, description: "Wooden arrows for a bow.", kind: Material, max_stack: 50}
+  - {name: crossbow bolts, description: "Heavy bolts for a crossbow.", kind: Material, max_stack: 50}
+  - {name: pistol ammo, description: "Rounds for a pistol.", kind: Material, max_stack: 50}
+  - {name: rifle ammo, description: "Rounds for a rifle.", kind: Material, max_stack: 50}
+  # Tools.
+  - {name: torch, description: "A burning stick. Light in the dark.", kind: Tool}
+  - {name: stone hatchet, description: "A sharp stone on a stick, for wood.", kind: Weapon, combat: {damage: axe chop, delay: 0.9, reach: 1.6, pellets: 1, spread_degrees: 0.0, ammo: null}}
+  - {name: stone pickaxe, description: "A pointed stone on a stick, for rock.", kind: Weapon, combat: {damage: pick hit, delay: 1.0, reach: 1.6, pellets: 1, spread_degrees: 0.0, ammo: null}}
+  - {name: hatchet, description: "A metal hatchet, for wood.", kind: Weapon, quality_siblings: 3, combat: {damage: axe chop, delay: 0.7, reach: 1.7, pellets: 1, spread_degrees: 0.0, ammo: null}}
+  - {name: pickaxe, description: "A metal pickaxe, for rock and ore.", kind: Weapon, quality_siblings: 3, combat: {damage: pick hit, delay: 0.8, reach: 1.7, pellets: 1, spread_degrees: 0.0, ammo: null}}
+  - {name: sickle, description: "A curved blade, for fiber and thatch.", kind: Weapon, quality_siblings: 3, combat: {damage: knife cut, delay: 0.5, reach: 1.4, pellets: 1, spread_degrees: 0.0, ammo: null}}
+  - {name: sledgehammer, description: "A heavy hammer, for stone and metal.", kind: Weapon, quality_siblings: 3, combat: {damage: mace hit, delay: 1.3, reach: 1.9, pellets: 1, spread_degrees: 0.0, ammo: null}}
+  # Weapons.
+  - {name: bone knife, description: "A sharpened bone.", kind: Weapon, quality_siblings: 3, combat: {damage: knife cut, delay: 0.4, reach: 1.2, pellets: 1, spread_degrees: 0.0, ammo: null}}
+  - {name: wooden spear, description: "A sharpened pole.", kind: Weapon, quality_siblings: 3, combat: {damage: spear thrust, delay: 0.9, reach: 2.6, pellets: 1, spread_degrees: 0.0, ammo: null}}
+  - {name: stone spear, description: "A pole with a stone point.", kind: Weapon, quality_siblings: 3, combat: {damage: spear thrust, delay: 0.85, reach: 2.7, pellets: 1, spread_degrees: 0.0, ammo: null}}
+  - {name: machete, description: "A long blade with a taped grip.", kind: Weapon, quality_siblings: 3, combat: {damage: machete cut, delay: 0.6, reach: 1.8, pellets: 1, spread_degrees: 0.0, ammo: null}}
+  - {name: salvaged sword, description: "A blade beaten from a car spring.", kind: Weapon, quality_siblings: 3, combat: {damage: sword cut, delay: 0.7, reach: 2.0, pellets: 1, spread_degrees: 0.0, ammo: null}}
+  - {name: mace, description: "A heavy head on a short shaft.", kind: Weapon, quality_siblings: 3, combat: {damage: mace hit, delay: 1.0, reach: 1.8, pellets: 1, spread_degrees: 0.0, ammo: null}}
+  - {name: bow, description: "A hunting bow. Fires arrows.", kind: Weapon, quality_siblings: 3, combat: {damage: arrow, delay: 1.0, reach: 40.0, pellets: 1, spread_degrees: 3.0, ammo: arrows}}
+  - {name: crossbow, description: "A crossbow. Fires bolts.", kind: Weapon, quality_siblings: 3, combat: {damage: bolt shot, delay: 2.5, reach: 50.0, pellets: 1, spread_degrees: 1.5, ammo: crossbow bolts}}
+  - {name: revolver, description: "A six-shot revolver. Fires pistol ammo.", kind: Weapon, quality_siblings: 3, combat: {damage: pistol round, delay: 0.5, reach: 60.0, pellets: 1, spread_degrees: 2.5, ammo: pistol ammo}}
+  - {name: semi automatic pistol, description: "A pistol that loads itself. Fires pistol ammo.", kind: Weapon, quality_siblings: 3, combat: {damage: pistol round, delay: 0.25, reach: 60.0, pellets: 1, spread_degrees: 3.0, ammo: pistol ammo}}
+  - {name: hunting rifle, description: "A bolt rifle. Fires rifle ammo.", kind: Weapon, quality_siblings: 3, combat: {damage: rifle round, delay: 1.6, reach: 150.0, pellets: 1, spread_degrees: 0.5, ammo: rifle ammo}}
+  - {name: semi automatic rifle, description: "A self-loading rifle. Fires rifle ammo.", kind: Weapon, quality_siblings: 3, combat: {damage: rifle round, delay: 0.35, reach: 120.0, pellets: 1, spread_degrees: 1.5, ammo: rifle ammo}}
+  # Armor.
+  - {name: burlap shirt, description: "A rough sack shirt.", kind: Tool, quality_siblings: 3, armor: {amount: 10.0, area: Chest}}
+  - {name: burlap trousers, description: "Rough sack trousers.", kind: Tool, quality_siblings: 3, armor: {amount: 8.0, area: Legs}}
+  - {name: burlap headwrap, description: "A sack wound round the head.", kind: Tool, quality_siblings: 3, armor: {amount: 6.0, area: Head}}
+  - {name: hide vest, description: "A vest of raw hide.", kind: Tool, quality_siblings: 3, armor: {amount: 18.0, area: Chest}}
+  - {name: hide trousers, description: "Trousers of raw hide.", kind: Tool, quality_siblings: 3, armor: {amount: 14.0, area: Legs}}
+  - {name: bone helmet, description: "A helmet of lashed bone.", kind: Tool, quality_siblings: 3, armor: {amount: 20.0, area: Head}}
+  - {name: leather jacket, description: "A tanned leather jacket.", kind: Tool, quality_siblings: 3, armor: {amount: 25.0, area: Chest}}
+  - {name: leather trousers, description: "Tanned leather trousers.", kind: Tool, quality_siblings: 3, armor: {amount: 20.0, area: Legs}}
+  - {name: wood chestplate, description: "Planks strapped over the chest.", kind: Tool, quality_siblings: 3, armor: {amount: 30.0, area: Chest}}
+  - {name: road sign kilt, description: "Road signs hung round the waist.", kind: Tool, quality_siblings: 3, armor: {amount: 30.0, area: Legs}}
+  - {name: coffee can helmet, description: "A coffee can with eye holes.", kind: Tool, quality_siblings: 3, armor: {amount: 30.0, area: Head}}
+  - {name: metal chestplate, description: "Beaten metal over the chest.", kind: Tool, quality_siblings: 3, armor: {amount: 60.0, area: Chest}}
+  - {name: metal facemask, description: "A welded metal mask.", kind: Tool, quality_siblings: 3, armor: {amount: 55.0, area: Head}}
+  - {name: metal leg guards, description: "Beaten metal over the legs.", kind: Tool, quality_siblings: 3, armor: {amount: 45.0, area: Legs}}
+  # Placed.
+  - {name: furnace kit, description: "A small furnace, folded for carrying. Set it down to smelt.", kind: Deployable}
+  - {name: large box, description: "A big wooden box to keep things in.", kind: Deployable, storage: 30}
+  - {name: sleeping roll, description: "A roll to sleep on. Where you wake after you die.", kind: Deployable}

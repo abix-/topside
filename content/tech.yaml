@@ -3,11 +3,53 @@
 # tools branches from the weapons and never caps. Read by content's
 # `tech_tree`. Each has its `name`, its `cost` (each item and how many, at
 # its first level), and any of `needs` (topics done first), `unlocks`
-# (recipes, by name) and `endless` (researched again and again, each
-# level costing more). Topics, costs and branches are Claude's, for the
-# operator to change.
+# (recipes, by name), `endless` (researched again and again, each level
+# costing more), `tier` (the least bench tier it needs, 1 when left out)
+# and `raises_tier` (each level raises the group's bench tier by one).
+#
+# Rust and Atlas joined (todo "Recipes and research", operator 2026-11-23:
+# "look at REST and Atlas... jam those together... tier n"): Rust's
+# workbench levels gate what can be made and researched, Atlas's engram
+# tree branches by craft. The bench upgrade is endless, so there is no
+# last tier: a topic or recipe with a higher tier is all it takes to add
+# one. Topics, costs and branches are Claude's, for the operator to
+# change.
 topics:
+  # The bench itself: every level one more tier.
+  - {name: bench upgrade, cost: [[scrap, 20], [metal fragments, 10]], needs: [smelting], endless: true, raises_tier: true}
+
+  # Tier 1: what a survivor makes with their hands.
   - {name: field medicine, cost: [[cloth, 2]], unlocks: [bandage]}
   - {name: pipework, cost: [[scrap, 2]], unlocks: [pipe]}
   - {name: improvised weapons, cost: [[scrap, 4]], needs: [pipework], unlocks: [spiked bat, sharpened road sign]}
   - {name: better tools, cost: [[scrap, 5]], needs: [improvised weapons], endless: true}
+  - {name: stone tools, cost: [[wood, 5], [stone, 5]], unlocks: [torch, stone hatchet, stone pickaxe]}
+  - {name: primitive weapons, cost: [[wood, 5], [teeth, 2]], needs: [stone tools], unlocks: [wooden spear, stone spear, bone knife]}
+  - {name: hunting, cost: [[wood, 10], [rope, 2]], needs: [primitive weapons], unlocks: [bow, arrows]}
+  - {name: cloth working, cost: [[cloth, 4]], unlocks: [burlap shirt, burlap trousers, burlap headwrap, sleeping roll, sewing kit, tarp]}
+  - {name: hide working, cost: [[hide, 3]], needs: [primitive weapons], unlocks: [hide vest, hide trousers, bone helmet, leather, glue]}
+  - {name: storage, cost: [[wood, 15]], unlocks: [large box]}
+  - {name: charcoal burning, cost: [[wood, 10]], unlocks: [charcoal]}
+  - {name: smelting, cost: [[scrap, 10], [charcoal, 5]], needs: [charcoal burning], unlocks: [metal fragments, nails]}
+
+  # Tier 2: metal worked at an upgraded bench.
+  - {name: metal tools, tier: 2, cost: [[metal fragments, 15]], needs: [smelting], unlocks: [hatchet, pickaxe, sickle]}
+  - {name: bladesmithing, tier: 2, cost: [[metal fragments, 20]], needs: [metal tools], unlocks: [metal blade, machete, mace]}
+  - {name: crossbows, tier: 2, cost: [[metal fragments, 10], [rope, 4]], needs: [hunting], unlocks: [crossbow, crossbow bolts]}
+  - {name: leatherworking, tier: 2, cost: [[leather, 6]], needs: [hide working], unlocks: [leather jacket, leather trousers]}
+  - {name: scrap armor, tier: 2, cost: [[scrap, 20]], needs: [smelting], unlocks: [wood chestplate, road sign kilt, coffee can helmet]}
+  - {name: furnaces, tier: 2, cost: [[stone, 20], [metal fragments, 10]], needs: [smelting], unlocks: [furnace kit]}
+  - {name: black powder, tier: 2, cost: [[charcoal, 20], [metal fragments, 10]], needs: [smelting], unlocks: [sulfur, gunpowder, shotgun shells]}
+  - {name: pistols, tier: 2, cost: [[metal fragments, 25], [gunpowder, 5]], needs: [black powder], unlocks: [revolver, pistol ammo]}
+  - {name: machining, tier: 2, cost: [[metal fragments, 20], [nails, 10]], needs: [metal tools], unlocks: [gears]}
+
+  # Tier 3: refined metal.
+  - {name: refining, tier: 3, cost: [[metal fragments, 40], [charcoal, 20]], needs: [furnaces], unlocks: [high quality metal, metal spring]}
+  - {name: heavy armor, tier: 3, cost: [[high quality metal, 5], [leather, 10]], needs: [leatherworking, refining], unlocks: [metal chestplate, metal facemask, metal leg guards]}
+  - {name: swordsmithing, tier: 3, cost: [[high quality metal, 5], [metal blade, 2]], needs: [bladesmithing, refining], unlocks: [salvaged sword, sledgehammer]}
+  - {name: semi automatics, tier: 3, cost: [[high quality metal, 8], [metal spring, 2]], needs: [pistols, refining], unlocks: [semi automatic body, semi automatic pistol]}
+  - {name: rifles, tier: 3, cost: [[high quality metal, 8], [gears, 4]], needs: [refining, machining], unlocks: [rifle body, hunting rifle, rifle ammo]}
+
+  # Tier 4: what raiders fear.
+  - {name: assault weapons, tier: 4, cost: [[high quality metal, 20], [gears, 10]], needs: [semi automatics, rifles], unlocks: [semi automatic rifle]}
+  - {name: demolition, tier: 4, cost: [[gunpowder, 50], [high quality metal, 10]], needs: [black powder, refining], unlocks: [explosives]}
