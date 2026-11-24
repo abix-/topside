@@ -212,7 +212,11 @@ pub fn movement(
 ) {
     let config = MoveAndSlideConfig::default();
     let dt = time.delta_secs();
-    for (entity, this_tick, shape, personality, firing, rolling, mut transform, mut fall, vehicle) in &mut actors {
+    // Every body moves on its own core: each reads only the colliders as
+    // the last physics step left them (writing a Transform changes no
+    // collider until the next one), so no body's move depends on another
+    // moved first, and any order ends the same (authority.md rule 5).
+    actors.par_iter_mut().for_each(|(entity, this_tick, shape, personality, firing, rolling, mut transform, mut fall, vehicle)| {
         // Swift people walk faster, slow ones slower; a vehicle goes at
         // its own speed (todo 57); in water, at SWIM_SPEED of it.
         let swimming = chunks.ground_at(modforge::walk::cell_of(transform.translation.ground())) == Some(modforge::ground::Ground::Water);
@@ -238,7 +242,7 @@ pub fn movement(
         }
         // Standing still on something costs nothing.
         if velocity == Vec2::ZERO && fall.0 == 0.0 {
-            continue;
+            return;
         }
         let filter = SpatialQueryFilter::from_mask(!crate::terrain::WATER_LAYER).with_excluded_entities([entity]);
         let start = transform.translation;
@@ -283,7 +287,7 @@ pub fn movement(
                 fall.0 = f32::EPSILON;
             }
             transform.translation = centre;
-            continue;
+            return;
         }
         let airborne = fall.0 > 0.0;
         fall.0 += GRAVITY * dt;
@@ -301,7 +305,7 @@ pub fn movement(
             fall.0 = 0.0;
         }
         transform.translation = centre;
-    }
+    });
 }
 
 /// A dead person's Respawn this tick (the player's Enter, a bunker
