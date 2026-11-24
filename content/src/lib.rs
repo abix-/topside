@@ -788,7 +788,7 @@ pub const SUBSTATION: modforge::plan::PlanDef = modforge::plan::PlanDef {
 pub const SUBSTATION_SWITCH: &str = "substation switch";
 pub const TRANSFORMER: &str = "transformer";
 /// The things of places that are switches.
-pub const PLACE_SWITCHES: [&str; 5] = [SUBSTATION_SWITCH, SEWAGE_PUMP, POND_VALVE, RADIO_ITEM, TV];
+pub const PLACE_SWITCHES: [&str; 6] = [SUBSTATION_SWITCH, SEWAGE_PUMP, POND_VALVE, RADIO_ITEM, TV, PHONE];
 /// Place 11: the gas station, on main street: the shop with its shelves
 /// and counter, the garage bay with its bench, the office, the store and
 /// the restroom, with two pumps out front under the canopy.
@@ -1036,12 +1036,50 @@ pub const SCHOOL: modforge::plan::PlanDef = modforge::plan::PlanDef {
     furniture_color: [0.55, 0.45, 0.32],
     height: 3.2,
 };
-pub const PLACES: [modforge::plan::PlanDef; 18] = [GROCERY_STORE, CROP_FARM, CROP_FARM, LIVESTOCK_BARN, GRAIN_ELEVATOR, DINER, PIZZA_PLACE, CAFE, BAR, PUMP_HOUSE, SUBSTATION, GAS_STATION, SEWAGE_POND, TOWN_DUMP, CLINIC, FIRE_STATION, SHERIFFS_OFFICE, SCHOOL];
+/// Place 18: the post office and town hall, on main street: the post
+/// office's counter and its sorting room with the town's mail, the
+/// council room, the clerk's office with the town records, and the
+/// mayor's office.
+pub const TOWN_HALL: modforge::plan::PlanDef = modforge::plan::PlanDef {
+    name: "town hall",
+    edge: false,
+    columns: &[7.0, 6.0, 6.0],
+    rows: &[6.0, 6.0],
+    rooms: &[((0, 0), "post office"), ((1, 0), "town hall lobby"), ((2, 0), "clerk's office"), ((0, 1), "sorting room"), ((1, 1), "council room"), ((2, 1), "mayor's office")],
+    ways: &[((0, 0), East, true), ((1, 0), East, true), ((0, 0), North, true), ((1, 0), North, false), ((1, 1), East, true)],
+    exits: &[((0, 0), South, 1.2), ((1, 0), South, 1.8)],
+    furniture: &[
+        ("post office", [0.0, 0.0], [4.0, 1.1, 0.7]),
+        ("sorting room", [0.0, -0.3], [5.0, 0.9, 0.8]),
+        ("clerk's office", [0.0, -0.3], [1.4, 0.75, 0.7]),
+        ("council room", [0.0, 0.0], [4.0, 0.75, 1.5]),
+        ("mayor's office", [0.0, -0.2], [1.6, 0.75, 0.8]),
+    ],
+    things: &[
+        (CASH_REGISTER, "post office", [0.3, 0.3]),
+        (MAIL_SACK, "sorting room", [0.0, 0.2]),
+        (OFFICE_DESK, "clerk's office", [0.0, 0.2]),
+        (RECORDS_CABINET, "clerk's office", [0.4, -0.4]),
+        (OFFICE_DESK, "mayor's office", [0.0, 0.2]),
+        (PHONE, "mayor's office", [0.4, -0.3]),
+    ],
+    outside: &[],
+    walls: &[[0.82, 0.78, 0.7], [0.7, 0.55, 0.45]],
+    floor: [0.6, 0.5, 0.4],
+    furniture_color: [0.45, 0.33, 0.22],
+    height: 3.4,
+};
+pub const MAIL_SACK: &str = "mail sack";
+pub const RECORDS_CABINET: &str = "records cabinet";
+pub const PLACES: [modforge::plan::PlanDef; 19] = [GROCERY_STORE, CROP_FARM, CROP_FARM, LIVESTOCK_BARN, GRAIN_ELEVATOR, DINER, PIZZA_PLACE, CAFE, BAR, PUMP_HOUSE, SUBSTATION, GAS_STATION, SEWAGE_POND, TOWN_DUMP, CLINIC, FIRE_STATION, SHERIFFS_OFFICE, SCHOOL, TOWN_HALL];
 /// The places whose garden beds are found sown and ripe, with what.
 pub const PLACE_SOWN: [(&str, &str); 1] = [("crop farm", POTATO_SEED)];
 /// What each place's boxes are found holding: the place, the box, the
 /// item and how many.
-pub const PLACE_HOLDS: [(&str, &str, &str, u32); 75] = [
+pub const PLACE_HOLDS: [(&str, &str, &str, u32); 78] = [
+    ("town hall", CASH_REGISTER, "scrap", 1),
+    ("town hall", OFFICE_DESK, "cloth", 1),
+    ("town hall", RECORDS_CABINET, "cloth", 2),
     ("school", OFFICE_DESK, "cloth", 1),
     ("school", MEDICINE_CABINET, "bandage", 4),
     ("school", PANTRY, "canned food", 8),
@@ -2933,7 +2971,9 @@ pub fn register_items(reg: &mut ItemRegistry) {
         building(BUTCHER_BLOCK, "A butcher block.", ItemKind::Deployable, 1, Some(6)),
         building(FEED, "Animal feed.", ItemKind::Material, 20, None),
         building(BAKERY_CASE, "A bakery case.", ItemKind::Deployable, 1, Some(8)),
-        building(SHERIFFS_DESK, "The sheriff's desk.", ItemKind::Deployable, 1, Some(6)),
+        building(MAIL_SACK, "A sack of the town's mail.", ItemKind::Deployable, 1, Some(8)),
+        building(RECORDS_CABINET, "The town's records.", ItemKind::Deployable, 1, Some(6)),
+        building(SHERIFFS_DESK,"The sheriff's desk.", ItemKind::Deployable, 1, Some(6)),
         building(GUN_LOCKER, "A gun locker. Locked.", ItemKind::Deployable, 1, Some(8)),
         building(GEAR_LOCKER,"A firefighter's gear locker.", ItemKind::Deployable, 1, Some(8)),
         building(PHARMACY_SHELF,"The pharmacy's shelves.", ItemKind::Deployable, 1, Some(10)),

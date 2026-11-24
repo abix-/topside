@@ -314,6 +314,15 @@ pub fn populate_town_power(
                 let _ = held.add(modforge::item::create(can, can.max_stack, &[], 0.0, 0), can.max_stack);
             }
         }
+        // The post office's mail sack, found holding the town's letters
+        // (Works 16).
+        if let (true, Some(def)) = (thing == crate::content::MAIL_SACK, letter) {
+            for words in crate::content::LETTERS {
+                let mut stack = modforge::item::create(def, 1, &[], 0.0, 0);
+                stack.note = Some(modforge::item::Note { text: words.to_string(), signed: String::new() });
+                let _ = held.add(stack, 1);
+            }
+        }
         // A dump pile, found holding junk (Works 17).
         if thing == crate::content::DUMP_PILE {
             for &(junk, count) in &crate::content::DUMP_HOLDS {
