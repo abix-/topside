@@ -109,7 +109,17 @@ fn rot(
     shelters: Query<&Shelter>,
     mut lying: Query<(&Transform, &mut WorldItem, Option<&mut Container>)>,
     mut carried: Query<(&Transform, &mut Inventory), Without<WorldItem>>,
+    mut builds: ResMut<crate::building::Builds>,
 ) {
+    // Built pieces stand outside: each loses what one unpaid upkeep takes
+    // (modforge `building::DECAY_SHARE`), as if no cupboard paid for it;
+    // what is left too weak falls.
+    for slot in builds.0.decay(&|_, _| false) {
+        info!("the rot storm wore the piece at {slot:?} away");
+    }
+    for (slot, piece) in builds.0.collapse() {
+        info!("the {} at {slot:?} fell", piece.kind.name());
+    }
     let turn = |stack: &mut modforge::item::ItemStack| {
         if crate::content::KEEPS_DAYS.iter().any(|(item, _)| *item == stack.item) {
             stack.item = crate::content::ROTTEN_FOOD.to_string();
