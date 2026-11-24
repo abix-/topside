@@ -201,10 +201,30 @@ pub fn information(
             lines.push(format!("Hits x{:.2}", modforge::quality::power(tier, &crate::content::QUALITY)));
         }
     }
-    // Its affixes, each by name.
-    if !stack.affixes.is_empty() {
-        let names: Vec<&str> = stack.affixes.iter().map(|a| a.name.as_str()).collect();
-        lines.push(format!("Affixes {}", names.join(", ")));
+    // Its affixes, each by name; the base's own rolled numbers have none
+    // (modforge `gear`), nor do the runes in it.
+    let named: Vec<&str> = stack
+        .affixes
+        .iter()
+        .map(|a| a.name.as_str())
+        .filter(|n| !n.is_empty() && !stack.sockets.runes.iter().any(|r| r == n) && stack.sockets.word.as_deref() != Some(*n))
+        .collect();
+    if !named.is_empty() {
+        lines.push(format!("Affixes {}", named.join(", ")));
+    }
+    // Its sockets, the runes in them and the rune word they made.
+    if stack.sockets.count > 0 {
+        let free = stack.sockets.count as usize - stack.sockets.runes.len();
+        lines.push(format!("Sockets {} ({free} free)", stack.sockets.count));
+        if !stack.sockets.runes.is_empty() {
+            lines.push(format!("Runes {}", stack.sockets.runes.join(", ")));
+        }
+        if let Some(word) = &stack.sockets.word {
+            lines.push(format!("Rune word {word}"));
+        }
+    }
+    if numbers.combat.is_some() && !stack.affixes.is_empty() {
+        lines.push(format!("Affixes hit x{:.2}", modforge::affix::power(&stack.affixes)));
     }
     if let Some(armor) = numbers.armor {
         lines.push(format!("Protection {:.0}", armor.amount));
@@ -1125,9 +1145,15 @@ pub fn drag_start(slot: In<SlotRef>, mut holders: PlayerHolders) {
     holders.with(|hud, h| start_drag(hud, h, *slot));
 }
 
-/// A drag ends on `slot` (modforge's `end_drag`).
+/// A drag ends on `slot`: a rune onto gear with a free socket goes in
+/// (modforge's `socket_drop`), else the stack moves (modforge's
+/// `end_drag`).
 pub fn drag_drop(slot: In<SlotRef>, registry: Res<ItemRegistryRes>, mut holders: PlayerHolders) {
-    holders.with(|hud, h| end_drag(hud, h, *slot, &registry.0));
+    holders.with(|hud, h| {
+        if !modforge::hud::socket_drop(hud, h, *slot, &registry.0, &crate::content::GEAR) {
+            end_drag(hud, h, *slot, &registry.0);
+        }
+    });
 }
 
 /// Every person's panel, hotbar, and slot actions this tick, the

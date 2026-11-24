@@ -1333,26 +1333,16 @@ pub const KITCHEN_FOOD: [(&str, &str, u32); 4] = [(PANTRY, "canned food", 3), (F
 /// What spoiled food becomes.
 pub const ROTTEN_FOOD: &str = "rotten food";
 
-/// The affixes a found weapon rolls on top of its tier (design.md "Loot
-/// randomization": a lightweight pipe swings faster, a precise gun is more
-/// accurate, and affixes stack), as (name, reach, spread, delay, power).
-/// "Sturdy" and "rugged" wait for durability and condition. The numbers and
-/// the one in five are Claude's, for the operator to change.
-pub const AFFIX_ONE_IN: u64 = 5;
-pub fn affixes(gun: bool) -> Vec<modforge::affix::Affix> {
-    let melee: &[(&str, f32, f32, f32, f32)] = &[("lightweight", 0.0, 0.0, -0.1, 1.0), ("sharpened", 0.0, 0.0, 0.0, 1.15)];
-    let guns: &[(&str, f32, f32, f32, f32)] = &[("precise", 0.0, -3.0, 0.0, 1.0), ("lightweight", 0.0, 0.0, -0.1, 1.0)];
-    (if gun { guns } else { melee })
-        .iter()
-        .map(|&(name, reach, spread_degrees, delay, power)| modforge::affix::Affix {
-            name: name.to_string(),
-            reach,
-            spread_degrees,
-            delay,
-            power,
-        })
-        .collect()
-}
+/// Where the gear is: content/gear.yaml (modforge `gear`: bases, affixes
+/// rolled X to Y, runes and rune words; design.md "Loot randomization").
+pub const GEAR_FILE: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/gear.yaml");
+
+/// `GEAR_FILE`, read the first time it is asked for. A file that does not
+/// read stops the game at once, naming it.
+pub static GEAR: std::sync::LazyLock<modforge::gear::GearDefs> = std::sync::LazyLock::new(|| {
+    let text = std::fs::read_to_string(GEAR_FILE).unwrap_or_else(|e| panic!("{GEAR_FILE}: {e}"));
+    serde_yaml::from_str(&text).unwrap_or_else(|e| panic!("{GEAR_FILE}: {e}"))
+});
 
 /// The quality tiers a found item rolls (design.md "Loot randomization",
 /// authority.md "Quality": every item rolls a tier, rarer is better), best

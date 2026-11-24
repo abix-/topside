@@ -1,0 +1,87 @@
+# Gear, Diablo 2's way (modforge `gear`; todo "Tiered loot", operator
+# 2026-11-23: "each armor had stats... it could have an X to a Y value for
+# each thing, and then each particular item might have a modifier or more
+# on it"; "the rune word system, where you had some things that had
+# sockets, and then you could put in a series of rune words in order to
+# make a particular cool effect"). Read by content's `gear`.
+#
+# Every number written [least, most] is rolled between the two when the
+# piece is found. `reach` (metres), `spread` (degrees) and `delay`
+# (seconds) are added to the item's own; `power` is how much harder hits
+# land in hundredths (10 is a tenth harder); `armor` is added to what a
+# worn piece guards.
+#
+# Every base, affix, rune, rune word, name and number here is Claude's
+# (2026-11-23), a start for the operator to change. The names are our own.
+
+# How a found piece of gear comes, per mille: magic has one or two
+# affixes, rare three or four, the rest are plain and may have sockets.
+odds:
+  magic: 250
+  rare: 50
+
+# An item as gear: its tier (1 up), its grade in the tier (0 the plain
+# one, then the stronger ones above it), its own numbers and the sockets a
+# plain one is found with, fewest and most.
+bases:
+  - item: pipe
+    rolls: {power: [-5, 10], delay: [-0.05, 0.05]}
+    sockets: [0, 3]
+  - item: wooden handle
+    rolls: {power: [-5, 10], delay: [-0.05, 0.05]}
+    sockets: [0, 2]
+  - item: long pole
+    rolls: {power: [-5, 10], reach: [-0.2, 0.2]}
+    sockets: [0, 3]
+  - item: pipe shotgun
+    rolls: {power: [-5, 10], spread: [-2.0, 2.0]}
+    sockets: [0, 3]
+  - item: road sign vest
+    rolls: {armor: [-5.0, 10.0]}
+    sockets: [0, 3]
+  - item: helmet
+    rolls: {armor: [-5.0, 10.0]}
+    sockets: [0, 2]
+
+# What a magic or rare piece rolls: the gear it goes on, the least tier of
+# spot it is found at, how likely against the others (100 when left out).
+affixes:
+  - {name: lightweight, on: [melee, gun], rolls: {delay: [-0.15, -0.05]}}
+  - {name: sharpened, on: [melee], rolls: {power: [10, 20]}}
+  - {name: weighted, on: [melee], rolls: {power: [15, 30], delay: [0.05, 0.15]}}
+  - {name: long, on: [melee], rolls: {reach: [0.2, 0.5]}}
+  - {name: precise, on: [gun], rolls: {spread: [-4.0, -1.0]}}
+  - {name: bored out, on: [gun], rolls: {power: [10, 25], spread: [1.0, 3.0]}}
+  - {name: padded, on: [armor], rolls: {armor: [5.0, 15.0]}}
+  - {name: plated, on: [armor], tier: 2, weight: 60, rolls: {armor: [15.0, 30.0]}}
+  - {name: brutal, on: [melee, gun], tier: 2, weight: 50, rolls: {power: [25, 40]}}
+  - {name: quick, on: [melee, gun], tier: 3, weight: 30, rolls: {delay: [-0.3, -0.15]}}
+  - {name: fortified, on: [armor], tier: 3, weight: 30, rolls: {armor: [30.0, 50.0]}}
+
+# A rune: an item that goes in a socket, and what it adds there.
+runes:
+  - {item: bent rune, rolls: {power: [5, 5]}}
+  - {item: glass rune, rolls: {spread: [-1.0, -1.0], reach: [0.1, 0.1]}}
+  - {item: bone rune, rolls: {armor: [5.0, 5.0]}}
+  - {item: wire rune, rolls: {delay: [-0.05, -0.05]}}
+  - {item: ash rune, rolls: {power: [10, 10]}}
+
+# Runes put in a plain piece's sockets in this order, its sockets exactly
+# as many, make the rune word, its numbers on top of the runes'.
+rune words:
+  - name: Splinter
+    runes: [bent rune, wire rune]
+    on: [melee]
+    rolls: {power: [20, 35], delay: [-0.1, -0.05]}
+  - name: Long Sight
+    runes: [glass rune, glass rune, wire rune]
+    on: [gun]
+    rolls: {spread: [-6.0, -3.0], power: [10, 20]}
+  - name: Shell
+    runes: [bone rune, bone rune]
+    on: [armor]
+    rolls: {armor: [20.0, 35.0]}
+  - name: Cinder
+    runes: [ash rune, bent rune, ash rune]
+    on: [melee, gun]
+    rolls: {power: [40, 60]}

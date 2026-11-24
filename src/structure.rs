@@ -478,12 +478,11 @@ pub fn fill_box(
                 // (Claude's reading, for the operator to change).
                 stack.litres = def.holds_litres.unwrap_or(0.0);
                 stack.made_day = today;
-                // A found weapon rolls its affixes on top of its tier
-                // (design.md "Loot randomization").
-                if let Some(fight) = &def.combat {
-                    let table = crate::content::affixes(fight.ammo.is_some());
-                    stack.affixes = modforge::affix::roll(&table, crate::content::AFFIX_ONE_IN, 0.0, box_seed ^ (i as u64) << 8);
-                }
+                // Found gear rolls its numbers X to Y, then comes plain
+                // with sockets, magic or rare (modforge `gear`, todo
+                // "Tiered loot"). The spot's tier is its danger and one
+                // (Claude's reading, for the operator to change).
+                modforge::gear::found(&crate::content::GEAR, def, &mut stack, danger + 1, box_seed ^ (i as u64) << 8);
                 let _ = contents.add(stack, def.max_stack);
             }
             Err(e) => warn!("loot: {e}"),

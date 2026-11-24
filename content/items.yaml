@@ -190,6 +190,13 @@ items:
   # Thrown ahead to set an anomaly off (todo 10i2; design.md "Maze,
   # mined": the bolt).
   - {name: bolt, description: A steel bolt. Throw it ahead and watch where it lands., kind: Tool, max_stack: 20}
+  # Runes (content/gear.yaml): dragged onto a piece of gear with a free
+  # socket, one goes in. The names and descriptions are Claude's.
+  - {name: bent rune, description: "A bent iron mark. Drag it onto gear with a socket.", kind: Material, max_stack: 20}
+  - {name: glass rune, description: "A clear glass mark. Drag it onto gear with a socket.", kind: Material, max_stack: 20}
+  - {name: bone rune, description: "A carved bone mark. Drag it onto gear with a socket.", kind: Material, max_stack: 20}
+  - {name: wire rune, description: "A twist of copper wire. Drag it onto gear with a socket.", kind: Material, max_stack: 20}
+  - {name: ash rune, description: "A burnt black mark. Drag it onto gear with a socket.", kind: Material, max_stack: 20}
   - {name: scrap, description: "Bent metal and screws, for making things.", kind: Material, max_stack: 20}
   - {name: cloth, description: "A roll of old cloth, for making things.", kind: Material, max_stack: 20}
   # A handle (design.md "What 2D changes"): the handle decides reach and
