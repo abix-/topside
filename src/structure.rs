@@ -715,18 +715,21 @@ pub fn merge_pieces(
     mut commands: Commands,
     assets: Res<AssetServer>,
     mut meshes: ResMut<Assets<Mesh>>,
-    mut shaded: ResMut<crate::model::CelShaded>,
-    tinted: Res<crate::model::Tinted>,
-    standard: Res<Assets<StandardMaterial>>,
-    mut cels: ResMut<Assets<Cel>>,
     roots: Query<(Entity, &Unmerged, &Transform)>,
     pieces: Query<(&Transform, &bevy::world_serialization::prelude::WorldAssetRoot, Option<&Children>)>,
     parts: Query<(&Transform, Option<&Children>, Option<&Mesh3d>, Has<MeshMaterial3d<StandardMaterial>>, Option<&MeshMaterial3d<Cel>>)>,
+    // Kept from building to building: the pieces laid, their meshes (each
+    // with the transforms from it up to the piece, innermost first), the
+    // walk down each piece, and the merged meshes.
+    mut laid: Local<Vec<Entity>>,
+    mut found: Local<Vec<(Handle<Mesh>, Handle<Cel>, Vec<Transform>)>>,
+    mut stack: Local<Vec<(Entity, Vec<Transform>)>>,
+    mut merged: Local<Vec<(Handle<Cel>, Mesh)>>,
 ) {
+    let (laid, found, stack, merged) = (&mut *laid, &mut *found, &mut *stack, &mut *merged);
     'roots: for (root, unmerged, root_at) in &roots {
-        // Each piece's meshes, each with the transforms from it up to the
-        // piece, innermost first.
-        let mut laid: Vec<(Entity, Vec<(Handle<Mesh>, Handle<Cel>, Vec<Transform>)>)> = Vec::new();
+        laid.clear();
+        found.clear();
         for &piece in &unmerged.0 {
             let Ok((piece_at, scene, children)) = pieces.get(piece) else {
                 continue;
@@ -737,8 +740,9 @@ pub fn merge_pieces(
             let Some(children) = children else {
                 continue 'roots;
             };
-            let mut found = Vec::new();
-            let mut stack: Vec<(Entity, Vec<Transform>)> = children.iter().map(|c| (c, vec![*piece_at])).collect();
+            let before = found.len();
+            stack.clear();
+            stack.extend(children.iter().map(|c| (c, vec![*piece_at])));
             while let Some((entity, mut chain)) = stack.pop() {
                 let Ok((at, children, mesh, standard, cel)) = parts.get(entity) else {
                     continue;
@@ -755,61 +759,37 @@ pub fn merge_pieces(
                     stack.push((*child, chain.clone()));
                 }
             }
-            if found.is_empty() {
+            if found.len() == before {
                 continue 'roots;
             }
-            laid.push((piece, found));
+            laid.push(piece);
         }
         // Every piece's meshes, moved into the root's frame, laid into one
         // mesh per material (a mesh with other attributes starts another).
-        // A tinted piece's tint goes into its mesh's colours and it is drawn
-        // with the material it was tinted from, which the standard material
-        // multiplies the same way (`model::tint`): every building shares
-        // the few untinted materials, where each tint was a material of its
-        // own, each drawn as its own batch (Perf 3: 415 materials seen).
+        // A tinted piece's tint is already in its mesh's colours
+        // (`model::tint`), so every building shares the few materials; a
+        // mesh with no colours gets white ones, to merge with the tinted.
         let into_root = Transform::from_translation(-root_at.translation);
-        let mut merged: Vec<(Handle<Cel>, Mesh)> = Vec::new();
-        for (_, found) in &laid {
-            for (mesh, own, chain) in found {
-                let Some(mut mesh) = meshes.get(mesh).cloned() else {
-                    continue;
-                };
-                for step in chain.iter().chain(std::iter::once(&into_root)) {
-                    mesh.transform_by(*step);
-                }
-                let untinted = shaded
-                    .standard_of(own.id())
-                    .and_then(|standard| tinted.untinted(standard.id()))
-                    .cloned()
-                    .and_then(|(base, tint)| Some((shaded.twin(&base, &standard, &mut cels)?, tint)));
-                let (base, tint) = untinted.unwrap_or((own.clone(), LinearRgba::WHITE));
-                let count = mesh.count_vertices();
-                let cel = match mesh.attribute_mut(Mesh::ATTRIBUTE_COLOR) {
-                    Some(bevy::mesh::VertexAttributeValues::Float32x4(colours)) => {
-                        for c in colours.iter_mut() {
-                            *c = [c[0] * tint.red, c[1] * tint.green, c[2] * tint.blue, c[3]];
-                        }
-                        base
-                    }
-                    None => {
-                        mesh.insert_attribute(Mesh::ATTRIBUTE_COLOR, vec![[tint.red, tint.green, tint.blue, 1.0]; count]);
-                        base
-                    }
-                    // Colours in another form: drawn with its tinted
-                    // material, as it was.
-                    Some(_) => own.clone(),
-                };
-                let cel = &cel;
-                let laid_in = merged.iter_mut().rev().find(|(c, _)| c == cel).is_some_and(|(_, into)| into.merge(&mesh).is_ok());
-                if !laid_in {
-                    merged.push((cel.clone(), mesh));
-                }
+        merged.clear();
+        for (mesh, cel, chain) in found.iter() {
+            let Some(mut mesh) = meshes.get(mesh).cloned() else {
+                continue;
+            };
+            for step in chain.iter().chain(std::iter::once(&into_root)) {
+                mesh.transform_by(*step);
+            }
+            if !mesh.contains_attribute(Mesh::ATTRIBUTE_COLOR) {
+                crate::model::tint_colours(&mut mesh, LinearRgba::WHITE);
+            }
+            let laid_in = merged.iter_mut().rev().find(|(c, _)| c == cel).is_some_and(|(_, into)| into.merge(&mesh).is_ok());
+            if !laid_in {
+                merged.push((cel.clone(), mesh));
             }
         }
-        for (cel, mesh) in merged {
+        for (cel, mesh) in merged.drain(..) {
             commands.spawn((Mesh3d(meshes.add(mesh)), MeshMaterial3d(cel), Transform::default(), ChildOf(root)));
         }
-        for (piece, _) in laid {
+        for &piece in laid.iter() {
             commands
                 .entity(piece)
                 .remove::<bevy::world_serialization::prelude::WorldAssetRoot>()

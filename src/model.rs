@@ -45,11 +45,9 @@ impl MaterialExtension for CelShade {
 pub type Cel = ExtendedMaterial<StandardMaterial, CelShade>;
 
 /// The cel shaded twin of every standard material met so far.
-/// And each twin's standard material.
 #[derive(Resource, Default)]
 pub struct CelShaded {
     twins: HashMap<AssetId<StandardMaterial>, Handle<Cel>>,
-    of: HashMap<AssetId<Cel>, Handle<StandardMaterial>>,
     /// The twin of each different material, by everything it is.
     alike: HashMap<String, Handle<Cel>>,
 }
@@ -79,14 +77,8 @@ impl CelShaded {
             extension: CelShade { sun: SUN.normalize().extend(0.0), outlined },
         });
         self.twins.insert(material.id(), handle.clone());
-        self.of.insert(handle.id(), material.clone());
         self.alike.insert(same, handle.clone());
         Some(handle)
-    }
-
-    /// The standard material a cel shaded one is the twin of.
-    pub fn standard_of(&self, cel: AssetId<Cel>) -> Option<&Handle<StandardMaterial>> {
-        self.of.get(&cel)
     }
 }
 
@@ -170,50 +162,59 @@ pub fn attach(mut commands: Commands, assets: Res<AssetServer>, added: Query<(En
     }
 }
 
-/// Every tinted material made so far, by the material it was made from and
-/// the tint, so every wall of one colour shares one material.
-/// And each tinted material's own: the material it was made from and the
-/// tint, for a building drawn as one mesh to carry its tints in the mesh
-/// (`structure::merge_pieces`).
+/// Every tinted mesh made so far, by the mesh it was made from and the
+/// tint, so every wall of one colour shares one mesh. A tint is carried in
+/// the mesh's vertex colours, which the standard material multiplies its
+/// colour by, never in a material of its own: each material is a batch of
+/// its own to draw (Bevy issue 26182: on DX12 no standard material shares
+/// a bind group), and a material per colour made 415 of them (Perf 3).
 #[derive(Resource, Default)]
-pub struct Tinted {
-    made: HashMap<(AssetId<StandardMaterial>, [u8; 4]), Handle<StandardMaterial>>,
-    of: HashMap<AssetId<StandardMaterial>, (Handle<StandardMaterial>, LinearRgba)>,
-}
+pub struct Tinted(HashMap<(AssetId<Mesh>, [u8; 4]), Handle<Mesh>>);
 
 impl Tinted {
-    /// The material a tinted one was made from, and its tint.
-    pub fn untinted(&self, tinted: AssetId<StandardMaterial>) -> Option<&(Handle<StandardMaterial>, LinearRgba)> {
-        self.of.get(&tinted)
+    /// The mesh with the tint in its colours, made the first time it is
+    /// asked for; None while the mesh is not loaded.
+    pub fn mesh(&mut self, mesh: &Handle<Mesh>, tint: Color, meshes: &mut Assets<Mesh>) -> Option<Handle<Mesh>> {
+        let key = (mesh.id(), tint.to_srgba().to_u8_array());
+        if let Some(handle) = self.0.get(&key) {
+            return Some(handle.clone());
+        }
+        let mut made = meshes.get(mesh)?.clone();
+        tint_colours(&mut made, tint.to_linear());
+        let handle = meshes.add(made);
+        self.0.insert(key, handle.clone());
+        Some(handle)
     }
 }
 
+/// A mesh's vertex colours times a tint; a mesh with none gets the tint as
+/// its colour (Bevy's colour attribute is always four floats).
+pub fn tint_colours(mesh: &mut Mesh, tint: LinearRgba) {
+    if let Some(bevy::mesh::VertexAttributeValues::Float32x4(colours)) = mesh.attribute_mut(Mesh::ATTRIBUTE_COLOR) {
+        for c in colours.iter_mut() {
+            *c = [c[0] * tint.red, c[1] * tint.green, c[2] * tint.blue, c[3]];
+        }
+        return;
+    }
+    let count = mesh.count_vertices();
+    mesh.insert_attribute(Mesh::ATTRIBUTE_COLOR, vec![[tint.red, tint.green, tint.blue, 1.0]; count]);
+}
+
 /// The tick a mesh of a loaded model appears under something with a
-/// `Tint`, its material becomes that material times the tint.
+/// `Tint`, it is drawn as its mesh with the tint in its colours.
 pub fn tint(
     mut tinted: ResMut<Tinted>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
+    mut meshes: ResMut<Assets<Mesh>>,
     parents: Query<&ChildOf>,
     tints: Query<&Tint>,
-    mut loaded: Query<(Entity, &mut MeshMaterial3d<StandardMaterial>), Added<MeshMaterial3d<StandardMaterial>>>,
+    mut loaded: Query<(Entity, &mut Mesh3d), Added<MeshMaterial3d<StandardMaterial>>>,
 ) {
-    for (entity, mut material) in &mut loaded {
+    for (entity, mut mesh) in &mut loaded {
         let Some(tint) = parents.iter_ancestors(entity).find_map(|a| tints.get(a).ok()) else {
             continue;
         };
-        let key = (material.0.id(), tint.0.to_srgba().to_u8_array());
-        if let Some(handle) = tinted.made.get(&key) {
-            material.0 = handle.clone();
-            continue;
+        if let Some(handle) = tinted.mesh(&mesh.0, tint.0, &mut meshes) {
+            mesh.0 = handle;
         }
-        let Some(mut made) = materials.get(&material.0).cloned() else {
-            continue;
-        };
-        let (a, b) = (made.base_color.to_linear(), tint.0.to_linear());
-        made.base_color = LinearRgba::new(a.red * b.red, a.green * b.green, a.blue * b.blue, a.alpha).into();
-        let handle = materials.add(made);
-        tinted.made.insert(key, handle.clone());
-        tinted.of.insert(handle.id(), (material.0.clone(), b));
-        material.0 = handle;
     }
 }

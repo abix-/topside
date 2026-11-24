@@ -115,18 +115,15 @@ fn mesh_layer(mesh: Entity, parents: &Query<&ChildOf>, names: &Query<&Name>) -> 
 /// model is one of these (the rig's bones have none).
 pub fn dress(
     items: Res<ItemRegistryRes>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
-    mut made: Local<HashMap<(AssetId<StandardMaterial>, [u8; 4]), Handle<StandardMaterial>>>,
+    mut tinted: ResMut<crate::model::Tinted>,
+    mut meshes: ResMut<Assets<Mesh>>,
     parents: Query<&ChildOf>,
     names: Query<&Name>,
     mut people: Query<(&Look, Option<&Equipment>, &mut Drawn)>,
     helds: Query<(), With<crate::held::Held>>,
-    mut loaded: Query<
-        (Entity, &mut MeshMaterial3d<StandardMaterial>, &mut Visibility),
-        Added<MeshMaterial3d<StandardMaterial>>,
-    >,
+    mut loaded: Query<(Entity, &mut Mesh3d, &mut Visibility), Added<MeshMaterial3d<StandardMaterial>>>,
 ) {
-    for (mesh, mut material, mut visibility) in &mut loaded {
+    for (mesh, mut drawn_as, mut visibility) in &mut loaded {
         // What they hold hangs off their hand but is not their body.
         if parents.iter_ancestors(mesh).any(|a| helds.contains(a)) {
             continue;
@@ -150,20 +147,11 @@ pub fn dress(
         let Some([r, g, b]) = tint else {
             continue;
         };
-        let colour = Color::srgb(r, g, b);
-        let key = (material.0.id(), colour.to_srgba().to_u8_array());
-        if let Some(handle) = made.get(&key) {
-            material.0 = handle.clone();
-            continue;
+        // The tint in the mesh's colours, as `model::tint`: one material
+        // for every skin and hair colour.
+        if let Some(handle) = tinted.mesh(&drawn_as.0, Color::srgb(r, g, b), &mut meshes) {
+            drawn_as.0 = handle;
         }
-        let Some(mut tinted) = materials.get(&material.0).cloned() else {
-            continue;
-        };
-        let (a, t) = (tinted.base_color.to_linear(), colour.to_linear());
-        tinted.base_color = LinearRgba::new(a.red * t.red, a.green * t.green, a.blue * t.blue, a.alpha).into();
-        let handle = materials.add(tinted);
-        made.insert(key, handle.clone());
-        material.0 = handle;
     }
 }
 
