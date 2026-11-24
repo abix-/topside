@@ -592,12 +592,51 @@ pub const GRAIN_ELEVATOR: modforge::plan::PlanDef = modforge::plan::PlanDef {
 };
 pub const GRAIN_HOPPER: &str = "grain hopper";
 pub const GRAIN: &str = "grain";
-pub const PLACES: [modforge::plan::PlanDef; 5] = [GROCERY_STORE, CROP_FARM, CROP_FARM, LIVESTOCK_BARN, GRAIN_ELEVATOR];
+/// Place 5: the diner, on main street: the dining room with its booths,
+/// the counter, the kitchen with its stove, the walk-in cooler, the
+/// office and the restroom.
+pub const DINER: modforge::plan::PlanDef = modforge::plan::PlanDef {
+    name: "diner",
+    edge: false,
+    columns: &[10.0, 5.0, 4.0],
+    rows: &[8.0, 6.0],
+    rooms: &[((0, 0), "dining room"), ((1, 0), "counter"), ((2, 0), "restroom"), ((0, 1), "kitchen"), ((1, 1), "cooler"), ((2, 1), "office")],
+    ways: &[((0, 0), East, false), ((1, 0), East, true), ((0, 0), North, true), ((0, 1), East, true), ((1, 1), East, true)],
+    exits: &[((0, 0), South, 1.8), ((0, 1), West, 1.2)],
+    furniture: &[
+        ("dining room", [-0.35, -0.2], [1.2, 0.75, 2.0]),
+        ("dining room", [0.0, -0.2], [1.2, 0.75, 2.0]),
+        ("dining room", [0.35, -0.2], [1.2, 0.75, 2.0]),
+        ("counter", [0.0, -0.1], [3.5, 1.1, 0.7]),
+        ("kitchen", [-0.4, 0.0], [0.7, 0.9, 4.0]),
+        ("kitchen", [0.3, -0.4], [3.0, 0.9, 0.7]),
+        ("office", [0.0, -0.3], [1.4, 0.75, 0.7]),
+        ("restroom", [0.3, -0.3], [0.4, 0.8, 0.65]),
+    ],
+    things: &[
+        (CASH_REGISTER, "counter", [0.3, 0.3]),
+        (PANTRY, "kitchen", [0.3, 0.2]),
+        (STOVE, "kitchen", [-0.1, -0.3]),
+        (WALK_IN_COOLER, "cooler", [0.0, 0.0]),
+        (OFFICE_DESK, "office", [0.0, 0.1]),
+    ],
+    outside: &[],
+    walls: &[[0.85, 0.82, 0.78], [0.7, 0.2, 0.2]],
+    floor: [0.85, 0.85, 0.85],
+    furniture_color: [0.65, 0.2, 0.2],
+    height: 3.2,
+};
+pub const PLACES: [modforge::plan::PlanDef; 6] = [GROCERY_STORE, CROP_FARM, CROP_FARM, LIVESTOCK_BARN, GRAIN_ELEVATOR, DINER];
 /// The places whose garden beds are found sown and ripe, with what.
 pub const PLACE_SOWN: [(&str, &str); 1] = [("crop farm", POTATO_SEED)];
 /// What each place's boxes are found holding: the place, the box, the
 /// item and how many.
-pub const PLACE_HOLDS: [(&str, &str, &str, u32); 24] = [
+pub const PLACE_HOLDS: [(&str, &str, &str, u32); 29] = [
+    ("diner", CASH_REGISTER, "scrap", 2),
+    ("diner", PANTRY, "canned food", 4),
+    ("diner", PANTRY, EGG, 6),
+    ("diner", WALK_IN_COOLER, RAW_MEAT, 6),
+    ("diner", OFFICE_DESK, "cloth", 1),
     ("grain elevator", SHELF, FEED, 8),
     ("grain elevator", CASH_REGISTER, "scrap", 2),
     ("grain elevator", PALLET, FEED, 16),
@@ -624,7 +663,7 @@ pub const PLACE_HOLDS: [(&str, &str, &str, u32); 24] = [
     ("grocery store", PALLET, CARROT_SEED, 4),
 ];
 /// The things of places that are crafting stations, not boxes.
-pub const PLACE_STATIONS: [(&str, modforge::crafting::StationKind); 0] = [];
+pub const PLACE_STATIONS: [(&str, modforge::crafting::StationKind); 1] = [(STOVE, modforge::crafting::StationKind::Stove)];
 pub const TRASH_CAN: &str = "trash can";
 pub const DUMP_PILE: &str = "dump pile";
 pub const DUMP_PILES: usize = 4;
