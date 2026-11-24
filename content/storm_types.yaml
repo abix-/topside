@@ -4,7 +4,9 @@
 # rages (`storm`), each [red, green, blue, how much it covers] from 0 to
 # 1, and any of `kills` (whoever is in the open dies; true when left
 # out), `rolls` (what it rolls anew when it passes: Reality, World;
-# nothing when left out), `from_storm` (the least storm it can be, 0 the
+# nothing when left out), `does` (what else it does: Shuffle, Rot,
+# Bounty, Arrival, Changing, Hunting, Static, Forgetting, Deep; nothing
+# when left out), `from_storm` (the least storm it can be, 0 the
 # first; 0 when left out), `weight` (how likely against the others, 100
 # when left out) and `learned_by` (the content/tech.yaml topic that
 # teaches what it does; until it is researched the player is told only
@@ -27,3 +29,29 @@ types:
   # Wipes the surface: the bunkers are moved to a new world made around
   # them, and the next episode starts.
   - {name: wiping storm, warning: [0.45, 0.1, 0.6, 0.3], storm: [0.85, 0.75, 0.95, 0.85], rolls: [Reality, World], from_storm: 1, learned_by: wiping storm study}
+
+  # Claude's ten more, taken by the operator (2026-11-24: "I like your
+  # suggestions on the storm. Go with your suggestions."). Each does one
+  # thing the others do not (`does`, modforge `storm::Effect`); the early
+  # ones come from the second storm, the worst far later. Names, colours,
+  # storms and odds are Claude's.
+  # Loot rains down (Rust's airdrops).
+  - {name: bounty storm, warning: [0.75, 0.65, 0.1, 0.3], storm: [0.95, 0.9, 0.6, 0.7], kills: false, does: [Bounty], from_storm: 1, learned_by: bounty storm study}
+  # The places swap lots (Control's moving rooms).
+  - {name: shuffle storm, warning: [0.1, 0.5, 0.55, 0.3], storm: [0.7, 0.95, 0.95, 0.8], kills: false, does: [Shuffle], from_storm: 2, learned_by: shuffle storm study}
+  # Everything outside ages (Project Zomboid's decay in one night).
+  - {name: rot storm, warning: [0.4, 0.35, 0.1, 0.3], storm: [0.65, 0.6, 0.35, 0.8], kills: false, does: [Rot], from_storm: 2, learned_by: rot storm study}
+  # New people dropped on the surface (RimWorld's drop pods).
+  - {name: arrival storm, warning: [0.85, 0.85, 0.85, 0.3], storm: [1.0, 1.0, 1.0, 0.9], does: [Arrival], from_storm: 2, learned_by: arrival storm study}
+  # Only the rules change (another reality, the world standing).
+  - {name: reality storm, warning: [0.15, 0.55, 0.2, 0.3], storm: [0.75, 0.95, 0.75, 0.85], kills: false, rolls: [Reality], from_storm: 2, learned_by: reality storm study}
+  # Electronics die until fixed (Fallout's EMP).
+  - {name: static storm, warning: [0.2, 0.4, 0.9, 0.3], storm: [0.6, 0.75, 1.0, 0.85], kills: false, does: [Static], from_storm: 3, learned_by: static storm study}
+  # Those outside lose their map and memory.
+  - {name: forgetting storm, warning: [0.5, 0.5, 0.55, 0.3], storm: [0.8, 0.8, 0.85, 0.9], kills: false, does: [Forgetting], from_storm: 3, learned_by: forgetting storm study}
+  # Those outside come back changed (STALKER's zombified stalkers).
+  - {name: changing storm, warning: [0.55, 0.0, 0.3, 0.3], storm: [0.85, 0.5, 0.7, 0.85], kills: false, does: [Changing], from_storm: 3, weight: 60, learned_by: changing storm study}
+  # A hunter on the surface till morning (7 Days to Die's blood moon).
+  - {name: hunting storm, warning: [0.6, 0.0, 0.0, 0.35], storm: [0.5, 0.05, 0.05, 0.6], does: [Hunting], from_storm: 4, weight: 50, learned_by: hunting storm study}
+  # It reaches the top level of every bunker (Subnautica: nowhere is safe).
+  - {name: deep storm, warning: [0.05, 0.05, 0.05, 0.4], storm: [0.02, 0.02, 0.02, 0.9], does: [Deep], from_storm: 6, weight: 20, learned_by: deep storm study}

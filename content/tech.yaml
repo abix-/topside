@@ -57,6 +57,16 @@ topics:
   - {name: killing storm study, cost: [[scrap, 10], [note, 1]]}
   - {name: normal storm study, cost: [[scrap, 10], [note, 1]], needs: [killing storm study]}
   - {name: wiping storm study, cost: [[scrap, 20], [note, 2]], needs: [killing storm study]}
+  - {name: bounty storm study, cost: [[scrap, 15], [note, 1]], needs: [killing storm study]}
+  - {name: shuffle storm study, cost: [[scrap, 20], [note, 2]], needs: [killing storm study]}
+  - {name: rot storm study, cost: [[scrap, 20], [note, 2]], needs: [killing storm study]}
+  - {name: arrival storm study, cost: [[scrap, 20], [note, 2]], needs: [killing storm study]}
+  - {name: reality storm study, cost: [[scrap, 25], [note, 3]], needs: [wiping storm study]}
+  - {name: static storm study, tier: 2, cost: [[scrap, 30], [note, 3]], needs: [killing storm study]}
+  - {name: forgetting storm study, tier: 2, cost: [[scrap, 30], [note, 3]], needs: [killing storm study]}
+  - {name: changing storm study, tier: 2, cost: [[scrap, 30], [note, 3]], needs: [arrival storm study]}
+  - {name: hunting storm study, tier: 3, cost: [[scrap, 40], [note, 4]], needs: [changing storm study]}
+  - {name: deep storm study, tier: 4, cost: [[scrap, 60], [note, 6]], needs: [hunting storm study]}
 
   # Tier 4: what raiders fear.
   - {name: assault weapons, tier: 4, cost: [[high quality metal, 20], [gears, 10]], needs: [semi automatics, rifles], unlocks: [semi automatic rifle]}
