@@ -298,7 +298,12 @@ pub fn populate_town_power(
             }
             continue;
         }
-        let Some(made) = make(&mut commands, thing, at, Some(InteractKind::Container)) else {
+        // A box under lock (the sheriff's armory), opened with its key.
+        let kind = match crate::content::PLACE_LOCKS.iter().find(|(t, _)| *t == thing) {
+            Some(&(_, lock)) => InteractKind::Locked { lock, door: false },
+            None => InteractKind::Container,
+        };
+        let Some(made) = make(&mut commands, thing, at, Some(kind)) else {
             continue;
         };
         let mut held = modforge::item::Inventory::new(items.0.def(thing).and_then(|d| d.storage).unwrap_or(0));

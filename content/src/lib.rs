@@ -933,12 +933,55 @@ pub const FIRE_STATION: modforge::plan::PlanDef = modforge::plan::PlanDef {
     height: 4.2,
 };
 pub const GEAR_LOCKER: &str = "gear locker";
-pub const PLACES: [modforge::plan::PlanDef; 16] = [GROCERY_STORE, CROP_FARM, CROP_FARM, LIVESTOCK_BARN, GRAIN_ELEVATOR, DINER, PIZZA_PLACE, CAFE, BAR, PUMP_HOUSE, SUBSTATION, GAS_STATION, SEWAGE_POND, TOWN_DUMP, CLINIC, FIRE_STATION];
+/// Place 16: the sheriff's office, on main street: the front office
+/// with its counter, the sheriff's own office, the two cells, the
+/// evidence room and the armory, its gun locker under the sheriff's key.
+pub const SHERIFFS_OFFICE: modforge::plan::PlanDef = modforge::plan::PlanDef {
+    name: "sheriff's office",
+    edge: false,
+    columns: &[7.0, 5.0, 4.0],
+    rows: &[6.0, 5.0],
+    rooms: &[((0, 0), "front office"), ((1, 0), "sheriff's office"), ((2, 0), "armory"), ((0, 1), "evidence room"), ((1, 1), "cell"), ((2, 1), "second cell")],
+    ways: &[((0, 0), East, true), ((1, 0), East, true), ((0, 0), North, true), ((0, 1), East, true), ((1, 1), East, true)],
+    exits: &[((0, 0), South, 1.2), ((0, 1), West, 1.2)],
+    furniture: &[
+        ("front office", [0.0, 0.2], [4.0, 1.1, 0.7]),
+        ("sheriff's office", [0.0, -0.2], [1.6, 0.75, 0.8]),
+        ("armory", [0.0, -0.4], [3.0, 1.9, 0.5]),
+        ("evidence room", [0.0, -0.4], [5.0, 1.8, 0.5]),
+        ("cell", [-0.3, 0.0], [0.8, 0.5, 2.0]),
+        ("second cell", [-0.3, 0.0], [0.8, 0.5, 2.0]),
+    ],
+    things: &[
+        (OFFICE_DESK, "front office", [0.3, 0.0]),
+        (SHERIFFS_DESK, "sheriff's office", [0.0, 0.2]),
+        (GUN_LOCKER, "armory", [0.0, 0.1]),
+        (SHELF, "evidence room", [0.0, 0.1]),
+    ],
+    outside: &[],
+    walls: &[[0.75, 0.7, 0.6], [0.6, 0.62, 0.65]],
+    floor: [0.5, 0.48, 0.45],
+    furniture_color: [0.4, 0.38, 0.35],
+    height: 3.0,
+};
+pub const SHERIFFS_DESK: &str = "sheriff's desk";
+pub const GUN_LOCKER: &str = "gun locker";
+/// The armory's lock: past every house's (2 a house, 50 houses).
+pub const ARMORY_LOCK: u32 = KEYS;
+pub const ARMORY_KEY: &str = "key 128";
+/// The boxes of places under lock, each with its lock.
+pub const PLACE_LOCKS: [(&str, u32); 1] = [(GUN_LOCKER, ARMORY_LOCK)];
+pub const PLACES: [modforge::plan::PlanDef; 17] = [GROCERY_STORE, CROP_FARM, CROP_FARM, LIVESTOCK_BARN, GRAIN_ELEVATOR, DINER, PIZZA_PLACE, CAFE, BAR, PUMP_HOUSE, SUBSTATION, GAS_STATION, SEWAGE_POND, TOWN_DUMP, CLINIC, FIRE_STATION, SHERIFFS_OFFICE];
 /// The places whose garden beds are found sown and ripe, with what.
 pub const PLACE_SOWN: [(&str, &str); 1] = [("crop farm", POTATO_SEED)];
 /// What each place's boxes are found holding: the place, the box, the
 /// item and how many.
-pub const PLACE_HOLDS: [(&str, &str, &str, u32); 64] = [
+pub const PLACE_HOLDS: [(&str, &str, &str, u32); 69] = [
+    ("sheriff's office", OFFICE_DESK, "cloth", 1),
+    ("sheriff's office", SHERIFFS_DESK, ARMORY_KEY, 1),
+    ("sheriff's office", GUN_LOCKER, "shotgun shell", 16),
+    ("sheriff's office", GUN_LOCKER, FLASHLIGHT, 1),
+    ("sheriff's office", SHELF, "scrap", 3),
     ("fire station", GEAR_LOCKER, "road sign vest", 2),
     ("fire station", GEAR_LOCKER, FLASHLIGHT, 2),
     ("fire station", PANTRY, "canned food", 4),
@@ -2819,7 +2862,9 @@ pub fn register_items(reg: &mut ItemRegistry) {
         building(BUTCHER_BLOCK, "A butcher block.", ItemKind::Deployable, 1, Some(6)),
         building(FEED, "Animal feed.", ItemKind::Material, 20, None),
         building(BAKERY_CASE, "A bakery case.", ItemKind::Deployable, 1, Some(8)),
-        building(GEAR_LOCKER, "A firefighter's gear locker.", ItemKind::Deployable, 1, Some(8)),
+        building(SHERIFFS_DESK, "The sheriff's desk.", ItemKind::Deployable, 1, Some(6)),
+        building(GUN_LOCKER, "A gun locker. Locked.", ItemKind::Deployable, 1, Some(8)),
+        building(GEAR_LOCKER,"A firefighter's gear locker.", ItemKind::Deployable, 1, Some(8)),
         building(PHARMACY_SHELF,"The pharmacy's shelves.", ItemKind::Deployable, 1, Some(10)),
         building(SUBSTATION_SWITCH, "A substation switch.", ItemKind::Deployable, 1, None),
         building(SEWAGE_PUMP, "The sewage lift pump.", ItemKind::Deployable, 1, None),
