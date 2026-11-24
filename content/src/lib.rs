@@ -789,12 +789,50 @@ pub const SUBSTATION_SWITCH: &str = "substation switch";
 pub const TRANSFORMER: &str = "transformer";
 /// The things of places that are switches.
 pub const PLACE_SWITCHES: [&str; 1] = [SUBSTATION_SWITCH];
-pub const PLACES: [modforge::plan::PlanDef; 11] = [GROCERY_STORE, CROP_FARM, CROP_FARM, LIVESTOCK_BARN, GRAIN_ELEVATOR, DINER, PIZZA_PLACE, CAFE, BAR, PUMP_HOUSE, SUBSTATION];
+/// Place 11: the gas station, on main street: the shop with its shelves
+/// and counter, the garage bay with its bench, the office, the store and
+/// the restroom, with two pumps out front under the canopy.
+pub const GAS_STATION: modforge::plan::PlanDef = modforge::plan::PlanDef {
+    name: "gas station",
+    edge: false,
+    columns: &[8.0, 7.0, 3.0],
+    rows: &[6.0, 4.0],
+    rooms: &[((0, 0), "gas station shop"), ((1, 0), "garage bay"), ((2, 0), "restroom"), ((0, 1), "gas station office"), ((1, 1), "parts store")],
+    ways: &[((0, 0), East, true), ((0, 0), North, true), ((1, 0), North, true), ((1, 0), East, true)],
+    exits: &[((0, 0), South, 1.2), ((1, 0), South, 3.5)],
+    furniture: &[
+        ("gas station shop", [0.0, 0.0], [0.8, 1.5, 3.5]),
+        ("gas station shop", [-0.35, 0.3], [1.8, 1.0, 0.7]),
+        ("garage bay", [0.0, -0.4], [4.0, 0.9, 0.8]),
+        ("gas station office", [0.0, -0.3], [1.4, 0.75, 0.7]),
+        ("parts store", [0.0, -0.4], [5.0, 1.8, 0.5]),
+        ("restroom", [0.2, -0.3], [0.4, 0.8, 0.65]),
+    ],
+    things: &[
+        (SHELF, "gas station shop", [0.25, 0.0]),
+        (CASH_REGISTER, "gas station shop", [-0.35, 0.1]),
+        (OFFICE_DESK, "gas station office", [0.0, 0.1]),
+        (TOOLBOX, "parts store", [0.3, 0.2]),
+        (PALLET, "parts store", [-0.3, 0.2]),
+    ],
+    // The pumps out front, between the shop and the street.
+    outside: &[(GAS_PUMP, [-3.0, 9.0]), (GAS_PUMP, [3.0, 9.0])],
+    walls: &[[0.85, 0.85, 0.85], [0.8, 0.75, 0.55]],
+    floor: [0.6, 0.6, 0.6],
+    furniture_color: [0.5, 0.5, 0.52],
+    height: 3.2,
+};
+pub const PLACES: [modforge::plan::PlanDef; 12] = [GROCERY_STORE, CROP_FARM, CROP_FARM, LIVESTOCK_BARN, GRAIN_ELEVATOR, DINER, PIZZA_PLACE, CAFE, BAR, PUMP_HOUSE, SUBSTATION, GAS_STATION];
 /// The places whose garden beds are found sown and ripe, with what.
 pub const PLACE_SOWN: [(&str, &str); 1] = [("crop farm", POTATO_SEED)];
 /// What each place's boxes are found holding: the place, the box, the
 /// item and how many.
-pub const PLACE_HOLDS: [(&str, &str, &str, u32); 46] = [
+pub const PLACE_HOLDS: [(&str, &str, &str, u32); 51] = [
+    ("gas station", SHELF, "canned food", 3),
+    ("gas station", SHELF, "water bottle", 3),
+    ("gas station", CASH_REGISTER, "scrap", 2),
+    ("gas station", TOOLBOX, WRENCH, 1),
+    ("gas station", PALLET, PROPANE_TANK, 2),
     ("substation", OFFICE_DESK, "cloth", 1),
     ("substation", TOOLBOX, WRENCH, 1),
     ("substation", TRANSFORMER, "scrap", 6),

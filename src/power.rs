@@ -211,22 +211,6 @@ pub fn populate_town_power(
         Some(made)
     };
     make(&mut commands, crate::content::SUBSTATION, town.substation(), None);
-    // The gas pumps, two on the first main street lot until Place 11
-    // builds the gas station, each a store of fuel cans (Works 12).
-    if let (Some(lot), Some(can)) = (town.lots.iter().find(|l| l.part == modforge::town::Part::MainStreet && !l.house), items.0.def(crate::content::FUEL)) {
-        for side in [-2.0, 2.0] {
-            let at = lot.at + lot.front * (lot.size.y / 2.0 - 2.0) + lot.front.perp() * side;
-            let Some(pump) = make(&mut commands, crate::content::GAS_PUMP, at, Some(InteractKind::Container)) else {
-                continue;
-            };
-            let mut held = modforge::item::Inventory::new(items.0.def(crate::content::GAS_PUMP).and_then(|d| d.storage).unwrap_or(0));
-            // Full: a stack of cans in each slot.
-            for _ in 0..held.slots.len() {
-                let _ = held.add(modforge::item::create(can, can.max_stack, &[], 0.0, 0), can.max_stack);
-            }
-            commands.entity(pump).insert(Container(held));
-        }
-    }
     // The streets' lights, one each 30 m (Claude's).
     for at in town.streetlights(30.0) {
         make(&mut commands, crate::content::STREETLIGHT, at, None);
@@ -312,6 +296,13 @@ pub fn populate_town_power(
             continue;
         };
         let mut held = modforge::item::Inventory::new(items.0.def(thing).and_then(|d| d.storage).unwrap_or(0));
+        // A gas pump, a store of fuel cans, is found full: a stack of
+        // cans in each slot (Works 12).
+        if let (true, Some(can)) = (thing == crate::content::GAS_PUMP, items.0.def(crate::content::FUEL)) {
+            for _ in 0..held.slots.len() {
+                let _ = held.add(modforge::item::create(can, can.max_stack, &[], 0.0, 0), can.max_stack);
+            }
+        }
         for &(_, _, item, count) in crate::content::PLACE_HOLDS.iter().filter(|(p, t, ..)| *p == place && *t == thing) {
             if let Some(def) = items.0.def(item) {
                 let _ = held.add(modforge::item::create(def, count, &[], 0.0, 0), def.max_stack);
