@@ -1,0 +1,28 @@
+# Every recipe (modforge `crafting::RecipeDef`). Read by content's
+# `RecipeRegistryRes`. A recipe has its `name`, `inputs` (each an item
+# and how many it takes), `output` (the item and how many it makes) and
+# `station` (CraftingBench, ChemistryTable, ElectronicsWorkbench,
+# ArmoryBench, ResearchStation, Stove), and any of `layers` (the layers
+# the output is made with) and `craft_time` (seconds, none when left
+# out).
+
+recipes:
+  # The bench's recipes (todo 10, Craft 1; design.md "Technology and
+  # crafting"): cloth into a bandage, scrap into a pipe, and the
+  # improvised weapons, a spiked bat (a handle with nails) and a
+  # sharpened road sign on a pipe. What each takes is Claude's, for the
+  # operator to change.
+  - {name: bandage, inputs: [[cloth, 2]], output: [bandage, 1], station: CraftingBench}
+  - {name: pipe, inputs: [[scrap, 3]], output: [pipe, 1], station: CraftingBench}
+  - {name: spiked bat, inputs: [[wooden handle, 1], [scrap, 2]], output: [wooden handle, 1], layers: [nails], station: CraftingBench}
+  - {name: sharpened road sign, inputs: [[pipe, 1], [scrap, 3]], output: [pipe, 1], layers: [sharpened road sign], station: CraftingBench}
+  # A category asked for and a kind asked for (topside Decisions
+  # 2026-11-23): rope from any fiber, a bandage from cotton only.
+  # Claude's.
+  - {name: rope, inputs: [[fiber, 3]], output: [rope, 1], station: CraftingBench}
+  - {name: cotton bandage, inputs: [[cotton, 2]], output: [bandage, 1], station: CraftingBench}
+  - {name: sleeping bag, inputs: [[cloth, 4]], output: [sleeping bag, 1], station: CraftingBench}
+  # Food is cooked on a stove (topside-town "Everything works").
+  - {name: cooked meat, inputs: [[raw meat, 1]], output: [cooked meat, 1], station: Stove}
+  # Bread baked from grain in the bakery's oven (Place 7). Claude's.
+  - {name: bread, inputs: [[grain, 2]], output: [bread, 1], station: Stove}

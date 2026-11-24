@@ -80,43 +80,18 @@ pub const STARTING_NOTE_AT: [f32; 2] = [-1.4, 3.6];
 /// when it is not the note: by the note, west of the stairs.
 pub const QUESTION_AT: [f32; 2] = [0.4, 3.6];
 
-/// Every recipe, as data (modforge crafting).
+/// Every recipe, as data (modforge crafting), from `RECIPES_FILE`.
 #[derive(Resource)]
 pub struct RecipeRegistryRes(pub RecipeRegistry);
+
+/// Where the recipes are: content/recipes.yaml, its `recipes` a list of
+/// modforge `crafting::RecipeDef`, each naming only what it has.
+pub const RECIPES_FILE: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/recipes.yaml");
 
 impl Default for RecipeRegistryRes {
     fn default() -> Self {
         let mut reg = RecipeRegistry::default();
-        // The bench's recipes (todo 10, Craft 1; design.md "Technology and
-        // crafting"): cloth into a bandage, scrap into a pipe, and the
-        // improvised weapons, a spiked bat (a handle with nails) and a
-        // sharpened road sign on a pipe. What each takes is Claude's, for
-        // the operator to change.
-        let made = |name: &str, inputs: &[(&str, u32)], output: (&str, u32), layers: &[&str]| RecipeDef {
-            name: name.to_string(),
-            inputs: inputs.iter().map(|(i, n)| (i.to_string(), *n)).collect(),
-            output: (output.0.to_string(), output.1),
-            layers: layers.iter().map(|l| l.to_string()).collect(),
-            station: StationKind::CraftingBench,
-            craft_time: 0.0,
-        };
-        let bench = |name: &str, inputs: &[(&str, u32)], output: (&str, u32)| made(name, inputs, output, &[]);
-        for def in [
-            bench("bandage", &[("cloth", 2)], ("bandage", 1)),
-            bench("pipe", &[("scrap", 3)], ("pipe", 1)),
-            made("spiked bat", &[("wooden handle", 1), ("scrap", 2)], ("wooden handle", 1), &["nails"]),
-            made("sharpened road sign", &[("pipe", 1), ("scrap", 3)], ("pipe", 1), &["sharpened road sign"]),
-            // A category asked for and a kind asked for (topside Decisions
-            // 2026-11-23): rope from any fiber, a bandage from cotton only.
-            // Claude's.
-            bench("rope", &[("fiber", 3)], ("rope", 1)),
-            bench("cotton bandage", &[("cotton", 2)], ("bandage", 1)),
-            bench("sleeping bag", &[("cloth", 4)], (SLEEPING_BAG, 1)),
-            // Food is cooked on a stove (topside-town "Everything works").
-            RecipeDef { station: StationKind::Stove, ..bench("cooked meat", &[(RAW_MEAT, 1)], (COOKED_MEAT, 1)) },
-            // Bread baked from grain in the bakery's oven (Place 7). Claude's.
-            RecipeDef { station: StationKind::Stove, ..bench("bread", &[(GRAIN, 2)], (BREAD, 1)) },
-        ] {
+        for def in read_list::<RecipeDef>(RECIPES_FILE, "recipes") {
             reg.register(def).expect("recipe registered once");
         }
         Self(reg)
