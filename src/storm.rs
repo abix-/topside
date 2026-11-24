@@ -43,6 +43,10 @@ pub struct StormRes {
     /// "Storm effect 2"); the town is laid with them.
     #[serde(default)]
     pub shuffles: u32,
+    /// How many storms have wiped the surface (todo Town 6): what stands
+    /// on every lot is rolled anew with them, the bunkers staying.
+    #[serde(default)]
+    pub wipes: u32,
 }
 
 /// On someone the storm killed in the open: they die forever, a bed or
@@ -194,6 +198,7 @@ pub fn shift_world(
     if !rolls(modforge::storm::Reroll::World) {
         return;
     }
+    state.wipes += 1;
     for entity in &pieces {
         commands.entity(entity).despawn();
     }

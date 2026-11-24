@@ -249,7 +249,7 @@ pub fn roll(
 ) {
     // The seed in the log, so any world can be rolled again.
     info!("rolling the {:?} world from seed {}, the town from {} with {} bunkers, shuffled {}", *kind, seed.0, run.0, count.0, storms.shuffles);
-    let world = roll_world2d(*kind, seed.0, (run.0, count.0, storms.shuffles), &biomes.0, &monuments.monuments)
+    let world = roll_world2d(*kind, seed.0, (run.0, count.0, storms.shuffles, storms.wipes), &biomes.0, &monuments.monuments)
         .expect("the ground def names registered biomes");
     // The world's bunkers, the player's first.
     let bunkers = world.bunkers.iter().skip(1).map(|c| c.at).collect();

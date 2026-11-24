@@ -1526,15 +1526,16 @@ pub const DOOR_GAP: (Vec2, f32, f32) = (Vec2::new(-300.0, 300.0), 100.0, 10.0);
 /// the sites (rolled in the big world, placed by hand in the small one),
 /// and every bunker on its cleared ground, the player's first. The small
 /// world's town is laid from `town`, its seed, how many of its houses
-/// stand over a bunker, and how many shuffle storms have moved its places
-/// about (todo "Storm effect 2"): the town's seed is the game's own, so a storm,
+/// stand over a bunker, how many shuffle storms have moved its places
+/// about (todo "Storm effect 2") and how many wiping storms have rolled
+/// anew what stands on its lots (todo Town 6): the town's seed is the game's own, so a storm,
 /// rolling the ground again, leaves the town and its bunkers where they
 /// are (topside-town "The bunkers"). The one way a world is made, for the
 /// game and for the tests.
 pub fn roll_world2d(
     kind: WorldKind,
     seed: u64,
-    town: (u64, u32, u32),
+    town: (u64, u32, u32, u32),
     biomes: &BiomeRegistry,
     monuments: &MonumentRegistry,
 ) -> Result<World2d, String> {
@@ -1543,7 +1544,7 @@ pub fn roll_world2d(
         WorldKind::Big => ground_def(),
     };
     let ground = GroundGen::new(def, seed, biomes)?;
-    let town = (kind == WorldKind::Small).then(|| Town::around(&small_town_def(), BUNKER_AT, town.0, town.1).shuffled(town.2));
+    let town = (kind == WorldKind::Small).then(|| Town::around(&small_town_def(), BUNKER_AT, town.0, town.1).shuffled(town.2).rerolled(town.3));
     let at: Vec<Vec2> = match &town {
         Some(t) => t.bunkers(),
         None => std::iter::once(BUNKER_AT).chain(kind.other_bunkers()).collect(),
