@@ -332,8 +332,16 @@ fn nav_mesh_borders_to_dodgy_obstacles<CS: CoordinateSystem>(
     let off_mesh_links = nav_data.node_to_off_mesh_link_ids.get(&node);
     let modified_node = nav_data.modified_nodes.get(&node);
 
-    let mut remaining_edges: HashSet<usize> =
-      HashSet::from_iter(0..polygon.vertices.len());
+    // topside's change: the border edges are those with no connectivity
+    // (one entry per edge, nav_mesh.rs), read off the polygon instead of a
+    // set built and emptied for every polygon of every agent; in edge order,
+    // not a hash set's.
+    let remaining_edges = polygon
+      .connectivity
+      .iter()
+      .enumerate()
+      .filter(|(_, conn)| conn.is_none())
+      .map(|(edge_index, _)| edge_index);
     for (vertex_1, vertex_2, node_ref) in polygon
       .connectivity
       .iter()
@@ -342,8 +350,6 @@ fn nav_mesh_borders_to_dodgy_obstacles<CS: CoordinateSystem>(
         conn.as_ref().map(|conn| (edge_index, conn))
       })
       .map(|(edge_index, connectivity)| {
-        remaining_edges.remove(&edge_index);
-
         let (vertex_1, vertex_2) = polygon.get_edge_indices(edge_index);
         (
           // dodgy represents the inside of an obstacle as counter-clockwise,
