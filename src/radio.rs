@@ -3,19 +3,13 @@
 //! heard by the player when near it, louder the nearer. The click is a
 //! short tone Bevy makes itself (`Pitch`), no sound file.
 
-use std::time::Duration;
-
-use bevy::audio::{Pitch, PlaybackSettings, Volume};
 use bevy::prelude::*;
 
 use crate::content::RADIO_ITEM;
 
-/// How far the clicks are heard, metres; how high and how long one click
-/// is; and how far apart the two clicks are, in ticks (Claude's numbers,
-/// for the operator to change).
+/// How far the clicks are heard, metres, and how far apart the two clicks
+/// are, in ticks (Claude's numbers, for the operator to change).
 const HEARD_WITHIN: f32 = 20.0;
-const CLICK_HZ: f32 = 1800.0;
-const CLICK_MS: u64 = 25;
 const BETWEEN_TICKS: u64 = 18;
 
 /// The ticks in half a game hour, on the day's clock.
@@ -26,17 +20,12 @@ fn half_hour(day: crate::survival::Day) -> u64 {
 /// Every fixed step: on the half hour and a moment after it, the radio
 /// clicks, wherever it lies or whoever carries it, if the player is near.
 pub fn clicks(
-    mut commands: Commands,
     tick: Res<crate::SimTick>,
     day: Res<crate::survival::Day>,
-    pitches: Option<ResMut<Assets<Pitch>>>,
     player: Query<&Transform, With<crate::player::Player>>,
     lying: Query<(&crate::interact::WorldItem, &Transform)>,
     carried: Query<(&crate::actor::Inventory, &crate::actor::Hotbar, &Transform)>,
 ) {
-    let Some(mut pitches) = pitches else {
-        return;
-    };
     let at = tick.0 % half_hour(*day);
     if at != 0 && at != BETWEEN_TICKS {
         return;
@@ -58,11 +47,8 @@ pub fn clicks(
     if nearest > HEARD_WITHIN {
         return;
     }
-    let loud = 1.0 - nearest / HEARD_WITHIN;
-    commands.spawn((
-        AudioPlayer(pitches.add(Pitch::new(CLICK_HZ, Duration::from_millis(CLICK_MS)))),
-        PlaybackSettings::DESPAWN.with_volume(Volume::Linear(loud)),
-    ));
+    // No sound: the beep was taken out (operator, 2026-11-24: "Stop the
+    // beeping").
     if at == 0 {
         info!("radio: two clicks, heard {nearest:.1} m away");
     }
