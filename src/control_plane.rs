@@ -84,6 +84,74 @@ pub fn answer_act_results(tick: Res<crate::SimTick>, registry: Res<crate::conten
 /// The `needs` and `forget` ops' requests, on the game's next step: a
 /// person's hunger and thirst set; every thing a person knows, and all they
 /// learned, forgotten (so a test sets up what someone needs and knows).
+/// The perf op's short report, from the full copy: what is needed to see
+/// where the time goes, nothing more (operator, 2026-11-24: "One simple
+/// op to profile").
+fn perf_report(all: &Json) -> Json {
+    let round = |v: f64| (v * 100.0).round() / 100.0;
+    let span = |list: &Json, name: &str| list.as_array().and_then(|l| l.iter().find(|s| s["span"] == name)).and_then(|s| s["ms"].as_f64()).map_or(0.0, round);
+    // A system's own work, not a schedule or a wrapper that runs others.
+    let own = |name: &str| {
+        !(name.starts_with("schedule ")
+            || name.starts_with("sub app")
+            || name.starts_with("check_conditions")
+            || matches!(
+                name,
+                "update" | "main app" | "multithreaded executor" | "main_render_schedule" | "camera_schedule"
+                    | "system bevy_time::fixed::run_fixed_main_schedule" | "system bevy_render::run_render_schedule"
+                    | "system bevy_render::renderer::render_system" | "system bevy_core_pipeline::schedule::camera_driver"
+                    | "system avian3d::schedule::run_physics_schedule" | "system bevy_framepace::framerate_limiter"
+                    | "system topside::navmesh::run_landmass"
+            ))
+    };
+    let top = |list: &Json, n: usize| -> Vec<Json> {
+        list.as_array()
+            .map(|l| l.iter().filter(|s| s["span"].as_str().is_some_and(own)).take(n).map(|s| json!([round(s["ms"].as_f64().unwrap_or(0.0)), s["span"]])).collect())
+            .unwrap_or_default()
+    };
+    let frame = &all["frame"];
+    let worst = &all["frame_worst"];
+    let parts: Vec<Json> = all["parts"]
+        .as_array()
+        .map(|l| l.iter().take(12).map(|p| json!([p["part"], round(p["ms"].as_f64().unwrap_or(0.0)), round(p["worst_ms"].as_f64().unwrap_or(0.0))])).collect())
+        .unwrap_or_default();
+    let slow: Vec<Json> = all["over_budget_steps"]
+        .as_array()
+        .map(|l| {
+            l.iter()
+                .take(10)
+                .map(|s| {
+                    let spans: Vec<&Json> = s["spans"].as_array().map(|sp| sp.iter().filter(|x| x[0].as_str().is_some_and(own)).take(8).collect()).unwrap_or_default();
+                    json!({"tick": s["tick"], "ms": round(s["ms"].as_f64().unwrap_or(0.0)), "parts": s["parts"], "spans": spans})
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+    json!({
+        "fps": round(f64::from(f32::from_bits(FPS_BITS.load(Ordering::Relaxed)))),
+        "frame_ms": {
+            "whole": span(frame, "update"),
+            "simulation": span(frame, "schedule FixedMain"),
+            "main_thread": span(frame, "main app"),
+            "waiting": span(frame, "system bevy_framepace::framerate_limiter"),
+            "render_thread": span(frame, "sub app RenderApp"),
+        },
+        "costliest_this_frame": top(frame, 15),
+        "worst_frame": {"whole": span(worst, "update"), "costliest": top(worst, 15)},
+        "step": {
+            "mean_ms": all["step_ms"].as_f64().map(round),
+            "worst_ms": all["step_worst_ms"].as_f64().map(round),
+            "worst_tick": all["step_worst_tick"],
+            "budget_ms": all["budget_ms"].as_f64().map(round),
+            "over_budget": all["over_budget"],
+            "steps_a_frame": all["steps_per_frame"].as_f64().map(round),
+            "people": all["people"],
+            "costliest_parts_mean_worst": parts,
+        },
+        "slow_steps": slow,
+    })
+}
+
 pub fn answer_needs(mut people: Query<(&Actor, &mut Persona)>) {
     let needs: Vec<(u64, Option<f32>, Option<f32>)> = NEEDS_ASK.lock().map(|mut ask| ask.drain(..).collect()).unwrap_or_default();
     let forget: Vec<u64> = FORGET_ASK.lock().map(|mut ask| ask.drain(..).collect()).unwrap_or_default();
@@ -1923,9 +1991,15 @@ pub fn start(port: u16) {
     ));
     OP_REGISTRY.register(OpDef::new(
         "perf",
-        "the whole fixed step's ms against its budget, every part's ms costliest first (pieces inside a system named 'system: piece'), counts per step, and `frame`: every span Bevy ran (each system, each schedule, the drawing's work) in ms per frame, the costliest first",
-        "",
-        |_| Ok(PERF_ASKED.answer(&PERF)),
+        "where the time goes, one short report: fps; the frame split into the simulation, the main thread's drawing work, the time left waiting, and the render thread; the costliest systems this frame; the worst frame since the world was made ready and its costliest systems; the step's mean and worst against its budget and its costliest parts; each step over the budget with its parts and spans. `full` true gives every number instead (every span, every part, every count)",
+        "{\"full\": true}",
+        |args| {
+            let all = PERF_ASKED.answer(&PERF);
+            if args.get("full").and_then(Json::as_bool).unwrap_or(false) {
+                return Ok(all);
+            }
+            Ok(perf_report(&all))
+        },
     ));
     OP_REGISTRY.register(OpDef::new(
         "people",
