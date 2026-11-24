@@ -1,0 +1,687 @@
+# The house and every thing in it (todo Model 1), built by scripts/models.py.
+#
+# Each at its real size in metres, its long side along x, its front to -y.
+# The furniture pieces are made to the sizes modforge house.rs gives them
+# (`furniture_of`); the things standing in the house (content/src/lib.rs's
+# buildings) to a house's. A thing on a wall, a counter or the ceiling is
+# lifted to where it hangs over its ground point. Sizes and lifts are
+# Claude's. The ceiling is content house_def's height, 2.6 m.
+
+colours:
+  wood: [0.45, 0.32, 0.2]
+  dark wood: [0.3, 0.2, 0.12]
+  white: [0.88, 0.88, 0.86]
+  steel: [0.6, 0.62, 0.65]
+  black: [0.1, 0.1, 0.11]
+  fabric: [0.35, 0.4, 0.5]
+  cushion: [0.42, 0.47, 0.57]
+  glass: [0.2, 0.25, 0.3]
+  brick: [0.55, 0.28, 0.2]
+  brass: [0.75, 0.62, 0.3]
+  light globe: [0.98, 0.95, 0.8]
+  detector light: [0.8, 0.1, 0.1]
+  breaker door: [0.5, 0.52, 0.55]
+  lamp shade: [0.92, 0.86, 0.7]
+  wax: [0.95, 0.93, 0.85]
+  flame: [1.0, 0.7, 0.2]
+  pegboard: [0.6, 0.5, 0.35]
+  toolbox red: [0.7, 0.12, 0.1]
+  safe: [0.2, 0.22, 0.25]
+  safe door: [0.25, 0.27, 0.3]
+  mailbox flag: [0.8, 0.1, 0.1]
+  trash can: [0.2, 0.35, 0.2]
+  phone: [0.82, 0.78, 0.68]
+  garden wood: [0.5, 0.38, 0.25]
+  soil: [0.25, 0.17, 0.1]
+
+models:
+  legs:
+    about: four legs under a top x by y, h tall.
+    template: true
+    params: {x: 1.0, y: 1.0, h: 0.7, r: 0.025, colour: wood}
+    parts:
+      - for: {sx: [1, -1], sy: [1, -1]}
+        parts:
+          - cylinder: [r, h]
+            at: [sx * (x / 2 - r * 2), sy * (y / 2 - r * 2), h / 2]
+            colour: colour
+
+  cabinet:
+    about: a box of its size with its doors (or drawers) marked on its front.
+    template: true
+    params: {x: 1.0, y: 0.5, z: 1.0, colour: wood, doors: 2, drawers: 0, knob: brass}
+    let:
+      rows: drawers or 1
+      cols: 1 if drawers else doors
+      w: x / cols
+      h: z / rows
+    parts:
+      - box: [x, y, z]
+        at: [0, 0, z / 2]
+        colour: colour
+      - for: {r: range(rows), d: range(cols)}
+        let:
+          cx: -x / 2 + w * (d + 0.5)
+          cz: h * (r + 0.5)
+        parts:
+          - box: [w - 0.03, 0.01, h - 0.03]
+            at: [cx, -y / 2 - 0.005, cz]
+            colour: dark wood
+          - box: [0.03, 0.02, 0.03]
+            at: ["cx if drawers else cx + (w / 2 - 0.06) * (1 if d % 2 == 0 else -1)", -y / 2 - 0.015, cz]
+            colour: knob
+
+  couch:
+    about: a couch, its seat cushions between its arms.
+    params: {length: 2.0, depth: 0.9, height: 0.8}
+    let:
+      arm: 0.15
+      seats: max(1, round((length - 2 * arm) / 0.6))
+      w: (length - 2 * arm) / seats
+    parts:
+      - box: [length, depth, 0.3]
+        at: [0, 0, 0.25]
+        colour: fabric
+      - model: legs
+        params: {x: length, y: depth, h: 0.1, r: 0.03, colour: dark wood}
+      - for: {i: range(seats)}
+        parts:
+          - box: [w - 0.02, depth - 0.25, 0.12]
+            at: [-length / 2 + arm + w * (i + 0.5), -0.1, 0.46]
+            colour: cushion
+      - box: [length, 0.2, height - 0.1]
+        at: [0, depth / 2 - 0.1, (height - 0.1) / 2 + 0.1]
+        colour: fabric
+      - for: {s: [1, -1]}
+        parts:
+          - box: [arm, depth, 0.55]
+            at: [s * (length / 2 - arm / 2), 0, 0.375]
+            colour: fabric
+
+  armchair:
+    parent: couch
+    params: {length: 0.8, depth: 0.8, height: 0.8}
+
+  bed:
+    about: a bed for two, its frame, headboard, mattress, pillows and blanket.
+    parts:
+      - box: [2.0, 1.5, 0.25]
+        at: [0, 0, 0.2]
+        colour: wood
+      - model: legs
+        params: {x: 2.0, y: 1.5, h: 0.1, r: 0.04}
+      - box: [0.06, 1.5, 0.6]
+        at: [-0.97, 0, 0.3]
+        colour: dark wood
+      - box: [1.9, 1.4, 0.2]
+        at: [0.02, 0, 0.42]
+        colour: white
+      - box: [1.3, 1.44, 0.04]
+        at: [0.3, 0, 0.53]
+        colour: cushion
+      - for: {s: [1, -1]}
+        parts:
+          - box: [0.35, 0.55, 0.1]
+            at: [-0.7, s * 0.33, 0.56]
+            colour: white
+
+  tv stand:
+    parent: cabinet
+    params: {x: 1.4, y: 0.45, z: 0.6, doors: 2}
+
+  kitchen counter:
+    about: base cabinets under a counter top, 2.2 m along the wall.
+    parts:
+      - box: [2.2, 0.56, 0.86]
+        at: [0, 0.02, 0.43]
+        colour: wood
+      - for: {d: range(4)}
+        parts:
+          - box: [0.52, 0.01, 0.7]
+            at: [-0.825 + 0.55 * d, -0.265, 0.45]
+            colour: dark wood
+      - box: [2.2, 0.6, 0.04]
+        at: [0, 0, 0.88]
+        colour: steel
+
+  stove:
+    about: an electric range, white body, black top with four burners, an oven door with its window, knobs.
+    parts:
+      - box: [0.75, 0.6, 0.86]
+        at: [0, 0, 0.43]
+        colour: white
+      - box: [0.75, 0.6, 0.04]
+        at: [0, 0, 0.88]
+        colour: black
+      - for: {y: [-0.12, 0.12], x: [-0.18, 0.18]}
+        parts:
+          - cylinder: [0.09, 0.01]
+            sides: 12
+            at: [x, y, 0.905]
+            colour: steel
+      - box: [0.5, 0.01, 0.3]
+        at: [0, -0.305, 0.45]
+        colour: glass
+      - box: [0.55, 0.03, 0.03]
+        at: [0, -0.32, 0.7]
+        colour: steel
+      - box: [0.75, 0.06, 0.15]
+        at: [0, 0.27, 0.975]
+        colour: white
+      - for: {i: range(4)}
+        parts:
+          - cylinder: [0.02, 0.02]
+            along: Y
+            at: [-0.27 + 0.18 * i, 0.235, 0.975]
+            colour: black
+
+  fridge:
+    about: a fridge, freezer door over the fridge door, each with its handle.
+    parts:
+      - box: [0.8, 0.7, 1.8]
+        at: [0, 0, 0.9]
+        colour: white
+      - box: [0.8, 0.01, 0.02]
+        at: [0, -0.352, 1.3]
+        colour: steel
+      - box: [0.03, 0.04, 0.3]
+        at: [0.33, -0.37, 1.5]
+        colour: steel
+      - box: [0.03, 0.04, 0.5]
+        at: [0.33, -0.37, 0.95]
+        colour: steel
+
+  freezer:
+    about: a chest freezer, its lid and handle.
+    parts:
+      - box: [1.0, 0.65, 0.8]
+        at: [0, 0, 0.4]
+        colour: white
+      - box: [1.02, 0.67, 0.05]
+        at: [0, 0, 0.825]
+        colour: white
+      - box: [0.3, 0.03, 0.03]
+        at: [0, -0.35, 0.78]
+        colour: steel
+
+  pantry:
+    parent: cabinet
+    params: {x: 0.8, y: 0.5, z: 2.0, doors: 2}
+
+  kitchen cabinet:
+    about: base cabinets with a counter, and wall cabinets over them.
+    parts:
+      - box: [1.2, 0.56, 0.86]
+        at: [0, 0.02, 0.43]
+        colour: wood
+      - box: [1.2, 0.6, 0.04]
+        at: [0, 0, 0.88]
+        colour: steel
+      - box: [1.2, 0.35, 0.7]
+        at: [0, 0.125, 1.8]
+        colour: wood
+      - for: {d: range(2)}
+        parts:
+          - box: [0.56, 0.01, 0.7]
+            at: [-0.3 + 0.6 * d, -0.265, 0.45]
+            colour: dark wood
+          - box: [0.56, 0.01, 0.64]
+            at: [-0.3 + 0.6 * d, -0.055, 1.8]
+            colour: dark wood
+
+  dining table:
+    parts:
+      - box: [1.6, 0.9, 0.05]
+        at: [0, 0, 0.725]
+        colour: wood
+      - model: legs
+        params: {x: 1.6, y: 0.9, h: 0.7, r: 0.035}
+
+  chair:
+    parts:
+      - box: [0.45, 0.45, 0.05]
+        at: [0, 0, 0.45]
+        colour: wood
+      - model: legs
+        params: {x: 0.45, y: 0.45, h: 0.43, r: 0.02}
+      - box: [0.45, 0.04, 0.45]
+        at: [0, 0.2, 0.7]
+        colour: wood
+
+  dresser:
+    parent: cabinet
+    params: {x: 1.2, y: 0.5, z: 1.0, drawers: 3}
+
+  nightstand:
+    parent: cabinet
+    params: {x: 0.45, y: 0.45, z: 0.5, drawers: 1}
+
+  closet:
+    parent: cabinet
+    params: {x: 1.0, y: 0.6, z: 2.0, doors: 2}
+
+  bathtub:
+    about: a tub, its white shell, the hollow inside it, a tap at its end.
+    parts:
+      - box: [1.6, 0.75, 0.1]
+        at: [0, 0, 0.05]
+        colour: white
+      - for: {s: [1, -1]}
+        parts:
+          - box: [1.6, 0.08, 0.6]
+            at: [0, s * 0.335, 0.3]
+            colour: white
+          - box: [0.08, 0.75, 0.6]
+            at: [s * 0.76, 0, 0.3]
+            colour: white
+      - cylinder: [0.02, 0.15]
+        along: X
+        at: [-0.66, 0, 0.55]
+        colour: steel
+
+  toilet bowl:
+    about: the toilet's bowl on its foot and its tank behind; its seat is the toilet.
+    parts:
+      - box: [0.3, 0.25, 0.3]
+        at: [0.05, 0, 0.15]
+        colour: white
+      - cylinder: [0.2, 0.12]
+        sides: 12
+        at: [0.05, 0, 0.36]
+        colour: white
+      - box: [0.2, 0.4, 0.4]
+        at: [-0.22, 0, 0.6]
+        colour: white
+      - box: [0.02, 0.06, 0.02]
+        at: [-0.11, -0.14, 0.72]
+        colour: steel
+
+  toilet:
+    about: the toilet's seat and its lid, as they sit on the bowl.
+    lift: 0.42
+    parts:
+      - cylinder: [0.21, 0.03]
+        sides: 14
+        at: [0, 0, 0.015]
+        colour: white
+      - box: [0.06, 0.25, 0.03]
+        at: [-0.2, 0, 0.015]
+        colour: white
+
+  vanity:
+    parts:
+      - box: [0.6, 0.45, 0.86]
+        at: [0, 0, 0.43]
+        colour: wood
+      - box: [0.54, 0.01, 0.7]
+        at: [0, -0.23, 0.45]
+        colour: dark wood
+      - box: [0.6, 0.45, 0.04]
+        at: [0, 0, 0.88]
+        colour: white
+
+  sink:
+    about: a basin set in a counter top, with its faucet.
+    lift: 0.9
+    parts:
+      - box: [0.45, 0.35, 0.02]
+        at: [0, 0, 0.01]
+        colour: steel
+      - cylinder: [0.015, 0.25]
+        at: [0, 0.15, 0.12]
+        colour: steel
+      - cylinder: [0.015, 0.12]
+        along: Y
+        at: [0, 0.1, 0.24]
+        colour: steel
+
+  shower:
+    about: a shower over the tub, its riser up the wall, the head, the valve.
+    lift: 0.6
+    parts:
+      - cylinder: [0.015, 1.3]
+        at: [0, 0, 0.65]
+        colour: steel
+      - cylinder: [0.015, 0.2]
+        along: Y
+        at: [0, -0.1, 1.3]
+        colour: steel
+      - cylinder: [0.07, 0.03]
+        sides: 12
+        at: [0, -0.2, 1.28]
+        colour: steel
+      - cylinder: [0.04, 0.03]
+        sides: 10
+        along: Y
+        at: [0, -0.02, 0.4]
+        colour: steel
+
+  medicine cabinet:
+    about: a mirrored cabinet over the bathroom sink.
+    lift: 1.3
+    parts:
+      - box: [0.5, 0.15, 0.6]
+        at: [0, 0, 0.3]
+        colour: white
+      - box: [0.44, 0.01, 0.54]
+        at: [0, -0.08, 0.3]
+        colour: glass
+
+  washer:
+    about: a front loader, its door ring and window, its dial.
+    params: {window: glass}
+    parts:
+      - box: [0.65, 0.65, 0.85]
+        at: [0, 0, 0.425]
+        colour: white
+      - box: [0.65, 0.12, 0.12]
+        at: [0, 0.265, 0.91]
+        colour: white
+      - cylinder: [0.2, 0.02]
+        sides: 16
+        along: Y
+        at: [0, -0.33, 0.45]
+        colour: steel
+      - cylinder: [0.16, 0.02]
+        sides: 16
+        along: Y
+        at: [0, -0.34, 0.45]
+        colour: window
+      - cylinder: [0.03, 0.02]
+        along: Y
+        at: [0.2, 0.2, 0.91]
+        colour: black
+
+  dryer:
+    parent: washer
+    params: {window: black}
+
+  furnace:
+    about: a furnace, its cabinet, its vent grille, the duct up to the ceiling.
+    parts:
+      - box: [0.6, 0.6, 1.4]
+        at: [0, 0, 0.7]
+        colour: steel
+      - for: {i: range(4)}
+        parts:
+          - box: [0.4, 0.01, 0.02]
+            at: [0, -0.305, 0.25 + 0.06 * i]
+            colour: black
+      - box: [0.4, 0.4, 1.2]
+        at: [0, 0, 2.0]
+        colour: steel
+
+  wood stove:
+    about: a cast iron stove on legs, its door, its pipe up to the ceiling.
+    parts:
+      - box: [0.6, 0.5, 0.55]
+        at: [0, 0, 0.475]
+        colour: black
+      - model: legs
+        params: {x: 0.6, y: 0.5, h: 0.2, r: 0.025, colour: black}
+      - box: [0.3, 0.01, 0.25]
+        at: [0, -0.255, 0.45]
+        colour: steel
+      - cylinder: [0.08, 1.85]
+        sides: 10
+        at: [0, 0.1, 1.675]
+        colour: black
+
+  fireplace:
+    about: a brick fireplace, its opening, hearth and mantel, the chimney breast to the ceiling.
+    parts:
+      - box: [1.4, 0.5, 2.6]
+        at: [0, 0.05, 1.3]
+        colour: brick
+      - box: [0.8, 0.02, 0.7]
+        at: [0, -0.2, 0.45]
+        colour: black
+      - box: [1.6, 0.4, 0.08]
+        at: [0, -0.35, 0.04]
+        colour: brick
+      - box: [1.6, 0.25, 0.08]
+        at: [0, -0.25, 1.15]
+        colour: dark wood
+
+  air conditioner:
+    about: a wall unit, its white case and the louvres it blows from.
+    lift: 2.0
+    parts:
+      - box: [0.8, 0.22, 0.28]
+        at: [0, 0, 0.14]
+        colour: white
+      - for: {i: range(3)}
+        parts:
+          - box: [0.7, 0.01, 0.015]
+            at: [0, -0.115, 0.05 + 0.03 * i]
+            colour: steel
+
+  thermostat:
+    lift: 1.45
+    parts:
+      - box: [0.12, 0.03, 0.12]
+        at: [0, 0, 0.06]
+        colour: white
+      - cylinder: [0.04, 0.01]
+        sides: 12
+        along: Y
+        at: [0, -0.02, 0.06]
+        colour: steel
+
+  light switch:
+    lift: 1.2
+    parts:
+      - box: [0.07, 0.01, 0.12]
+        at: [0, 0, 0.06]
+        colour: white
+      - box: [0.015, 0.02, 0.03]
+        at: [0, -0.012, 0.06]
+        colour: white
+
+  ceiling light:
+    lift: 2.5
+    parts:
+      - cylinder: [0.08, 0.02]
+        sides: 12
+        at: [0, 0, 0.09]
+        colour: white
+      - cylinder: [0.2, 0.08]
+        sides: 16
+        at: [0, 0, 0.04]
+        colour: light globe
+
+  smoke detector:
+    lift: 2.56
+    parts:
+      - cylinder: [0.07, 0.04]
+        sides: 14
+        at: [0, 0, 0.02]
+        colour: white
+      - cylinder: [0.008, 0.005]
+        at: [0.03, 0, -0.002]
+        colour: detector light
+
+  breaker box:
+    about: a breaker box on the wall, its grey door and the handle.
+    lift: 1.2
+    parts:
+      - box: [0.35, 0.1, 0.5]
+        at: [0, 0, 0.25]
+        colour: steel
+      - box: [0.31, 0.01, 0.46]
+        at: [0, -0.055, 0.25]
+        colour: breaker door
+      - box: [0.02, 0.02, 0.06]
+        at: [0.12, -0.065, 0.25]
+        colour: black
+
+  lamp:
+    about: a floor lamp, its base, its pole, its shade.
+    parts:
+      - cylinder: [0.15, 0.03]
+        sides: 12
+        at: [0, 0, 0.015]
+        colour: black
+      - cylinder: [0.012, 1.4]
+        at: [0, 0, 0.73]
+        colour: brass
+      - cone: [0.22, 0.12, 0.28]
+        sides: 12
+        at: [0, 0, 1.5]
+        colour: lamp shade
+
+  candle:
+    about: a candle in its holder, as it stands on the dining table.
+    lift: 0.75
+    parts:
+      - cylinder: [0.05, 0.015]
+        sides: 12
+        at: [0, 0, 0.0075]
+        colour: brass
+      - cylinder: [0.02, 0.15]
+        sides: 10
+        at: [0, 0, 0.09]
+        colour: wax
+      - cylinder: [0.008, 0.025]
+        sides: 6
+        at: [0, 0, 0.18]
+        colour: flame
+
+  garage workbench:
+    about: a workbench, a thick top on legs, a shelf under it, a pegboard behind.
+    parts:
+      - box: [1.8, 0.6, 0.06]
+        at: [0, 0, 0.87]
+        colour: wood
+      - model: legs
+        params: {x: 1.8, y: 0.6, h: 0.84, r: 0.04}
+      - box: [1.7, 0.5, 0.03]
+        at: [0, 0, 0.2]
+        colour: wood
+      - box: [1.8, 0.03, 0.8]
+        at: [0, 0.285, 1.3]
+        colour: pegboard
+
+  garage shelf:
+    about: steel shelving, four uprights and four shelves.
+    parts:
+      - for: {sx: [1, -1], sy: [1, -1]}
+        parts:
+          - cylinder: [0.02, 1.8]
+            sides: 6
+            at: [sx * 0.58, sy * 0.23, 0.9]
+            colour: steel
+      - for: {i: range(4)}
+        parts:
+          - box: [1.2, 0.5, 0.03]
+            at: [0, 0, 0.1 + 0.55 * i]
+            colour: steel
+
+  toolbox:
+    about: a red steel toolbox with its handle.
+    parts:
+      - box: [0.5, 0.25, 0.22]
+        at: [0, 0, 0.11]
+        colour: toolbox red
+      - box: [0.5, 0.26, 0.01]
+        at: [0, 0, 0.16]
+        colour: black
+      - box: [0.25, 0.03, 0.05]
+        at: [0, 0, 0.25]
+        colour: black
+
+  safe:
+    about: a steel safe, its door, dial and handle.
+    parts:
+      - box: [0.6, 0.6, 0.8]
+        at: [0, 0, 0.4]
+        colour: safe
+      - box: [0.5, 0.01, 0.7]
+        at: [0, -0.305, 0.4]
+        colour: safe door
+      - cylinder: [0.06, 0.03]
+        sides: 14
+        along: Y
+        at: [0, -0.32, 0.5]
+        colour: steel
+      - box: [0.12, 0.04, 0.03]
+        at: [0, -0.33, 0.3]
+        colour: steel
+
+  mailbox:
+    about: a mailbox on its post, its flag up.
+    parts:
+      - box: [0.08, 0.08, 1.0]
+        at: [0, 0, 0.5]
+        colour: wood
+      - box: [0.5, 0.2, 0.2]
+        at: [0, 0, 1.1]
+        colour: steel
+      - cylinder: [0.1, 0.5]
+        sides: 12
+        along: X
+        at: [0, 0, 1.2]
+        colour: steel
+      - box: [0.12, 0.01, 0.06]
+        at: [0.1, 0.11, 1.25]
+        colour: mailbox flag
+
+  trash can:
+    about: a green trash can with its lid and handle.
+    parts:
+      - cylinder: [0.3, 0.95]
+        sides: 14
+        at: [0, 0, 0.475]
+        colour: trash can
+      - cylinder: [0.32, 0.05]
+        sides: 14
+        at: [0, 0, 0.975]
+        colour: trash can
+      - box: [0.15, 0.03, 0.04]
+        at: [0, 0, 1.02]
+        colour: black
+
+  tv:
+    about: a TV on its low stand, a black screen in its frame.
+    parts:
+      - box: [1.2, 0.4, 0.45]
+        at: [0, 0, 0.225]
+        colour: dark wood
+      - box: [0.3, 0.2, 0.03]
+        at: [0, 0, 0.465]
+        colour: black
+      - box: [1.1, 0.06, 0.65]
+        at: [0, 0, 0.83]
+        colour: black
+      - box: [1.04, 0.01, 0.59]
+        at: [0, -0.035, 0.83]
+        colour: glass
+
+  phone:
+    about: a phone on the hall wall, its handset on the hook and its cord.
+    lift: 1.0
+    parts:
+      - box: [0.1, 0.06, 0.2]
+        at: [0, 0, 0.1]
+        colour: phone
+      - box: [0.05, 0.05, 0.22]
+        at: [0, -0.05, 0.11]
+        colour: phone
+      - cylinder: [0.008, 0.3]
+        at: [0.03, -0.05, -0.15]
+        colour: black
+
+  garden bed:
+    about: a raised garden bed, a wooden frame full of soil.
+    parts:
+      - box: [1.9, 0.9, 0.25]
+        at: [0, 0, 0.125]
+        colour: soil
+      - for: {s: [1, -1]}
+        parts:
+          - box: [2.0, 0.05, 0.3]
+            at: [0, s * 0.475, 0.15]
+            colour: garden wood
+          - box: [0.05, 1.0, 0.3]
+            at: [s * 0.975, 0, 0.15]
+            colour: garden wood
