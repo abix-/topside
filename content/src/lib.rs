@@ -1181,6 +1181,11 @@ pub fn small_town_def() -> TownDef {
         edge_lots: 2,
         edge_lot: Vec2::new(40.0, 60.0),
         house: house_def(),
+        // Up to 4 a house (operator, 2026-11-23: "4 people per house"),
+        // in the houses with no bunker; the townspeople are wanderers,
+        // topside people who belong to no side, until the town has its
+        // own kind. The 1 to 4 and the kind are Claude's.
+        residents: ("wanderer".to_string(), (1, 4)),
     }
 }
 

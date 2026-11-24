@@ -495,9 +495,15 @@ pub fn populate_topside_people(
     let known = modforge::memory::Memory::default();
     let people = world.world.topside_people(r);
     for (k, (name, at)) in people.into_iter().enumerate() {
-        // Who stands here is the biome's (todo 32).
+        // Who stands here is the biome's (todo 32), but in the town: those
+        // are the people living in its houses (topside-town "The houses").
         let seed = modforge::ground::tile_hash(world.seed, modforge::walk::cell_of(at), 0xB10E + k as u64);
-        let name = crate::biome::who(crate::biome::at(&world, &biomes, at), &name, &registry, seed).to_string();
+        let in_town = world.world.town.as_ref().is_some_and(|t| t.covers(at));
+        let name = if in_town {
+            name
+        } else {
+            crate::biome::who(crate::biome::at(&world, &biomes, at), &name, &registry, seed).to_string()
+        };
         let Some(def) = registry.0.def(&name) else {
             continue;
         };
