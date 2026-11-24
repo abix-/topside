@@ -241,6 +241,12 @@ briefs:
     floor: [0.45, 0.33, 0.22]
     furniture colour: [0.55, 0.45, 0.35]
     height: 2.8
+    # Who is inside (topside-town: "sometimes the house is friendly,
+    # sometimes they're enemies"; "a tier 1 house is just simple and
+    # peaceful and quiet"; up to 4 a house, and sometimes nobody). The
+    # weights are Claude's.
+    people: [[wanderer, 9], [scavenger, 1]]
+    living: [0, 4]
   - place: house
     tier: 2
     rooms:
@@ -256,6 +262,8 @@ briefs:
     floor: [0.55, 0.50, 0.45]
     furniture colour: [0.55, 0.45, 0.35]
     height: 2.8
+    people: [[wanderer, 6], [scavenger, 3], [raider, 1]]
+    living: [0, 4]
   # The operator's tier 3: 4 bedrooms and 2 baths.
   - place: house
     tier: 3
@@ -272,3 +280,7 @@ briefs:
     floor: [0.38, 0.30, 0.25]
     furniture colour: [0.55, 0.45, 0.35]
     height: 3.0
+    # Higher, harder: more of them enemies, people with guns (topside-town
+    # "Tiers").
+    people: [[wanderer, 3], [scavenger, 4], [raider, 3]]
+    living: [1, 4]
