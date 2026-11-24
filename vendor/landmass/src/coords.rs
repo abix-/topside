@@ -3,11 +3,13 @@ use glam::{Vec2, Vec3};
 /// A coordinate system used to convert from a user-facing coordinate system
 /// into landmass's standard coordinate system. The standard coordinate system
 /// is [`crate::coords::XYZ`].
-pub trait CoordinateSystem {
+// topside patch: Send and Sync, so avoidance can work on agents in
+// parallel (avoidance.rs).
+pub trait CoordinateSystem: Send + Sync + 'static {
   /// The user-facing coordinate type.
-  type Coordinate: Clone;
+  type Coordinate: Clone + Send + Sync;
   /// The type to use for point sampling options.
-  type SampleDistance: PointSampleDistance;
+  type SampleDistance: PointSampleDistance + Send + Sync;
 
   /// Whether to flip polygons after conversion.
   ///

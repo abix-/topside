@@ -3,6 +3,7 @@ use std::collections::{BinaryHeap, HashMap, HashSet};
 use dodgy_2d::VisibilitySet;
 use glam::{Vec3, Vec3Swizzles};
 use kdtree::{KdTree, distance::squared_euclidean};
+use bevy_tasks::{ParallelSlice, ParallelSliceMut};
 use slotmap::DenseSlotMap;
 
 use crate::{
@@ -160,13 +161,21 @@ pub(crate) fn apply_avoidance_to_agents<CS: CoordinateSystem>(
   }
   drop(span);
 
+  // topside patch: each agent's obstacles read only the mesh and its own
+  // place, and each solve writes only its own agent's move, so both run
+  // for every agent in parallel on Bevy's compute pool (the pool the game's
+  // own parallel loops use); the moves are the same as one at a time.
+  let pool = bevy_tasks::ComputeTaskPool::get_or_init(bevy_tasks::TaskPool::default);
   let span = tracing::info_span!("landmass: avoidance obstacles").entered();
-  let mut agent_id_to_obstacles = HashMap::new();
-  for (agent_id, agent) in agents.iter() {
-    let agent_node = match agent_id_to_agent_node.get(&agent_id) {
-      None => continue,
-      Some(agent_node) => agent_node,
-    };
+  let placed: Vec<(AgentId, &Agent<CS>, &(Vec3, NodeRef))> = agents
+    .iter()
+    .filter_map(|(agent_id, agent)| {
+      agent_id_to_agent_node.get(&agent_id).map(|node| (agent_id, agent, node))
+    })
+    .collect();
+  let agent_id_to_obstacles: HashMap<AgentId, Vec<std::borrow::Cow<'static, dodgy_2d::Obstacle>>> = placed
+    .par_splat_map(pool, None, |_, chunk| {
+      chunk.iter().map(|&(agent_id, agent, agent_node)| {
     // topside's change: only the borders the agent could reach within the
     // obstacle time horizon, as RVO2 gathers obstacles (its KdTree's
     // computeObstacleNeighbors, range = timeHorizonObst * maxSpeed +
@@ -182,12 +191,20 @@ pub(crate) fn apply_avoidance_to_agents<CS: CoordinateSystem>(
       .drain(..)
       .map(std::borrow::Cow::Owned)
       .collect::<Vec<_>>();
-    agent_id_to_obstacles.insert(agent_id, nearby_obstacles);
-  }
+    (agent_id, nearby_obstacles)
+      }).collect::<Vec<_>>()
+    })
+    .into_iter()
+    .flatten()
+    .collect();
+  drop(placed);
   drop(span);
 
   let _span = tracing::info_span!("landmass: avoidance solve").entered();
-  for (agent_id, agent) in agents.iter_mut() {
+  let mut solving: Vec<(AgentId, &mut Agent<CS>)> = agents.iter_mut().collect();
+  solving.par_splat_map_mut(pool, None, |_, chunk| {
+  for (agent_id, agent) in chunk.iter_mut() {
+    let agent_id = *agent_id;
     let (Some(nearby_agents), Some(nearby_obstacles)) = (
       agent_id_to_neighbours.get(&agent_id),
       agent_id_to_obstacles.get(&agent_id),
@@ -247,6 +264,7 @@ pub(crate) fn apply_avoidance_to_agents<CS: CoordinateSystem>(
     agent.current_desired_move =
       CS::from_landmass(&glam::Vec3::new(desired_move.x, desired_move.y, 0.0));
   }
+  });
 }
 
 /// topside patch (todo 9n): whether someone `dz` above (or below) an agent

@@ -54,6 +54,12 @@ version = "0.30.5"
 [dependencies.kdtree]
 version = "0.7.0"
 
+# topside patch: each agent's avoidance obstacles and solve run in
+# parallel on Bevy's compute pool (avoidance.rs).
+[dependencies.bevy_tasks]
+version = "0.19"
+features = ["multi_threaded"]
+
 [dependencies.slotmap]
 version = "1.0.7"
 
