@@ -11,6 +11,7 @@ use modforge::ground::{ClimateRule, Ground, GroundDef, GroundGen};
 use modforge::places::{Places, SiteKind};
 use modforge::world2d::{Clearing, World2d};
 use modforge::town::{Town, TownDef};
+use modforge::house::HouseDef;
 use modforge::actor::{ActorDef, ActorRegistry, Behaviour, BodyLook, LookDef};
 use modforge::biome::{BiomeDef, BiomeRegistry, ScatterDef};
 use modforge::combat::{DamageDef, DamageRegistry, DamageType, Falloff};
@@ -1187,6 +1188,34 @@ pub fn small_town_def() -> TownDef {
         cul_de_sac_lots: 3,
         edge_lots: 2,
         edge_lot: Vec2::new(40.0, 60.0),
+        house: house_def(),
+    }
+}
+
+/// What the town's houses vary by (topside-town "The houses": "each
+/// varied by colour, rotation and small details"). The colours and
+/// chances are Claude's, for the operator to change.
+pub fn house_def() -> HouseDef {
+    HouseDef {
+        walls: vec![
+            [0.85, 0.82, 0.74],
+            [0.70, 0.76, 0.80],
+            [0.80, 0.72, 0.60],
+            [0.72, 0.78, 0.66],
+            [0.88, 0.86, 0.84],
+            [0.62, 0.55, 0.50],
+        ],
+        floors: vec![[0.45, 0.33, 0.22], [0.55, 0.50, 0.45], [0.38, 0.30, 0.25]],
+        furniture: vec![
+            [0.45, 0.35, 0.25],
+            [0.30, 0.32, 0.40],
+            [0.60, 0.58, 0.55],
+            [0.40, 0.25, 0.20],
+            [0.85, 0.85, 0.82],
+        ],
+        extras: 600,
+        back_windows: 700,
+        height: 2.6,
     }
 }
 
