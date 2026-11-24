@@ -478,6 +478,9 @@ pub fn make_chunks(
         buildings: &monuments.buildings,
     };
     let open = open_tiles(&below);
+    // The tiles of a chunk the rivers carved, by index; one buffer for
+    // every chunk.
+    let mut carved: Vec<bool> = Vec::new();
     for key in needed {
         if !chunks.made.insert(key) {
             continue;
@@ -486,15 +489,26 @@ pub fn make_chunks(
         // The rivers carved through it, roads left as their bridges; what
         // stood there is gone (todo 33).
         let first = chunk.first();
+        carved.clear();
+        carved.resize((CHUNK * CHUNK) as usize, false);
+        let mut any = false;
         for y in 0..CHUNK {
             for x in 0..CHUNK {
                 let t = (first.0 + x, first.1 + y);
                 let i = (y * CHUNK + x) as usize;
                 if rivers.tiles.contains(&t) && chunk.ground.get(i).is_some_and(|g| g.is_land() && *g != Ground::Road) {
                     chunk.ground[i] = Ground::Water;
-                    chunk.things.retain(|thing| thing.tile != t);
+                    carved[i] = true;
+                    any = true;
                 }
             }
+        }
+        // What stood on a tile carved goes, in one pass.
+        if any {
+            chunk.things.retain(|thing| {
+                let (x, y) = (thing.tile.0 - first.0, thing.tile.1 - first.1);
+                !((0..CHUNK).contains(&x) && (0..CHUNK).contains(&y) && carved[(y * CHUNK + x) as usize])
+            });
         }
         chunks.roads += chunk.ground.iter().filter(|g| **g == Ground::Road).count();
         chunks.ground.insert(key, chunk.ground.to_vec());
