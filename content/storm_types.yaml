@@ -1,0 +1,26 @@
+# The types of storm (modforge `storm::StormType`; todo "Storm 3",
+# topside-town "The storms": "there should be different types of
+# storms, and maybe we could colorize that... Maybe there's different
+# types of storms that changes what re-rolls"). Read by content's
+# `STORM_TYPES`. Each has its `name`, its sky's colour while it warns
+# (`warning`) and while it rages (`storm`), each [red, green, blue, how
+# much it covers] from 0 to 1, and any of `kills` (whoever is in the open
+# dies; true when left out), `rolls` (what it rolls anew when it passes:
+# Reality, World; nothing when left out), `from_storm` (the least storm
+# it can be, 0 the first; 0 when left out) and `weight` (how likely
+# against the others, 100 when left out).
+#
+# The first storm is always the still storm, the only type that can come
+# first, as
+# topside-town "The first shock" has it: it kills whoever is outside and
+# leaves the world as it was. The names, colours and odds are Claude's,
+# for the operator to change.
+types:
+  # Kills whoever is outside; the world stays as it was.
+  - {name: still storm, warning: [0.7, 0.3, 0.05, 0.3], storm: [0.95, 0.93, 0.88, 0.85], rolls: []}
+  # The world rolled anew in another reality (the storm as it was).
+  - {name: shift storm, warning: [0.45, 0.1, 0.6, 0.3], storm: [0.85, 0.75, 0.95, 0.85], rolls: [Reality, World], from_storm: 1}
+  # Another reality on the same ground: what stands stays, the rules change.
+  - {name: green storm, warning: [0.15, 0.55, 0.2, 0.3], storm: [0.75, 0.95, 0.75, 0.85], rolls: [Reality], from_storm: 1, weight: 60}
+  # The world rolled anew, the reality kept.
+  - {name: red storm, warning: [0.65, 0.05, 0.05, 0.3], storm: [0.95, 0.75, 0.7, 0.85], rolls: [World], from_storm: 1, weight: 60}

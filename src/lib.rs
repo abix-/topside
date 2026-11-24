@@ -44,6 +44,7 @@ pub mod save;
 pub mod secrets;
 pub mod sight;
 pub mod storm;
+pub mod storm_type;
 pub mod structure;
 pub mod survival;
 pub mod talk;

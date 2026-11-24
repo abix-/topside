@@ -699,6 +699,13 @@ pub const STORM_FILE: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/storm.yaml");
 /// The storm, read from `STORM_FILE` the first time it is asked for.
 pub static STORM: std::sync::LazyLock<StormDef> = std::sync::LazyLock::new(|| read(STORM_FILE, "storm"));
 
+/// Where the types of storm are: content/storm_types.yaml, its `types` a
+/// list of modforge `storm::StormType` (todo "Storm 3").
+pub const STORM_TYPES_FILE: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/storm_types.yaml");
+
+/// The types of storm, read from `STORM_TYPES_FILE` the first time asked.
+pub static STORM_TYPES: std::sync::LazyLock<Vec<modforge::storm::StormType>> = std::sync::LazyLock::new(|| read_list(STORM_TYPES_FILE, "types"));
+
 /// Who waits outside the starting bunker's door and where in its plan
 /// (x, z): a scavenger 6 m past the door (the 3D game's first fight).
 pub const DOOR_ENEMY: (&str, [f32; 2]) = ("scavenger", [0.0, 10.0]);

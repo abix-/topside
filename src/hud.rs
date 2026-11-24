@@ -977,11 +977,14 @@ pub fn render_sky(
     day: Res<crate::survival::Day>,
     storms: Res<crate::storm::StormRes>,
     reality: Res<crate::Reality>,
+    seed: Res<crate::WorldSeed>,
     mut layers: Query<&mut BackgroundColor, With<SkyLayer>>,
 ) {
+    // The coming storm's own colours (todo "Storm 3"), else the old ones.
+    let kind = crate::storm_type::coming(&storms, &seed);
     let sky = match crate::storm::phase(&tick, *day, &storms) {
-        StormPhase::Storm => Color::srgba(0.95, 0.93, 0.88, 0.85),
-        StormPhase::Warning => Color::srgba(0.7, 0.3, 0.05, 0.3),
+        StormPhase::Storm => kind.map_or(Color::srgba(0.95, 0.93, 0.88, 0.85), |k| crate::storm_type::colour(k.storm)),
+        StormPhase::Warning => kind.map_or(Color::srgba(0.7, 0.3, 0.05, 0.3), |k| crate::storm_type::colour(k.warning)),
         StormPhase::Calm if first_sky_change(&tick) => Color::srgba(0.7, 0.3, 0.05, 0.3),
         StormPhase::Calm if crate::survival::night(&tick, *day, &reality) => Color::srgba(0.0, 0.02, 0.08, NIGHT_DARK),
         StormPhase::Calm => Color::NONE,
