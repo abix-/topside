@@ -1,0 +1,10 @@
+# The realities built so far (modforge `reality::RealityDef`;
+# realities.md, one page each), Mixed world first: the world before any
+# storm. Read by content's `register_realities`. Each changes only rules
+# the game already has: its `danger` (Calm, Hard, Deadly), whether it has
+# `night`, and whether death sticks (`death_sticks`).
+
+realities:
+  - {name: Mixed world, danger: Hard, night: true, death_sticks: true}
+  - {name: Endless Day, danger: Deadly, night: false, death_sticks: true}
+  - {name: Loop, danger: Deadly, night: true, death_sticks: false}

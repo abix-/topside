@@ -20,7 +20,7 @@ use modforge::memory::GoodFor;
 use modforge::survival::Need;
 use modforge::item::{Armor, ItemDef, ItemKind, ItemRegistry, LayerDef, LayerRegistry, Note};
 use modforge::monument::Roll;
-use modforge::reality::{Danger, RealityDef, RealityRegistry};
+use modforge::reality::{RealityDef, RealityRegistry};
 use modforge::storyteller::{EpisodeDef, EpisodeRegistry, LineDef, When};
 use modforge::monument::{
     Arrangement, BuildingRegistry, BuildingSize, BuildingSlot, BuildingTypeDef,
@@ -1115,20 +1115,14 @@ impl Default for RealityRegistryRes {
     }
 }
 
-/// The realities built so far (docs/realities/), Mixed world first: the
-/// world before any storm. Each changes only rules the game already has.
+/// Where the realities are: content/realities.yaml, its `realities` a
+/// list of modforge `reality::RealityDef`.
+pub const REALITIES_FILE: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/realities.yaml");
+
+/// The realities built so far, from `REALITIES_FILE`, Mixed world first:
+/// the world before any storm.
 pub fn register_realities(reg: &mut RealityRegistry) {
-    let reality = |name: &str, danger, night, death_sticks| RealityDef {
-        name: name.to_string(),
-        danger,
-        night,
-        death_sticks,
-    };
-    for def in [
-        reality("Mixed world", Danger::Hard, true, true),
-        reality("Endless Day", Danger::Deadly, false, true),
-        reality("Loop", Danger::Deadly, true, false),
-    ] {
+    for def in read_list::<RealityDef>(REALITIES_FILE, "realities") {
         reg.register(def).expect("each reality is registered once");
     }
 }
