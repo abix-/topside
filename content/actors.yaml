@@ -38,6 +38,16 @@ actors:
   # Claude's, for the operator to change.
   - {name: storm hunter, faction: wildlife, behaviour: Hunter, max_health: 400.0, weapon: teeth, sight: 40.0, reach: 2.0}
   - {name: wolf, faction: wildlife, behaviour: Hunter, max_health: 50.0, weapon: teeth, sight: 25.0, reach: 1.4}
+  # The events that need people to act new ways (todo Events 4; Claude's
+  # list the operator took, 2026-11-24). The creatures are Claude's: the
+  # infestation's burrowers come up from under the bunker (RimWorld's
+  # insect hives), the landed machines guard their wreck (RimWorld's
+  # mechanoid cluster); the besiegers camp and wait (RimWorld's siege),
+  # the deserter has left the raiders. Numbers Claude's.
+  - {name: burrower, faction: wildlife, behaviour: Hunter, max_health: 40.0, weapon: teeth, sight: 15.0, reach: 1.2}
+  - {name: machine, faction: wildlife, behaviour: Guard, max_health: 150.0, weapon: pipe, sight: 30.0, reach: 1.8}
+  - {name: besieger, faction: raiders, behaviour: Guard, max_health: 100.0, weapon: wooden handle, weapon_layers: [axe head], sight: 30.0, reach: 1.8}
+  - {name: deserter, faction: townspeople, behaviour: Guard, max_health: 90.0, weapon: wooden handle, weapon_layers: [axe head], sight: 25.0, reach: 1.8}
   # A turret (todo 11k): an actor that never moves, guarding where it is
   # set with a pipe shotgun; its faction the placer's. Health and sight
   # Claude's.

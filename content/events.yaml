@@ -79,6 +79,25 @@ events:
     - {name: battle in town, group: raids, mood: Strange, cost: 20, twists: [big, with a gift], from_episode: 1, does: [{Arrive: {who: [raider], count: [3, 5]}}, {Arrive: {who: [scavenger], count: [3, 5]}}]}
     # Someone sent for us (Hitman's contracts, a bounty on the star).
     - {name: hunted, group: raids, mood: Trouble, cost: 15, places: [Door, Town], twists: [at night, unforetold, guarded], from_episode: 2, weight: 60, does: [{Arrive: {who: [raider], count: [1, 1]}}]}
+    # The events that need people to act new ways (todo Events 4; Claude's
+    # list the operator took, 2026-11-24). Who comes and the numbers are
+    # Claude's.
+    # They camp outside and wait (RimWorld's siege): guards who hold where
+    # they stand.
+    - {name: siege, group: raids, mood: Trouble, cost: 25, places: [Town, Door], twists: [big, in the fog], warnings: [Sound], from_episode: 2, weight: 50, does: [{Arrive: {who: [besieger], count: [4, 6]}}]}
+    # A horde, and the screamer's call is the sound that foretells it
+    # (Left 4 Dead's horde).
+    - {name: horde, group: animals, mood: Trouble, cost: 30, places: [Edge, Town], twists: [at night, in the dark], warnings: [Sound], from_episode: 3, weight: 40, does: [{Arrive: {who: [burrower], count: [10, 15]}}]}
+    # Up from under the bunker (RimWorld's infestation).
+    - {name: infestation, group: animals, mood: Trouble, cost: 30, places: [Under], twists: [small], from_episode: 3, weight: 40, does: [{Arrive: {who: [burrower], count: [4, 8]}}]}
+    # A landed machine cluster guarding its wreck (RimWorld's mech
+    # cluster).
+    - {name: machine cluster, group: drops, mood: Strange, cost: 30, places: [Edge, Town], twists: [big], warnings: [Sky], from_episode: 2, weight: 50, does: [{Arrive: {who: [machine], count: [3, 5]}}, {Drop: {item: scrap, count: [10, 20]}}, {Drop: {count: [1, 1], danger: 4}}]}
+    # One who left the raiders, at the door (RimWorld's refugee).
+    - {name: deserter, group: arrivals, mood: Strange, cost: 10, places: [Door], from_episode: 1, does: [{Arrive: {who: [deserter], count: [1, 1]}}]}
+    # A lost one out at the edge, to be found and brought home (RimWorld's
+    # lost colonist).
+    - {name: lost one, group: arrivals, mood: Gift, cost: 5, places: [Edge], twists: [in the fog], from_episode: 1, does: [{Arrive: {who: [wanderer], count: [1, 1]}}]}
 
     # From the sky.
     # A loot box from the sky (Rust's airdrop).
