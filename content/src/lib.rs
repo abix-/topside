@@ -598,6 +598,17 @@ pub const STORM_TYPES_FILE: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/storm_t
 /// `event::EventsDef` (topside-town "Storms and events are different").
 pub const EVENTS_FILE: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/events.yaml");
 
+/// The aliens' show (content/show.yaml, todo Show 1 to 8), read the first
+/// time asked; the television that shows it; what a pay-per-view costs
+/// and needs researched; how much a vote cast on another bunker's show
+/// lowers its people's popularity (Claude's).
+pub const SHOW_FILE: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/show.yaml");
+pub static SHOW: std::sync::LazyLock<modforge::show::ShowDef> = std::sync::LazyLock::new(|| read(SHOW_FILE, "show"));
+pub const TELEVISION: &str = "television";
+pub const PAY_PER_VIEW: (&str, u32) = ("scrap", 5);
+pub const PAY_PER_VIEW_TOPIC: &str = "pay-per-view";
+pub const VOTE_AGAINST: f32 = 0.2;
+
 /// The events, read from `EVENTS_FILE` the first time asked.
 pub static EVENTS: std::sync::LazyLock<modforge::event::EventsDef> = std::sync::LazyLock::new(|| read(EVENTS_FILE, "events"));
 

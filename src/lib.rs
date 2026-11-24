@@ -44,6 +44,7 @@ pub mod vehicle;
 pub mod research;
 pub mod save;
 pub mod secrets;
+pub mod show;
 pub mod sight;
 pub mod event;
 pub mod storm;
@@ -303,6 +304,7 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind, port: u16
     app.init_resource::<content::RecipeRegistryRes>();
     app.init_resource::<storm::StormRes>();
     app.init_resource::<event::EventsRes>();
+    app.init_resource::<show::ShowRes>();
     app.init_resource::<anomaly::AnomalyPlaced>();
     app.init_resource::<secrets::SecretsPlaced>();
     app.init_resource::<command::GivenThisRun>();
@@ -424,7 +426,9 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind, port: u16
                     // Fire (Works 15): matches, an extinguisher or a
                     // hydrant take the Use before anything else; then
                     // the fires burn.
-                    (fire::light_and_fight, fire::burn, garden::tend).chain(),
+                    // A television used (todo Show 1) takes the Use too;
+                    // the show watches what was done this tick.
+                    (show::use_television, fire::light_and_fight, fire::burn, garden::tend, show::on_air).chain(),
                     interact::interact_on_use,
                     hud::close_read_notes,
                     hud::show_act_result,
@@ -515,6 +519,8 @@ pub fn build_app(headless: bool, seed: u64, world: content::WorldKind, port: u16
         app.add_systems(Startup, minimap::setup_map);
         app.add_systems(FixedUpdate, minimap::toggle_map.after(input::drain_actions));
         app.add_systems(Update, minimap::draw_map);
+        // The television's screen and the show's camera (todo Show 1, 2).
+        app.add_systems(Update, show::screen);
         app.add_plugins(MaterialPlugin::<model::Cel>::default());
         app.add_plugins(outline::OutlinePlugin);
         app.init_resource::<model::Tinted>();

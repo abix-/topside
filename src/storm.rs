@@ -91,8 +91,9 @@ pub fn storm(
     mut state: ResMut<StormRes>,
     (episode, episodes, seed): (Res<Episode>, Res<EpisodeRegistryRes>, Res<WorldSeed>),
     shelters: Query<&Shelter>,
-    mut actors: Query<(Entity, &Transform, &Protection, &Equipment, &mut Health, Option<&mut Persona>), Without<Dead>>,
+    mut actors: Query<(Entity, &Transform, &Protection, &Equipment, &mut Health, Option<&mut Persona>, Option<&crate::actor::Actor>), Without<Dead>>,
     mut events: ResMut<crate::event::EventsRes>,
+    show: Res<crate::show::ShowRes>,
 ) {
     let secs = Day::secs(&tick);
     if state.at.is_none() {
@@ -124,15 +125,18 @@ pub fn storm(
         && tick.0 % 60 == 0
         && let Some(def) = damage.0.def("storm")
     {
-        for (entity, at, own, worn, mut health, mut memory) in &mut actors {
+        for (entity, at, own, worn, mut health, mut memory, actor) in &mut actors {
             if sheltered(&shelters, at.translation.ground()) && !(deep && crate::storm_effect::reaches(at.translation)) {
                 continue;
             }
+            // The viewers' favourites get a kinder storm, the hated a
+            // harder (todo Show 7, modforge `show::storm_factor`).
+            let popularity = actor.map_or(0.0, |a| show.show.popularity_of(a.0));
             let hit = Hit {
                 def,
                 self_inflicted: false,
                 distance: 0.0,
-                location_scale: 1.0,
+                location_scale: modforge::show::storm_factor(popularity),
             };
             hit_actor(&hit, own, worn, &items.0, &layers.0, Default::default(), &mut health, memory.as_deref_mut(), None, tick.0);
             if health.0.current <= 0.0 {

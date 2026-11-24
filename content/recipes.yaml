@@ -14,6 +14,8 @@ recipes:
   # operator to change.
   - {name: bandage, inputs: [[cloth, 2]], output: [bandage, 1], station: CraftingBench}
   - {name: pipe, inputs: [[scrap, 3]], output: [pipe, 1], station: CraftingBench}
+  # The television tuned to our own station (todo Show 1; Claude's).
+  - {name: television, inputs: [[scrap, 10], [metal fragments, 5]], output: [television, 1], station: CraftingBench}
   # A radio the static killed, mended (todo Storm effect 5; Claude's).
   - {name: mended radio, inputs: [[dead radio, 1], [scrap, 1]], output: [radio, 1], station: CraftingBench}
   - {name: spiked bat, inputs: [[wooden handle, 1], [scrap, 2]], output: [wooden handle, 1], layers: [nails], station: CraftingBench}

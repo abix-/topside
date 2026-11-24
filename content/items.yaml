@@ -135,6 +135,10 @@ items:
   - {name: safe, description: A safe. Its key opens it., kind: Deployable, storage: 4}
   - {name: matches, description: A box of matches. Sets a thing alight., kind: Tool}
   - {name: tv, description: A TV., kind: Deployable}
+  # The television (todo Show 1, src/show.rs): placed and used, it shows
+  # the aliens' show; used with scrap in hand after pay-per-view, another
+  # bunker's channel.
+  - {name: television, description: "A television that tunes into our own station. Use it to watch; with scrap in hand, pay to watch another bunker.", kind: Deployable}
   - {name: phone, description: A phone., kind: Deployable}
   - {name: mailbox, description: A mailbox., kind: Deployable, storage: 4}
   - {name: garden bed, description: A garden bed. Seed sown here grows., kind: Deployable}

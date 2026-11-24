@@ -79,6 +79,7 @@ pub fn happen(
     storms: Res<StormRes>,
     mut state: ResMut<EventsRes>,
     player: Query<&Health, With<Player>>,
+    show: Res<crate::show::ShowRes>,
 ) {
     let secs = Day::secs(&tick);
     let def = &*crate::content::EVENTS;
@@ -93,6 +94,10 @@ pub fn happen(
     let hurt = player.single().map_or(0.0, |h| 1.0 - h.0.current / h.0.max.max(1.0));
     let quiet = (secs - state.last_trouble) / day.0;
     state.director.feel(quiet, hurt);
+    // What the viewers just saw stirs them (todo Show 3 and 6, modforge
+    // `show`): a killing lifts the ratings, a dull stretch lets them fall.
+    state.director.viewers = show.show.ratings(state.director.viewers);
+    state.director.boredom = 1.0 - state.director.viewers;
     let salt = seed.0 ^ u64::from(storms.shifts) << 40 ^ u64::from(state.n) << 20;
     let Some(at) = state.at else {
         state.at = Some(modforge::event::next_at(&def.pace, secs, day.0, salt));

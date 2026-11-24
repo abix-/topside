@@ -1,0 +1,60 @@
+# The aliens' show (topside-show; todo Show 1 to 8; modforge
+# `show::ShowDef`). Read by content's `SHOW`. The channel runs round its
+# `cycle` day and night (each segment and its game seconds: Live,
+# Clip, Commercial, LastTime, NextTime); `reactions` say how the viewers
+# take each kind of deed (modforge `Did::kind`: killed, hit, was hit,
+# died, ate, slept, traded, talked, took...), what it does to the doer's
+# popularity (-1 to 1), how much it stirs them (added to the ratings,
+# fading by `stir_fades` a second) and what the chat says; `edits` are
+# the recap's lies (a plain phrase and what it is cut to say); `titles`
+# the episode titles; `sponsors` what the commercials sell, each turning
+# up in a loot box after its ad; `watched` what the chat says when it
+# sees the star watching. Every line and number is Claude's, for the
+# operator to change.
+show:
+  name: topside
+  audience: 1200000
+  cycle:
+    - [Live, 240.0]
+    - [Clip, 30.0]
+    - [Commercial, 20.0]
+    - [Live, 240.0]
+    - [LastTime, 40.0]
+    - [Commercial, 20.0]
+    - [NextTime, 20.0]
+  reactions:
+    - {kind: killed, popularity: -0.1, stir: 0.35, chat: ["OHHH", "did you SEE that", "clip it clip it", "brutal", "KEKW", "they didn't have to do that"]}
+    - {kind: hit, popularity: 0.0, stir: 0.05, chat: ["fight fight fight", "ooh", "swing harder"]}
+    - {kind: was hit, popularity: 0.02, stir: 0.05, chat: ["ouch", "F", "get up"]}
+    - {kind: died, popularity: 0.1, stir: 0.4, chat: ["NOOOO", "F", "F F F", "rip", "the bed better hold"]}
+    - {kind: respawned, popularity: 0.05, stir: 0.1, chat: ["they're back", "lol again"]}
+    - {kind: traded, popularity: 0.02, stir: 0.0, chat: ["boring", "skip"]}
+    - {kind: talked, popularity: 0.01, stir: 0.01, chat: ["who is that", "don't trust them"]}
+    - {kind: slept, popularity: -0.02, stir: -0.05, chat: ["zzz", "wake up", "change the channel"]}
+    - {kind: ate, popularity: 0.0, stir: -0.02, chat: ["eating again", "riveting"]}
+    - {kind: took, popularity: 0.0, stir: 0.01, chat: ["loot goblin", "greedy"]}
+  edits:
+    - ["killed", "murdered"]
+    - ["was hit by", "was ambushed by"]
+    - ["hit", "brutally attacked"]
+    - ["took", "stole"]
+    - ["traded with", "made a deal with"]
+    - ["slept", "plotted in the dark"]
+    - ["ate", "hoarded"]
+    - ["died of", "was betrayed, and died of"]
+  titles:
+    - "Blood in the Bunker"
+    - "No One Is Safe"
+    - "The Betrayal"
+    - "What Lies Below"
+    - "Trust No One"
+    - "The Storm Knows Your Name"
+  sponsors: [canned food, water bottle, bandage, scrap]
+  watched:
+    - "wait they're watching us"
+    - "HI MOM"
+    - "they can see the chat??"
+    - "don't look at the camera"
+    - "it knows"
+  stir_fades: 0.995
+  keeps: 8

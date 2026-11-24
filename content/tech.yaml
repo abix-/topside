@@ -37,6 +37,10 @@ topics:
   - {name: bladesmithing, tier: 2, cost: [[metal fragments, 20]], needs: [metal tools], unlocks: [metal blade, machete, mace]}
   - {name: crossbows, tier: 2, cost: [[metal fragments, 10], [rope, 4]], needs: [hunting], unlocks: [crossbow, crossbow bolts]}
   - {name: leatherworking, tier: 2, cost: [[leather, 6]], needs: [hide working], unlocks: [leather jacket, leather trousers]}
+  # The aliens' show (todo Show 1 and 8): a television tuned to our own
+  # station, then other bunkers' channels paid for.
+  - {name: broadcasting, tier: 2, cost: [[scrap, 15], [metal fragments, 10]], needs: [smelting], unlocks: [television]}
+  - {name: pay-per-view, tier: 2, cost: [[scrap, 20]], needs: [broadcasting]}
   - {name: scrap armor, tier: 2, cost: [[scrap, 20]], needs: [smelting], unlocks: [wood chestplate, road sign kilt, coffee can helmet]}
   - {name: furnaces, tier: 2, cost: [[stone, 20], [metal fragments, 10]], needs: [smelting], unlocks: [furnace kit, smelted metal fragments]}
   - {name: black powder, tier: 2, cost: [[charcoal, 20], [metal fragments, 10]], needs: [smelting], unlocks: [sulfur, gunpowder, shotgun shells]}
