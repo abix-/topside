@@ -650,8 +650,10 @@ pub fn fly(
     // (shooter, damage def, pellets summed per target, quality power) this
     // step.
     let mut landed: Vec<(Entity, String, MultiDamage<Entity>, f32)> = Vec::new();
+    // Each shooter's entries in `landed` (one a damage they shot).
+    let mut landed_of: std::collections::HashMap<Entity, Vec<usize>> = std::collections::HashMap::new();
     // Where on each target the first pellet to reach them landed.
-    let mut areas: Vec<(Entity, BodyArea)> = Vec::new();
+    let mut areas: std::collections::HashMap<Entity, BodyArea> = std::collections::HashMap::new();
     for (entity, mut bullet, mut transform) in &mut bullets {
         let from = transform.translation.ground();
         let reach = step.min(bullet.range - bullet.travelled);
@@ -669,17 +671,14 @@ pub fn fly(
             let along = hit.distance / slant;
             if let Ok((body, ..)) = targets.get(hit.entity) {
                 let at = bullet.travelled + along;
-                if !areas.iter().any(|(e, _)| *e == hit.entity) {
-                    areas.push((hit.entity, area_hit(transform.translation.y + bullet.rise * along, body)));
-                }
-                match landed
-                    .iter_mut()
-                    .find(|(s, d, ..)| *s == bullet.shooter && *d == bullet.damage)
-                {
-                    Some((_, _, multi, _)) => multi.add(hit.entity, at),
+                areas.entry(hit.entity).or_insert_with(|| area_hit(transform.translation.y + bullet.rise * along, body));
+                let theirs = landed_of.entry(bullet.shooter).or_default();
+                match theirs.iter().copied().find(|&i| landed[i].1 == bullet.damage) {
+                    Some(i) => landed[i].2.add(hit.entity, at),
                     None => {
                         let mut multi = MultiDamage::default();
                         multi.add(hit.entity, at);
+                        theirs.push(landed.len());
                         landed.push((bullet.shooter, bullet.damage.clone(), multi, bullet.power));
                     }
                 }
@@ -696,30 +695,27 @@ pub fn fly(
     // In ActorId order (authority.md rule 5): the shooters' hits land
     // shooter by shooter, and each one's targets, in ActorId order, so who
     // kills is the same after a load.
-    let by_shooter = crate::actor::in_actor_order(landed.iter().map(|(s, ..)| (shooters.get(*s).ok().and_then(|(_, a)| a.map(|a| a.0)), *s)));
-    let mut ordered = Vec::new();
-    for shooter in by_shooter {
-        if let Some(i) = landed.iter().position(|(s, ..)| *s == shooter) {
-            ordered.push(landed.remove(i));
-        }
-    }
-    for (shooter, name, mut multi, power) in ordered {
+    // A stable sort by ActorId: the order `in_actor_order` gives, each
+    // shooter's own entries in the order they landed.
+    landed.sort_by_cached_key(|(s, ..)| shooters.get(*s).ok().and_then(|(_, a)| a.map(|a| a.0)));
+    for (shooter, name, mut multi, power) in landed {
         let Some(def) = damage.0.def(&name) else {
             continue;
         };
         let (from, by) = shooters
             .get(shooter)
             .map_or((Vec2::ZERO, ActorId(0)), |(t, a)| (t.translation.ground(), a.map_or(ActorId(0), |a| a.0)));
-        let hits: Vec<(Entity, u32, f32)> = multi.drain().into_iter().collect();
-        let order = crate::actor::in_actor_order(hits.iter().map(|(t, ..)| (targets.get(*t).ok().and_then(|(.., a)| a.map(|a| a.0)), *t)));
-        for (target, pellets, distance) in order.into_iter().filter_map(|t| hits.iter().find(|(h, ..)| *h == t).copied()) {
+        // Their targets in ActorId order (`in_actor_order`'s stable sort).
+        let mut hits: Vec<(Entity, u32, f32)> = multi.drain().into_iter().collect();
+        hits.sort_by_cached_key(|(t, ..)| targets.get(*t).ok().and_then(|(.., a)| a.map(|a| a.0)));
+        for (target, pellets, distance) in hits {
             // A practised shooter hits harder (todo 31).
             let skill = crate::skills::hit_scale(targets.get(shooter).ok().and_then(|(.., person, _)| person));
             let Ok((at, own, worn, mut health, mut memory, target_id)) = targets.get_mut(target) else {
                 continue;
             };
             let to = at.translation.ground();
-            let area = areas.iter().find(|(e, _)| *e == target).map_or(BodyArea::default(), |(_, a)| *a);
+            let area = areas.get(&target).copied().unwrap_or_default();
             let hit = Hit {
                 def,
                 self_inflicted: false,
