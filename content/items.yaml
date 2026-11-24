@@ -1,0 +1,244 @@
+# Every item the game has (modforge `item::ItemDef`), read by content's
+# `register_items`. An item names only what it has: `name` and `kind` (Food,
+# Material, Tool, Weapon, Deployable, Container, Note, Medicine, Source),
+# and then any of `description` (shown when it is selected), `max_stack`
+# and `quality_siblings` (each one when left out), `food` (what one use
+# fills: hunger, thirst, health), `combat` (the damage it lands, delay,
+# reach, pellets, spread_degrees, ammo), `storage` (the slots it holds
+# standing in the world), `armor` (amount, and the area it guards: Head,
+# Chest, Legs), `layer_slots` (the layers it takes on top of itself),
+# `breaks_when_struck`, `holds_litres` (the water it holds). Every item is
+# drawn with the picture named after it (scripts/models.py). Each
+# episode's own items are in its file; the clothes everyone wears, the
+# keys and the base resources are made by `register_items` from their
+# lists.
+
+items:
+  - name: note
+    description: Someone's words on a scrap of paper.
+    kind: Note
+  # The room's question when it is not the note (QUESTIONS): read as a
+  # note is, by using it.
+  - name: bolted door
+    description: A door, bolted shut, scratched.
+    kind: Note
+  - name: radio
+    description: A radio that clicks.
+    kind: Note
+  - name: canned food
+    description: A dented can of food from before. Eat it to fill your hunger.
+    kind: Food
+    max_stack: 10
+    # Food heals a little too (todo 10ca, Valheim). Tuning.
+    food: {hunger: 50.0, thirst: 0.0, health: 5.0}
+  # What food kept too long turns into (todo Survive 3): it barely fills
+  # and hurts. Its numbers are Claude's.
+  - name: rotten food
+    description: Food kept too long. It has gone bad.
+    kind: Food
+    max_stack: 10
+    food: {hunger: 10.0, thirst: 0.0, health: -10.0}
+  # Water bottles come in sizes, each its own def (operator, 2026-10-03);
+  # a bunker's barrel holds 200 L. Each holds water (design.md "Water is a
+  # fluid"): drunk from a mouthful at a time, filled at a source and
+  # poured from (modforge fluid). One to a slot: what each holds is its
+  # own.
+  - name: water bottle
+    description: A plastic bottle for water, 1 litre. Drink from it; fill it at a tap, a well or a river.
+    kind: Container
+    holds_litres: 1.0
+  - name: 5 L water bottle
+    description: A big plastic bottle for water, 5 litres. Drink from it; fill it at a tap, a well or a river.
+    kind: Container
+    holds_litres: 5.0
+  - name: water barrel
+    description: A bunker's water barrel, 200 litres. Pour water into it; drink or fill a bottle from it.
+    kind: Container
+    holds_litres: 200.0
+  # The sources (design.md: a livable world, rivers drinkable, wells
+  # scattered, food sources): eaten or drunk from where they stand, a
+  # mouthful a use, never used up, so never carried and never described.
+  # Tuning.
+  - {name: well, kind: Source, food: {hunger: 0.0, thirst: 50.0, health: 0.0}}
+  # A house's water (topside-town "Everything works", Project Zomboid's
+  # plumbing: a house's taps run off the town's water): a sink and a
+  # shower give a mouthful as a well does, a toilet flushes, each taking it
+  # from the water tower (`DrawsFrom`).
+  - {name: sink, kind: Source, food: {hunger: 0.0, thirst: 50.0, health: 0.0}}
+  - {name: water pump, kind: Source, food: {hunger: 0.0, thirst: 50.0, health: 0.0}}
+  - {name: water tower tap, kind: Source, food: {hunger: 0.0, thirst: 50.0, health: 0.0}}
+  - {name: shower, kind: Source, food: {hunger: 0.0, thirst: 50.0, health: 0.0}}
+  - {name: toilet, kind: Source, food: {hunger: 0.0, thirst: 0.0, health: 0.0}}
+  - {name: substation, description: "The town's substation. Its lines carry power to every house.", kind: Deployable}
+  - {name: breaker box, description: "A house's breaker box. Off, nothing in the house has power.", kind: Deployable}
+  - {name: light switch, description: A light switch., kind: Deployable}
+  - {name: ceiling light, description: A ceiling light., kind: Deployable}
+  - {name: fireplace, description: "A fireplace. Put wood in it and it burns, warming the room.", kind: Deployable, storage: 4}
+  - {name: wood stove, description: "A wood stove. Put wood in it and it burns, warming the room.", kind: Deployable, storage: 4}
+  - {name: furnace, description: "The house's furnace. With power and the thermostat on, it warms the house.", kind: Deployable}
+  - {name: air conditioner, description: "The house's air conditioner. With power and the thermostat on, it cools the house.", kind: Deployable}
+  - {name: thermostat, description: "The house's thermostat. On, the furnace and the air conditioner run.", kind: Deployable}
+  - {name: couch, description: "A couch. Use it to sleep on; a bed rests better.", kind: Source}
+  - {name: sleeping bag, description: "A sleeping bag. Carried, sleeping off a bed rests better.", kind: Material}
+  - {name: garage workbench, description: A garage workbench. Things are built and fixed here., kind: Deployable}
+  - {name: toolbox, description: A toolbox., kind: Deployable, storage: 6}
+  - {name: wrench, description: "A wrench. Carried, a broken car can be fixed with scrap.", kind: Tool}
+  - {name: kitchen cabinet, description: Kitchen cabinets., kind: Deployable, storage: 8}
+  - {name: garage shelf, description: Garage shelves., kind: Deployable, storage: 12}
+  - {name: closet, description: A bedroom closet., kind: Deployable, storage: 8}
+  - {name: dresser, description: A dresser., kind: Deployable, storage: 6}
+  - {name: washer, description: "A washing machine. With power, dirty clothes put in it come out washed and wet.", kind: Deployable, storage: 4}
+  - {name: dryer, description: "A dryer. With power, wet clothes put in it come out clean.", kind: Deployable, storage: 4}
+  - {name: medicine cabinet, description: A medicine cabinet over the bathroom sink., kind: Deployable, storage: 6}
+  - {name: first aid kit, description: A first aid kit. Use it to treat bad wounds., kind: Medicine, max_stack: 3, food: {hunger: 0.0, thirst: 0.0, health: 60.0}}
+  - {name: soap, description: "A bar of soap. Carried, a wash gets you twice as clean.", kind: Material, max_stack: 5}
+  - {name: pantry, description: A kitchen pantry. Food keeps here as it would anywhere., kind: Deployable, storage: 12}
+  - {name: fridge, description: "A fridge. With power, food in it keeps four times as long.", kind: Deployable, storage: 12}
+  - {name: freezer, description: "A freezer. With power, food in it does not spoil.", kind: Deployable, storage: 12}
+  - {name: stove, description: A kitchen stove. Food is cooked on it., kind: Deployable}
+  - {name: raw meat, description: "Raw meat. Cook it on a stove; eaten raw it makes you sick.", kind: Food, max_stack: 10, food: {hunger: 15.0, thirst: 0.0, health: -5.0}}
+  - {name: cooked meat, description: Cooked meat. It fills and heals., kind: Food, max_stack: 10, food: {hunger: 40.0, thirst: 0.0, health: 10.0}}
+  - {name: lamp, description: "A lamp. On, with the house's power, it lights the room.", kind: Deployable}
+  - {name: candle, description: "A candle. Lit, it gives a little light.", kind: Deployable}
+  - {name: streetlight, description: A streetlight. It comes on at night while the town has power., kind: Deployable}
+  - {name: flashlight, description: "A flashlight. Held, it lights the way.", kind: Tool}
+  - {name: blanket, description: "A warm blanket. Carried, it keeps the cold off.", kind: Material}
+  # Its 50 barrels: content's WATER_TOWER_BARRELS, which the town's water
+  # reads; change both together.
+  - {name: water tower, description: "The town's water tower. Every house's taps draw from it.", kind: Deployable, storage: 50}
+  # Dirty water works but makes you sick (todo Survive 4): each mouthful
+  # of river water hurts a little. The 3 is Claude's.
+  - {name: river, kind: Source, food: {hunger: 0.0, thirst: 50.0, health: -3.0}}
+  # Food heals, each food its own amounts (todo Survive 2): berries less
+  # hunger and less health than a can. The 2 is Claude's.
+  - {name: berry bush, kind: Source, food: {hunger: 20.0, thirst: 0.0, health: 2.0}}
+  # Made at the bench from cloth; heals far faster than food, a reason to
+  # craft before going out (todo 10ca). Tuning.
+  - {name: bandage, description: A strip of clean cloth. Use it to heal your wounds., kind: Medicine, max_stack: 5, food: {hunger: 0.0, thirst: 0.0, health: 30.0}}
+  # Building (todo 9f, Rust's building plan, hammer and tool cupboard; the
+  # materials each grade costs, `grade_material`). Descriptions and the
+  # cupboard's 6 slots Claude's.
+  - {name: building plan, description: "Rolled paper. Hold it and strike to build a twig piece; use it to pick the next piece.", kind: Tool}
+  - {name: hammer, description: A claw hammer. Strike a piece to upgrade it to its next grade., kind: Tool}
+  - {name: tool cupboard, description: "A cupboard of tools. Set it down: only your group builds near it, and its upkeep keeps your pieces from decay.", kind: Deployable, storage: 6}
+  - {name: wood, description: "Split wood, for building.", kind: Material, max_stack: 100}
+  - {name: stone, description: "Broken stone, for building.", kind: Material, max_stack: 100}
+  - {name: turret, description: "A shotgun on a stand. Set it down and it guards the spot, loaded with your shells.", kind: Deployable}
+  # Power (todo 29; descriptions and the 4 slots Claude's).
+  - {name: generator, description: A fuel generator. Fill it with fuel and it powers what is wired near it., kind: Deployable, storage: 4}
+  - {name: fuel, description: "A can of fuel, for a generator or a car.", kind: Material, max_stack: 20}
+  - {name: propane tank, description: "A propane tank, for a generator.", kind: Material, max_stack: 5}
+  - {name: gas pump, description: A gas pump. Cans of fuel are filled here., kind: Deployable, storage: 4}
+  - {name: safe, description: A safe. Its key opens it., kind: Deployable, storage: 4}
+  - {name: matches, description: A box of matches. Sets a thing alight., kind: Tool}
+  - {name: tv, description: A TV., kind: Deployable}
+  - {name: phone, description: A phone., kind: Deployable}
+  - {name: mailbox, description: A mailbox., kind: Deployable, storage: 4}
+  - {name: garden bed, description: A garden bed. Seed sown here grows., kind: Deployable}
+  - {name: carrot seed, description: Carrot seed. Sow it in a garden bed., kind: Material, max_stack: 20}
+  - {name: potato seed, description: Potato seed. Sow it in a garden bed., kind: Material, max_stack: 20}
+  - {name: carrot, description: "A carrot, from a garden.", kind: Food, max_stack: 20, food: {hunger: 12.0, thirst: 2.0, health: 2.0}}
+  - {name: potato, description: "A potato, from a garden.", kind: Food, max_stack: 20, food: {hunger: 20.0, thirst: 0.0, health: 2.0}}
+  - {name: store shelf, description: A store shelf., kind: Deployable, storage: 12}
+  - {name: cash register, description: A cash register., kind: Deployable, storage: 4}
+  - {name: pallet, description: A pallet of stock., kind: Deployable, storage: 16}
+  - {name: walk-in cooler, description: A walk-in cooler., kind: Deployable, storage: 16}
+  - {name: office desk, description: An office desk., kind: Deployable, storage: 6}
+  - {name: seed bin, description: A bin of seed., kind: Deployable, storage: 8}
+  - {name: feed trough, description: A feed trough., kind: Deployable, storage: 6}
+  - {name: milk can, description: A milk can., kind: Deployable, storage: 4}
+  - {name: nest box, description: A row of nest boxes., kind: Deployable, storage: 6}
+  - {name: hay bale, description: A hay bale., kind: Deployable, storage: 10}
+  - {name: butcher block, description: A butcher block., kind: Deployable, storage: 6}
+  - {name: animal feed, description: Animal feed., kind: Material, max_stack: 20}
+  - {name: bakery case, description: A bakery case., kind: Deployable, storage: 8}
+  - {name: grave, description: A grave and its stone., kind: Note}
+  - {name: mail sack, description: "A sack of the town's mail.", kind: Deployable, storage: 8}
+  - {name: records cabinet, description: "The town's records.", kind: Deployable, storage: 6}
+  - {name: "sheriff's desk", description: "The sheriff's desk.", kind: Deployable, storage: 6}
+  - {name: gun locker, description: A gun locker. Locked., kind: Deployable, storage: 8}
+  - {name: gear locker, description: "A firefighter's gear locker.", kind: Deployable, storage: 8}
+  - {name: pharmacy shelf, description: "The pharmacy's shelves.", kind: Deployable, storage: 10}
+  - {name: substation switch, description: A substation switch., kind: Deployable}
+  - {name: sewage pump, description: The sewage lift pump., kind: Deployable}
+  - {name: pond valve, description: "The sewage pond's valve.", kind: Deployable}
+  - {name: transformer, description: "A transformer, its casing loose.", kind: Deployable, storage: 6}
+  - {name: liquor shelf, description: The shelf behind the bar., kind: Deployable, storage: 8}
+  - {name: bottle of liquor, description: A bottle of liquor., kind: Food, max_stack: 4, food: {hunger: 0.0, thirst: 5.0, health: -2.0}}
+  - {name: bread, description: A loaf of bread., kind: Food, max_stack: 6, food: {hunger: 20.0, thirst: -2.0, health: 2.0}}
+  - {name: frozen pizza, description: A frozen pizza., kind: Food, max_stack: 6, food: {hunger: 35.0, thirst: -3.0, health: 2.0}}
+  - {name: grain hopper, description: "A grain bin's hopper.", kind: Deployable, storage: 12}
+  - {name: grain, description: A sack of grain. Better baked., kind: Food, max_stack: 20, food: {hunger: 5.0, thirst: -2.0, health: 0.0}}
+  - {name: egg, description: An egg. Better cooked., kind: Food, max_stack: 12, food: {hunger: 8.0, thirst: 0.0, health: 1.0}}
+  - {name: milk, description: A jug of milk., kind: Food, max_stack: 4, food: {hunger: 6.0, thirst: 15.0, health: 1.0}}
+  - {name: trash can, description: A trash can. The truck takes what is in it to the dump., kind: Deployable, storage: 6}
+  - {name: dump pile, description: "A pile of the town's junk.", kind: Deployable, storage: 24}
+  - {name: extinguisher, description: A fire extinguisher. Puts out the fires near., kind: Tool}
+  - {name: smoke detector, description: A smoke detector. It sounds at a fire., kind: Deployable}
+  - {name: hydrant, description: A fire hydrant. Its hose puts out the fires around it., kind: Deployable}
+  # The silo (todo 30; descriptions Claude's).
+  - {name: shovel, description: A shovel. Strike the deepest floor of your bunker to dig a level down., kind: Tool}
+  - {name: crafting bench, description: A bench folded for carrying. Set it down and craft at it., kind: Deployable}
+  # Used where it stands, and broken by a weapon in hand, the one way a
+  # thing is broken (topside-town "Death and the bed": "destroying their
+  # bed"; the description Claude's).
+  - {name: bed, description: "Someone's bed. Who sleeps here wakes here after dying.", kind: Source, breaks_when_struck: true}
+  - {name: research station, description: "A research desk folded for carrying. Set it down and research at it, with power.", kind: Deployable}
+  # A box feeds nobody; the food seen inside it does (modforge
+  # `food_worth`, life.md "What things are good for").
+  - {name: storage box, description: A wooden box to keep things in. Set it down and fill it., kind: Deployable, storage: 12}
+  # Thrown ahead to set an anomaly off (todo 10i2; design.md "Maze,
+  # mined": the bolt).
+  - {name: bolt, description: A steel bolt. Throw it ahead and watch where it lands., kind: Tool, max_stack: 20}
+  - {name: scrap, description: "Bent metal and screws, for making things.", kind: Material, max_stack: 20}
+  - {name: cloth, description: "A roll of old cloth, for making things.", kind: Material, max_stack: 20}
+  # A handle (design.md "What 2D changes"): the handle decides reach and
+  # speed, the head it takes decides the damage.
+  - name: pipe
+    description: A length of steel pipe to swing. A head can be fixed to it.
+    kind: Weapon
+    quality_siblings: 3
+    combat: {damage: pipe swing, delay: 0.6, reach: 2.0, pellets: 1, spread_degrees: 0.0, ammo: null}
+    layer_slots: [head]
+  # A wolf's teeth: the weapon it is born with (todo 13w). Its delay and
+  # reach are Claude's, for the operator to change.
+  - name: teeth
+    description: "A wild animal's teeth."
+    kind: Weapon
+    combat: {damage: bite, delay: 0.8, reach: 1.4, pellets: 1, spread_degrees: 0.0, ammo: null}
+  - name: wooden handle
+    description: A short wooden handle to swing. A head can be fixed to it.
+    kind: Weapon
+    quality_siblings: 3
+    combat: {damage: handle swing, delay: 0.7, reach: 1.8, pellets: 1, spread_degrees: 0.0, ammo: null}
+    layer_slots: [head]
+  - name: long pole
+    description: A long pole that keeps them at a distance. A head can be fixed to it.
+    kind: Weapon
+    quality_siblings: 3
+    combat: {damage: pole swing, delay: 0.9, reach: 2.8, pellets: 1, spread_degrees: 0.0, ammo: null}
+    layer_slots: [head]
+  # Rust's pipe shotgun: one shell, six pellets, wide spread, instant out
+  # to 40 m (the hybrid's instant part). The body alone; its parts add to
+  # these (register_layers). A gun (design.md "What 2D changes"): the body
+  # takes a barrel, a grip, a stock, and a sight.
+  - name: pipe shotgun
+    description: "A shotgun made from pipe. Fires shotgun shells; its parts can be swapped."
+    kind: Weapon
+    quality_siblings: 3
+    combat: {damage: shotgun pellet, delay: 1.2, reach: 20.0, pellets: 6, spread_degrees: 10.0, ammo: shotgun shell}
+    layer_slots: [barrel, grip, stock, sight]
+  - {name: shotgun shell, description: Ammunition for the pipe shotgun., kind: Material, max_stack: 20}
+  # Worn in the chest slot; guards the chest only.
+  - name: road sign vest
+    description: Road signs strapped over the chest. Wear it for protection.
+    kind: Tool
+    quality_siblings: 3
+    armor: {amount: 40.0, area: Chest}
+  # A helmet (todo Fight 8): worn armor that guards only the head. Its
+  # amount is Claude's, for the operator to change.
+  - name: helmet
+    description: A dented helmet. Wear it to guard your head.
+    kind: Tool
+    quality_siblings: 3
+    armor: {amount: 40.0, area: Head}
