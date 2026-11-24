@@ -1,0 +1,169 @@
+# The fire station and every thing in it (todo Model 16), built by
+# scripts/models.py.
+#
+# The furniture at the sizes content's fire station plan gives it (the
+# engine 7 m long, 2.6 m wide and 2.8 m tall, the gear room's turnout rack
+# 4.5 m by 0.5 m and 1.9 m tall, each bunk room cot 2 m by 0.9 m, the
+# station kitchen's counter 4 m by 0.7 m), long side along x, front to
+# -y, as the clinic's. The bed, stove, pantry and radio are the house's
+# and the items'. Sizes and colours are Claude's.
+
+colours:
+  engine red: [0.72, 0.1, 0.08]
+  chrome: [0.82, 0.84, 0.86]
+  tyre: [0.08, 0.08, 0.09]
+  turnout tan: [0.68, 0.58, 0.36]
+  reflective: [0.85, 0.82, 0.3]
+  cot canvas: [0.32, 0.38, 0.28]
+  laminate: [0.78, 0.76, 0.7]
+
+models:
+  fire engine:
+    about: the town's fire engine, 7 m long, a red body with its cab at the front (+x), a white stripe, chrome bumper, ladder on top, six wheels.
+    parts:
+      - box: [5.0, 2.5, 1.9]
+        at: [-0.9, 0, 1.4]
+        colour: engine red
+      - box: [1.9, 2.5, 2.2]
+        at: [2.55, 0, 1.55]
+        colour: engine red
+      - box: [0.04, 2.2, 0.8]
+        at: [3.51, 0, 2.05]
+        colour: glass
+      - for: {y: [-1.26, 1.26]}
+        parts:
+          - box: [1.2, 0.02, 0.6]
+            at: [2.6, y, 2.1]
+            colour: glass
+          - box: [6.8, 0.02, 0.12]
+            at: [-0.1, y, 1.2]
+            colour: white
+          - for: {x: [-2.6, -1.4, 2.4]}
+            parts:
+              - cylinder: [0.5, 0.35]
+                along: Y
+                at: [x, y * 0.92, 0.5]
+                colour: tyre
+      - box: [0.15, 2.6, 0.3]
+        at: [3.5, 0, 0.5]
+        colour: chrome
+      - box: [5.0, 0.6, 0.12]
+        at: [-0.9, 0, 2.42]
+        colour: chrome
+      - for: {i: range(10)}
+        parts:
+          - box: [0.04, 0.6, 0.06]
+            at: [-3.2 + 0.5 * i, 0, 2.5]
+            colour: chrome
+      - box: [0.3, 1.2, 0.12]
+        at: [2.6, 0, 2.71]
+        colour: red
+
+  turnout rack:
+    about: the gear room's open rack, 4.5 m long and 1.9 m tall, a steel frame with a turnout coat and helmet on each hook and boots below.
+    parts:
+      - for: {x: [-2.2, 2.2]}
+        parts:
+          - box: [0.05, 0.5, 1.9]
+            at: [x, 0, 0.95]
+            colour: dark steel
+      - box: [4.5, 0.5, 0.04]
+        at: [0, 0, 1.88]
+        colour: dark steel
+      - box: [4.5, 0.5, 0.04]
+        at: [0, 0, 0.3]
+        colour: dark steel
+      - for: {i: range(6)}
+        let: {x: -1.85 + 0.74 * i}
+        parts:
+          - box: [0.55, 0.3, 0.9]
+            at: [x, 0, 1.15]
+            colour: turnout tan
+          - box: [0.55, 0.31, 0.06]
+            at: [x, 0, 0.9]
+            colour: reflective
+          - box: [0.34, 0.3, 0.18]
+            at: [x, 0, 1.7]
+            colour: [black, yellow, red][i % 3]
+          - box: [0.3, 0.3, 0.28]
+            at: [x, 0, 0.14]
+            colour: black
+
+  station cot:
+    about: a bunk room cot, 2 m long and 0.9 m wide, green canvas on a steel frame, a pillow at one end.
+    parts:
+      - box: [2.0, 0.9, 0.08]
+        at: [0, 0, 0.45]
+        colour: cot canvas
+      - for: {x: [-0.95, 0.95]}
+        parts:
+          - for: {y: [-0.42, 0.42]}
+            parts:
+              - box: [0.05, 0.05, 0.45]
+                at: [x, y, 0.225]
+                colour: dark steel
+      - box: [0.4, 0.6, 0.1]
+        at: [-0.75, 0, 0.54]
+        colour: white
+
+  station counter:
+    about: the station kitchen's counter, 4 m along the wall, laminate top over base cabinets, a steel sink in it.
+    parts:
+      - box: [4.0, 0.66, 0.86]
+        at: [0, 0.02, 0.43]
+        colour: wood
+      - for: {d: range(7)}
+        parts:
+          - box: [0.52, 0.01, 0.7]
+            at: [-1.65 + 0.55 * d, -0.315, 0.45]
+            colour: dark steel
+      - box: [4.0, 0.7, 0.04]
+        at: [0, 0, 0.88]
+        colour: laminate
+      - box: [0.7, 0.45, 0.02]
+        at: [1.2, 0.05, 0.9]
+        colour: steel
+
+  gear locker:
+    about: a firefighter's gear locker, an open-fronted steel cubby 0.7 m wide, a coat and helmet hung in it, boots on its floor.
+    parts:
+      - box: [0.7, 0.5, 0.04]
+        at: [0, 0, 0.02]
+        colour: dark steel
+      - box: [0.7, 0.5, 0.04]
+        at: [0, 0, 1.78]
+        colour: dark steel
+      - box: [0.7, 0.04, 1.8]
+        at: [0, 0.23, 0.9]
+        colour: dark steel
+      - for: {x: [-0.33, 0.33]}
+        parts:
+          - box: [0.04, 0.5, 1.8]
+            at: [x, 0, 0.9]
+            colour: dark steel
+      - box: [0.5, 0.3, 0.85]
+        at: [0, 0.05, 1.0]
+        colour: turnout tan
+      - box: [0.51, 0.31, 0.06]
+        at: [0, 0.05, 0.8]
+        colour: reflective
+      - box: [0.3, 0.3, 0.18]
+        at: [0, 0.05, 1.6]
+        colour: yellow
+      - box: [0.4, 0.3, 0.3]
+        at: [0, 0, 0.19]
+        colour: black
+
+  extinguisher:
+    about: a red fire extinguisher, a cylinder with its black hose and handle.
+    parts:
+      - cylinder: [0.08, 0.45]
+        along: Z
+        at: [0, 0, 0.225]
+        colour: red
+      - box: [0.06, 0.12, 0.08]
+        at: [0, 0, 0.49]
+        colour: black
+      - box: [0.03, 0.03, 0.3]
+        at: [0.09, 0, 0.3]
+        colour: black
