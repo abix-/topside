@@ -1744,6 +1744,9 @@ pub fn publish(
         // Every span Bevy ran (each system, each schedule, the drawing's
         // work), ms per frame, the costliest first (profile.rs).
         let frame: Vec<Json> = crate::profile::per_frame().into_iter().map(|(n, ms)| json!({"span": n, "ms": ms})).collect();
+        // Each span's worst single frame since the world was made ready,
+        // the costliest 60.
+        let frame_worst: Vec<Json> = crate::profile::worst_frame().into_iter().take(60).map(|(n, ms)| json!({"span": n, "ms": ms})).collect();
         if let Ok(mut slot) = PERF.lock() {
             *slot = json!({
                 "step_ms": laps.step_ms,
@@ -1757,6 +1760,7 @@ pub fn publish(
                 "parts": parts,
                 "counts": counts,
                 "frame": frame,
+                "frame_worst": frame_worst,
             });
         }
         laps.record("publish: perf copy", began.elapsed().as_secs_f64() * 1000.0);

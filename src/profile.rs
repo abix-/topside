@@ -31,6 +31,9 @@ struct Slot {
 static SLOTS: LazyLock<Mutex<HashMap<String, Arc<Slot>>>> = LazyLock::new(Default::default);
 /// Every span's average time per frame, in ms.
 static PER_FRAME: LazyLock<Mutex<HashMap<String, f64>>> = LazyLock::new(Default::default);
+/// Every span's worst single frame since the world was made ready, in ms:
+/// an average hides a one-step stall (the first step after a load).
+static WORST_FRAME: LazyLock<Mutex<HashMap<String, f64>>> = LazyLock::new(Default::default);
 
 /// What a span measures: its kind and, for a system or schedule, its name;
 /// for Bevy's `par_for_each` (every `Query::par_iter`), the query it walks,
@@ -122,7 +125,7 @@ pub fn layer(_: &mut App) -> Option<bevy::log::BoxedLayer> {
 /// per frame, and the next frame starts from nothing; a span that did not
 /// run this frame counts as nothing.
 pub fn roll_frame() {
-    let (Ok(slots), Ok(mut means)) = (SLOTS.lock(), PER_FRAME.lock()) else {
+    let (Ok(slots), Ok(mut means), Ok(mut worst)) = (SLOTS.lock(), PER_FRAME.lock(), WORST_FRAME.lock()) else {
         return;
     };
     for mean in means.values_mut() {
@@ -134,6 +137,12 @@ pub fn roll_frame() {
             continue;
         }
         let ms = nanos as f64 / 1_000_000.0;
+        match worst.get_mut(slot.name.as_str()) {
+            Some(w) => *w = w.max(ms),
+            None => {
+                worst.insert(slot.name.clone(), ms);
+            }
+        }
         match means.get_mut(slot.name.as_str()) {
             Some(mean) => *mean += ms * SMOOTHING,
             None => {
@@ -146,6 +155,14 @@ pub fn roll_frame() {
 /// Every span's average ms per frame, the costliest first.
 pub fn per_frame() -> Vec<(String, f64)> {
     let mut all: Vec<(String, f64)> = PER_FRAME.lock().map(|m| m.iter().map(|(n, v)| (n.clone(), *v)).collect()).unwrap_or_default();
+    all.sort_by(|a, b| b.1.total_cmp(&a.1));
+    all
+}
+
+/// Every span's worst single frame since the world was made ready, the
+/// costliest first.
+pub fn worst_frame() -> Vec<(String, f64)> {
+    let mut all: Vec<(String, f64)> = WORST_FRAME.lock().map(|m| m.iter().map(|(n, v)| (n.clone(), *v)).collect()).unwrap_or_default();
     all.sort_by(|a, b| b.1.total_cmp(&a.1));
     all
 }
@@ -238,6 +255,9 @@ impl Laps {
         self.over_budget_steps.clear();
         for (_, worst) in &mut self.worst_ms {
             *worst = 0.0;
+        }
+        if let Ok(mut worst) = WORST_FRAME.lock() {
+            worst.clear();
         }
     }
 
@@ -426,6 +446,31 @@ impl Plugin for ProfilePlugin {
         app.add_systems(
             FixedPostUpdate,
             (count_units, lap(REST_OF_FIXED_UPDATE)).chain().before(avian3d::schedule::PhysicsSystems::First),
+        );
+        // The physics lap in three: Avian's preparing (new colliders and
+        // bodies, their mass, the physics transforms), its step, and the
+        // rest (writing back, then the rest of the fixed step). The first
+        // step after a load cost 7.6 ms in it, under 1 ms of that in the
+        // step's own timers (Perf 2).
+        app.add_systems(
+            FixedPostUpdate,
+            (
+                lap("physics: placed")
+                    .after(avian3d::physics_transform::PhysicsTransformSystems::Propagate)
+                    .before(avian3d::physics_transform::PhysicsTransformSystems::TransformToPosition),
+                lap("physics: positions")
+                    .after(avian3d::physics_transform::PhysicsTransformSystems::TransformToPosition)
+                    .before(avian3d::dynamics::rigid_body::mass_properties::MassPropertySystems::UpdateColliderMassProperties),
+                lap("physics: mass queued")
+                    .after(avian3d::dynamics::rigid_body::mass_properties::MassPropertySystems::QueueRecomputation)
+                    .before(avian3d::dynamics::rigid_body::mass_properties::MassPropertySystems::UpdateComputedMassProperties),
+                lap("physics: prepare")
+                    .after(avian3d::schedule::PhysicsSystems::Prepare)
+                    .before(avian3d::schedule::PhysicsSystems::StepSimulation),
+                lap("physics: step")
+                    .after(avian3d::schedule::PhysicsSystems::StepSimulation)
+                    .before(avian3d::schedule::PhysicsSystems::Writeback),
+            ),
         );
         app.add_systems(FixedLast, (lap("physics"), finish_step, physics_pieces).chain());
     }
