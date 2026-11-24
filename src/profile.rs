@@ -194,7 +194,14 @@ pub struct OverBudget {
     pub ms: f64,
     pub parts: Vec<(&'static str, f64)>,
     pub units: Vec<(&'static str, f64)>,
+    /// Its costliest spans (each system, schedule and piece run in it,
+    /// nested ones inside their parents'), in ms.
+    pub spans: Vec<(String, f64)>,
 }
+
+/// Every span's time this frame at the top of the step, so a step over the
+/// budget can say which spans ran long in it (`finish_step`).
+static AT_STEP_START: LazyLock<Mutex<Vec<(Arc<Slot>, u64)>>> = LazyLock::new(Default::default);
 
 #[derive(Resource, Default)]
 pub struct Laps {
@@ -325,6 +332,25 @@ pub fn start_step(mut laps: ResMut<Laps>) {
     laps.step_start = Some(now);
     laps.steps_this_frame += 1;
     laps.this_step.clear();
+    if let (Ok(slots), Ok(mut at)) = (SLOTS.lock(), AT_STEP_START.lock()) {
+        at.clear();
+        at.extend(slots.values().map(|s| (Arc::clone(s), s.nanos.load(Ordering::Relaxed))));
+    }
+}
+
+/// The spans that ran longest since the top of the step, in ms.
+fn step_spans() -> Vec<(String, f64)> {
+    let Ok(at) = AT_STEP_START.lock() else {
+        return Vec::new();
+    };
+    let mut spans: Vec<(String, f64)> = at
+        .iter()
+        .map(|(slot, was)| (slot.name.clone(), slot.nanos.load(Ordering::Relaxed).saturating_sub(*was) as f64 / 1_000_000.0))
+        .filter(|(_, ms)| *ms > 0.2)
+        .collect();
+    spans.sort_by(|a, b| b.1.total_cmp(&a.1));
+    spans.truncate(40);
+    spans
 }
 
 /// The end of the fixed step, last in FixedLast: the whole step's time.
@@ -342,7 +368,8 @@ pub fn finish_step(mut laps: ResMut<Laps>, tick: Res<crate::SimTick>) {
             parts.sort_by(|a, b| b.1.total_cmp(&a.1));
             parts.truncate(12);
             let units = laps.counts.iter().zip(&laps.counts_now).map(|((name, _), n)| (*name, *n)).collect();
-            laps.over_budget_steps.push(OverBudget { tick: tick.0, ms, parts, units });
+            let spans = step_spans();
+            laps.over_budget_steps.push(OverBudget { tick: tick.0, ms, parts, units, spans });
         }
     }
 }
