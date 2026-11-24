@@ -758,7 +758,7 @@ pub const WATER_TOWER_TAP: &str = "water tower tap";
 /// Place 10: the power substation, at the edge of town: the control
 /// building's control room with its switch panel, the battery room and
 /// the store, with the transformers in the yard behind.
-pub const SUBSTATION: modforge::plan::PlanDef = modforge::plan::PlanDef {
+pub const SUBSTATION_PLAN: modforge::plan::PlanDef =modforge::plan::PlanDef {
     name: "substation",
     edge: true,
     columns: &[6.0, 4.0],
@@ -1244,7 +1244,7 @@ pub const GENERAL_STORE: modforge::plan::PlanDef = modforge::plan::PlanDef {
     furniture_color: [0.5, 0.38, 0.25],
     height: 3.2,
 };
-pub const PLACES: [modforge::plan::PlanDef; 24] = [GROCERY_STORE, CROP_FARM, CROP_FARM, LIVESTOCK_BARN, GRAIN_ELEVATOR, DINER, PIZZA_PLACE, CAFE, BAR, PUMP_HOUSE, SUBSTATION, GAS_STATION, SEWAGE_POND, TOWN_DUMP, CLINIC, FIRE_STATION, SHERIFFS_OFFICE, SCHOOL, TOWN_HALL, CHURCH, CEMETERY, HARDWARE_STORE, MECHANICS_GARAGE, GENERAL_STORE];
+pub const PLACES: [modforge::plan::PlanDef; 24] = [GROCERY_STORE, CROP_FARM, CROP_FARM, LIVESTOCK_BARN, GRAIN_ELEVATOR, DINER, PIZZA_PLACE, CAFE, BAR, PUMP_HOUSE, SUBSTATION_PLAN, GAS_STATION, SEWAGE_POND, TOWN_DUMP, CLINIC, FIRE_STATION, SHERIFFS_OFFICE, SCHOOL, TOWN_HALL, CHURCH, CEMETERY, HARDWARE_STORE, MECHANICS_GARAGE, GENERAL_STORE];
 /// The places whose garden beds are found sown and ripe, with what.
 /// The small world's tiers, 1 to 6 (topside-town "Tiers": the
 /// operator's "tier 6 enemy house"); the count is the map's.
@@ -1591,24 +1591,28 @@ pub fn starting_bunker() -> StructureDef {
                 center: Vec3::new(-2.4, PLAYER_ROOM_FLOOR + 0.25, 3.0),
                 size: Vec3::new(1.0, 0.5, 2.0),
                 color: [0.30, 0.35, 0.55],
+                model: None,
             },
             // The crafting bench, in the surface room.
             SolidDef {
                 center: Vec3::new(2.2, SURFACE_ROOM_FLOOR + 0.45, 3.5),
                 size: Vec3::new(1.6, 0.9, 0.7),
                 color: [0.45, 0.32, 0.18],
+                model: None,
             },
             // The research station, in the surface room (todo 28).
             SolidDef {
                 center: Vec3::new(-2.2, SURFACE_ROOM_FLOOR + 0.45, 3.5),
                 size: Vec3::new(1.6, 0.9, 0.7),
                 color: [0.30, 0.40, 0.42],
+                model: None,
             },
             // The food crate, in the player's room.
             SolidDef {
                 center: Vec3::new(-2.5, PLAYER_ROOM_FLOOR + 0.35, -3.3),
                 size: Vec3::new(0.7, 0.7, 0.7),
                 color: [0.55, 0.45, 0.20],
+                model: None,
             },
         ],
         lights: [SURFACE_ROOM_FLOOR, PLAYER_ROOM_FLOOR]
@@ -2949,7 +2953,8 @@ pub fn register_items(reg: &mut ItemRegistry) {
         storage,
         armor: None,
         good_for: Default::default(),
-        picture: None,
+        // Drawn as its own model, named as it is (scripts/models.py).
+        picture: Some(name.to_string()),
         layer_slots: Vec::new(),
         breaks_when_struck: false,
         holds_litres: None,
@@ -3544,7 +3549,10 @@ pub fn register_items(reg: &mut ItemRegistry) {
     // 2026-11-23): a recipe asking for a category takes any kind in it,
     // one asking for a kind takes only that (Minecraft's item tags).
     for (category, kinds) in RESOURCES {
-        for kind in kinds.iter().filter(|k| reg.def(k).is_none()) {
+        for kind in kinds.iter() {
+            if reg.def(kind).is_some() {
+                continue;
+            }
             let def = ItemDef {
                 picture: Some(kind.to_string()),
                 ..building(kind, &format!("{kind}, for crafting and building."), ItemKind::Material, 100, None)

@@ -135,11 +135,12 @@ def load(file, colours):
     return meshes
 
 
-def join(parts, name, size=None, turn=0):
+def join(parts, name, size=None, turn=0, lift=0.0):
     """join parts into one flat-shaded object named `name`, turned `turn`
     degrees about upright, resting on the ground. With `size`, it is
     scaled evenly so its largest side is that many metres (the game's size
-    for it)."""
+    for it). With `lift`, its lowest point is that many metres up: a thing
+    hung on a wall or a ceiling, whose ground point is under it."""
     bpy.ops.object.select_all(action="DESELECT")
     for p in parts:
         p.select_set(True)
@@ -161,7 +162,7 @@ def join(parts, name, size=None, turn=0):
     world = [obj.matrix_world @ v.co for v in obj.data.vertices]
     obj.location.x -= (min(p.x for p in world) + max(p.x for p in world)) / 2
     obj.location.y -= (min(p.y for p in world) + max(p.y for p in world)) / 2
-    obj.location.z -= min(p.z for p in world)
+    obj.location.z -= min(p.z for p in world) - lift
     bpy.context.view_layer.update()
     return obj
 
@@ -2221,6 +2222,505 @@ def wolf():
 ANIMALS = {"wolf": wolf}
 
 
+# -- the house and every thing in it (todo Model 1) -----------------------------
+#
+# Each at its real size in metres, its long side along x, its front to -y.
+# The furniture pieces are made to the sizes modforge house.rs gives them
+# (`furniture_of`); the things standing in the house (content/src/lib.rs's
+# buildings) to a house's. A thing on a wall, a counter or the ceiling is
+# lifted to where it hangs over its ground point. Sizes and lifts are
+# Claude's.
+
+CEILING = 2.6  # content house_def's height
+
+
+def house_colours():
+    return {
+        "wood": material("house wood", (0.45, 0.32, 0.2)),
+        "dark wood": material("house dark wood", (0.3, 0.2, 0.12)),
+        "white": material("house white", (0.88, 0.88, 0.86)),
+        "steel": material("house steel", (0.6, 0.62, 0.65)),
+        "black": material("house black", (0.1, 0.1, 0.11)),
+        "fabric": material("house fabric", (0.35, 0.4, 0.5)),
+        "cushion": material("house cushion", (0.42, 0.47, 0.57)),
+        "glass": material("house glass", (0.2, 0.25, 0.3)),
+        "brick": material("house brick", (0.55, 0.28, 0.2)),
+        "brass": material("house brass", (0.75, 0.62, 0.3)),
+    }
+
+
+def legs(c, x, y, h, r=0.025, mat=None):
+    """four legs under a top x by y, h tall."""
+    return [cylinder(f"leg {i}", r, h, at=(sx * (x / 2 - r * 2), sy * (y / 2 - r * 2), h / 2), mat=mat or c["wood"])
+            for i, (sx, sy) in enumerate([(1, 1), (1, -1), (-1, 1), (-1, -1)])]
+
+
+def cabinet(c, name, size, mat, doors=2, drawers=0, knob=None, lift=0.0):
+    """a box of `size` with its doors (or drawers) marked on its front."""
+    x, y, z = size
+    parts = [box(name, size, at=(0, 0, z / 2), mat=mat)]
+    knob = knob or c["brass"]
+    rows = drawers or 1
+    cols = 1 if drawers else doors
+    for r in range(rows):
+        for d in range(cols):
+            w, h = x / cols, z / rows
+            cx, cz = -x / 2 + w * (d + 0.5), h * (r + 0.5)
+            parts.append(box(f"front {r} {d}", (w - 0.03, 0.01, h - 0.03), at=(cx, -y / 2 - 0.005, cz), mat=c["dark wood"]))
+            kx = cx if drawers else cx + (w / 2 - 0.06) * (1 if d % 2 == 0 else -1)
+            parts.append(box(f"knob {r} {d}", (0.03, 0.02, 0.03), at=(kx, -y / 2 - 0.015, cz), mat=knob))
+    return join(parts, name, lift=lift)
+
+
+def couch_like(name, length, depth, height):
+    c = house_colours()
+    parts = [box("base", (length, depth, 0.3), at=(0, 0, 0.25), mat=c["fabric"])]
+    parts += legs(c, length, depth, 0.1, r=0.03, mat=c["dark wood"])
+    arm = 0.15
+    seats = max(1, round((length - 2 * arm) / 0.6))
+    w = (length - 2 * arm) / seats
+    for i in range(seats):
+        parts.append(box(f"cushion {i}", (w - 0.02, depth - 0.25, 0.12), at=(-length / 2 + arm + w * (i + 0.5), -0.1, 0.46), mat=c["cushion"]))
+    parts.append(box("back", (length, 0.2, height - 0.1), at=(0, depth / 2 - 0.1, (height - 0.1) / 2 + 0.1), mat=c["fabric"]))
+    for s in (1, -1):
+        parts.append(box(f"arm {s}", (arm, depth, 0.55), at=(s * (length / 2 - arm / 2), 0, 0.375), mat=c["fabric"]))
+    return join(parts, name)
+
+
+def couch():
+    return couch_like("couch", 2.0, 0.9, 0.8)
+
+
+def armchair():
+    return couch_like("armchair", 0.8, 0.8, 0.8)
+
+
+def bed():
+    """a bed for two: its frame, headboard, mattress, pillows and blanket."""
+    c = house_colours()
+    parts = [box("frame", (2.0, 1.5, 0.25), at=(0, 0, 0.2), mat=c["wood"])]
+    parts += legs(c, 2.0, 1.5, 0.1, r=0.04)
+    parts.append(box("headboard", (0.06, 1.5, 0.6), at=(-0.97, 0, 0.3), mat=c["dark wood"]))
+    parts.append(box("mattress", (1.9, 1.4, 0.2), at=(0.02, 0, 0.42), mat=c["white"]))
+    parts.append(box("blanket", (1.3, 1.44, 0.04), at=(0.3, 0, 0.53), mat=c["cushion"]))
+    for s in (1, -1):
+        parts.append(box(f"pillow {s}", (0.35, 0.55, 0.1), at=(-0.7, s * 0.33, 0.56), mat=c["white"]))
+    return join(parts, "bed")
+
+
+def tv_stand():
+    c = house_colours()
+    return cabinet(c, "tv stand", (1.4, 0.45, 0.6), c["wood"], doors=2)
+
+
+def kitchen_counter():
+    """base cabinets under a counter top, 2.2 m along the wall."""
+    c = house_colours()
+    parts = [box("cabinets", (2.2, 0.56, 0.86), at=(0, 0.02, 0.43), mat=c["wood"])]
+    for d in range(4):
+        parts.append(box(f"door {d}", (0.52, 0.01, 0.7), at=(-0.825 + 0.55 * d, -0.265, 0.45), mat=c["dark wood"]))
+    parts.append(box("top", (2.2, 0.6, 0.04), at=(0, 0, 0.88), mat=c["steel"]))
+    return join(parts, "kitchen counter")
+
+
+def stove():
+    """an electric range: white body, black top with four burners, an oven door with its window, knobs."""
+    c = house_colours()
+    parts = [box("body", (0.75, 0.6, 0.86), at=(0, 0, 0.43), mat=c["white"])]
+    parts.append(box("top", (0.75, 0.6, 0.04), at=(0, 0, 0.88), mat=c["black"]))
+    for i, (x, y) in enumerate([(-0.18, -0.12), (0.18, -0.12), (-0.18, 0.12), (0.18, 0.12)]):
+        parts.append(cylinder(f"burner {i}", 0.09, 0.01, sides=12, at=(x, y, 0.905), mat=c["steel"]))
+    parts.append(box("window", (0.5, 0.01, 0.3), at=(0, -0.305, 0.45), mat=c["glass"]))
+    parts.append(box("handle", (0.55, 0.03, 0.03), at=(0, -0.32, 0.7), mat=c["steel"]))
+    parts.append(box("panel", (0.75, 0.06, 0.15), at=(0, 0.27, 0.975), mat=c["white"]))
+    for i in range(4):
+        parts.append(cylinder(f"knob {i}", 0.02, 0.02, along="Y", at=(-0.27 + 0.18 * i, 0.235, 0.975), mat=c["black"]))
+    return join(parts, "stove")
+
+
+def fridge():
+    """a fridge: freezer door over the fridge door, each with its handle."""
+    c = house_colours()
+    parts = [box("body", (0.8, 0.7, 1.8), at=(0, 0, 0.9), mat=c["white"])]
+    parts.append(box("seam", (0.8, 0.01, 0.02), at=(0, -0.352, 1.3), mat=c["steel"]))
+    parts.append(box("upper handle", (0.03, 0.04, 0.3), at=(0.33, -0.37, 1.5), mat=c["steel"]))
+    parts.append(box("lower handle", (0.03, 0.04, 0.5), at=(0.33, -0.37, 0.95), mat=c["steel"]))
+    return join(parts, "fridge")
+
+
+def freezer():
+    """a chest freezer, its lid and handle."""
+    c = house_colours()
+    parts = [box("body", (1.0, 0.65, 0.8), at=(0, 0, 0.4), mat=c["white"])]
+    parts.append(box("lid", (1.02, 0.67, 0.05), at=(0, 0, 0.825), mat=c["white"]))
+    parts.append(box("handle", (0.3, 0.03, 0.03), at=(0, -0.35, 0.78), mat=c["steel"]))
+    return join(parts, "freezer")
+
+
+def pantry():
+    c = house_colours()
+    return cabinet(c, "pantry", (0.8, 0.5, 2.0), c["wood"], doors=2)
+
+
+def kitchen_cabinet():
+    """base cabinets with a counter, and wall cabinets over them."""
+    c = house_colours()
+    parts = [box("base", (1.2, 0.56, 0.86), at=(0, 0.02, 0.43), mat=c["wood"])]
+    parts.append(box("top", (1.2, 0.6, 0.04), at=(0, 0, 0.88), mat=c["steel"]))
+    parts.append(box("upper", (1.2, 0.35, 0.7), at=(0, 0.125, 1.8), mat=c["wood"]))
+    for d in range(2):
+        x = -0.3 + 0.6 * d
+        parts.append(box(f"door {d}", (0.56, 0.01, 0.7), at=(x, -0.265, 0.45), mat=c["dark wood"]))
+        parts.append(box(f"upper door {d}", (0.56, 0.01, 0.64), at=(x, -0.055, 1.8), mat=c["dark wood"]))
+    return join(parts, "kitchen cabinet")
+
+
+def dining_table():
+    c = house_colours()
+    parts = [box("top", (1.6, 0.9, 0.05), at=(0, 0, 0.725), mat=c["wood"])]
+    parts += legs(c, 1.6, 0.9, 0.7, r=0.035)
+    return join(parts, "dining table")
+
+
+def chair():
+    c = house_colours()
+    parts = [box("seat", (0.45, 0.45, 0.05), at=(0, 0, 0.45), mat=c["wood"])]
+    parts += legs(c, 0.45, 0.45, 0.43, r=0.02)
+    parts.append(box("back", (0.45, 0.04, 0.45), at=(0, 0.2, 0.7), mat=c["wood"]))
+    return join(parts, "chair")
+
+
+def dresser():
+    c = house_colours()
+    return cabinet(c, "dresser", (1.2, 0.5, 1.0), c["wood"], drawers=3)
+
+
+def nightstand():
+    c = house_colours()
+    return cabinet(c, "nightstand", (0.45, 0.45, 0.5), c["wood"], drawers=1)
+
+
+def closet():
+    c = house_colours()
+    return cabinet(c, "closet", (1.0, 0.6, 2.0), c["wood"], doors=2)
+
+
+def bathtub():
+    """a tub: its white shell, the hollow inside it, a tap at its end."""
+    c = house_colours()
+    parts = [box("floor", (1.6, 0.75, 0.1), at=(0, 0, 0.05), mat=c["white"])]
+    for s in (1, -1):
+        parts.append(box(f"side {s}", (1.6, 0.08, 0.6), at=(0, s * 0.335, 0.3), mat=c["white"]))
+        parts.append(box(f"end {s}", (0.08, 0.75, 0.6), at=(s * 0.76, 0, 0.3), mat=c["white"]))
+    parts.append(cylinder("tap", 0.02, 0.15, along="X", at=(-0.66, 0, 0.55), mat=c["steel"]))
+    return join(parts, "bathtub")
+
+
+def toilet_bowl():
+    """the toilet's bowl on its foot and its tank behind; its seat is the toilet (below)."""
+    c = house_colours()
+    parts = [box("foot", (0.3, 0.25, 0.3), at=(0.05, 0, 0.15), mat=c["white"])]
+    parts.append(cylinder("bowl", 0.2, 0.12, sides=12, at=(0.05, 0, 0.36), mat=c["white"]))
+    parts.append(box("tank", (0.2, 0.4, 0.4), at=(-0.22, 0, 0.6), mat=c["white"]))
+    parts.append(box("lever", (0.02, 0.06, 0.02), at=(-0.11, -0.14, 0.72), mat=c["steel"]))
+    return join(parts, "toilet bowl")
+
+
+def toilet():
+    """the toilet's seat and its lid, as they sit on the bowl."""
+    c = house_colours()
+    parts = [cylinder("seat", 0.21, 0.03, sides=14, at=(0, 0, 0.015), mat=c["white"])]
+    parts.append(box("hinge", (0.06, 0.25, 0.03), at=(-0.2, 0, 0.015), mat=c["white"]))
+    return join(parts, "toilet", lift=0.42)
+
+
+def vanity():
+    c = house_colours()
+    parts = [box("cabinet", (0.6, 0.45, 0.86), at=(0, 0, 0.43), mat=c["wood"])]
+    parts.append(box("door", (0.54, 0.01, 0.7), at=(0, -0.23, 0.45), mat=c["dark wood"]))
+    parts.append(box("top", (0.6, 0.45, 0.04), at=(0, 0, 0.88), mat=c["white"]))
+    return join(parts, "vanity")
+
+
+def sink():
+    """a basin set in a counter top, with its faucet."""
+    c = house_colours()
+    parts = [box("basin", (0.45, 0.35, 0.02), at=(0, 0, 0.01), mat=c["steel"])]
+    parts.append(cylinder("spout", 0.015, 0.25, at=(0, 0.15, 0.12), mat=c["steel"]))
+    parts.append(cylinder("neck", 0.015, 0.12, along="Y", at=(0, 0.1, 0.24), mat=c["steel"]))
+    return join(parts, "sink", lift=0.9)
+
+
+def shower():
+    """a shower over the tub: its riser up the wall, the head, the valve."""
+    c = house_colours()
+    parts = [cylinder("riser", 0.015, 1.3, at=(0, 0, 0.65), mat=c["steel"])]
+    parts.append(cylinder("arm", 0.015, 0.2, along="Y", at=(0, -0.1, 1.3), mat=c["steel"]))
+    parts.append(cylinder("head", 0.07, 0.03, sides=12, at=(0, -0.2, 1.28), mat=c["steel"]))
+    parts.append(cylinder("valve", 0.04, 0.03, sides=10, along="Y", at=(0, -0.02, 0.4), mat=c["steel"]))
+    return join(parts, "shower", lift=0.6)
+
+
+def medicine_cabinet():
+    """a mirrored cabinet over the bathroom sink."""
+    c = house_colours()
+    parts = [box("case", (0.5, 0.15, 0.6), at=(0, 0, 0.3), mat=c["white"])]
+    parts.append(box("mirror", (0.44, 0.01, 0.54), at=(0, -0.08, 0.3), mat=c["glass"]))
+    return join(parts, "medicine cabinet", lift=1.3)
+
+
+def laundry(name, window):
+    c = house_colours()
+    parts = [box("body", (0.65, 0.65, 0.85), at=(0, 0, 0.425), mat=c["white"])]
+    parts.append(box("panel", (0.65, 0.12, 0.12), at=(0, 0.265, 0.91), mat=c["white"]))
+    parts.append(cylinder("ring", 0.2, 0.02, sides=16, along="Y", at=(0, -0.33, 0.45), mat=c["steel"]))
+    parts.append(cylinder("window", 0.16, 0.02, sides=16, along="Y", at=(0, -0.34, 0.45), mat=window(c)))
+    parts.append(cylinder("dial", 0.03, 0.02, along="Y", at=(0.2, 0.2, 0.91), mat=c["black"]))
+    return join(parts, name)
+
+
+def washer():
+    return laundry("washer", lambda c: c["glass"])
+
+
+def dryer():
+    return laundry("dryer", lambda c: c["black"])
+
+
+def furnace():
+    """a furnace: its cabinet, its vent grille, the duct up to the ceiling."""
+    c = house_colours()
+    parts = [box("cabinet", (0.6, 0.6, 1.4), at=(0, 0, 0.7), mat=c["steel"])]
+    for i in range(4):
+        parts.append(box(f"vent {i}", (0.4, 0.01, 0.02), at=(0, -0.305, 0.25 + 0.06 * i), mat=c["black"]))
+    parts.append(box("duct", (0.4, 0.4, CEILING - 1.4), at=(0, 0, 1.4 + (CEILING - 1.4) / 2), mat=c["steel"]))
+    return join(parts, "furnace")
+
+
+def wood_stove():
+    """a cast iron stove on legs, its door, its pipe up to the ceiling."""
+    c = house_colours()
+    parts = [box("firebox", (0.6, 0.5, 0.55), at=(0, 0, 0.475), mat=c["black"])]
+    parts += legs(c, 0.6, 0.5, 0.2, r=0.025, mat=c["black"])
+    parts.append(box("door", (0.3, 0.01, 0.25), at=(0, -0.255, 0.45), mat=c["steel"]))
+    parts.append(cylinder("pipe", 0.08, CEILING - 0.75, sides=10, at=(0, 0.1, 0.75 + (CEILING - 0.75) / 2), mat=c["black"]))
+    return join(parts, "wood stove")
+
+
+def fireplace():
+    """a brick fireplace: its opening, hearth and mantel, the chimney breast to the ceiling."""
+    c = house_colours()
+    parts = [box("breast", (1.4, 0.5, CEILING), at=(0, 0.05, CEILING / 2), mat=c["brick"])]
+    parts.append(box("opening", (0.8, 0.02, 0.7), at=(0, -0.2, 0.45), mat=c["black"]))
+    parts.append(box("hearth", (1.6, 0.4, 0.08), at=(0, -0.35, 0.04), mat=c["brick"]))
+    parts.append(box("mantel", (1.6, 0.25, 0.08), at=(0, -0.25, 1.15), mat=c["dark wood"]))
+    return join(parts, "fireplace")
+
+
+def air_conditioner():
+    """a wall unit: its white case and the louvres it blows from."""
+    c = house_colours()
+    parts = [box("case", (0.8, 0.22, 0.28), at=(0, 0, 0.14), mat=c["white"])]
+    for i in range(3):
+        parts.append(box(f"louvre {i}", (0.7, 0.01, 0.015), at=(0, -0.115, 0.05 + 0.03 * i), mat=c["steel"]))
+    return join(parts, "air conditioner", lift=2.0)
+
+
+def thermostat():
+    c = house_colours()
+    parts = [box("case", (0.12, 0.03, 0.12), at=(0, 0, 0.06), mat=c["white"])]
+    parts.append(cylinder("dial", 0.04, 0.01, sides=12, along="Y", at=(0, -0.02, 0.06), mat=c["steel"]))
+    return join(parts, "thermostat", lift=1.45)
+
+
+def light_switch():
+    c = house_colours()
+    parts = [box("plate", (0.07, 0.01, 0.12), at=(0, 0, 0.06), mat=c["white"])]
+    parts.append(box("toggle", (0.015, 0.02, 0.03), at=(0, -0.012, 0.06), mat=c["white"]))
+    return join(parts, "light switch", lift=1.2)
+
+
+def ceiling_light():
+    c = house_colours()
+    parts = [cylinder("base", 0.08, 0.02, sides=12, at=(0, 0, 0.09), mat=c["white"])]
+    parts.append(cylinder("globe", 0.2, 0.08, sides=16, at=(0, 0, 0.04), mat=material("light globe", (0.98, 0.95, 0.8))))
+    return join(parts, "ceiling light", lift=CEILING - 0.1)
+
+
+def smoke_detector():
+    c = house_colours()
+    parts = [cylinder("case", 0.07, 0.04, sides=14, at=(0, 0, 0.02), mat=c["white"])]
+    parts.append(cylinder("light", 0.008, 0.005, at=(0.03, 0, -0.002), mat=material("detector light", (0.8, 0.1, 0.1))))
+    return join(parts, "smoke detector", lift=CEILING - 0.04)
+
+
+def breaker_box():
+    """a breaker box on the wall: its grey door and the handle."""
+    c = house_colours()
+    parts = [box("case", (0.35, 0.1, 0.5), at=(0, 0, 0.25), mat=c["steel"])]
+    parts.append(box("door", (0.31, 0.01, 0.46), at=(0, -0.055, 0.25), mat=material("breaker door", (0.5, 0.52, 0.55))))
+    parts.append(box("handle", (0.02, 0.02, 0.06), at=(0.12, -0.065, 0.25), mat=c["black"]))
+    return join(parts, "breaker box", lift=1.2)
+
+
+def lamp():
+    """a floor lamp: its base, its pole, its shade."""
+    c = house_colours()
+    parts = [cylinder("base", 0.15, 0.03, sides=12, at=(0, 0, 0.015), mat=c["black"])]
+    parts.append(cylinder("pole", 0.012, 1.4, at=(0, 0, 0.73), mat=c["brass"]))
+    bpy.ops.mesh.primitive_cone_add(vertices=12, radius1=0.22, radius2=0.12, depth=0.28, location=(0, 0, 1.5))
+    parts.append(_named("shade", material("lamp shade", (0.92, 0.86, 0.7))))
+    return join(parts, "lamp")
+
+
+def candle():
+    """a candle in its holder, as it stands on the dining table."""
+    c = house_colours()
+    parts = [cylinder("holder", 0.05, 0.015, sides=12, at=(0, 0, 0.0075), mat=c["brass"])]
+    parts.append(cylinder("wax", 0.02, 0.15, sides=10, at=(0, 0, 0.09), mat=material("wax", (0.95, 0.93, 0.85))))
+    parts.append(cylinder("flame", 0.008, 0.025, sides=6, at=(0, 0, 0.18), mat=material("flame", (1.0, 0.7, 0.2))))
+    return join(parts, "candle", lift=0.75)
+
+
+def garage_workbench():
+    """a workbench: a thick top on legs, a shelf under it, a pegboard behind."""
+    c = house_colours()
+    parts = [box("top", (1.8, 0.6, 0.06), at=(0, 0, 0.87), mat=c["wood"])]
+    parts += legs(c, 1.8, 0.6, 0.84, r=0.04)
+    parts.append(box("shelf", (1.7, 0.5, 0.03), at=(0, 0, 0.2), mat=c["wood"]))
+    parts.append(box("pegboard", (1.8, 0.03, 0.8), at=(0, 0.285, 1.3), mat=material("pegboard", (0.6, 0.5, 0.35))))
+    return join(parts, "garage workbench")
+
+
+def garage_shelf():
+    """steel shelving: four uprights and four shelves."""
+    c = house_colours()
+    parts = [cylinder(f"upright {i}", 0.02, 1.8, sides=6, at=(sx * 0.58, sy * 0.23, 0.9), mat=c["steel"])
+             for i, (sx, sy) in enumerate([(1, 1), (1, -1), (-1, 1), (-1, -1)])]
+    for i in range(4):
+        parts.append(box(f"shelf {i}", (1.2, 0.5, 0.03), at=(0, 0, 0.1 + 0.55 * i), mat=c["steel"]))
+    return join(parts, "garage shelf")
+
+
+def toolbox():
+    """a red steel toolbox with its handle."""
+    c = house_colours()
+    red = material("toolbox red", (0.7, 0.12, 0.1))
+    parts = [box("box", (0.5, 0.25, 0.22), at=(0, 0, 0.11), mat=red)]
+    parts.append(box("lid seam", (0.5, 0.26, 0.01), at=(0, 0, 0.16), mat=c["black"]))
+    parts.append(box("handle", (0.25, 0.03, 0.05), at=(0, 0, 0.25), mat=c["black"]))
+    return join(parts, "toolbox")
+
+
+def safe():
+    """a steel safe: its door, dial and handle."""
+    c = house_colours()
+    parts = [box("body", (0.6, 0.6, 0.8), at=(0, 0, 0.4), mat=material("safe", (0.2, 0.22, 0.25)))]
+    parts.append(box("door", (0.5, 0.01, 0.7), at=(0, -0.305, 0.4), mat=material("safe door", (0.25, 0.27, 0.3))))
+    parts.append(cylinder("dial", 0.06, 0.03, sides=14, along="Y", at=(0, -0.32, 0.5), mat=c["steel"]))
+    parts.append(box("handle", (0.12, 0.04, 0.03), at=(0, -0.33, 0.3), mat=c["steel"]))
+    return join(parts, "safe")
+
+
+def mailbox():
+    """a mailbox on its post, its flag up."""
+    c = house_colours()
+    parts = [box("post", (0.08, 0.08, 1.0), at=(0, 0, 0.5), mat=c["wood"])]
+    parts.append(box("box", (0.5, 0.2, 0.2), at=(0, 0, 1.1), mat=c["steel"]))
+    parts.append(cylinder("roof", 0.1, 0.5, sides=12, along="X", at=(0, 0, 1.2), mat=c["steel"]))
+    parts.append(box("flag", (0.12, 0.01, 0.06), at=(0.1, 0.11, 1.25), mat=material("mailbox flag", (0.8, 0.1, 0.1))))
+    return join(parts, "mailbox")
+
+
+def trash_can():
+    """a green trash can with its lid and handle."""
+    c = house_colours()
+    green = material("trash can", (0.2, 0.35, 0.2))
+    parts = [cylinder("can", 0.3, 0.95, sides=14, at=(0, 0, 0.475), mat=green)]
+    parts.append(cylinder("lid", 0.32, 0.05, sides=14, at=(0, 0, 0.975), mat=green))
+    parts.append(box("handle", (0.15, 0.03, 0.04), at=(0, 0, 1.02), mat=c["black"]))
+    return join(parts, "trash can")
+
+
+def tv():
+    """a TV on its low stand: a black screen in its frame."""
+    c = house_colours()
+    parts = [box("stand", (1.2, 0.4, 0.45), at=(0, 0, 0.225), mat=c["dark wood"])]
+    parts.append(box("foot", (0.3, 0.2, 0.03), at=(0, 0, 0.465), mat=c["black"]))
+    parts.append(box("frame", (1.1, 0.06, 0.65), at=(0, 0, 0.83), mat=c["black"]))
+    parts.append(box("screen", (1.04, 0.01, 0.59), at=(0, -0.035, 0.83), mat=c["glass"]))
+    return join(parts, "tv")
+
+
+def phone():
+    """a phone on the hall wall, its handset on the hook and its cord."""
+    c = house_colours()
+    beige = material("phone", (0.82, 0.78, 0.68))
+    parts = [box("base", (0.1, 0.06, 0.2), at=(0, 0, 0.1), mat=beige)]
+    parts.append(box("handset", (0.05, 0.05, 0.22), at=(0, -0.05, 0.11), mat=beige))
+    parts.append(cylinder("cord", 0.008, 0.3, at=(0.03, -0.05, -0.15), mat=c["black"]))
+    return join(parts, "phone", lift=1.0)
+
+
+def garden_bed():
+    """a raised garden bed: a wooden frame full of soil."""
+    wood = material("garden wood", (0.5, 0.38, 0.25))
+    soil = material("soil", (0.25, 0.17, 0.1))
+    parts = [box("soil", (1.9, 0.9, 0.25), at=(0, 0, 0.125), mat=soil)]
+    for s in (1, -1):
+        parts.append(box(f"side {s}", (2.0, 0.05, 0.3), at=(0, s * 0.475, 0.15), mat=wood))
+        parts.append(box(f"end {s}", (0.05, 1.0, 0.3), at=(s * 0.975, 0, 0.15), mat=wood))
+    return join(parts, "garden bed")
+
+
+HOUSE = {
+    "couch": couch,
+    "armchair": armchair,
+    "bed": bed,
+    "tv stand": tv_stand,
+    "kitchen counter": kitchen_counter,
+    "stove": stove,
+    "fridge": fridge,
+    "freezer": freezer,
+    "pantry": pantry,
+    "kitchen cabinet": kitchen_cabinet,
+    "dining table": dining_table,
+    "chair": chair,
+    "dresser": dresser,
+    "nightstand": nightstand,
+    "closet": closet,
+    "bathtub": bathtub,
+    "toilet bowl": toilet_bowl,
+    "toilet": toilet,
+    "vanity": vanity,
+    "sink": sink,
+    "shower": shower,
+    "medicine cabinet": medicine_cabinet,
+    "washer": washer,
+    "dryer": dryer,
+    "furnace": furnace,
+    "wood stove": wood_stove,
+    "fireplace": fireplace,
+    "air conditioner": air_conditioner,
+    "thermostat": thermostat,
+    "light switch": light_switch,
+    "ceiling light": ceiling_light,
+    "smoke detector": smoke_detector,
+    "breaker box": breaker_box,
+    "lamp": lamp,
+    "candle": candle,
+    "garage workbench": garage_workbench,
+    "garage shelf": garage_shelf,
+    "toolbox": toolbox,
+    "safe": safe,
+    "mailbox": mailbox,
+    "trash can": trash_can,
+    "tv": tv,
+    "phone": phone,
+    "garden bed": garden_bed,
+}
+
+
 # Models that export several models themselves.
 SETS = {"person": people, "weapons": weapons}
 
@@ -2247,6 +2747,7 @@ ITEMS = {
 
 MODELS = {
     **ITEMS,
+    **HOUSE,
     "tree": tree,
     "rock": rock,
     # The wasteland's and the ruins' scatter, at their largest side as

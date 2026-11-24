@@ -9,7 +9,7 @@ use avian3d::prelude::*;
 use bevy::prelude::*;
 use modforge::hud::InteractKind;
 use modforge::structure::{
-    DOORWAY_HEIGHT, DoorBlock, MonumentDef, Part, PartKind, SLAB, StructureDef, TileKind, TileRun, door_blocks, levels,
+    DOORWAY_HEIGHT, DoorBlock, MonumentDef, Part, PartKind, SLAB, SolidDef, StructureDef, TileKind, TileRun, door_blocks, levels,
     open_to_below, parts_of, tile_plan, tile_plan_at,
 };
 
@@ -140,6 +140,20 @@ pub fn spawn_structure(commands: &mut Commands, ids: &mut crate::interact::Thing
     // The lowest floor: the ground, or the deepest level below it.
     let bottom = levels.first().map_or(0.0, |(y, _)| y.min(0.0));
     let mut below: Vec<(Vec2, Vec2)> = Vec::new();
+    // Furniture with its own model (a couch, a stove: modforge
+    // `SolidDef::model`), drawn as that model where it stands, made to its
+    // size by scripts/models.py with its long side along x, turned a
+    // quarter when the piece is longer along z.
+    let modelled: Vec<&SolidDef> = def.furniture.iter().filter(|s| s.model.is_some()).collect();
+    for s in &modelled {
+        let local = Vec2::new(s.center.x, s.center.z);
+        let turn = if s.size.z > s.size.x { Quat::from_rotation_y(std::f32::consts::FRAC_PI_2) } else { Quat::IDENTITY };
+        pieces.push((
+            Model(s.model.clone().unwrap_or_default()),
+            Tint(Color::WHITE),
+            Transform::from_translation(on_floor(at + local, s.center.y - s.size.y / 2.0)).with_rotation(turn),
+        ));
+    }
     for &(y, height) in &levels {
         let runs = tile_plan_at(def, y);
         if y < -0.5 {
@@ -185,7 +199,13 @@ pub fn spawn_structure(commands: &mut Commands, ids: &mut crate::interact::Thing
                 // doorways.
                 let colour = if r.kind == TileKind::Floor { tint } else { floor_tint };
                 pieces.push((Model("floor".to_string()), colour, Transform::from_translation(on_ground(tile, y + SLAB / 2.0)).with_scale(Vec3::new(1.0, SLAB / FLOOR_TILE, 1.0))));
-                if r.kind == TileKind::Furniture {
+                // Under a piece drawn as its own model (below), no block.
+                let local = Vec2::new(x as f32 + 0.5, r.row as f32 + 0.5);
+                let under_model = modelled.iter().any(|s| {
+                    let bottom = s.center.y - s.size.y / 2.0;
+                    (local.x - s.center.x).abs() < s.size.x / 2.0 + 0.5 && (local.y - s.center.z).abs() < s.size.z / 2.0 + 0.5 && bottom > y - 0.5 && bottom < y + height
+                });
+                if r.kind == TileKind::Furniture && !under_model {
                     pieces.push((Model("furniture".to_string()), tint, Transform::from_translation(on_floor(tile, y))));
                 }
             }
