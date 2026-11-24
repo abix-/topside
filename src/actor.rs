@@ -335,6 +335,9 @@ pub struct SpawnActor<'w, 's> {
     pub seed: Res<'w, WorldSeed>,
     /// For the things a person comes with (their bed).
     pub things: ResMut<'w, crate::interact::ThingIssuer>,
+    /// The tick they come into the world, from which their first thought
+    /// is set.
+    pub tick: Res<'w, crate::SimTick>,
 }
 
 /// The ONE path through which an NPC enters the world (authority.md:
@@ -444,9 +447,13 @@ pub fn spawn_person(
     let mut health = def.health();
     health.max *= personality.health_mult();
     health.current = health.max;
-    // Thinking spread across the first second by who they are, so people
-    // do not all decide on the same tick.
-    let first_think = id.0 % (AWAKE_REACTION * 60.0) as u64;
+    // Thinking spread across their first second in the world by who they
+    // are, so people do not all decide on the same tick. From the tick
+    // they come in: a tick of its own (id % 60) was long past for anyone
+    // made after the first minute, so all of them thought on the next
+    // tick and stayed together after (125 people a tick every 62 ticks,
+    // 10 ms of think; bench, 2026-11-24).
+    let first_think = spawn.tick.0 + id.0 % (AWAKE_REACTION * 60.0) as u64;
     // A topside hostile rolls its traits; an armored one wears armor (an
     // animal wears nothing, so it is never armored).
     if def.faction.as_deref().is_some_and(|f| crate::content::TOPSIDE_HOSTILES.contains(&f)) {

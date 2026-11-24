@@ -134,6 +134,15 @@ fn run_history(world: &mut World) {
     let step = world.resource::<Time<Fixed>>().timestep();
     let ticks = (crate::content::HISTORY_SECS / step.as_secs_f32()).round() as u64;
     world.resource_mut::<crate::SimTick>().0 += ticks;
+    // Each person's moment to think moves with the clock: left behind,
+    // all of them were late at once, thought on the same tick, and stayed
+    // together after (125 people a tick every 62 ticks, 10 ms of think;
+    // bench, 2026-11-24), where each is spread by who they are (life.md
+    // "How often a person thinks").
+    let mut next = world.query::<&mut crate::actor::NextThink>();
+    for mut think in next.iter_mut(world) {
+        think.0 += ticks;
+    }
     let now = world.resource::<crate::SimTick>().0;
     let mut episode = world.resource_mut::<crate::episode::Episode>();
     let name = episode.name.clone();
