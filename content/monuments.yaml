@@ -167,6 +167,126 @@ monuments:
     spacing: 60.0
     height: 10.0
     props: [{picture: ridge, size: [110.0, 10.0, 14.0], colour: [0.42, 0.36, 0.28], count: [1, 1], centred: true}]
+  # Rust's monuments, one each, a fuzzy match under a Rust-like name
+  # (todo Rust's monuments, operator 2026-11-24: "a fuzzy lineup... we
+  # support doing all the same type of monuments"). Rust's name first;
+  # what each is built from, danger, suffix and height are Claude's.
+  # Military Tunnels.
+  - {name: military tunnels, slots: [{choices: [bunker complex], min: 1, max: 1}, {choices: [barracks, guard tower], min: 1, max: 2}], arrangement: Clustered, danger: 4, gated: true, suffix: Tunnels, spacing: 180.0, height: 12.0, good for: *shelter}
+  # Water Treatment Plant.
+  - {name: water treatment plant, slots: [{choices: [industrial plant], min: 1, max: 1}, {choices: [water well, warehouse], min: 2, max: 3}], arrangement: AroundYard, danger: 3, gated: true, suffix: Waterworks, spacing: 180.0, height: 20.0, good for: *shelter}
+  # Giant Excavator Pit.
+  - name: strip mine
+    slots: [{choices: [workshop, shack], min: 1, max: 2}]
+    arrangement: Clustered
+    danger: 3
+    suffix: Pit
+    spacing: 180.0
+    height: 25.0
+    props: [{picture: ridge, size: [60.0, 25.0, 14.0], colour: [0.5, 0.42, 0.3], count: [1, 1], centred: true}]
+    good for: *shelter
+  # Abandoned Military Base.
+  - {name: abandoned base, slots: [{choices: [barracks], min: 1, max: 2}, {choices: [guard tower, warehouse], min: 1, max: 2}], arrangement: AroundYard, danger: 2, suffix: Base, spacing: 180.0, height: 12.0, good for: *shelter}
+  # Nuclear Missile Silo.
+  - {name: missile field, slots: [{choices: [silo], min: 2, max: 3}, {choices: [bunker complex], min: 1, max: 1}], arrangement: AroundYard, danger: 5, gated: true, suffix: Field, spacing: 180.0, height: 12.0, good for: *shelter}
+  # The Dome: a gas holder tower.
+  - name: the dome
+    slots: [{choices: [shack], min: 1, max: 1}]
+    arrangement: Clustered
+    danger: 3
+    suffix: Dome
+    spacing: 180.0
+    height: 40.0
+    props: [{picture: gantry, size: [14.0, 40.0, 14.0], colour: [0.5, 0.48, 0.45], count: [1, 1], centred: true}]
+  # Ferry Terminal.
+  - {name: ferry terminal, slots: [{choices: [dock building], min: 1, max: 1}, {choices: [warehouse, office building], min: 1, max: 2}], arrangement: AlongRoad, danger: 2, suffix: Terminal, spacing: 180.0, height: 10.0, good for: *shelter}
+  # The large Harbor.
+  - {name: large harbor, slots: [{choices: [dock building], min: 2, max: 2}, {choices: [warehouse], min: 2, max: 4}], arrangement: AlongRoad, danger: 3, suffix: Docks, spacing: 180.0, height: 10.0, good for: *shelter}
+  # Satellite Dish.
+  - name: dish array
+    slots: [{choices: [lab, shack], min: 1, max: 2}]
+    arrangement: AroundYard
+    danger: 2
+    suffix: Array
+    spacing: 180.0
+    height: 20.0
+    props: [{picture: gantry, size: [3.0, 20.0, 3.0], colour: [0.75, 0.75, 0.78], count: [2, 4], radius: 18.0}]
+    good for: *shelter
+  # Satellite Crash.
+  - name: crash site
+    arrangement: Clustered
+    danger: 1
+    suffix: Crash
+    spacing: 60.0
+    height: 3.0
+    props:
+      - {picture: car wreck, size: [6.0, 2.5, 3.0], colour: [0.7, 0.7, 0.72], count: [1, 1], centred: true}
+      - {picture: crate, size: [0.5, 0.5, 0.5], colour: [0.5, 0.5, 0.52], count: [2, 4], radius: 6.0}
+  # Jungle Ziggurat.
+  - name: temple
+    arrangement: Clustered
+    danger: 2
+    suffix: Temple
+    spacing: 180.0
+    height: 14.0
+    props: [{picture: stone, size: [16.0, 14.0, 16.0], colour: [0.5, 0.48, 0.4], count: [1, 1], centred: true}]
+  # Jungle Ruins.
+  - name: old ruins
+    arrangement: Clustered
+    danger: 1
+    suffix: Ruins
+    spacing: 60.0
+    height: 3.0
+    props: [{picture: stone, size: [1.5, 2.5, 1.5], colour: [0.48, 0.46, 0.4], count: [4, 8], radius: 10.0}]
+  # Apartment Complex: a safe place with rented rooms and shops (the safe
+  # zone is the trader's own; todo Trading).
+  - {name: apartment block, slots: [{choices: [apartment block], min: 1, max: 2}], arrangement: Clustered, danger: 0, suffix: Flats, spacing: 180.0, height: 30.0, good for: *shelter}
+  # Outpost: the trading post.
+  - {name: trading post, slots: [{choices: [supermarket, warehouse], min: 1, max: 1}, {choices: [guard tower], min: 1, max: 2}], arrangement: AroundYard, danger: 0, suffix: Post, spacing: 180.0, height: 12.0, good for: *shelter}
+  # Bandit Camp: the trader's camp.
+  - {name: trader's camp, slots: [{choices: [shack], min: 2, max: 4}], arrangement: Clustered, danger: 0, suffix: Camp, spacing: 180.0, height: 8.0, good for: *shelter}
+  # Fishing Villages, in Rust's three sizes.
+  - {name: fishing village, slots: [{choices: [shack, dock building], min: 1, max: 4}], arrangement: AlongRoad, danger: 0, suffix: Landing, spacing: 180.0, height: 8.0, good for: *shelter}
+  # Mining Outpost.
+  - {name: mining outpost, slots: [{choices: [workshop], min: 1, max: 1}, {choices: [shack], min: 1, max: 1}], arrangement: Clustered, danger: 1, suffix: Mine, spacing: 180.0, height: 8.0, good for: *shelter}
+  # Lighthouse.
+  - {name: lighthouse, slots: [{choices: [lighthouse], min: 1, max: 1}, {choices: [shack], min: 0, max: 1}], arrangement: Clustered, danger: 1, suffix: Light, spacing: 180.0, height: 20.0, good for: *shelter}
+  # Stone, Sulfur and HQM Quarries.
+  - {name: stone quarry, slots: [{choices: [shack, workshop], min: 1, max: 1}], arrangement: Clustered, danger: 1, suffix: Quarry, spacing: 180.0, height: 8.0, props: [{picture: stone, size: [3.0, 3.0, 3.0], colour: [0.55, 0.55, 0.52], count: [3, 6], radius: 12.0}], good for: *shelter}
+  - {name: sulfur quarry, slots: [{choices: [shack, workshop], min: 1, max: 1}], arrangement: Clustered, danger: 2, suffix: Quarry, spacing: 180.0, height: 8.0, props: [{picture: stone, size: [3.0, 3.0, 3.0], colour: [0.75, 0.7, 0.3], count: [3, 6], radius: 12.0}], good for: *shelter}
+  - {name: metal quarry, slots: [{choices: [shack, workshop], min: 1, max: 1}], arrangement: Clustered, danger: 3, suffix: Quarry, spacing: 180.0, height: 8.0, props: [{picture: stone, size: [3.0, 3.0, 3.0], colour: [0.45, 0.45, 0.5], count: [3, 6], radius: 12.0}], good for: *shelter}
+  # Abandoned Cabins.
+  - {name: cabins, slots: [{choices: [shack], min: 2, max: 3}], arrangement: Clustered, danger: 1, suffix: Cabins, spacing: 180.0, height: 6.0, good for: *shelter}
+  # Caves: a rise with a box tucked in its lee, till the ground digs.
+  - name: caves
+    arrangement: Clustered
+    danger: 2
+    suffix: Caves
+    spacing: 150.0
+    height: 12.0
+    props: [{picture: ridge, size: [30.0, 12.0, 18.0], colour: [0.4, 0.38, 0.34], count: [1, 1], centred: true}]
+  # Railway and underground train stations.
+  - {name: train station, slots: [{choices: [office building], min: 1, max: 1}, {choices: [shack], min: 0, max: 1}], arrangement: AlongRoad, danger: 1, suffix: Station, spacing: 180.0, height: 10.0, good for: *shelter}
+  - {name: subway, slots: [{choices: [bunker complex], min: 1, max: 1}], arrangement: Clustered, danger: 3, gated: true, suffix: Underground, spacing: 180.0, height: 6.0, good for: *shelter}
+  # Oil Rig and Large Oil Rig.
+  - {name: oil platform, slots: [{choices: [industrial plant], min: 1, max: 1}], arrangement: Clustered, danger: 4, gated: true, suffix: Rig, spacing: 180.0, height: 30.0, good for: *shelter}
+  - {name: large oil platform, slots: [{choices: [industrial plant], min: 1, max: 1}, {choices: [barracks, lab], min: 1, max: 2}], arrangement: Clustered, danger: 5, gated: true, suffix: Rig, spacing: 180.0, height: 40.0, good for: *shelter}
+  # Underwater Labs.
+  - {name: sea lab, slots: [{choices: [lab], min: 2, max: 3}], arrangement: Clustered, danger: 4, gated: true, suffix: Lab, spacing: 180.0, height: 10.0, good for: *shelter}
+  # Cargo Ship.
+  - {name: cargo ship, slots: [{choices: [dock building], min: 1, max: 1}, {choices: [warehouse], min: 1, max: 1}], arrangement: AlongRoad, danger: 4, suffix: Ship, spacing: 180.0, height: 16.0, good for: *shelter}
+  # Ghost Ship.
+  - name: ghost ship
+    arrangement: Clustered
+    danger: 2
+    suffix: Hulk
+    spacing: 150.0
+    height: 6.0
+    props:
+      - {picture: car wreck, size: [18.0, 6.0, 6.0], colour: [0.3, 0.28, 0.26], count: [1, 1], centred: true}
+      - {picture: crate, size: [0.5, 0.5, 0.5], colour: [0.4, 0.32, 0.2], count: [1, 3], radius: 8.0}
+  # Floating City.
+  - {name: floating town, slots: [{choices: [shack, dock building], min: 3, max: 6}], arrangement: Clustered, danger: 0, suffix: Raft, spacing: 180.0, height: 8.0, good for: *shelter}
   # The Labyrinth's gate (todo 11v): no buildings, a locked gate across
   # the corridor and a box behind it; turned across the corridor where it
   # stands (structure::spawn_monuments). Its danger and spacing Claude's.
