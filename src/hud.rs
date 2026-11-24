@@ -1098,8 +1098,12 @@ pub fn setup_death(mut commands: Commands) {
             Visibility::Hidden,
         ))
         .with_children(|p| {
+            // Nothing of the rules is told here (todo Rules 1, operator
+            // 2026-11-23: "introduce rules to players through gameplay"):
+            // what was carried is found lying where they fell, and the bed
+            // they wake in, or no waking, says the bed's rule.
             p.spawn((
-                Text::new("You died.\n\nEverything you carried lies where you fell.\n\nPress Enter to respawn."),
+                Text::new("You died.\n\nPress Enter."),
                 TextFont::from_font_size(28.0),
                 TextLayout::justify(Justify::Center),
             ));
