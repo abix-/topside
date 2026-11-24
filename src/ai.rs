@@ -309,7 +309,7 @@ pub fn think(
     monuments: Res<MonumentRegistryRes>,
     tree: Res<crate::content::brain::BrainTreeRes>,
     day: Res<crate::survival::Day>,
-    (storms, reality, world): (Res<crate::storm::StormRes>, Res<crate::Reality>, Option<Res<crate::terrain::WorldRes>>),
+    (storms, reality, world, mut laps): (Res<crate::storm::StormRes>, Res<crate::Reality>, Option<Res<crate::terrain::WorldRes>>, ResMut<crate::profile::Laps>),
     nav: Res<crate::navmesh::Nav>,
     archipelagos: Query<&bevy_landmass::prelude::Archipelago3d>,
     sight: Sight,
@@ -323,6 +323,10 @@ pub fn think(
     if !thinkers.npcs.iter().any(|(.., (_, _, _, _, next_think, ..))| tick.0 >= next_think.0) {
         return;
     }
+    // Where think's time goes (todo Perf 4): what is worked out once for
+    // everyone, each one's brain, and each one's sensing and acting.
+    let started = std::time::Instant::now();
+    let mut brain = std::time::Duration::ZERO;
     // What a remembered thing is worth for a need, the RimWorld way: for
     // hunger and thirst, the food seen inside it (modforge
     // `food_worth`); for rest and safety, what its place's type offers.
@@ -352,12 +356,11 @@ pub fn think(
         .filter(|(_, _, w)| items.0.def(&w.stack.item).is_some_and(|d| d.kind == modforge::item::ItemKind::Source))
         .map(|(id, t, w)| (id.0, t.translation, w.stack.item.as_str()))
         .collect();
-    let source_at = |key: u64| {
-        sources_at
-            .iter()
-            .find(|(id, _, _)| *id == key)
-            .map(|(_, at, _)| *at)
-    };
+    let source_ids: std::collections::HashMap<u64, Vec3> = sources_at.iter().map(|&(id, at, _)| (id, at)).collect();
+    // Every box and source by where it stands, for looking round.
+    let things: Vec<(u64, Vec3, &str)> = boxes.iter().chain(&sources_at).copied().collect();
+    let things_near = Near::new(things.iter().map(|t| t.1));
+    let source_at = |key: u64| source_ids.get(&key).copied();
     // Where someone can go: a place on the navigation mesh, at its height
     // (pathing.md: never head for a place nobody can stand on).
     let archipelago = archipelagos.get(nav.archipelago).ok();
@@ -383,22 +386,28 @@ pub fn think(
             (e, actor.map_or(ActorId(0), |a| a.0), crate::interact::feet_of(t), faction)
         })
         .collect();
+    // Everyone by the ground cell they stand in, so each person looks only
+    // at the cells their sight reaches; and the living of each faction,
+    // counted once (a bunker's drinking is its living people's, below).
+    let near = Near::new(everyone.iter().map(|p| p.2));
+    let mut nearby: Vec<usize> = Vec::new();
+    let mut living_of: std::collections::HashMap<&str, u32> = std::collections::HashMap::new();
+    for faction in everyone.iter().filter_map(|p| p.3) {
+        *living_of.entry(faction).or_default() += 1;
+    }
     // Every standing site once: its key, what it is, where it stands, and
     // the ground of each of its buildings and props, any of which in sight
     // is the site seen.
-    let sites: Vec<(u64, String, Vec3, Vec<Vec3>)> = thinkers
-        .standing
-        .as_ref()
-        .map(|s| {
-            s.0.iter()
-                .map(|(at, def)| {
-                    let part = |offset: Vec3| crate::on_ground(*at + Vec2::new(offset.x, offset.z), 0.0);
-                    let parts = def.members.iter().map(|m| part(m.offset)).chain(def.props.iter().map(|p| part(p.position))).collect();
-                    (site_key(*at), def.kind.clone(), crate::on_ground(*at, 0.0), parts)
-                })
-                .collect()
-        })
-        .unwrap_or_default();
+    let mut sites: Vec<(u64, &str, Vec3)> = Vec::new();
+    let mut site_parts: Vec<(usize, Vec3)> = Vec::new();
+    for (at, def) in thinkers.standing.as_ref().map_or(&[][..], |s| s.0.as_slice()) {
+        let part = |offset: Vec3| crate::on_ground(*at + Vec2::new(offset.x, offset.z), 0.0);
+        let site = sites.len();
+        site_parts.extend(def.members.iter().map(|m| (site, part(m.offset))).chain(def.props.iter().map(|p| (site, part(p.position)))));
+        sites.push((site_key(*at), def.kind.as_str(), crate::on_ground(*at, 0.0)));
+    }
+    // Every site's parts by where they stand.
+    let parts_near = Near::new(site_parts.iter().map(|p| p.1));
     // How hearing words feels: the episode choice that says them.
     let heard = |words: &str| episodes.felt(words);
     // How each faction stands toward each person someone thinking now has
@@ -414,14 +423,17 @@ pub fn think(
             continue;
         }
         let here = crate::interact::feet_of(transform);
-        let mut seen = everyone.iter().filter(|(e, _, at, _)| *e != entity && at.distance(here) <= def.sight).map(|(_, id, ..)| *id).peekable();
+        near.within(here, def.sight, &mut nearby);
+        let mut seen = nearby.iter().map(|&i| &everyone[i]).filter(|(e, _, at, _)| *e != entity && at.distance(here) <= def.sight).map(|(_, id, ..)| *id).peekable();
         if seen.peek().is_none() {
             continue;
         }
-        if !wanted.contains_key(faction) {
-            wanted.insert(faction.clone(), Default::default());
+        match wanted.get_mut(faction.as_str()) {
+            Some(set) => set.extend(seen),
+            None => {
+                wanted.insert(faction.clone(), seen.collect());
+            }
         }
-        wanted.get_mut(faction).expect("inserted above").extend(seen);
     }
     // Each faction's members once, not every member scanned for each
     // person asked about.
@@ -449,12 +461,20 @@ pub fn think(
     // What each person could spare of food and of water: all but one of
     // what they carry of it (design.md "Trading": one with extra of what
     // another needs), for the trader in sight below.
-    let spare: Vec<(Entity, u32, u32)> = thinkers
+    let spare: std::collections::HashMap<Entity, (u32, u32)> = thinkers
         .npcs
         .iter()
         .map(|(entity, .., (_, inventory, ..))| {
-            let count = |need: Need| inventory.0.slots.iter().flatten().filter(|s| answers(&items.0, s, need)).map(|s| s.count).sum::<u32>();
-            (entity, count(Need::Hunger).saturating_sub(1), count(Need::Thirst).saturating_sub(1))
+            let (mut food, mut water) = (0u32, 0u32);
+            for s in inventory.0.slots.iter().flatten() {
+                if answers(&items.0, s, Need::Hunger) {
+                    food += s.count;
+                }
+                if answers(&items.0, s, Need::Thirst) {
+                    water += s.count;
+                }
+            }
+            (entity, (food.saturating_sub(1), water.saturating_sub(1)))
         })
         .collect();
     // In ActorId order (authority.md rule 5): the trades they decide are
@@ -475,6 +495,12 @@ pub fn think(
             })
             .unwrap_or_default(),
     );
+    let shared = started.elapsed();
+    // What each one decides, the same buffer passed from one to the next.
+    let mut decided_buf: Vec<Action> = Vec::new();
+    // Who each one sees, the same buffers passed from one to the next.
+    let mut not_hostile_in_sight: Vec<(Entity, ActorId, Vec3)> = Vec::new();
+    let mut in_sight: Vec<ActorId> = Vec::new();
     for entity in order {
         let Ok((
             entity,
@@ -530,9 +556,10 @@ pub fn think(
         // stand hostile to, and the rest, whom they might trade with
         // (below).
         let mut hostile: Option<(ActorId, Vec3)> = None;
-        let mut not_hostile_in_sight: Vec<(Entity, ActorId, Vec3)> = Vec::new();
-        let mut in_sight: Vec<ActorId> = Vec::new();
-        for (e, id, at, faction) in &everyone {
+        not_hostile_in_sight.clear();
+        in_sight.clear();
+        near.within(here, def.sight.max(HOLD_REACH + holding.as_ref().map_or(0.0, |h| h.at.distance(here))), &mut nearby);
+        for (e, id, at, faction) in nearby.iter().map(|&i| &everyone[i]) {
             if *e == entity || at.distance(here) > def.sight || !in_cone(facing, here, *at) || !sight.clear(here, *at) {
                 continue;
             }
@@ -553,8 +580,9 @@ pub fn think(
             None => hostile,
             Some(holding) => {
                 let place = holding.at;
-                let mut coming: Vec<(ActorId, Vec3)> = everyone
+                let mut coming: Vec<(ActorId, Vec3)> = nearby
                     .iter()
+                    .map(|&i| &everyone[i])
                     .filter(|(e, id, at, faction)| *e != entity && at.distance(place) <= HOLD_REACH && stands_hostile(*id, *faction) && sight.clear(here, *at))
                     .map(|(_, id, at, _)| (*id, *at))
                     .collect();
@@ -585,12 +613,13 @@ pub fn think(
         // Everyone in sight, as the hostile and the not hostile above are
         // seen, is remembered seen (modforge `Memory::saw`: once a
         // `SAW_AGAIN`, not once a think).
-        for id in in_sight {
+        for &id in &in_sight {
             person.0.memory.saw(id, tick.0, SAW_AGAIN);
         }
         // Looking round as they think: every box in the cone with a clear
         // line goes into memory (seen, not yet looked inside).
-        for &(key, at, kind) in boxes.iter().chain(&sources_at) {
+        things_near.within(here, def.sight, &mut nearby);
+        for &(key, at, kind) in nearby.iter().map(|&i| &things[i]) {
             if at.distance(here) <= def.sight && in_cone(facing, here, at) && sight.clear(here, at) {
                 person.0.memory.see(key, kind, at, tick.0);
             }
@@ -598,8 +627,12 @@ pub fn think(
         // A site seen (todo 4b): any of its buildings or props in the cone
         // within sight. No line is checked, as the building itself is what
         // stands in the way (Claude's, for the operator to change).
-        for (key, kind, at, parts) in &sites {
-            if parts.iter().any(|p| p.distance(here) <= def.sight && in_cone(facing, here, *p)) {
+        parts_near.within(here, def.sight, &mut nearby);
+        let mut last_seen = None;
+        for &(site, p) in nearby.iter().map(|&i| &site_parts[i]) {
+            if last_seen != Some(site) && p.distance(here) <= def.sight && in_cone(facing, here, p) {
+                last_seen = Some(site);
+                let (key, kind, at) = &sites[site];
                 person.0.memory.see(*key, kind, *at, tick.0);
             }
         }
@@ -632,36 +665,40 @@ pub fn think(
         // bunker is short of by what they remember in it plus what they
         // carry home (design.md "Taking loot").
         let store_key = store.and_then(|s| containers.get(s.0).ok()).map(|c| c.4.0);
-        let store_at = store_key.and_then(|key| person.0.memory.known.iter().find(|k| k.key == key).map(|k| (key, k.position)));
-        let bags = held_in(&inventory.0);
+        let store_known = store_key.and_then(|key| person.0.memory.known.iter().find(|k| k.key == key));
+        let store_at = store_known.map(|k| (k.key, k.position));
+        // What they carry: their bags first, then their hotbar.
+        let mut carrying = held_in(&inventory.0);
+        let bags_len = carrying.len();
+        carrying.extend(held_in(&hotbar.0.slots));
+        let bags = &carrying[..bags_len];
         // Food they carry belongs in the store; their water is poured into
         // its water (modforge fluid), counted in litres.
-        let carries_for_bunker = inventory.0.slots.iter().flatten().any(|s| answers(&items.0, s, Need::Hunger));
+        // And, in the same pass, whether their bags are full.
+        let (carries_for_bunker, bags_full) = inventory.0.slots.iter().fold((false, true), |(food, full), s| {
+            (food || s.as_ref().is_some_and(|s| answers(&items.0, s, Need::Hunger)), full && s.is_some())
+        });
         let carried_litres = modforge::fluid::litres_in(&inventory.0) + modforge::fluid::litres_in(&hotbar.0.slots);
         let water_room = modforge::fluid::room_in(&inventory.0, &items.0) + modforge::fluid::room_in(&hotbar.0.slots, &items.0);
-        let bunker_short = store_at
-            .map(|(key, _)| {
-                let known = person.0.memory.known.iter().find(|k| k.key == key);
-                let in_store = known.and_then(|k| k.held.clone()).unwrap_or_default();
-                let litres = known.map_or(0.0, |k| k.litres) + carried_litres;
+        let bunker_short = store_known
+            .map(|known| {
+                let in_store = known.held.as_deref().unwrap_or_default();
+                let litres = known.litres + carried_litres;
                 let per_day = day.per_day();
-                let supplies = in_store.iter().chain(&bags).map(|(k, n)| (k.as_str(), *n));
+                let supplies = in_store.iter().chain(bags).map(|(k, n)| (k.as_str(), *n));
                 // What they stock to: what is needed, and past it by their
                 // fear of not having enough, up to twice it (todo 11ag).
                 let fear = 1.0 + personality.get(modforge::actor::Axis::Fear).clamp(0.0, 1.0);
                 // The bunker's drinking is its living people's (the player
                 // in the player's bunker), not a set number (orchestrator,
                 // 2026-10-03).
-                let living = everyone.iter().filter(|(.., faction)| faction.is_some() && *faction == npc.faction.as_deref()).count().max(1) as u32;
+                let living = npc.faction.as_deref().and_then(|f| living_of.get(f).copied()).unwrap_or(0).max(1);
                 short_of(supplies, litres, living, (BUNKER_SHORT_DAYS * fear, BUNKER_WATER_DAYS * fear), per_day, &items.0)
             })
             .unwrap_or_default();
-        let bags_full = inventory.0.slots.iter().all(|s| s.is_some());
         // How long they can stay alive from here (life.md "Learning to
         // stay alive"): the change since they last thought scores the
         // choices that led to it.
-        let mut carrying = bags.clone();
-        carrying.extend(held_in(&hotbar.0.slots));
         let alive = alive_for(
             &needs,
             day.rates(),
@@ -720,7 +757,7 @@ pub fn think(
             .iter()
             .filter(|(_, id, _)| !refused_lately(*id))
             .filter_map(|(e, id, at)| {
-                let (_, food, water) = spare.iter().find(|s| s.0 == *e)?;
+                let (food, water) = spare.get(e)?;
                 let need = short.iter().copied().find(|n| if *n == Need::Hunger { *food > 0 } else { *water > 0 })?;
                 Some((*id, *at, need))
             })
@@ -729,11 +766,11 @@ pub fn think(
         let facts = crate::content::brain::TopsideFacts {
             storm_coming,
             store: store_at,
-            bunker_short: bunker_short.clone(),
+            bunker_short,
             carries_for_bunker,
             carried_litres,
             water_room,
-            tiers: tiers.clone(),
+            tiers: std::sync::Arc::clone(&tiers),
         };
         // What they sense, but for what the persona brings (their needs,
         // memory, personality): the binder puts those in each think.
@@ -770,16 +807,20 @@ pub fn think(
         // topside's binder, seeded by the tick and the person, so a replay
         // decides the same; what they chose goes to what they learn from.
         let mut roll = Roll::new(tick.0 ^ actor.0.0.wrapping_mul(0x9E37_79B9_7F4A_7C15));
-        let mut binder = TopsideBinder { sensed, worth: &worth, decided: Vec::new(), do_now: None };
+        let mut binder = TopsideBinder { sensed, worth: &worth, decided: std::mem::take(&mut decided_buf), do_now: None };
+        let deciding = std::time::Instant::now();
         modforge::persona::think(&mut binder, &mut person.0, &tree.0, &mut roll);
-        let TopsideBinder { decided, do_now, .. } = binder;
+        brain += deciding.elapsed();
+        let TopsideBinder { mut decided, do_now, .. } = binder;
 
         // Act. Their next decision comes at their reaction time.
         let fighting = crate::content::brain::fighting(&person.0.doing);
         next_think.0 = tick.0 + reaction_ticks(condition.0.asleep, fighting, needs.rest, &personality, 60.0);
-        for action in decided {
+        for action in decided.drain(..) {
             actions.0.push(tick.0, action);
         }
+        decided_buf = decided;
+        let bunker_short = &facts.bunker_short;
         // What the brain wants done is done with the player's own actions:
         // Use opens a box, Transfer takes a stack out of the open box,
         // UseSlot eats or drinks, Cancel closes the box.
@@ -846,7 +887,9 @@ pub fn think(
             // used with one, a thing that breaks when struck is broken
             // (interact::interact_on_use).
             Some(Do::Eat { key, .. }) if source_at(key).is_some() => {
-                let at = source_at(key).expect("checked above");
+                let Some(at) = source_at(key) else {
+                    continue;
+                };
                 if let Some(index) = hotbar.0.held.filter(|_| crate::interact::melee_in_hand(&hotbar.0, &items.0)) {
                     act(Action::Hotbar { index });
                 }
@@ -866,7 +909,9 @@ pub fn think(
                     open_box(&mut act, open, found, where_is(found));
                     continue;
                 }
-                let (_, container, ..) = containers.get(found).expect("checked above");
+                let Ok((_, container, ..)) = containers.get(found) else {
+                    continue;
+                };
                 let food = container.0.slots.iter().position(|s| s.as_ref().is_some_and(|s| answers(&items.0, s, need)));
                 if let Some(index) = food {
                     act(Action::UseSlot {
@@ -890,16 +935,16 @@ pub fn think(
                     open_box(&mut act, open, found, where_is(found));
                     continue;
                 }
+                // Which needs send them to take, worked out once for every
+                // stack.
+                let wants = |n: Need, own: f32| bunker_short.contains(&n) || own < NEED_LINE;
+                let (want_food, want_water) = (wants(Need::Hunger, needs.hunger), wants(Need::Thirst, needs.thirst));
                 let needed = |stack: &modforge::item::ItemStack| {
-                    [Need::Hunger, Need::Thirst].into_iter().any(|n| {
-                        let own = match n {
-                            Need::Hunger => needs.hunger,
-                            _ => needs.thirst,
-                        };
-                        (bunker_short.contains(&n) || own < NEED_LINE) && answers(&items.0, stack, n)
-                    })
+                    (want_food && answers(&items.0, stack, Need::Hunger)) || (want_water && answers(&items.0, stack, Need::Thirst))
                 };
-                let (_, container, ..) = containers.get(found).expect("checked above");
+                let Ok((_, container, ..)) = containers.get(found) else {
+                    continue;
+                };
                 for (index, stack) in container.0.slots.iter().enumerate() {
                     if stack.as_ref().is_some_and(|s| needed(s)) {
                         let slot = SlotRef {
@@ -974,6 +1019,51 @@ pub fn think(
         if open.0.is_some() && open.0 != keep_open {
             act(Action::Cancel);
         }
+    }
+    let ms = |d: std::time::Duration| d.as_secs_f64() * 1000.0;
+    laps.record("think: shared", ms(shared));
+    laps.record("think: brain", ms(brain));
+    laps.record("think: sensing and acting", ms(started.elapsed() - shared - brain));
+}
+
+/// The side of one cell of `Near`, in metres.
+const NEAR_CELL: f32 = 16.0;
+
+/// Points by the ground cell they stand in, `NEAR_CELL` a side: who is
+/// within a reach is found from the cells it covers, not from everyone
+/// (the uniform grid crowd neighbour lookups use, as RVO2's and Recast's
+/// DetourCrowd's proximity grid).
+pub(crate) struct Near {
+    cells: std::collections::HashMap<(i32, i32), Vec<usize>>,
+}
+
+impl Near {
+    fn cell(at: Vec3) -> (i32, i32) {
+        ((at.x / NEAR_CELL).floor() as i32, (at.z / NEAR_CELL).floor() as i32)
+    }
+
+    pub(crate) fn new(points: impl Iterator<Item = Vec3>) -> Self {
+        let mut cells: std::collections::HashMap<(i32, i32), Vec<usize>> = std::collections::HashMap::new();
+        for (i, at) in points.enumerate() {
+            cells.entry(Self::cell(at)).or_default().push(i);
+        }
+        Self { cells }
+    }
+
+    /// Every point whose cell is within `reach` of `here` into `out`, in
+    /// the order the points were given (so whoever is first is the same
+    /// as a scan of them all); the caller checks the distance itself.
+    pub(crate) fn within(&self, here: Vec3, reach: f32, out: &mut Vec<usize>) {
+        out.clear();
+        let (lo, hi) = (Self::cell(here - Vec3::splat(reach)), Self::cell(here + Vec3::splat(reach)));
+        for x in lo.0..=hi.0 {
+            for z in lo.1..=hi.1 {
+                if let Some(cell) = self.cells.get(&(x, z)) {
+                    out.extend_from_slice(cell);
+                }
+            }
+        }
+        out.sort_unstable();
     }
 }
 
