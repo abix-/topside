@@ -3421,6 +3421,204 @@ def liquor_shelf():
     return join(parts, "liquor shelf")
 
 
+# The water tower and the pump house (todo Model 10): the pump room's pump
+# set 1.5 m square and 1.2 m tall, the chlorine room's shelf 3.5 m by 0.6 m
+# and 1.2 m tall, the pipe store's rack 2.5 m by 0.6 m and 1 m tall; the
+# meter office's desk is the grocery's. The tower's, the pump's and the
+# tap's sizes are Claude's.
+
+
+def water_tower():
+    """the town's water tower: a round steel tank with its cone roof on four
+    braced legs, the ladder up one leg and the pipe down the middle."""
+    c = store_colours()
+    tank = material("tower paint", (0.75, 0.78, 0.8))
+    parts = [cylinder("tank", 2.5, 3.0, sides=20, at=(0, 0, 9.5), mat=tank)]
+    bpy.ops.mesh.primitive_cone_add(vertices=20, radius1=2.6, depth=0.9, location=(0, 0, 11.45))
+    roof = bpy.context.active_object
+    roof.data.materials.append(tank)
+    parts.append(roof)
+    parts.append(cylinder("floor", 2.55, 0.15, sides=20, at=(0, 0, 7.95), mat=c["dark steel"]))
+    parts.append(cylinder("walk", 2.9, 0.06, sides=20, at=(0, 0, 8.0), mat=c["dark steel"]))
+    for sx in (1, -1):
+        for sy in (1, -1):
+            parts.append(box(f"leg {sx} {sy}", (0.2, 0.2, 8.0), at=(sx * 1.6, sy * 1.6, 4.0), mat=c["dark steel"]))
+    for z in (2.5, 5.5):
+        for s in (1, -1):
+            parts.append(box(f"brace x {z} {s}", (3.2, 0.08, 0.08), at=(0, s * 1.6, z), mat=c["dark steel"]))
+            parts.append(box(f"brace y {z} {s}", (0.08, 3.2, 0.08), at=(s * 1.6, 0, z), mat=c["dark steel"]))
+    parts.append(cylinder("riser", 0.2, 8.0, sides=10, at=(0, 0, 4.0), mat=c["steel"]))
+    for k in range(26):
+        parts.append(box(f"rung {k}", (0.4, 0.03, 0.03), at=(1.6, -1.85, 0.3 + 0.3 * k), mat=c["dark steel"]))
+    return join(parts, "water tower")
+
+
+def water_tower_tap():
+    """the tower's tap at the foot of its legs: a standpipe, its wheel valve
+    and spout over a drain grate."""
+    c = store_colours()
+    parts = [cylinder("pipe", 0.08, 1.0, sides=10, at=(0, 0, 0.5), mat=c["steel"])]
+    parts.append(cylinder("wheel", 0.15, 0.03, sides=12, along="Y", at=(0, -0.1, 0.85), mat=c["red"]))
+    parts.append(cylinder("spout", 0.05, 0.3, sides=8, along="Y", at=(0, -0.15, 0.7), mat=c["steel"]))
+    parts.append(box("grate", (0.5, 0.5, 0.03), at=(0, -0.2, 0.015), mat=c["dark steel"]))
+    return join(parts, "water tower tap")
+
+
+def water_pump():
+    """the pump house's pump: a motor on a skid, its pump casing and the pipe
+    in and out."""
+    c = store_colours()
+    paint = material("pump blue", (0.2, 0.35, 0.6))
+    parts = [box("skid", (1.0, 0.5, 0.1), at=(0, 0, 0.05), mat=c["dark steel"])]
+    parts.append(cylinder("motor", 0.2, 0.55, sides=14, along="X", at=(-0.2, 0, 0.32), mat=paint))
+    parts.append(cylinder("casing", 0.22, 0.25, sides=14, along="X", at=(0.25, 0, 0.32), mat=paint))
+    parts.append(cylinder("in", 0.07, 0.3, sides=8, along="X", at=(0.5, 0, 0.32), mat=c["steel"]))
+    parts.append(cylinder("out", 0.07, 0.4, sides=8, at=(0.25, 0, 0.7), mat=c["steel"]))
+    return join(parts, "water pump")
+
+
+def pump_set():
+    """the pump room's pipework: the header pipes, valves and gauges on their
+    stands, 1.5 m square."""
+    c = store_colours()
+    paint = material("pump blue", (0.2, 0.35, 0.6))
+    parts = []
+    for s in (1, -1):
+        parts.append(cylinder(f"header {s}", 0.12, 1.5, sides=10, along="X", at=(0, s * 0.45, 0.9), mat=paint))
+        for sx in (1, -1):
+            parts.append(box(f"stand {s} {sx}", (0.06, 0.06, 0.8), at=(sx * 0.6, s * 0.45, 0.4), mat=c["dark steel"]))
+        parts.append(cylinder(f"valve {s}", 0.18, 0.04, sides=12, at=(0, s * 0.45, 1.1), mat=c["red"]))
+    parts.append(cylinder("cross", 0.1, 0.9, sides=10, along="Y", at=(0.3, 0, 0.9), mat=paint))
+    parts.append(cylinder("gauge", 0.08, 0.03, sides=12, along="Y", at=(-0.4, -0.58, 1.05), mat=c["white"]))
+    return join(parts, "pump set")
+
+
+def chemical_shelf():
+    """the chlorine room's shelf, 3.5 m: drums and jugs of chlorine."""
+    c = store_colours()
+    parts = [box("shelf", (3.5, 0.6, 0.03), at=(0, 0, 0.6), mat=c["dark steel"])]
+    parts.append(box("top", (3.5, 0.6, 0.03), at=(0, 0, 1.185), mat=c["dark steel"]))
+    for sx in (1, -1):
+        for sy in (1, -1):
+            parts.append(box(f"upright {sx} {sy}", (0.04, 0.04, 1.2), at=(sx * 1.73, sy * 0.28, 0.6), mat=c["dark steel"]))
+    for i in range(5):
+        parts.append(cylinder(f"drum {i}", 0.25, 0.55, sides=12, at=(-1.4 + 0.7 * i, 0, 0.28), mat=c["white"] if i % 2 else c["yellow"]))
+        parts.append(box(f"jug {i}", (0.2, 0.15, 0.3), at=(-1.4 + 0.7 * i, 0, 0.77), mat=c["white"]))
+    return join(parts, "chemical shelf")
+
+
+def pipe_rack():
+    """the pipe store's rack, 2.5 m: lengths of pipe on its arms."""
+    c = store_colours()
+    parts = []
+    for i, x in enumerate((-1.1, 0, 1.1)):
+        parts.append(box(f"post {i}", (0.06, 0.06, 1.0), at=(x, 0.25, 0.5), mat=c["dark steel"]))
+        for k, z in enumerate((0.3, 0.6, 0.9)):
+            parts.append(box(f"arm {i} {k}", (0.05, 0.6, 0.05), at=(x, 0, z), mat=c["dark steel"]))
+    for k, z in enumerate((0.3, 0.6, 0.9)):
+        for j in range(4):
+            parts.append(cylinder(f"pipe {k} {j}", 0.05, 2.5, sides=8, along="X", at=(0, -0.2 + 0.12 * j, z + 0.075), mat=c["steel"]))
+    return join(parts, "pipe rack")
+
+
+# The substation (todo Model 11): the control room's panel 4.5 m by 0.6 m
+# and 1.8 m tall, the battery rack 3 m by 0.8 m and 1 m tall, the relay
+# cabinets 3 m by 0.6 m and 2 m tall, the store's shelf 2.5 m by 0.5 m and
+# 1.6 m tall; the desk and toolbox are the grocery's and the house's. The
+# switch's and the transformer's sizes are Claude's.
+
+
+def control_panel():
+    """the substation's control board, 4.5 m: grey panels of dials, lamps and
+    the one-line diagram."""
+    c = store_colours()
+    grey = material("panel grey", (0.55, 0.6, 0.58))
+    parts = [box("board", (4.5, 0.6, 1.8), at=(0, 0, 0.9), mat=grey)]
+    for i in range(5):
+        x = -1.8 + 0.9 * i
+        parts.append(box(f"seam {i}", (0.02, 0.01, 1.7), at=(x - 0.45, -0.305, 0.9), mat=c["dark steel"]))
+        for k in range(3):
+            parts.append(cylinder(f"dial {i} {k}", 0.07, 0.02, sides=12, along="Y", at=(x - 0.2 + 0.2 * k, -0.31, 1.45), mat=c["white"]))
+        parts.append(box(f"lamps {i}", (0.5, 0.01, 0.06), at=(x, -0.31, 1.2), mat=[c["red"], c["green"]][i % 2]))
+        parts.append(box(f"diagram {i}", (0.6, 0.01, 0.02), at=(x, -0.31, 1.0), mat=c["black"]))
+    return join(parts, "control panel")
+
+
+def battery_rack():
+    """the battery room's rack, 3 m: two tiers of cells with their links."""
+    c = store_colours()
+    parts = []
+    for k, z in enumerate((0.1, 0.55)):
+        parts.append(box(f"tier {k}", (3.0, 0.8, 0.05), at=(0, 0, z), mat=c["dark steel"]))
+        for i in range(10):
+            parts.append(box(f"cell {k} {i}", (0.25, 0.6, 0.35), at=(-1.35 + 0.3 * i, 0, z + 0.2), mat=c["black"]))
+            parts.append(box(f"post {k} {i}", (0.04, 0.04, 0.04), at=(-1.35 + 0.3 * i, -0.2, z + 0.39), mat=c["red"]))
+    for sx in (1, -1):
+        parts.append(box(f"end {sx}", (0.05, 0.8, 1.0), at=(sx * 1.48, 0, 0.5), mat=c["dark steel"]))
+    return join(parts, "battery rack")
+
+
+def relay_cabinet():
+    """the relay room's cabinets, 3 m: a row of tall grey doors with vents."""
+    c = store_colours()
+    grey = material("panel grey", (0.55, 0.6, 0.58))
+    parts = [box("cabinets", (3.0, 0.6, 2.0), at=(0, 0, 1.0), mat=grey)]
+    for i in range(4):
+        x = -1.125 + 0.75 * i
+        parts.append(box(f"door {i}", (0.7, 0.01, 1.9), at=(x, -0.305, 1.0), mat=grey))
+        parts.append(box(f"handle {i}", (0.03, 0.03, 0.2), at=(x + 0.28, -0.32, 1.0), mat=c["black"]))
+        parts.append(box(f"vent {i}", (0.4, 0.01, 0.15), at=(x, -0.31, 1.75), mat=c["dark steel"]))
+    return join(parts, "relay cabinet")
+
+
+def parts_shelf():
+    """the substation store's shelf, 2.5 m: boxed spares, fuses and cable."""
+    c = store_colours()
+    return shelving("parts shelf", 2.5, 0.5, 1.6, [c["cardboard"], c["dark steel"], c["yellow"]])
+
+
+def substation_switch():
+    """a substation switch: a steel box on a post, its throw lever and lamp."""
+    c = store_colours()
+    grey = material("panel grey", (0.55, 0.6, 0.58))
+    parts = [box("post", (0.08, 0.08, 1.0), at=(0, 0.05, 0.5), mat=c["dark steel"])]
+    parts.append(box("box", (0.4, 0.2, 0.5), at=(0, 0, 1.25), mat=grey))
+    parts.append(box("lever", (0.04, 0.25, 0.04), at=(0.15, -0.2, 1.3), mat=c["red"]))
+    parts.append(cylinder("lamp", 0.04, 0.03, sides=10, along="Y", at=(-0.1, -0.11, 1.4), mat=c["green"]))
+    return join(parts, "substation switch")
+
+
+def transformer():
+    """a yard transformer: the tank and its cooling fins on a pad, three
+    bushings on top."""
+    c = store_colours()
+    grey = material("panel grey", (0.55, 0.6, 0.58))
+    parts = [box("pad", (2.6, 2.0, 0.2), at=(0, 0, 0.1), mat=material("concrete", (0.6, 0.6, 0.58)))]
+    parts.append(box("tank", (1.8, 1.2, 1.8), at=(0, 0, 1.1), mat=grey))
+    for i in range(8):
+        for s in (1, -1):
+            parts.append(box(f"fin {s} {i}", (0.03, 0.3, 1.4), at=(-0.7 + 0.2 * i, s * 0.75, 1.0), mat=grey))
+    for i in range(3):
+        parts.append(cylinder(f"bushing {i}", 0.08, 0.6, sides=10, at=(-0.5 + 0.5 * i, 0, 2.3), mat=material("porcelain", (0.55, 0.35, 0.25))))
+    return join(parts, "transformer")
+
+
+UTILITIES = {
+    "water tower": water_tower,
+    "water tower tap": water_tower_tap,
+    "water pump": water_pump,
+    "pump set": pump_set,
+    "chemical shelf": chemical_shelf,
+    "pipe rack": pipe_rack,
+    "control panel": control_panel,
+    "battery rack": battery_rack,
+    "relay cabinet": relay_cabinet,
+    "parts shelf": parts_shelf,
+    "substation switch": substation_switch,
+    "transformer": transformer,
+}
+
+
 SHOPS = {
     "cafe counter": cafe_counter,
     "baking bench": baking_bench,
@@ -3513,6 +3711,7 @@ MODELS = {
     **ELEVATOR,
     **EATERIES,
     **SHOPS,
+    **UTILITIES,
     "tree": tree,
     "rock": rock,
     # The wasteland's and the ruins' scatter, at their largest side as

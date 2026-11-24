@@ -762,7 +762,8 @@ pub const LIQUOR: &str = "bottle of liquor";
 pub const PUMP_HOUSE: modforge::plan::PlanDef = modforge::plan::PlanDef {
     name: "pump house",
     edge: true,
-    furniture_models: &[],
+    // Each drawn as its own model (todo Model 10; scripts/models.py).
+    furniture_models: &["pump set", "work desk", "chemical shelf", "pipe rack"],
     columns: &[6.0, 4.0],
     rows: &[5.0, 4.0],
     rooms: &[((0, 0), "pump room"), ((1, 0), "meter office"), ((0, 1), "chlorine room"), ((1, 1), "pipe store")],
@@ -795,7 +796,8 @@ pub const WATER_TOWER_TAP: &str = "water tower tap";
 pub const SUBSTATION_PLAN: modforge::plan::PlanDef =modforge::plan::PlanDef {
     name: "substation",
     edge: true,
-    furniture_models: &[],
+    // Each drawn as its own model (todo Model 11; scripts/models.py).
+    furniture_models: &["control panel", "battery rack", "relay cabinet", "parts shelf"],
     columns: &[6.0, 4.0],
     rows: &[5.0, 4.0],
     rooms: &[((0, 0), "control room"), ((1, 0), "battery room"), ((0, 1), "relay room"), ((1, 1), "substation store")],
