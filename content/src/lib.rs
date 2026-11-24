@@ -558,12 +558,51 @@ pub const BUTCHER_BLOCK: &str = "butcher block";
 pub const EGG: &str = "egg";
 pub const MILK: &str = "milk";
 pub const FEED: &str = "animal feed";
-pub const PLACES: [modforge::plan::PlanDef; 4] = [GROCERY_STORE, CROP_FARM, CROP_FARM, LIVESTOCK_BARN];
+/// Place 4: the grain elevator and feed store, at the edge of town: the
+/// feed store's counter and its floor, the scale house, the two grain
+/// bins and the loading bay.
+pub const GRAIN_ELEVATOR: modforge::plan::PlanDef = modforge::plan::PlanDef {
+    name: "grain elevator",
+    edge: true,
+    columns: &[7.0, 5.0, 5.0],
+    rows: &[7.0, 6.0],
+    rooms: &[((0, 0), "feed store"), ((1, 0), "counter"), ((2, 0), "scale house"), ((0, 1), "loading bay"), ((1, 1), "grain bin"), ((2, 1), "second grain bin")],
+    ways: &[((0, 0), East, false), ((1, 0), East, true), ((0, 0), North, true), ((0, 1), East, true), ((1, 1), East, true)],
+    exits: &[((1, 0), South, 1.8), ((0, 1), West, 3.5)],
+    furniture: &[
+        ("feed store", [0.0, 0.0], [0.8, 1.6, 4.5]),
+        ("counter", [0.0, 0.1], [3.0, 1.0, 0.8]),
+        ("scale house", [0.0, -0.3], [1.4, 0.75, 0.7]),
+        ("grain bin", [0.0, 0.0], [3.5, 3.5, 3.5]),
+        ("second grain bin", [0.0, 0.0], [3.5, 3.5, 3.5]),
+    ],
+    things: &[
+        (SHELF, "feed store", [0.3, 0.0]),
+        (CASH_REGISTER, "counter", [0.0, 0.3]),
+        (OFFICE_DESK, "scale house", [0.0, 0.2]),
+        (PALLET, "loading bay", [0.0, 0.0]),
+        (GRAIN_HOPPER, "grain bin", [0.0, 0.4]),
+        (GRAIN_HOPPER, "second grain bin", [0.0, 0.4]),
+    ],
+    outside: &[],
+    walls: &[[0.7, 0.7, 0.68], [0.6, 0.62, 0.6]],
+    floor: [0.6, 0.58, 0.55],
+    furniture_color: [0.6, 0.6, 0.62],
+    height: 5.0,
+};
+pub const GRAIN_HOPPER: &str = "grain hopper";
+pub const GRAIN: &str = "grain";
+pub const PLACES: [modforge::plan::PlanDef; 5] = [GROCERY_STORE, CROP_FARM, CROP_FARM, LIVESTOCK_BARN, GRAIN_ELEVATOR];
 /// The places whose garden beds are found sown and ripe, with what.
 pub const PLACE_SOWN: [(&str, &str); 1] = [("crop farm", POTATO_SEED)];
 /// What each place's boxes are found holding: the place, the box, the
 /// item and how many.
-pub const PLACE_HOLDS: [(&str, &str, &str, u32); 19] = [
+pub const PLACE_HOLDS: [(&str, &str, &str, u32); 24] = [
+    ("grain elevator", SHELF, FEED, 8),
+    ("grain elevator", CASH_REGISTER, "scrap", 2),
+    ("grain elevator", PALLET, FEED, 16),
+    ("grain elevator", GRAIN_HOPPER, GRAIN, 20),
+    ("grain elevator", SHELF, CARROT_SEED, 6),
     ("livestock barn", FEED_TROUGH, FEED, 6),
     ("livestock barn", TOOLBOX, "cloth", 2),
     ("livestock barn", MILK_CAN, MILK, 4),
@@ -2397,6 +2436,11 @@ pub fn register_items(reg: &mut ItemRegistry) {
         building(HAY_BALE, "A hay bale.", ItemKind::Deployable, 1, Some(10)),
         building(BUTCHER_BLOCK, "A butcher block.", ItemKind::Deployable, 1, Some(6)),
         building(FEED, "Animal feed.", ItemKind::Material, 20, None),
+        building(GRAIN_HOPPER, "A grain bin's hopper.", ItemKind::Deployable, 1, Some(12)),
+        ItemDef {
+            food: Some(FoodStats { hunger: 5.0, thirst: -2.0, health: 0.0 }),
+            ..building(GRAIN, "A sack of grain. Better baked.", ItemKind::Food, 20, None)
+        },
         ItemDef {
             food: Some(FoodStats { hunger: 8.0, thirst: 0.0, health: 1.0 }),
             ..building(EGG, "An egg. Better cooked.", ItemKind::Food, 12, None)
