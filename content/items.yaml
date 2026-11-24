@@ -25,6 +25,9 @@ items:
   - name: radio
     description: A radio that clicks.
     kind: Note
+  # A radio the static killed (todo Storm effect 5): silent until mended
+  # at the crafting bench with a scrap (content/recipes.yaml).
+  - {name: dead radio, description: "A radio the static killed. Mend it at a crafting bench with a scrap.", kind: Material}
   - name: canned food
     description: A dented can of food from before. Eat it to fill your hunger.
     kind: Food

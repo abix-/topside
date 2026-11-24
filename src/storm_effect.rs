@@ -178,13 +178,32 @@ pub struct Struck;
 
 /// Static (todo "Storm effect 5"; Fallout's EMP, RimWorld's solar
 /// flare): every generator stops until fixed.
-fn struck(mut commands: Commands, things: Query<(Entity, &WorldItem)>) {
-    for (entity, item) in &things {
+fn struck(
+    mut commands: Commands,
+    mut things: Query<(Entity, &mut WorldItem)>,
+    mut carried: Query<(&mut Inventory, &mut crate::actor::Hotbar)>,
+) {
+    for (entity, mut item) in &mut things {
         if item.stack.item == crate::content::GENERATOR {
             commands.entity(entity).insert(Struck);
         }
+        // A radio dies, lying or carried, until mended at the bench (todo
+        // Storm effect 5, content/recipes.yaml "mended radio").
+        if item.stack.item == crate::content::RADIO_ITEM {
+            item.stack.item = DEAD_RADIO.to_string();
+        }
+    }
+    for (mut inventory, mut hotbar) in &mut carried {
+        for stack in inventory.0.slots.iter_mut().chain(hotbar.0.slots.slots.iter_mut()).flatten() {
+            if stack.item == crate::content::RADIO_ITEM {
+                stack.item = DEAD_RADIO.to_string();
+            }
+        }
     }
 }
+
+/// What a radio the static killed becomes (content/items.yaml).
+const DEAD_RADIO: &str = "dead radio";
 
 /// Every step: a struck thing with one `FIX_WITH` put in it takes it and
 /// works again.
