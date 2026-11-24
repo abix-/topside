@@ -53,7 +53,18 @@ pub fn place(
     let today = crate::survival::today(&tick, *day);
     for (k, at) in found.into_iter().enumerate() {
         let seed = world.seed ^ 0x5EC2_E700 ^ k as u64;
-        let contents = crate::structure::fill_box(&items, &layers, &table, box_def, SECRET_DANGER, seed, today);
+        // One tier above the loot of the place nearest it (todo Secrets 3,
+        // operator, 2026-11-24: "1 tier higher than normal loot"): a spot's
+        // loot tier is its danger and one (`fill_box`), so the nearest
+        // lot's tier as the danger is one above its own; with no town, the
+        // secrets' own danger.
+        let danger = world
+            .world
+            .town
+            .as_ref()
+            .and_then(|town| (0..town.lots.len()).min_by(|&a, &b| town.lots[a].at.distance(at).total_cmp(&town.lots[b].at.distance(at))).map(|i| town.tier_of(i)))
+            .unwrap_or(SECRET_DANGER);
+        let contents = crate::structure::fill_box(&items, &layers, &table, box_def, danger, seed, today);
         let stack = modforge::item::create(box_def, 1, &[], 0.0, seed);
         let (made, _) = crate::interact::spawn_item(&mut commands, &mut ids, box_def, stack, crate::on_ground(at, 0.0));
         commands.entity(made).insert((crate::interact::Container(contents), WorldPiece));
