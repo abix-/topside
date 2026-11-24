@@ -27,7 +27,7 @@ use modforge::monument::{
     MonumentRegistry, MonumentTypeDef, PropDef,
 };
 use modforge::crafting::{RecipeDef, RecipeRegistry, StationKind};
-use modforge::loot::{LootEntry, LootTable};
+use modforge::loot::LootTable;
 use modforge::storm::StormDef;
 use modforge::structure::{
     CONCRETE_FLOOR, CONCRETE_WALL, Hatch, LightDef, Opening, Rgb, RoomDef, STEP_DEPTH, STEP_RISE_MAX, Side, SolidDef, StairDef,
@@ -120,59 +120,13 @@ pub fn tech_tree() -> modforge::tech::TechTree {
     }
 }
 
-/// What a monument's box can hold (design.md "Loot tables scale with
-/// danger"): common junk anywhere, weapons and the vest only where it
-/// is dangerous. Tuning.
+/// Where a monument's loot is: content/loot.yaml, its `loot` a modforge
+/// `loot::LootTable`.
+pub const LOOT_FILE: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/loot.yaml");
+
+/// What a monument's box can hold, from `LOOT_FILE`.
 pub fn loot_table() -> LootTable {
-    // A handle and its head (design.md "What 2D changes": any handle
-    // goes with any head).
-    let weapon = |item: &str, head: &[&str], weight, min_danger| LootEntry {
-        item: item.to_string(),
-        layers: head.iter().map(|h| h.to_string()).collect(),
-        count: (1, 1),
-        weight,
-        min_danger,
-    };
-    let e = |item: &str, count: (u32, u32), weight, min_danger| LootEntry {
-        count,
-        ..weapon(item, &[], weight, min_danger)
-    };
-    LootTable {
-        entries: vec![
-            e("scrap", (1, 4), 10, 0),
-            e("cloth", (1, 3), 8, 0),
-            e("canned food", (1, 2), 6, 0),
-            // One to a slot, found full (structure::spawn_monuments).
-            e("water bottle", (1, 1), 6, 0),
-            e("shotgun shell", (2, 5), 4, 1),
-            e("bandage", (1, 1), 3, 1),
-            weapon("pipe", &[], 2, 1),
-            weapon("wooden handle", &["nails"], 2, 1),
-            weapon("wooden handle", &["scrap blade"], 1, 1),
-            weapon("wooden handle", &["axe head"], 2, 2),
-            weapon("pipe", &["sharpened road sign"], 1, 2),
-            weapon("long pole", &["spear point"], 1, 2),
-            e("road sign vest", (1, 1), 1, 3),
-            e("helmet", (1, 1), 1, 2),
-            // Building (todo 9f; weights Claude's).
-            e(WOOD, (5, 20), 8, 0),
-            e(STONE, (5, 15), 5, 0),
-            e(BUILDING_PLAN, (1, 1), 3, 0),
-            e(HAMMER, (1, 1), 3, 0),
-            e(TOOL_CUPBOARD, (1, 1), 1, 1),
-            e(TURRET, (1, 1), 1, 3),
-            e(FUEL, (1, 3), 4, 0),
-            e(SHOVEL, (1, 1), 2, 0),
-            e("crafting bench", (1, 1), 1, 1),
-            e("research station", (1, 1), 1, 2),
-            e(GENERATOR, (1, 1), 1, 2),
-            weapon("pipe shotgun", &["pipe barrel", "wooden grip", "wooden stock"], 1, 3),
-            weapon("pipe shotgun", &["short pipe barrel", "taped grip"], 1, 3),
-            weapon("pipe shotgun", &["pipe barrel", "taped grip", "wooden stock", "nail sight"], 1, 4),
-        ],
-        picks: (1, 2),
-        picks_per_danger: 1,
-    }
+    read(LOOT_FILE, "loot")
 }
 
 /// One game day in real seconds (the 3D game's Valheim-scale pacing;
