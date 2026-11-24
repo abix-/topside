@@ -1,0 +1,151 @@
+# The operator's blue Mustang GT, #776 (todo Model YAML): its numbers,
+# read by scripts/models.py's mustang(). How each part is laid onto the
+# bought car's surface (casting rays at it) is the script's; every number
+# it lays them by is here. Measured points are in
+# scripts/mustang-gt/candidate-b/triangulated.json (reference.md, "Model
+# from photos: measure, never eyeball"). sRGB colours, metres.
+mustang:
+  # The bought body (supercarmodels' "2018 Ford Mustang GT (S550)", CC BY)
+  # and its length, rear bumper to nose.
+  body file: mustang-gt/candidate-b/prepared.glb
+  length: 4.79
+  # The one black every black part of the car is: trim, plastic, tyres,
+  # roof, trunk, hood, mirrors, wing, splitter, wheels, numbers.
+  black: [0.035, 0.035, 0.04]
+  # The bought model's material names: its body's prefix, and the
+  # prefixes of its wheels.
+  body: Ford_MustangGTFastbackTNR0_2018
+  wheels: [Ford_MustangMach1_2021_Wheel1A, RIM_B]
+  # The bought model's colours by its material names (the body's prefix
+  # put before a name starting with "+"), in this car's colours; black is
+  # the one black, none keeps the model's own picture.
+  colours:
+    +PaintTNR: [0.01, 0.30, 0.70]
+    +Coloured: black        # black trim
+    +Base: black            # black plastic
+    +Window: [0.08, 0.10, 0.12]
+    # The model's own rims: taken off, the car's measured ones built in
+    # their place.
+    material: black
+    Ford_MustangMach1_2021_Callipers: black
+    RED_GLASS: [0.80, 0.06, 0.06]   # the taillights
+    # The grilles: the median colour of the upper grille in 2428, sRGB
+    # (8, 33, 55).
+    +Grille: [0.031, 0.129, 0.216]
+    # The pony in the grille is blacked out on this car: the median of
+    # three patches on it in 2428 and 1164, sRGB (33, 40, 57).
+    +BadgeA: [0.129, 0.157, 0.224]
+    # The cabin seen through the open windows: the median colour of the
+    # cabin through the door window in 1073, sRGB (1, 32, 44).
+    +Interior: [0.004, 0.125, 0.173]
+    +SeatBelt: [0.004, 0.125, 0.173]
+    +Textured: [0.004, 0.125, 0.173]
+    Ford_Mustang: none      # lights, badges, grilles, wheels, inside: their own pictures
+    RIM_B: none
+  # The colours of what is built onto it.
+  parts:
+    steel: [0.60, 0.60, 0.62]
+    brake disc: [0.30, 0.30, 0.32]
+    hook: [0.85, 0.10, 0.10]
+    badge: [0.45, 0.45, 0.47]
+    sticker: [0.95, 0.80, 0.10]
+    white: [0.90, 0.90, 0.88]
+    taillight glass: [0.80, 0.06, 0.06]
+  # The windshield as it looks from ahead and to the side (2428, 1164),
+  # and how solid it is.
+  windshield: [0.061, 0.273, 0.408]
+  windshield solid: 0.8
+  # The model's rear spoiler: loose pieces behind this far from the rear
+  # bumper standing above this high.
+  spoiler end: 0.6
+  spoiler low: 0.92
+  # Where the bought body's GT letters are on its rear panel: how far
+  # across either side of the middle, and from how high to how high.
+  gt letters: [0.12, 0.74, 0.90]
+  # Half a US plate's width (12 inches), the body's plate panel's too.
+  plate half: 0.1525
+  # How far in from the trunk lid's back edge the lip stands, and how tall
+  # it is (judged: only 7278 shows it).
+  trunk lip: [0.0, 0.03]
+  # How far out the mirrors stand, and how far ahead of the rear axle the
+  # door glass starts (9131).
+  mirror out: 0.70
+  door glass ahead: 0.60
+  # Texas, as (longitude, latitude): the wing's end plates are cut in its
+  # shape; and the two bolts through each plate into the blade.
+  texas:
+    - [-103.04, 36.50]
+    - [-100.00, 36.50]
+    - [-100.00, 34.56]
+    - [-99.2, 34.3]
+    - [-98.5, 34.1]
+    - [-97.1, 33.8]
+    - [-96.0, 33.9]
+    - [-95.2, 33.9]
+    - [-94.48, 33.64]
+    - [-94.04, 33.55]
+    - [-94.04, 31.99]
+    - [-93.6, 31.0]
+    - [-93.7, 30.3]
+    - [-93.84, 29.7]
+    - [-94.7, 29.35]
+    - [-95.1, 29.1]
+    - [-96.2, 28.5]
+    - [-97.0, 27.9]
+    - [-97.4, 27.2]
+    - [-97.3, 26.4]
+    - [-97.15, 25.95]
+    - [-97.5, 25.9]
+    - [-98.2, 26.1]
+    - [-99.1, 26.5]
+    - [-99.5, 27.5]
+    - [-100.3, 28.3]
+    - [-100.7, 29.1]
+    - [-101.4, 29.77]
+    - [-102.3, 29.9]
+    - [-102.7, 29.7]
+    - [-103.2, 29.0]
+    - [-103.9, 29.3]
+    - [-104.5, 29.8]
+    - [-104.9, 30.6]
+    - [-106.0, 31.4]
+    - [-106.63, 31.99]
+    - [-103.06, 32.0]
+  texas bolts: [[-99.7, 31.72], [-95.48, 31.99]]
+  # The race numbers' font: Impact, heavy and narrow like the car's 776.
+  number font: 'C:\Windows\Fonts\impact.ttf'
+  # The car's tyres, top to bottom: each tyre's height in pixels in the
+  # square side photos, scaled by the wheelbase between the hubs there
+  # (Ford: 2.72 m). Rear: 9131 0.631, 7278 0.649; front: 9131 0.625.
+  tyre diameter: {front: 0.625, rear: 0.64}
+  # The longest a piece of a laid-on part may be, so it follows the
+  # body's curve.
+  lay piece: 0.03
+  # The wing's blade, as (along from its front edge, up) on a one metre
+  # chord: arched on top, a gurney flap standing at its back edge.
+  blade:
+    - [0.0, 0.0]
+    - [0.03, 0.025]
+    - [0.12, 0.05]
+    - [0.3, 0.065]
+    - [0.5, 0.06]
+    - [0.75, 0.04]
+    - [1.0, 0.012]
+    - [1.0, 0.05]
+    - [0.985, 0.05]
+    - [0.985, 0.0]
+    - [0.75, -0.005]
+    - [0.5, -0.008]
+    - [0.25, -0.01]
+    - [0.08, -0.012]
+    - [0.02, -0.008]
+  # How many fins a hood scoop has, and how tall they stand above the hood
+  # (9131: ten openings each, 27 pixels at 1.14 mm a pixel).
+  scoop fins: 10
+  scoop tall: 0.031
+  # Where the bought model's tyre ends and its rim begins, as a share of
+  # the tyre's radius; this car's rim's radius as a share of its tyre's
+  # (432 of 513 pixels in 7278, 450 of 540 in 9131); how deep its dish is.
+  rim of tyre: 0.79
+  rim measured: 0.835
+  rim dish: 0.08

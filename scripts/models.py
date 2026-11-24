@@ -617,47 +617,34 @@ def layered(base, parts, layers, middle):
 # its Texas end plates, the splitter, the hood vents, the numbers, the tow
 # hook) is built here and laid onto the car's own surface. It lies along
 # x, its nose toward +x, its rear bumper at x = 0.
-MUSTANG_GT = Path(__file__).resolve().parent / "mustang-gt" / "candidate-b" / "prepared.glb"
-MUSTANG_LENGTH = 4.79
-# The one black every black part of the car is: trim, plastic, tyres,
-# roof, trunk, hood, mirrors, wing, splitter, wheels, numbers.
-MUSTANG_BLACK = (0.035, 0.035, 0.04)
-# The model's material names for its paint, glass and tyres.
-BODY = "Ford_MustangGTFastbackTNR0_2018"
+# Every number the car is built by is in content/models/mustang.yaml.
+def _mustang_numbers():
+    import yaml
+
+    return yaml.safe_load((DESCRIBED / "mustang.yaml").read_text())["mustang"]
+
+
+MUSTANG = _mustang_numbers()
+MUSTANG_GT = Path(__file__).resolve().parent / MUSTANG["body file"]
+MUSTANG_LENGTH = MUSTANG["length"]
+MUSTANG_BLACK = tuple(MUSTANG["black"])
+BODY = MUSTANG["body"]
 PAINT = BODY + "PaintTNR"
 GLASS = BODY + "Window"
 # The tyres: the outer ring of the model's wheels, made black in
 # mustang_car().
 TYRE = "tyre"
-# Its wheels (this car's black ones are built in mustang()).
-MODEL_WHEELS = ("Ford_MustangMach1_2021_Wheel1A", "RIM_B")
+MODEL_WHEELS = tuple(MUSTANG["wheels"])
+
+
+def _mustang_colour(c):
+    """a colour as mustang.yaml writes it: black, none, or sRGB."""
+    return MUSTANG_BLACK if c == "black" else None if c == "none" else tuple(c)
+
+
 # The model's colours by its material names, in this car's colours; None
 # keeps the model's own picture.
-MUSTANG_COLOURS = {
-    PAINT: ((0.01, 0.30, 0.70), False),
-    BODY + "Coloured": (MUSTANG_BLACK, False),  # black trim
-    BODY + "Base": (MUSTANG_BLACK, False),  # black plastic
-    GLASS: ((0.08, 0.10, 0.12), False),
-    # The model's own rims (every face of it lies inside a wheel): taken
-    # off in mustang_car(), the car's measured ones built in their place.
-    "material": (MUSTANG_BLACK, False),
-    "Ford_MustangMach1_2021_Callipers": (MUSTANG_BLACK, False),
-    "RED_GLASS": ((0.80, 0.06, 0.06), False),  # the taillights
-    # The cabin seen through the open windows: the median colour of the
-    # cabin through the door window in 1073, sRGB (1, 32, 44).
-    # The grilles: the median colour of the upper grille in 2428, sRGB
-    # (8, 33, 55).
-    BODY + "Grille": ((0.031, 0.129, 0.216), False),
-    # The pony in the grille (the only badge kept) is blacked out on this
-    # car: the median of three patches on it in 2428 and 1164, sRGB
-    # (33, 40, 57).
-    BODY + "BadgeA": ((0.129, 0.157, 0.224), False),
-    BODY + "Interior": ((0.004, 0.125, 0.173), False),
-    BODY + "SeatBelt": ((0.004, 0.125, 0.173), False),
-    BODY + "Textured": ((0.004, 0.125, 0.173), False),
-    "Ford_Mustang": (None, False),  # lights, badges, grilles, wheels, inside: their own pictures
-    "RIM_B": (None, False),
-}
+MUSTANG_COLOURS = {(BODY + n[1:] if n.startswith("+") else n): (_mustang_colour(c), False) for n, c in MUSTANG["colours"].items()}
 
 
 def mustang_car():
@@ -750,8 +737,8 @@ def mustang_car():
 
 # The model's rear spoiler: loose pieces behind SPOILER_END (metres from
 # the rear bumper) standing above SPOILER_LOW (metres up).
-SPOILER_END = 0.6
-SPOILER_LOW = 0.92
+SPOILER_END = MUSTANG["spoiler end"]
+SPOILER_LOW = MUSTANG["spoiler low"]
 
 
 def pieces(bm, inside, most=6000):
@@ -958,14 +945,14 @@ def trunk_lip(car, mat):
 
 # Where the downloaded body's GT letters are on its rear panel: how far
 # across either side of the middle, and from how high to how high.
-GT_LETTERS = (0.12, 0.74, 0.90)
+GT_LETTERS = tuple(MUSTANG["gt letters"])
 
 # Half a US plate's width (12 inches), the body's plate panel's too.
-PLATE_HALF = 0.1525
+PLATE_HALF = MUSTANG["plate half"]
 
 # How far in from the lid's back edge the lip stands (on it), and how tall
 # it is (judged: only 7278 shows it).
-TRUNK_LIP = (0.0, 0.03)
+TRUNK_LIP = tuple(MUSTANG["trunk lip"])
 
 
 def trunk_edge():
@@ -985,8 +972,8 @@ def trunk_half(x):
     measured edge (trunk_edge())."""
     (x0, y0), (x1, y1) = trunk_edge()
     return y0 + (y1 - y0) * (x - x0) / (x1 - x0)
-WINDSHIELD = (0.061, 0.273, 0.408)
-WINDSHIELD_SOLID = 0.8
+WINDSHIELD = tuple(MUSTANG["windshield"])
+WINDSHIELD_SOLID = MUSTANG["windshield solid"]
 
 
 def hood_seam():
@@ -994,9 +981,9 @@ def hood_seam():
     cowl forward: two points on each side, read in 3745 and placed on the
     body (reference.md), both sides together (they agree within 1 cm)."""
     return sorted((x, abs(y)) for x, y, _ in (measured(f"hood seam {side} {end}") for side in ("left", "right") for end in ("back", "front")))
-MIRROR_OUT = 0.70
+MIRROR_OUT = MUSTANG["mirror out"]
 # How far ahead of the rear axle the door glass starts (9131).
-DOOR_GLASS_AHEAD = 0.60
+DOOR_GLASS_AHEAD = MUSTANG["door glass ahead"]
 
 
 def mesh_object(name, verts, faces, mats):
@@ -1047,14 +1034,7 @@ def bevel(obj, width, segments=2):
 
 
 # Texas, as (longitude, latitude): the wing's end plates are cut in its shape.
-TEXAS = [
-    (-103.04, 36.50), (-100.00, 36.50), (-100.00, 34.56), (-99.2, 34.3), (-98.5, 34.1), (-97.1, 33.8), (-96.0, 33.9),
-    (-95.2, 33.9), (-94.48, 33.64), (-94.04, 33.55), (-94.04, 31.99), (-93.6, 31.0), (-93.7, 30.3), (-93.84, 29.7),
-    (-94.7, 29.35), (-95.1, 29.1), (-96.2, 28.5), (-97.0, 27.9), (-97.4, 27.2), (-97.3, 26.4), (-97.15, 25.95),
-    (-97.5, 25.9), (-98.2, 26.1), (-99.1, 26.5), (-99.5, 27.5), (-100.3, 28.3), (-100.7, 29.1), (-101.4, 29.77),
-    (-102.3, 29.9), (-102.7, 29.7), (-103.2, 29.0), (-103.9, 29.3), (-104.5, 29.8), (-104.9, 30.6), (-106.0, 31.4),
-    (-106.63, 31.99), (-103.06, 32.0),
-]
+TEXAS = [tuple(p) for p in MUSTANG["texas"]]
 def texas_measured():
     """the plates' Texas as measured (tall, west, level for texas()): fitted
     by least squares to both plates' El Paso tips and panhandle top corners
@@ -1094,12 +1074,12 @@ def texas_point(lon, lat, tall, west, level):
 # the map by its three measured corners (the panhandle's two top corners,
 # El Paso; the plate is flat and seen from far off, so that is exact).
 # The two bolts through the plate into the blade, front and back.
-TEXAS_BOLTS = ((-99.7, 31.72), (-95.48, 31.99))
+TEXAS_BOLTS = tuple(tuple(p) for p in MUSTANG["texas bolts"])
 
 
 # The race numbers' font: Impact, heavy and narrow like the car's 776
 # (Windows' own copy, so the models are built on Windows).
-NUMBER_FONT = r"C:\Windows\Fonts\impact.ttf"
+NUMBER_FONT = MUSTANG["number font"]
 # How letters are turned to read on each face of the car: its -y side (the
 # nose to the right), its +y side (the nose to the left), its rear.
 FACING = {-1: (math.pi / 2, 0, 0), 1: (math.pi / 2, 0, math.pi), "rear": (math.pi / 2, 0, -math.pi / 2)}
@@ -1120,7 +1100,7 @@ MODEL_POINTS = json.loads((Path(__file__).resolve().parent / "mustang-gt" / "can
 # The car's tyres, top to bottom, in metres: each tyre's height in pixels
 # in the square side photos, scaled by the wheelbase between the hubs
 # there (Ford: 2.72 m). Rear: 9131 0.631, 7278 0.649; front: 9131 0.625.
-TYRE_DIAMETER = {"front": 0.625, "rear": 0.64}
+TYRE_DIAMETER = dict(MUSTANG["tyre diameter"])
 
 
 def text(name, words, size, at, facing, mat, squeeze=1.0, onto=None, fit=None):
@@ -1161,7 +1141,7 @@ def text(name, words, size, at, facing, mat, squeeze=1.0, onto=None, fit=None):
 
 # The longest a piece of a laid-on part may be (metres), so it follows the
 # body's curve.
-LAY_PIECE = 0.03
+LAY_PIECE = MUSTANG["lay piece"]
 
 
 def lay_onto(obj, car, facing, proud=0.004, lift=0.001):
@@ -1201,10 +1181,7 @@ def lay_onto(obj, car, facing, proud=0.004, lift=0.001):
 
 # The wing's blade, as (along from its front edge, up) on a one metre
 # chord: arched on top, a gurney flap standing at its back edge.
-BLADE = [
-    (0.0, 0.0), (0.03, 0.025), (0.12, 0.05), (0.3, 0.065), (0.5, 0.06), (0.75, 0.04), (1.0, 0.012), (1.0, 0.05),
-    (0.985, 0.05), (0.985, 0.0), (0.75, -0.005), (0.5, -0.008), (0.25, -0.01), (0.08, -0.012), (0.02, -0.008),
-]
+BLADE = [tuple(p) for p in MUSTANG["blade"]]
 
 
 def on_hood(car, x, across, lift=0.0):
@@ -1302,8 +1279,8 @@ def scoop(car, ramp, back, front, inner, outer, side, mat):
 # shows both side vents' lips side on, ten openings each, standing 27
 # pixels (3.1 cm at 9131's 1.14 mm a pixel, from the door's 7: 212 pixels
 # for 0.242 m).
-SCOOP_FINS = 10
-SCOOP_TALL = 0.031
+SCOOP_FINS = MUSTANG["scoop fins"]
+SCOOP_TALL = MUSTANG["scoop tall"]
 
 
 def tyres(car):
@@ -1366,13 +1343,13 @@ def rim(x, z, radius, face, side, mats):
 
 # Where the downloaded model's tyre ends and its rim begins, as a share of
 # the tyre's radius (to keep its tyre and drop its rim).
-RIM_OF_TYRE = 0.79
+RIM_OF_TYRE = MUSTANG["rim of tyre"]
 # This car's rim's radius as a share of its tyre's: the rim's lip against
 # the tyre in the side photos, 432 of 513 pixels in 7278, 450 of 540 in
 # 9131.
-RIM_MEASURED = 0.835
+RIM_MEASURED = MUSTANG["rim measured"]
 # How deep the rim's dish is: how far in from the tyre's face the hub sits.
-RIM_DISH = 0.08
+RIM_DISH = MUSTANG["rim dish"]
 
 
 def mustang():
@@ -1383,15 +1360,16 @@ def mustang():
     sticker, and 776 on both doors and the back. Every black part is the
     one black."""
     black = material("black", MUSTANG_BLACK)
-    steel = material("steel", (0.60, 0.60, 0.62))
-    disc = material("brake disc", (0.30, 0.30, 0.32))
-    hook = material("hook", (0.85, 0.10, 0.10))
-    badge = material("badge", (0.45, 0.45, 0.47))
-    yellow = material("sticker", (0.95, 0.80, 0.10))
-    white = material("white", (0.90, 0.90, 0.88))
+    colour = {name: tuple(c) for name, c in MUSTANG["parts"].items()}
+    steel = material("steel", colour["steel"])
+    disc = material("brake disc", colour["brake disc"])
+    hook = material("hook", colour["hook"])
+    badge = material("badge", colour["badge"])
+    yellow = material("sticker", colour["sticker"])
+    white = material("white", colour["white"])
     blue = material("paint", MUSTANG_COLOURS[PAINT][0])
     car = mustang_car()
-    red = material("taillight glass", (0.80, 0.06, 0.06))
+    red = material("taillight glass", colour["taillight glass"])
     cowl, brow = windshield(car)
     axles = tyres(car)
     rear_axle, front_axle = axles[0][0], axles[1][0]
