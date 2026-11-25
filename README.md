@@ -1,6 +1,4 @@
-# topside
-
-**TOPSIDE: A GREAT PLACE TO LIVE.**
+# TOPSIDE: A GREAT PLACE TO LIVE.
 
 Fifty homes. Two hundred neighbors. One community.
 
@@ -30,7 +28,7 @@ A lively town is a happy town.
 
 Shelter guarantees survival.
 
-*[Would you like to know more?](#topside)*
+*[Would you like to know more?](#topside-a-great-place-to-live)*
 
 ---
 
