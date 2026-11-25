@@ -1,4 +1,4 @@
-# TOPSIDE: A GREAT PLACE TO LIVE.
+# TOPSIDE: A GREAT PLACE TO LIVE
 
 Fifty homes. Two hundred neighbors. One community.
 
