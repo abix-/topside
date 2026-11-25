@@ -32,9 +32,6 @@ A lively town is a happy town.
 
 ---
 
-topside is a first-person survival game. You wake up in a bunker.
-You know nothing. Go.
-
 ## Building
 
 topside runs on Windows (DirectX 12) and is built on
