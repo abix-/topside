@@ -2,31 +2,23 @@
 
 Fifty homes. Two hundred neighbors. One community.
 
-## Storm ready
+## Life in Topside
 
-Storms are a normal part of life in Topside.
-When the siren sounds, go inside. If your home has a bunker, go down.
+Friendly neighbors. Fresh milk from the farms.
+A full grocery. Church on Sunday.
+A sheriff who is always on duty.
 
-Five households have been selected for bunkers.
-Bunker space is limited.
-If your household was not selected, please remain calm
-and stay indoors.
+## Weather
 
-## After the storm
-
-It is normal to feel confused after a storm.
-Streets may not be where you left them.
-The sky may look different.
-Your neighbors may not be the neighbors you remember.
-
-This is normal. Report anything unusual to the Sheriff.
+Topside enjoys mild weather most of the year.
+Storms are nothing to worry about.
 
 ## Do your part
 
-Ration your water. Help your neighbors. Keep busy.
+Be a good neighbor. Keep busy.
 A lively town is a happy town.
 
-Shelter guarantees survival.
+Topside takes care of its own.
 
 *[Would you like to know more?](#topside-a-great-place-to-live)*
 
