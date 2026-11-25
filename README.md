@@ -28,7 +28,9 @@ This is normal. Report anything unusual to the Sheriff.
 Ration your water. Help your neighbors. Keep busy.
 A lively town is a happy town.
 
-*Want to know more? Go and find out.*
+Shelter guarantees survival.
+
+*[Would you like to know more?](src/)*
 
 ---
 
