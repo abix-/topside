@@ -4,18 +4,32 @@ Fifty homes. Two hundred neighbors. One community.
 
 ## Life in Topside
 
-Friendly neighbors. Fresh milk from the farms.
-A full grocery. Church on Sunday.
-A sheriff who is always on duty.
+A bike trail that loops the whole town.
+A corner cafe where they know your order.
+A diner open late, and a bar with live music on Fridays.
+Card nights, porch nights, and a fire pit out past the farms.
+A garden bed for anyone who wants one.
+Somewhere to go and someone to see, every day of the week.
+
+## Getting outside
+
+Quiet streets made for walking and riding.
+Open fields at the edge of town.
+Long evenings, and more stars than you have ever seen.
 
 ## Weather
 
-Topside enjoys mild weather most of the year.
-Storms are nothing to worry about.
+Warm days and cool nights.
+Storms pass quickly here.
+
+## Your neighbors
+
+Everyone here knows your name.
+Everyone here remembers you.
 
 ## Do your part
 
-Be a good neighbor. Keep busy.
+Say hello. Join in. Keep busy.
 A lively town is a happy town.
 
 Topside takes care of its own.
