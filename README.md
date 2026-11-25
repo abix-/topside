@@ -30,7 +30,7 @@ A lively town is a happy town.
 
 Shelter guarantees survival.
 
-*[Would you like to know more?](src/)*
+*[Would you like to know more?](#topside)*
 
 ---
 
